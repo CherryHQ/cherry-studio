@@ -19,7 +19,6 @@ export interface DshForkInput {
   targetCwd: string
   boundary: number
   checkpoints: Array<{ boundary: number }>
-  events?: unknown[]
 }
 
 export function createForkCheckpoint(events: readonly SessionEvent[], boundary: number) {
@@ -34,7 +33,7 @@ export function createForkCheckpoint(events: readonly SessionEvent[], boundary: 
     throw new Error('history_changed')
   if (prefix.some((event, index) => event.seq !== index) || interruptedTurnClosers(prefix).length)
     throw new Error('history_corrupt')
-  // Canonical keys make live snapshots and decoded JSONL independent of object insertion order.
+  // Hash logical events independently of object insertion order in the storage codec.
   const canonical = JSON.stringify(prefix, (_key, value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value)
       ? Object.fromEntries(
@@ -56,10 +55,10 @@ export async function forkSession(input: DshForkInput): Promise<{ path: string }
     await source.plugin(JsonlSessionPersistence, { root: input.sourceRoot })
     await target.plugin(SessionStore)
     await target.plugin(JsonlSessionPersistence, { root: input.targetRoot })
-    const stored = input.events
-      ? undefined
-      : await (source.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId(input.sourceSessionId))
-    const events = (input.events ?? stored?.events)?.slice(0, input.boundary + 1) as SessionEvent[] | undefined
+    const stored = await (source.sessionPersistence as JsonlSessionPersistence).loadStored(
+      SessionId(input.sourceSessionId)
+    )
+    const events = stored?.events.slice(0, input.boundary + 1)
     if (!events) throw new Error('history_missing')
     const { prefixHash } = createForkCheckpoint(events, input.boundary)
     for (const checkpoint of input.checkpoints) {

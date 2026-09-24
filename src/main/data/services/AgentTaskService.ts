@@ -310,7 +310,10 @@ export class AgentTaskService {
   notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
-    notifyDataApiDataChange(taskReadModelEffects(entityIds, kind))
+    notifyDataApiDataChange([
+      ...taskReadModelEffects(entityIds, kind),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
   }
 
   /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */

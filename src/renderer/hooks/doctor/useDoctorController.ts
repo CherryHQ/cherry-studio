@@ -7,6 +7,7 @@ import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { buildDoctorViewModel, canCancelDoctorRun } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
@@ -279,7 +280,7 @@ export function useDoctorController({
         case 'open_external':
           await performAction(
             { actionKind: action.kind, checkId },
-            () => ipcApi.request('system.shell.open_website', action.url),
+            () => openExternalWebsite(action.url),
             'Failed to open a system diagnostics link'
           )
           return
