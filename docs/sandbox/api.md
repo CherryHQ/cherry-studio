@@ -8,6 +8,8 @@ sources:
   - src/main/core/utilityProcess/protocol/frames.ts
   - src/main/core/lifecycle/event.ts
   - src/main/ai/runtime/dsh/DshBridgeServer.ts
+  - src/main/ai/mcp/oauth/callback.ts
+  - src/main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService.ts
   - packages/dsh-bridge/src/link.ts
   - pnpm-lock.yaml
 ---
@@ -126,6 +128,8 @@ interface SandboxLimits {
 上表是 API 要求，不是三平台已经做到的保证。例如后端只能阻止连接但不能限制系统 DNS 时，不能接受 `deny` 并返回成功；应报告能力缺失。用户主动选择 `unrestricted` 与后端自动降级是不同操作。
 
 `proxy` 只约束连接目标，不阻止向获准服务发送可读数据；`deny` 约束目标自身网络，也不能替代宿主代办网络操作的业务授权。`unrestricted` 包括不限制回环和 LAN，不暗含“仅公网”；是否允许某个消费者选择它由可信授权方决定。所有模式仍须满足本地 IPC 与系统服务限制；若网络实现同时开放了桌面或代启动服务，应拒绝该组合，不能当作网络授权的附带效果。
+
+授权 `unrestricted` 时需计入 Cherry 自身的回环监听入口，例如运行中的 [MCP OAuth 回调](../../src/main/ai/mcp/oauth/callback.ts)和 [Claude Code trace bridge](../../src/main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService.ts)。目标可能向这些服务发送请求；监听于 loopback 不等于调用方可信。授权方需评估其可达性及请求影响，服务自身仍须负责认证、输入校验与业务授权；不能将 unrestricted 描述为仅开放外部互联网。
 
 时间单位为毫秒、大小单位为字节，所有已给数值必须为正安全整数，`stopTimeoutMs >= stopGraceMs`。`lifetimeMs` 从可信目标启动开始计时，未给则允许长驻。`memoryBytes` 和 `processCount` 分别限制整棵目标进程树的总内存和同时存活进程数，不包含可信管理组件；要求了却不能强制执行就拒绝启动，未要求不代表有配额。其他字段是宿主执行预算，不能描述成 OS 配额。CPU、磁盘硬配额暂不进入首版 API。
 

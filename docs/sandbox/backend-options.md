@@ -47,6 +47,7 @@ macOS 以 Seatbelt 为候选；Linux 以 bubblewrap、namespaces 和 seccomp 的
 | --- | --- | --- | --- | --- | --- |
 | macOS 凭据与隐私权限 | Keychain、安全服务、TCC 归属及 Mach/XPC 服务 | Seatbelt 默认拒绝、逐项服务限制；评估独立运行时身份和 disclaim | 经验证的运行时系统服务，不默认继承 Cherry 权限 | 测试凭据与隐私资源不可读，Node/Python 正常启动 | Electron 已说明 disclaim 的归属语义；Cherry 打包运行时待测 |
 | macOS 桌面与代启动 | 剪贴板、窗口服务、Apple Events、LaunchServices | 限制服务查询、事件发送和代启动入口 | 首版无桌面业务例外 | 拒绝读取测试剪贴板或请求沙盒外启动；授权内子进程可运行并回收 | 具体策略与路径均待测 |
+| macOS 同 UID 进程控制 | 向宿主或其他实例发送信号、查询受限进程信息、获取 task port | 以默认拒绝策略验证 Seatbelt 的 signal、process-info*、mach-priv-task-port 等规则及目标范围 | 仅经验证的实例内必要操作，不因同 UID 放行 | 对专用同 UID 测试进程的越界信号、受限信息查询及 task port 获取被拒绝；实例内获准操作成功 | 待测；需实际观察效果，不能仅凭 allow-default 下添加 deny 规则判定有效 |
 | macOS 网络与本地通道 | IP 连接、系统 DNS、本地 resolver socket | 同时限制网络和解析入口，只开放实例专用通道 | 所选 RPC 通道和受控代理 | deny 下 DNS/直接连接失败；RPC 成功且不能访问其他 socket | 待测，不能以 TCP 拒绝替代 DNS 证据 |
 | Linux 桌面、身份与代启动 | D-Bus、X11/Wayland、抽象 Unix socket、宿主进程及继承 FD | 文件/网络/PID 命名空间、能力移除、FD 白名单及 seccomp | 运行时必要挂载和专用通道；不整体挂载用户运行目录 | 拒绝会话服务代启动、桌面访问及宿主进程操作；授权内 I/O 与子进程成功 | bubblewrap 官方警告 D-Bus 可导致沙盒外执行；Cherry 待测 |
 | Linux 网络与子进程收敛 | 共享 netns、网络系统调用（含 io_uring 路径）、后台进程 | 验证网络隔离与系统调用过滤组合、PID 命名空间及父进程死亡处理 | 按 deny/proxy/unrestricted 分别验证；网络放开不隐含开放桌面 IPC | 检查绕开代理的访问、抽象 socket 及父进程死亡后存活任务；允许目标连接成功 | 具体机制组合待测 |
