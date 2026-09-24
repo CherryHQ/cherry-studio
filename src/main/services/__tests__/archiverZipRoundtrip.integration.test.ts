@@ -10,15 +10,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 /**
  * Integration guard for the archiver 7 -> 8 migration.
  *
- * The remaining consumer of this API is LegacyBackupManager's offline LAN
- * handoff. Normal local/WebDAV/S3 archives delegate to BackupService v2.
- * Instead of refactoring that separate protocol here, this exercises the exact
+ * BackupService v2 publishes archives through this API. This exercises the
  * archiver-8 surface it depends on with a real (unmocked) archive:
  * `new ZipArchive({ zlib })` + `.pipe()` + `.directory(dir, false)` + `.append()`
  * + `.finalize()`. The ZIP is then read back with `node-stream-zip`, covering a
  * real create/read round trip rather than only the constructor shape.
  */
-describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
+describe('archiver 8 ZIP round-trip (BackupService API contract)', () => {
   let workDir: string
 
   beforeAll(async () => {
@@ -30,8 +28,8 @@ describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
   })
 
   it('creates a readable ZIP via directory() + append() and reads every entry back', async () => {
-    // Arrange: a source tree mirroring what the backup manager zips via
-    // `archive.directory(this.tempDir, false)`.
+    // Arrange: a source tree mirroring the resource tree BackupService adds
+    // through `archive.directory()`.
     const srcDir = join(workDir, 'src')
     await mkdir(join(srcDir, 'nested'), { recursive: true })
     await mkdir(join(srcDir, 'Data'), { recursive: true })

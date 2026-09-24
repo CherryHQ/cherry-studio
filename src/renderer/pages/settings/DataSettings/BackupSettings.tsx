@@ -61,21 +61,21 @@ type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFo
 type Running = { readonly kind: 'export' } | { readonly kind: 'prepare' } | { readonly kind: 'other' }
 
 const BUILD_TYPE_KEYS: Record<CompatibilityDiagnostic['archiveBuildType'], string> = {
-  packaged: 'settings.data.backup_v2.compatibility.build_type.packaged',
-  development: 'settings.data.backup_v2.compatibility.build_type.development',
-  unknown: 'settings.data.backup_v2.compatibility.build_type.unknown'
+  packaged: 'settings.data.backup.compatibility.build_type.packaged',
+  development: 'settings.data.backup.compatibility.build_type.development',
+  unknown: 'settings.data.backup.compatibility.build_type.unknown'
 }
 
 const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
-  prepared: 'settings.data.backup_v2.outcome.state.prepared',
-  armed: 'settings.data.backup_v2.outcome.state.armed',
-  promoting: 'settings.data.backup_v2.outcome.state.promoting',
-  reverting: 'settings.data.backup_v2.outcome.state.reverting',
-  completed: 'settings.data.backup_v2.outcome.state.completed',
-  'rollback-armed': 'settings.data.backup_v2.outcome.state.rollback_armed',
-  'rolled-back': 'settings.data.backup_v2.outcome.state.rolled_back',
-  failed: 'settings.data.backup_v2.outcome.state.failed',
-  expired: 'settings.data.backup_v2.outcome.state.expired'
+  prepared: 'settings.data.backup.outcome.state.prepared',
+  armed: 'settings.data.backup.outcome.state.armed',
+  promoting: 'settings.data.backup.outcome.state.promoting',
+  reverting: 'settings.data.backup.outcome.state.reverting',
+  completed: 'settings.data.backup.outcome.state.completed',
+  'rollback-armed': 'settings.data.backup.outcome.state.rollback_armed',
+  'rolled-back': 'settings.data.backup.outcome.state.rolled_back',
+  failed: 'settings.data.backup.outcome.state.failed',
+  expired: 'settings.data.backup.outcome.state.expired'
 }
 
 function compatibilityDiagnosticText(diagnostic: CompatibilityDiagnostic): string {
@@ -176,46 +176,46 @@ const CompatibilityDetails: FC<{
   const copyDiagnostics = async () => {
     try {
       await navigator.clipboard.writeText(compatibilityDiagnosticText(diagnostic))
-      toast.success(t('settings.data.backup_v2.compatibility.copied'))
+      toast.success(t('settings.data.backup.compatibility.copied'))
     } catch {
-      toast.error(t('settings.data.backup_v2.compatibility.copy_failed'))
+      toast.error(t('settings.data.backup.compatibility.copy_failed'))
     }
   }
 
   return (
     <div className="flex flex-col gap-3 text-sm">
       <p className="text-foreground leading-5">{description}</p>
-      <p className="text-muted-foreground leading-5">{t('settings.data.backup_v2.compatibility.nothing_changed')}</p>
+      <p className="text-muted-foreground leading-5">{t('settings.data.backup.compatibility.nothing_changed')}</p>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-border border-y py-2 text-xs">
-        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_app')}</dt>
+        <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.archive_app')}</dt>
         <dd className="min-w-0 break-all text-foreground">{diagnostic.archiveAppVersion ?? t('common.unknown')}</dd>
-        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.current_app')}</dt>
+        <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.current_app')}</dt>
         <dd className="min-w-0 break-all text-foreground">{diagnostic.currentAppVersion}</dd>
-        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_build')}</dt>
+        <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.archive_build')}</dt>
         <dd className="text-foreground">{t(BUILD_TYPE_KEYS[diagnostic.archiveBuildType])}</dd>
         {'sourceMigrationCount' in diagnostic ? (
           <>
-            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.migrations')}</dt>
+            <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.migrations')}</dt>
             <dd className="text-foreground">
-              {t('settings.data.backup_v2.compatibility.migration_counts', {
+              {t('settings.data.backup.compatibility.migration_counts', {
                 archive: diagnostic.sourceMigrationCount,
                 current: diagnostic.targetMigrationCount
               })}
             </dd>
-            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_tip')}</dt>
+            <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.archive_tip')}</dt>
             <dd className="min-w-0 break-all font-mono text-foreground">
               {diagnostic.sourceTip.folderMillis}/{diagnostic.sourceTip.hashPrefix}
             </dd>
-            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.current_tip')}</dt>
+            <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.current_tip')}</dt>
             <dd className="min-w-0 break-all font-mono text-foreground">
               {diagnostic.targetTip.folderMillis}/{diagnostic.targetTip.hashPrefix}
             </dd>
           </>
         ) : (
           <>
-            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.format')}</dt>
+            <dt className="text-muted-foreground">{t('settings.data.backup.compatibility.format')}</dt>
             <dd className="text-foreground">
-              {t('settings.data.backup_v2.compatibility.format_versions', {
+              {t('settings.data.backup.compatibility.format_versions', {
                 archive: diagnostic.archiveFormatVersion,
                 current: diagnostic.currentFormatVersion
               })}
@@ -226,14 +226,14 @@ const CompatibilityDetails: FC<{
       <div>
         <Button size="sm" variant="outline" onClick={() => void copyDiagnostics()}>
           <Copy className="size-3.5" />
-          {t('settings.data.backup_v2.compatibility.copy')}
+          {t('settings.data.backup.compatibility.copy')}
         </Button>
       </div>
     </div>
   )
 }
 
-const BackupV2Settings: FC = () => {
+const BackupSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { checkForUpdates } = useManualUpdateCheck()
@@ -270,7 +270,7 @@ const BackupV2Settings: FC = () => {
   const reportFailure = useCallback(
     async (error: unknown) => {
       if (!(error instanceof IpcError)) {
-        toast.error(t('settings.data.backup_v2.error.unexpected'))
+        toast.error(t('settings.data.backup.error.unexpected'))
         return
       }
 
@@ -288,27 +288,27 @@ const BackupV2Settings: FC = () => {
         const offerUpdate = canOfferUpdate(diagnostic)
         const title = t(
           diagnostic.kind === 'source-ahead'
-            ? 'settings.data.backup_v2.compatibility.ahead_title'
+            ? 'settings.data.backup.compatibility.ahead_title'
             : diagnostic.kind === 'lineage-fork'
-              ? 'settings.data.backup_v2.compatibility.fork_title'
-              : 'settings.data.backup_v2.compatibility.format_title'
+              ? 'settings.data.backup.compatibility.fork_title'
+              : 'settings.data.backup.compatibility.format_title'
         )
         const description =
           diagnostic.kind === 'source-ahead'
             ? t(
                 offerUpdate
-                  ? 'settings.data.backup_v2.compatibility.ahead_update'
-                  : 'settings.data.backup_v2.compatibility.ahead_lineage',
+                  ? 'settings.data.backup.compatibility.ahead_update'
+                  : 'settings.data.backup.compatibility.ahead_lineage',
                 { count: diagnostic.missingMigrationCount }
               )
             : diagnostic.kind === 'lineage-fork'
-              ? t('settings.data.backup_v2.compatibility.fork_lineage')
+              ? t('settings.data.backup.compatibility.fork_lineage')
               : t(
                   diagnostic.kind === 'archive-newer'
                     ? offerUpdate
-                      ? 'settings.data.backup_v2.compatibility.format_newer_update'
-                      : 'settings.data.backup_v2.compatibility.format_newer_lineage'
-                    : 'settings.data.backup_v2.compatibility.format_legacy',
+                      ? 'settings.data.backup.compatibility.format_newer_update'
+                      : 'settings.data.backup.compatibility.format_newer_lineage'
+                    : 'settings.data.backup.compatibility.format_legacy',
                   {
                     archive: diagnostic.archiveFormatVersion,
                     current: diagnostic.currentFormatVersion
@@ -319,7 +319,7 @@ const BackupV2Settings: FC = () => {
           const confirmed = await popup.confirm({
             title,
             content,
-            okText: t('settings.data.backup_v2.compatibility.check_updates'),
+            okText: t('settings.data.backup.compatibility.check_updates'),
             cancelText: t('common.close'),
             centered: true
           })
@@ -389,18 +389,18 @@ const BackupV2Settings: FC = () => {
       if (result.status === 'canceled') return
       if (result.degradations.length > 0) {
         await popup.info({
-          title: t('settings.data.backup_v2.export.done_degraded_title'),
+          title: t('settings.data.backup.export.done_degraded_title'),
           content: (
             <DegradationDetails
               degradations={result.degradations}
-              consequenceKey="settings.data.backup_v2.export.done_degraded"
+              consequenceKey="settings.data.backup.export.done_degraded"
             />
           ),
           okText: t('common.close'),
           centered: true
         })
       } else {
-        toast.success(t('settings.data.backup_v2.export.done'))
+        toast.success(t('settings.data.backup.export.done'))
       }
     })
 
@@ -415,9 +415,9 @@ const BackupV2Settings: FC = () => {
     run({ kind: 'other' }, async () => {
       if (!preview) return
       const confirmed = await popup.confirm({
-        title: t('settings.data.backup_v2.restore.confirm_title'),
+        title: t('settings.data.backup.restore.confirm_title'),
         content: <RestoreConfirmContent preview={preview} />,
-        okText: t('settings.data.backup_v2.restore.confirm_ok'),
+        okText: t('settings.data.backup.restore.confirm_ok'),
         cancelText: t('common.cancel'),
         centered: true,
         okButtonProps: { danger: true }
@@ -432,15 +432,15 @@ const BackupV2Settings: FC = () => {
     run({ kind: 'other' }, async () => {
       await ipcApi.request('backup.cancel_restore')
       setPreview(null)
-      toast.success(t('settings.data.backup_v2.restore.discarded'))
+      toast.success(t('settings.data.backup.restore.discarded'))
     })
 
   const handleRollback = () =>
     run({ kind: 'other' }, async () => {
       const confirmed = await popup.confirm({
-        title: t('settings.data.backup_v2.rollback.confirm_title'),
-        content: t('settings.data.backup_v2.rollback.confirm_content'),
-        okText: t('settings.data.backup_v2.rollback.confirm_ok'),
+        title: t('settings.data.backup.rollback.confirm_title'),
+        content: t('settings.data.backup.rollback.confirm_content'),
+        okText: t('settings.data.backup.rollback.confirm_ok'),
         cancelText: t('common.cancel'),
         centered: true,
         okButtonProps: { danger: true }
@@ -460,7 +460,7 @@ const BackupV2Settings: FC = () => {
       const result = await ipcApi.request('backup.acknowledge_restore', { knowledgeRebuild })
       if (!result.acknowledged) return
       toast.closeToast(BACKUP_RESTORE_NOTICE_KEY)
-      toast.success(t('settings.data.backup_v2.outcome.acknowledged'))
+      toast.success(t('settings.data.backup.outcome.acknowledged'))
     })
 
   const handleAcknowledge = () => acknowledge('require-complete')
@@ -513,7 +513,7 @@ const BackupV2Settings: FC = () => {
           />
         </RowFlex>
       </SettingRow>
-      <SettingHelpText>{t('settings.data.backup_v2.export.credentials_warning')}</SettingHelpText>
+      <SettingHelpText>{t('settings.data.backup.export.credentials_warning')}</SettingHelpText>
 
       {hasMatchingPreview && <RestorePreviewCard preview={preview} />}
 
@@ -522,16 +522,16 @@ const BackupV2Settings: FC = () => {
           <SettingDivider />
           <RowFlex className="justify-end gap-2">
             <Button disabled={busy} onClick={handleDiscard}>
-              {t('settings.data.backup_v2.restore.discard_button')}
+              {t('settings.data.backup.restore.discard_button')}
             </Button>
             {hasMatchingPreview && (
               <Button variant="destructive" disabled={busy} onClick={handleArm}>
-                {t('settings.data.backup_v2.restore.arm_button')}
+                {t('settings.data.backup.restore.arm_button')}
               </Button>
             )}
           </RowFlex>
           {!hasMatchingPreview && (
-            <SettingHelpText>{t('settings.data.backup_v2.restore.pending_elsewhere')}</SettingHelpText>
+            <SettingHelpText>{t('settings.data.backup.restore.pending_elsewhere')}</SettingHelpText>
           )}
         </>
       )}
@@ -539,7 +539,7 @@ const BackupV2Settings: FC = () => {
       {restore && restore.kind !== 'none' && !hasPreparation && (
         <>
           <SettingDivider />
-          <SettingRowTitle>{t('settings.data.backup_v2.outcome.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.data.backup.outcome.title')}</SettingRowTitle>
           <RestoreOutcome
             restore={restore}
             busy={busy}
@@ -604,14 +604,14 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
       {preview.knowledge.ready > 0 && (
         <SettingHelpText>
-          {t('settings.data.backup_v2.preview.knowledge_ready', { count: preview.knowledge.ready })}
+          {t('settings.data.backup.preview.knowledge_ready', { count: preview.knowledge.ready })}
         </SettingHelpText>
       )}
       {preview.knowledge.rebuild > 0 && (
         <Alert
           type="warning"
           showIcon
-          message={t('settings.data.backup_v2.preview.knowledge_rebuild_cost', {
+          message={t('settings.data.backup.preview.knowledge_rebuild_cost', {
             count: preview.knowledge.rebuild
           })}
         />
@@ -620,11 +620,11 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
         <SettingHelpText>
           <DegradationDetails
             degradations={preview.degradations}
-            consequenceKey="settings.data.backup_v2.preview.degradations"
+            consequenceKey="settings.data.backup.preview.degradations"
           />
         </SettingHelpText>
       )}
-      <Alert type="warning" showIcon message={t('settings.data.backup_v2.preview.destructive')} />
+      <Alert type="warning" showIcon message={t('settings.data.backup.preview.destructive')} />
     </div>
   )
 }
@@ -645,7 +645,7 @@ const RestoreOutcome: FC<{
   const { t } = useTranslation()
 
   if (restore.kind === 'unreadable') {
-    return <Alert type="error" showIcon message={t('settings.data.backup_v2.outcome.unreadable')} />
+    return <Alert type="error" showIcon message={t('settings.data.backup.outcome.unreadable')} />
   }
   if (restore.kind !== 'journal') return null
 
@@ -672,20 +672,20 @@ const RestoreOutcome: FC<{
           <RowFlex className="gap-2">
             {rollbackable && (
               <Button variant="destructive" disabled={busy} onClick={onRollback}>
-                {t('settings.data.backup_v2.rollback.button')}
+                {t('settings.data.backup.rollback.button')}
               </Button>
             )}
             {knowledgeRebuildAbandonable && (
               <Button disabled={busy} onClick={onAbandonKnowledgeRebuild}>
-                {t('settings.data.backup_v2.outcome.abandon_rebuild_button')}
+                {t('settings.data.backup.outcome.abandon_rebuild_button')}
               </Button>
             )}
             {acknowledgeable && (
               <Button disabled={busy} onClick={onAcknowledge}>
                 {t(
                   restore.state === 'rolled-back'
-                    ? 'settings.data.backup_v2.outcome.keep_previous_button'
-                    : 'settings.data.backup_v2.outcome.acknowledge_button'
+                    ? 'settings.data.backup.outcome.keep_previous_button'
+                    : 'settings.data.backup.outcome.acknowledge_button'
                 )}
               </Button>
             )}
@@ -693,22 +693,22 @@ const RestoreOutcome: FC<{
         )}
       </SettingRow>
       {restore.state === 'completed' && (
-        <SettingHelpText>{t('settings.data.backup_v2.outcome.completed_help')}</SettingHelpText>
+        <SettingHelpText>{t('settings.data.backup.outcome.completed_help')}</SettingHelpText>
       )}
       {restore.state === 'rolled-back' && (
-        <SettingHelpText>{t('settings.data.backup_v2.outcome.rolled_back_help')}</SettingHelpText>
+        <SettingHelpText>{t('settings.data.backup.outcome.rolled_back_help')}</SettingHelpText>
       )}
       {restore.state === 'completed' && (
-        <SettingHelpText>{t('settings.data.backup_v2.outcome.reconfirm_integrations')}</SettingHelpText>
+        <SettingHelpText>{t('settings.data.backup.outcome.reconfirm_integrations')}</SettingHelpText>
       )}
       {restore.recoveryIncomplete && (
-        <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.recovery_incomplete')} />
+        <Alert type="warning" showIcon message={t('settings.data.backup.outcome.recovery_incomplete')} />
       )}
       {restore.resourcesIncomplete && (
-        <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.resources_incomplete')} />
+        <Alert type="warning" showIcon message={t('settings.data.backup.outcome.resources_incomplete')} />
       )}
       {restore.knowledgeRebuildPending && (
-        <Alert type="info" showIcon message={t('settings.data.backup_v2.outcome.knowledge_rebuild_pending')} />
+        <Alert type="info" showIcon message={t('settings.data.backup.outcome.knowledge_rebuild_pending')} />
       )}
       {/*
         Completed only, and with the lines shown rather than just counted: this is
@@ -719,7 +719,7 @@ const RestoreOutcome: FC<{
         <Alert
           type="warning"
           showIcon
-          message={t('settings.data.backup_v2.outcome.degradations', {
+          message={t('settings.data.backup.outcome.degradations', {
             count: degradationCount(restore.degradations)
           })}
           description={<DegradationDetails degradations={restore.degradations} />}
@@ -729,4 +729,4 @@ const RestoreOutcome: FC<{
   )
 }
 
-export default BackupV2Settings
+export default BackupSettings

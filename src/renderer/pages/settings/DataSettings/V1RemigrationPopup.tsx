@@ -67,18 +67,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       // A degraded backup must not read as "done": this toast is what the user ticks the acknowledgement on.
       if (result.degradations.length > 0) {
         await popup.info({
-          title: t('settings.data.backup_v2.export.done_degraded_title'),
+          title: t('settings.data.backup.export.done_degraded_title'),
           content: (
             <DegradationDetails
               degradations={result.degradations}
-              consequenceKey="settings.data.backup_v2.export.done_degraded"
+              consequenceKey="settings.data.backup.export.done_degraded"
             />
           ),
           okText: t('common.close'),
           centered: true
         })
       } else {
-        toast.success(t('settings.data.backup_v2.export.done'))
+        toast.success(t('settings.data.backup.export.done'))
       }
     } catch (error) {
       toast.error(getLocalizedBackupErrorMessage(error instanceof Error ? error : new Error(String(error))))

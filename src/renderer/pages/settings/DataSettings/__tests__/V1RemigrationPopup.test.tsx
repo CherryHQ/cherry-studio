@@ -122,8 +122,8 @@ describe('V1RemigrationPopup', () => {
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.backup_button' }))
 
-    expect(await screen.findByText('settings.data.backup_v2.export.done_degraded_title')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.external_reference')).toBeInTheDocument()
+    expect(await screen.findByText('settings.data.backup.export.done_degraded_title')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.outcome.degradation.external_reference')).toBeInTheDocument()
     expect(screen.getByText('Data/Notes/a')).toBeInTheDocument()
     expect(toast.success).not.toHaveBeenCalled()
   })

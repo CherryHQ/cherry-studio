@@ -18,17 +18,17 @@ export const RestoreConfirmContent: FC<{ preview: RestorePreview }> = ({ preview
 
   return (
     <div className="flex flex-col gap-3 text-sm">
-      <p>{t('settings.data.backup_v2.restore.confirm_content')}</p>
+      <p>{t('settings.data.backup.restore.confirm_content')}</p>
       {preview.knowledge.ready > 0 && (
         <p className="text-muted-foreground">
-          {t('settings.data.backup_v2.preview.knowledge_ready', { count: preview.knowledge.ready })}
+          {t('settings.data.backup.preview.knowledge_ready', { count: preview.knowledge.ready })}
         </p>
       )}
       {preview.knowledge.rebuild > 0 && (
         <Alert
           type="warning"
           showIcon
-          message={t('settings.data.backup_v2.preview.knowledge_rebuild_cost', {
+          message={t('settings.data.backup.preview.knowledge_rebuild_cost', {
             count: preview.knowledge.rebuild
           })}
         />
@@ -37,7 +37,7 @@ export const RestoreConfirmContent: FC<{ preview: RestorePreview }> = ({ preview
         <div className="text-muted-foreground">
           <DegradationDetails
             degradations={preview.degradations}
-            consequenceKey="settings.data.backup_v2.preview.degradations"
+            consequenceKey="settings.data.backup.preview.degradations"
           />
         </div>
       )}

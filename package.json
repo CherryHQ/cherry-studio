@@ -188,7 +188,6 @@
     "@aiden0z/pptx-renderer": "1.2.2",
     "@anthropic-ai/sdk": "^0.81.0",
     "@aws-sdk/client-s3": "^3.998.0",
-    "@aws-sdk/lib-storage": "3.998.0",
     "@babel/runtime": "^7.29.7",
     "@changesets/changelog-github": "^0.5.2",
     "@changesets/cli": "^2.29.8",

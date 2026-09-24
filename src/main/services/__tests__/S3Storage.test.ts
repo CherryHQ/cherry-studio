@@ -1,20 +1,15 @@
 import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { S3Config } from '@shared/types/backup'
+import S3Storage, { type S3StorageConfig } from '../S3Storage'
 
-import S3Storage from '../S3Storage'
-
-const config: S3Config = {
+const config: S3StorageConfig = {
   endpoint: 'https://s3.example.com',
   region: 'us-east-1',
   bucket: 'backups',
   accessKeyId: 'access-key',
   secretAccessKey: 'secret-key',
-  root: '/cherry-studio/test/',
-  autoSync: false,
-  syncInterval: 0,
-  maxBackups: 0
+  root: '/cherry-studio/test/'
 }
 
 describe('S3Storage', () => {
