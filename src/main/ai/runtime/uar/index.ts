@@ -1,4 +1,9 @@
-export { readUarAdministrationSnapshot, readUarSettings, updateUarSettings } from './UarAdministrationAdapter'
+export {
+  diagnoseUarAuthority,
+  readUarAdministrationSnapshot,
+  readUarSettings,
+  updateUarSettings
+} from './UarAdministrationAdapter'
 export {
   deleteUarProvider,
   readUarModelSources,

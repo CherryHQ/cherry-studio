@@ -1,6 +1,7 @@
 import { application } from '@application'
 import {
   readUarAdministrationSnapshot,
+  diagnoseUarAuthority,
   deleteUarProvider,
   readUarModelSources,
   readUarSettings,
@@ -36,6 +37,7 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
     application.get('PrometheusIntegrationService').start(action, workspacePath),
   'prometheus.integration.cancel': async ({ id }) => application.get('PrometheusIntegrationService').cancel(id),
   'prometheus.uar.admin.snapshot': async () => readUarAdministrationSnapshot(),
+  'prometheus.uar.admin.diagnose_authority': async () => diagnoseUarAuthority(),
   'prometheus.uar.settings.read': async ({ namespace }) => readUarSettings(namespace),
   'prometheus.uar.settings.update': async ({ namespace, changes }) => updateUarSettings(namespace, changes),
   'prometheus.uar.models.sources': async () => readUarModelSources(),

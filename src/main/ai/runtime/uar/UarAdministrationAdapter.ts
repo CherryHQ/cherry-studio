@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto'
+
 import * as z from 'zod'
 
 import { application } from '@application'
 import {
   type UarAdministrationMethod,
   type UarAdministrationSnapshot,
+  type UarAuthorityDiagnosticResult,
   type UarSettingChange,
   type UarSettingState,
   type UarSettingsNamespace,
@@ -36,6 +39,18 @@ const rawUpdateSchema = z.object({
       })
     )
     .default([])
+})
+
+const rawGovernanceUpdateSchema = z.object({
+  status: z.enum(['updated', 'partial']),
+  results: z.array(
+    z.object({
+      key: z.string(),
+      status: z.enum(['updated', 'validation_rejected', 'dependency_failed', 'skipped']),
+      error: z.string().optional()
+    })
+  ),
+  errors: rawUpdateSchema.shape.errors
 })
 
 const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
@@ -293,6 +308,72 @@ export async function readUarAdministrationSnapshot(): Promise<UarAdministration
   }
 }
 
+const ownerSettingsSchema = z.object({
+  user_id: z.string(),
+  prompt_caching_enabled: z.boolean().nullable()
+})
+
+async function readOwnerSettings(response: Response): Promise<z.infer<typeof ownerSettingsSchema> | undefined> {
+  if (!response.ok) return undefined
+  return ownerSettingsSchema.parse(await response.json())
+}
+
+/** Exercise the real sidecar authority boundaries without disclosing either
+ * protected authority or owner tokens to the renderer. */
+export async function diagnoseUarAuthority(): Promise<UarAuthorityDiagnosticResult> {
+  const sidecar = application.get('UarSidecarService')
+  const endpoint = await sidecar.ensureReady()
+  const suffix = randomUUID()
+  const ownerA = `diagnostics.owner.a-${suffix}`
+  const ownerB = `diagnostics.owner.b-${suffix}`
+  const ownerUpdate = {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ prompt_caching_enabled: true })
+  }
+  const ownerReset = {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ prompt_caching_enabled: null })
+  }
+
+  const unprivilegedAdmin = await sidecar.request('/api/uar/providers', ownerA, {}, endpoint.generation)
+  const privilegedAdmin = await sidecar.adminRequest('/api/uar/providers', {}, endpoint.generation)
+  const writeOwnerA = await sidecar.request('/api/uar/user/settings', ownerA, ownerUpdate, endpoint.generation)
+  const readOwnerAResponse = await sidecar.request('/api/uar/user/settings', ownerA, {}, endpoint.generation)
+  const readOwnerA = await readOwnerSettings(readOwnerAResponse)
+  const readOwnerBResponse = await sidecar.request('/api/uar/user/settings', ownerB, {}, endpoint.generation)
+  const readOwnerB = await readOwnerSettings(readOwnerBResponse)
+  await sidecar.request('/api/uar/user/settings', ownerA, ownerReset, endpoint.generation).catch(() => undefined)
+
+  const adminBoundary = unprivilegedAdmin.status === 401 && privilegedAdmin.ok
+  const ownerIsolation =
+    writeOwnerA.ok &&
+    readOwnerA?.user_id === ownerA &&
+    readOwnerA.prompt_caching_enabled === true &&
+    readOwnerB?.user_id === ownerB &&
+    readOwnerB.prompt_caching_enabled === null
+
+  return {
+    schemaVersion: 1,
+    generation: endpoint.generation,
+    diagnostics: [
+      {
+        id: 'uar-admin-authority',
+        state: adminBoundary ? 'operational' : 'failed',
+        detail: `owner HTTP ${unprivilegedAdmin.status}; protected admin HTTP ${privilegedAdmin.status}`
+      },
+      {
+        id: 'uar-owner-isolation',
+        state: ownerIsolation ? 'operational' : 'failed',
+        detail: ownerIsolation
+          ? 'separate owner settings remained isolated'
+          : `write HTTP ${writeOwnerA.status}; owner A read HTTP ${readOwnerAResponse.status}, identity ${readOwnerA?.user_id === ownerA ? 'matched' : 'mismatched'}, value ${String(readOwnerA?.prompt_caching_enabled)}; owner B read HTTP ${readOwnerBResponse.status}, identity ${readOwnerB?.user_id === ownerB ? 'matched' : 'mismatched'}, value ${String(readOwnerB?.prompt_caching_enabled)}`
+      }
+    ]
+  }
+}
+
 function projectSetting(setting: z.infer<typeof rawSettingSchema>): UarSettingState {
   return {
     key: setting.key,
@@ -350,7 +431,36 @@ export async function updateUarSettings(
     },
     endpoint.generation
   )
-  const result = rawUpdateSchema.parse(await parseResponse(response))
+  const body = await parseResponse(response)
+  if (namespace === 'governance') {
+    const result = rawGovernanceUpdateSchema.parse(body)
+    const snapshot = await readUarSettings(namespace)
+    const updatedKeys = new Set(result.results.filter((item) => item.status === 'updated').map((item) => item.key))
+    const mutationErrors = result.results
+      .filter((item) => item.status !== 'updated')
+      .map((item) => ({
+        key: item.key,
+        code: item.status,
+        ...(item.error ? { message: item.error } : {})
+      }))
+    return {
+      status: result.status,
+      namespace,
+      generation: endpoint.generation,
+      updated: snapshot.settings.filter((setting) => updatedKeys.has(setting.key)),
+      errors: [
+        ...result.errors.map((error) => ({
+          key: error.key,
+          code: error.code,
+          ...(error.error ? { message: error.error } : {}),
+          ...(error.expected_revision ? { expectedRevision: error.expected_revision } : {}),
+          ...(error.current_revision ? { currentRevision: error.current_revision } : {})
+        })),
+        ...mutationErrors
+      ]
+    }
+  }
+  const result = rawUpdateSchema.parse(body)
   return {
     status: result.status,
     namespace,

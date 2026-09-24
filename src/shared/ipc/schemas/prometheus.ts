@@ -12,6 +12,7 @@ import {
 import {
   uarSettingsNamespaceSchema,
   type UarAdministrationSnapshot,
+  type UarAuthorityDiagnosticResult,
   type UarModelSourceSnapshot,
   type UarSettingsSnapshot,
   type UarSettingsUpdateResult
@@ -44,6 +45,10 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.admin.snapshot': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarAdministrationSnapshot>()
+  }),
+  'prometheus.uar.admin.diagnose_authority': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarAuthorityDiagnosticResult>()
   }),
   'prometheus.uar.settings.read': defineRoute({
     input: z.object({ namespace: uarSettingsNamespaceSchema }).strict(),

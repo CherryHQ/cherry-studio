@@ -210,6 +210,12 @@ export type UarAdministrationSnapshot = {
   >
 }
 
+export type UarAuthorityDiagnosticResult = {
+  schemaVersion: 1
+  generation: number
+  diagnostics: IntegrationDiagnostic[]
+}
+
 export const uarSettingsNamespaceSchema = z.enum([
   'server',
   'security',

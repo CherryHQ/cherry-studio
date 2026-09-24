@@ -133,13 +133,19 @@ async function replaceSecrets(secrets: Partial<Record<ManagedIntegrationSecret, 
 // contain only presence flags; disk storage uses the OS credential protection facility.
 export async function writeSecrets(patch: IntegrationSecretPatch): Promise<void> {
   const secrets = await readSecrets()
-  for (const [name, mutation] of Object.entries(patch) as Array<
+  const mutations = Object.entries(patch) as Array<
     [IntegrationSecret, NonNullable<IntegrationSecretPatch[IntegrationSecret]>]
-  >) {
+  >
+  for (const [name, mutation] of mutations) {
     if (mutation.operation === 'set') secrets[name] = mutation.value
     if (mutation.operation === 'clear') delete secrets[name]
   }
   await replaceSecrets(secrets)
+  const persisted = await readSecrets()
+  for (const [name, mutation] of mutations) {
+    const confirmed = mutation.operation === 'set' ? persisted[name] === mutation.value : persisted[name] === undefined
+    if (mutation.operation !== 'unchanged' && !confirmed) throw new Error('prometheus.error.secretStorage')
+  }
 }
 
 export async function ensureManagedSecrets(): Promise<Partial<Record<ManagedIntegrationSecret, string>>> {
