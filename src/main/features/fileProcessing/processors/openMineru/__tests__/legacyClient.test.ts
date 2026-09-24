@@ -23,9 +23,9 @@ vi.mock('node:fs', async () => {
   }
 })
 
-import { executeTask } from '../utils'
+import { parseLegacyDocument } from '../legacyClient'
 
-describe('open-mineru utils', () => {
+describe('Open MinerU legacy client', () => {
   let tempDir: string
 
   beforeAll(async () => {
@@ -56,7 +56,7 @@ describe('open-mineru utils', () => {
     )
 
     await expect(
-      executeTask({
+      parseLegacyDocument({
         apiHost: 'http://127.0.0.1:8000',
         apiKey: 'secret',
         file: {

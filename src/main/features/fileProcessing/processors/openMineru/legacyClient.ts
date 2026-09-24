@@ -4,7 +4,7 @@ import { net } from 'electron'
 
 import type { PreparedOpenMineruContext } from './types'
 
-export async function executeTask(context: PreparedOpenMineruContext): Promise<Response> {
+export async function parseLegacyDocument(context: PreparedOpenMineruContext): Promise<Response> {
   const endpoint = `${context.apiHost}/file_parse`
   const fileBlob = await openAsBlob(context.file.path)
 
@@ -27,11 +27,6 @@ export async function executeTask(context: PreparedOpenMineruContext): Promise<R
 
   const contentType = response.headers.get('content-type')
 
-  // Intentional contract check:
-  // when `response_format_zip=true`, this adapter only accepts an exact
-  // `application/zip` response. We fail fast on any other content-type
-  // instead of broadening compatibility implicitly, so provider contract
-  // changes stay explicit and visible.
   if (contentType !== 'application/zip') {
     throw new Error(`Open MinerU returned unexpected content-type: ${contentType}`)
   }
