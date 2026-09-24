@@ -34,7 +34,8 @@ queue or retry bookkeeping for business services to maintain.
 
 Zero refs alone never authorize deletion. The row must carry automatic cleanup intent, pass the
 creation-time grace window, and still have zero registered persistent refs inside the deleting
-transaction. Dangling state is not consulted, and a pending restore blocks the pass entirely.
+transaction. Automatic internal entries retained by an active Main-process consumer are also
+excluded. Dangling state is not consulted, and a pending restore blocks the pass entirely.
 
 ## 4. Business Intent: `cleanupPolicy`
 
@@ -67,6 +68,26 @@ cache index; it never deletes the user's file.
 toggle, pending badge, or drain action. Retention is assigned by the creation flow and applied by
 the background task.
 
+### 4.4 Temporary Runtime Retention
+
+`FileManager.retainTemporaryEntry(id)` returns an independently disposable runtime reference for an
+automatic internal entry. Background cleanup preserves the entry until every reference is released;
+disposing twice is harmless. Service stop clears all references, and a later disposal of an old
+reference cannot release a new consumer's reference. Explicit deletion still removes the entry.
+
+Consumers that require confirmed removal of sensitive temporary content use
+`FileManager.deleteRetainedTemporaryEntry(id)`. The operation accepts only a currently retained
+automatic internal entry, removes its physical blob before deleting the row, and leaves both the
+row and runtime reference available for retry when unlink fails. The general `permanentDelete`
+contract remains DB-first and best-effort for existing callers.
+
+This capability protects temporary inputs and outputs while Main-process consumers are using them,
+including retry and playback sessions that outlast the grace window. It changes neither the row's
+policy nor its timestamps and creates no persistent reference. A crash therefore leaves an ordinary
+automatic entry for a later pass to reclaim. A feature-owned timer cannot serialize retention with
+FileManager's deleting transaction; choosing `manual` instead would leave crashed sessions retained
+indefinitely, while updating `createdAt` would persist runtime state and still race cleanup.
+
 ## 5. Cleanup Pass
 
 ### 5.1 Candidate Query
@@ -76,11 +97,13 @@ the background task.
 - have `cleanupPolicy = 'delete_when_unreferenced'`;
 - were created more than one hour ago;
 - have no row in any persistent reference table registered by
-  `persistentFileRefTablesBySourceType`.
+  `persistentFileRefTablesBySourceType`;
+- are absent from the runtime retention IDs supplied by FileManager.
 
 The anti-join conditions are generated from that registry rather than hand-maintained. This makes
 registration of a new reference source part of the same source of truth used by reference counts
-and cleanup. Candidates are ordered by `createdAt`.
+and cleanup. Candidates are ordered by `createdAt`. Runtime IDs are excluded in SQL before `LIMIT`,
+so a batch of older retained entries cannot starve later orphan entries.
 
 `deletedAt` is not a filter: an unreferenced auto-policy internal entry remains eligible even if it
 was moved to trash. A manual entry is never a candidate, whether present, missing, active, or
@@ -94,6 +117,7 @@ FROM file_entry
 WHERE cleanup_policy = 'delete_when_unreferenced'
   AND created_at < :now_minus_one_hour
   AND NOT EXISTS (:one anti-join per registered persistent ref table)
+  AND id NOT IN (:retained_entry_ids) -- omitted when no entries are retained
 ORDER BY created_at
 LIMIT 100;
 ```
@@ -112,8 +136,8 @@ Discovery is only a hint. Each candidate is rechecked inside its own synchronous
 
 1. re-read the entry;
 2. stop if it vanished or is now `manual`;
-3. count persistent refs again inside the transaction;
-4. stop if a ref appeared;
+3. recheck the live runtime reference map and count persistent refs inside the transaction;
+4. stop if either kind of reference appeared;
 5. delete the row.
 
 The shared write transaction serializes the ref-count check and deletion. After commit,
@@ -132,7 +156,7 @@ and does have count/byte thresholds.
 ### 5.4 Per-Candidate Protocol
 
 - deleted row -> `deleted`, followed by cache/blob cleanup;
-- refs appeared -> `skippedRefsReappeared`;
+- persistent or runtime refs appeared -> `skippedRefsReappeared`;
 - row vanished or became manual -> `gonePinned`;
 - candidate processing threw -> `failed`, with the row retried by a future scan.
 
@@ -156,10 +180,12 @@ Every pass logs one structured `file-entry-cleanup` record with:
 - `outcome`: `completed`, `skipped`, or `failed`;
 - this batch's `candidates` count (there is no separate backlog count);
 - `deleted`, `skippedRefsReappeared`, `gonePinned`, `failed`, and `unlinkFailures`;
-- duration and, for a pass-level failure, its error message.
+- duration and, for a pass-level failure, the fixed `file_entry_cleanup_failed` category and errno code.
 
 Per-candidate failures are logged and do not stop later candidates. A saturated
 `candidates === 100` result is the available backlog signal.
+Failure diagnostics contain entry IDs where available and errno codes, never physical paths or raw
+errors that can include private file content or database parameters.
 
 ## 6. Race and Failure Behavior
 
@@ -167,6 +193,10 @@ Per-candidate failures are logged and do not stop later candidates. A saturated
 |---|---|
 | A ref exists during discovery | Anti-join excludes the entry |
 | A ref is inserted after discovery | Transactional recheck preserves the entry |
+| A runtime reference exists during discovery | SQL exclusion preserves it without consuming the batch limit |
+| A runtime reference is acquired after discovery | Live in-transaction recheck preserves the entry |
+| The final runtime reference is released or FileManager stops | Entry becomes eligible for a later pass |
+| Explicit deletion targets a retained entry | Explicit deletion still applies |
 | Policy is upgraded after discovery | Transactional re-read preserves the entry |
 | Process exits after row deletion, before unlink | Blob is an FS orphan and can be swept later |
 | Internal unlink fails | Row stays deleted; failure is counted/logged |
@@ -193,5 +223,6 @@ as disposable on the first cleanup pass.
 |---|---|
 | Candidate query and registry coverage | `src/main/data/services/__tests__/FileEntryService.test.ts` |
 | Per-candidate transaction and outcomes | `src/main/services/file/internal/__tests__/entryCleanup.test.ts` |
+| Runtime retention, fair batches, and release lifecycle | `src/main/services/file/__tests__/FileManager.retention.test.ts` |
 | Init/idle interval and file-sweep interaction | `src/main/services/file/__tests__/FileManager.entryCleanup.test.ts` |
 | End-to-end entry/blob behavior | `src/main/services/file/__tests__/FileManager.integration.test.ts` |
