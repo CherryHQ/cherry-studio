@@ -1,7 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
+index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289a40ac8ee 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -257,7 +257,11 @@
+@@ -257,7 +257,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -14,10 +15,20 @@ diff --git a/dist/index.js b/dist/index.js
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -599,6 +603,17 @@
+@@ -599,6 +603,27 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
++    for (const annotation of choice.message.annotations || []) {
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
++      content.push({
++        type: "source",
++        sourceType: "url",
++        id: (0, import_provider_utils2.generateId)(),
++        url: annotation.url_citation.url,
++        title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++      });
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -32,7 +43,7 @@ diff --git a/dist/index.js b/dist/index.js
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -758,6 +773,17 @@
+@@ -758,6 +783,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -50,7 +61,32 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -983,6 +1009,14 @@
+@@ -871,6 +907,16 @@ var OpenAICompatibleChatLanguageModel = class {
+                 });
+               }
+             }
++            for (const annotation of delta.annotations || []) {
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
++              controller.enqueue({
++                type: "source",
++                sourceType: "url",
++                id: (0, import_provider_utils2.generateId)(),
++                url: annotation.url_citation.url,
++                title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++              });
++            }
+           },
+           flush(controller) {
+             var _a2, _b, _c, _d, _e;
+@@ -969,6 +1015,7 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+         content: import_v43.z.string().nullish(),
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish().catch([]),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+             id: import_v43.z.string().nullish(),
+@@ -983,6 +1030,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -65,7 +101,15 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1019,6 +1053,14 @@
+@@ -1003,6 +1058,7 @@ var chunkBaseSchema = import_v43.z.looseObject({
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish().catch([]),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+             index: import_v43.z.number().nullish(),
+@@ -1019,6 +1075,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -80,7 +124,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1577,7 +1619,7 @@
+@@ -1577,7 +1641,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -89,7 +133,7 @@ diff --git a/dist/index.js b/dist/index.js
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1627,23 @@
+@@ -1585,13 +1649,31 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -111,10 +155,18 @@ diff --git a/dist/index.js b/dist/index.js
 +function hasDefaultResponseFormat(modelId) {
 +  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
 +}
++function isResponseFormatRejection(error) {
++  if (typeof error !== "object" || error == null) return false;
++  const { statusCode, message, responseBody } = error;
++  if (statusCode !== 400 && statusCode !== 422) return false;
++  return [message, responseBody].some(
++    (detail) => typeof detail === "string" && /response(?:_|\s|-)?format/i.test(detail)
++  );
++}
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1719,11 @@
+@@ -1667,7 +1749,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -127,7 +179,7 @@ diff --git a/dist/index.js b/dist/index.js
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1732,7 @@
+@@ -1676,7 +1762,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -136,7 +188,7 @@ diff --git a/dist/index.js b/dist/index.js
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1743,8 @@
+@@ -1687,8 +1773,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -147,7 +199,7 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1755,28 @@
+@@ -1699,8 +1785,25 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -156,13 +208,10 @@ diff --git a/dist/index.js b/dist/index.js
 +    try {
 +      posted = await postImageRequest(defaultResponseFormat);
 +    } catch (error) {
-+      // Models that do not implement `response_format` reject it with 400 or 422; retry once
-+      // without it, and surface the ORIGINAL rejection when the retry fails too.
-+      const isRejectedRequest = !!error && (error.statusCode === 400 || error.statusCode === 422);
-+      if (defaultResponseFormat == null || !isRejectedRequest) throw error;
++      if (defaultResponseFormat == null || !isResponseFormatRejection(error)) throw error;
 +      try {
 +        posted = await postImageRequest(null);
-+      } catch (retryError) {
++      } catch {
 +        throw error;
 +      }
 +    }
@@ -177,7 +226,7 @@ diff --git a/dist/index.js b/dist/index.js
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1787,7 @@
+@@ -1711,7 +1814,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -187,9 +236,10 @@ diff --git a/dist/index.js b/dist/index.js
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae6f7fa4b1 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -241,7 +241,11 @@
+@@ -241,7 +241,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -202,10 +252,20 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -585,6 +589,17 @@
+@@ -585,6 +589,27 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
++    for (const annotation of choice.message.annotations || []) {
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
++      content.push({
++        type: "source",
++        sourceType: "url",
++        id: generateId(),
++        url: annotation.url_citation.url,
++        title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++      });
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -220,7 +280,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -744,6 +759,17 @@
+@@ -744,6 +769,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -238,7 +298,32 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -969,6 +995,14 @@
+@@ -857,6 +893,16 @@ var OpenAICompatibleChatLanguageModel = class {
+                 });
+               }
+             }
++            for (const annotation of delta.annotations || []) {
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
++              controller.enqueue({
++                type: "source",
++                sourceType: "url",
++                id: generateId(),
++                url: annotation.url_citation.url,
++                title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++              });
++            }
+           },
+           flush(controller) {
+             var _a2, _b, _c, _d, _e;
+@@ -955,6 +1001,7 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+         content: z3.string().nullish(),
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        annotations: z3.array(z3.unknown()).nullish().catch([]),
+         tool_calls: z3.array(
+           z3.object({
+             id: z3.string().nullish(),
+@@ -969,6 +1016,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -253,7 +338,15 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -1005,6 +1039,14 @@
+@@ -989,6 +1044,7 @@ var chunkBaseSchema = z3.looseObject({
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        annotations: z3.array(z3.unknown()).nullish().catch([]),
+         tool_calls: z3.array(
+           z3.object({
+             index: z3.number().nullish(),
+@@ -1005,6 +1061,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -268,7 +361,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1581,7 +1623,7 @@
+@@ -1581,7 +1645,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -277,7 +370,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1589,7 +1631,7 @@
+@@ -1589,7 +1653,7 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -286,7 +379,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1605,6 +1647,16 @@
+@@ -1605,6 +1669,24 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -300,10 +393,18 @@ diff --git a/dist/index.mjs b/dist/index.mjs
 +function hasDefaultResponseFormat(modelId) {
 +  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
 +}
++function isResponseFormatRejection(error) {
++  if (typeof error !== "object" || error == null) return false;
++  const { statusCode, message, responseBody } = error;
++  if (statusCode !== 400 && statusCode !== 422) return false;
++  return [message, responseBody].some(
++    (detail) => typeof detail === "string" && /response(?:_|\s|-)?format/i.test(detail)
++  );
++}
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1732,11 @@
+@@ -1680,7 +1762,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -316,7 +417,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1745,7 @@
+@@ -1689,7 +1775,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -325,7 +426,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1756,8 @@
+@@ -1700,8 +1786,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -336,7 +437,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1768,28 @@
+@@ -1712,8 +1798,25 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -345,13 +446,10 @@ diff --git a/dist/index.mjs b/dist/index.mjs
 +    try {
 +      posted = await postImageRequest(defaultResponseFormat);
 +    } catch (error) {
-+      // Models that do not implement `response_format` reject it with 400 or 422; retry once
-+      // without it, and surface the ORIGINAL rejection when the retry fails too.
-+      const isRejectedRequest = !!error && (error.statusCode === 400 || error.statusCode === 422);
-+      if (defaultResponseFormat == null || !isRejectedRequest) throw error;
++      if (defaultResponseFormat == null || !isResponseFormatRejection(error)) throw error;
 +      try {
 +        posted = await postImageRequest(null);
-+      } catch (retryError) {
++      } catch {
 +        throw error;
 +      }
 +    }
@@ -366,7 +464,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1800,7 @@
+@@ -1724,7 +1827,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
@@ -375,3 +473,130 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  });
  async function fileToBlob(file) {
    if (file.type === "url") {
+diff --git a/src/image/openai-compatible-image-model.ts b/src/image/openai-compatible-image-model.ts
+index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65368006a0 100644
+--- a/src/image/openai-compatible-image-model.ts
++++ b/src/image/openai-compatible-image-model.ts
+@@ -23,6 +23,34 @@ import {
+ } from '../openai-compatible-error';
+ import type { OpenAICompatibleImageModelId } from './openai-compatible-image-settings';
+ 
++const defaultResponseFormatPrefixes = [
++  'chatgpt-image-',
++  'gpt-image-1-mini',
++  'gpt-image-1.5',
++  'gpt-image-1',
++  'gpt-image-2',
++];
++
++function hasDefaultResponseFormat(modelId: string): boolean {
++  return defaultResponseFormatPrefixes.some(prefix => modelId.startsWith(prefix));
++}
++
++function isResponseFormatRejection(error: unknown): boolean {
++  if (typeof error !== 'object' || error == null) return false;
++
++  const { statusCode, message, responseBody } = error as {
++    statusCode?: unknown;
++    message?: unknown;
++    responseBody?: unknown;
++  };
++  if (statusCode !== 400 && statusCode !== 422) return false;
++
++  return [message, responseBody].some(
++    detail =>
++      typeof detail === 'string' && /response(?:_|\s|-)?format/i.test(detail),
++  );
++}
++
+ export type OpenAICompatibleImageModelConfig = {
+   provider: string;
+   headers: () => Record<string, string | undefined>;
+@@ -125,7 +153,11 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => {
++          if (typeof item.b64_json === 'string') return [item.b64_json];
++          if (typeof item.url === 'string') return [item.url];
++          return [];
++        }),
+         warnings,
+         response: {
+           timestamp: currentDate,
+@@ -136,7 +168,8 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+     }
+ 
+     // Standard image generation mode - use JSON and /images/generations endpoint
+-    const { value: response, responseHeaders } = await postJsonToApi({
++    const postImageRequest = (responseFormat: string | null) =>
++      postJsonToApi({
+       url: this.config.url({
+         path: '/images/generations',
+         modelId: this.modelId,
+@@ -147,8 +180,10 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+         prompt,
+         n,
+         size,
++        ...(responseFormat != null
++          ? { response_format: responseFormat }
++          : {}),
+         ...args,
+-        response_format: 'b64_json',
+       },
+       failedResponseHandler: createJsonErrorResponseHandler(
+         this.config.errorStructure ?? defaultOpenAICompatibleErrorStructure,
+@@ -158,10 +193,36 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+       ),
+       abortSignal,
+       fetch: this.config.fetch,
+-    });
++      });
++
++    const defaultResponseFormat =
++      hasDefaultResponseFormat(this.modelId) || args.response_format !== undefined
++        ? null
++        : 'b64_json';
++    let posted;
++    try {
++      posted = await postImageRequest(defaultResponseFormat);
++    } catch (error) {
++      if (
++        defaultResponseFormat == null ||
++        !isResponseFormatRejection(error)
++      ) {
++        throw error;
++      }
++      try {
++        posted = await postImageRequest(null);
++      } catch {
++        throw error;
++      }
++    }
++    const { value: response, responseHeaders } = posted;
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       response: {
+         timestamp: currentDate,
+@@ -175,7 +236,12 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+ // minimal version of the schema, focussed on what is needed for the implementation
+ // this approach limits breakages when the API changes and increases efficiency
+ const openaiCompatibleImageResponseSchema = z.object({
+-  data: z.array(z.object({ b64_json: z.string() })),
++  data: z.array(
++    z.object({
++      b64_json: z.string().nullish(),
++      url: z.string().nullish(),
++    }),
++  ),
+ });
+ 
+ type OpenAICompatibleFormDataInput = {
