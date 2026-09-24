@@ -19,6 +19,7 @@ export const rawRun = z.object({
   status: z.enum(['pending', 'running', 'paused', 'done', 'error', 'cancelled']),
   agent_revision: z.string().nullable().optional(),
   effective_model: z.unknown().optional(),
+  effective_run_policy: z.unknown().optional(),
   presentation_selection: z.unknown().optional()
 })
 const rawKnowledgeBase = z.object({
@@ -158,6 +159,7 @@ export function projectRun(run: z.infer<typeof rawRun>, ownerSessionId: string):
     status: run.status,
     ...(run.agent_revision ? { agentRevision: run.agent_revision } : {}),
     ...(run.effective_model !== undefined ? { effectiveModel: run.effective_model } : {}),
+    ...(run.effective_run_policy !== undefined ? { effectivePolicy: run.effective_run_policy } : {}),
     ...(run.presentation_selection !== undefined ? { presentationSelection: run.presentation_selection } : {})
   }
 }

@@ -231,6 +231,7 @@ export type UarRunInspection = {
   status: 'pending' | 'running' | 'paused' | 'done' | 'error' | 'cancelled'
   agentRevision?: string
   effectiveModel?: unknown
+  effectivePolicy?: unknown
   presentationSelection?: unknown
 }
 

@@ -16,6 +16,7 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
 
+import { uarPrincipalForSession } from './uarPrincipal'
 import { type AppliedUarStorage, readAppliedUarStorage, writeAppliedUarStorage } from './uarStorageProfile'
 
 const logger = loggerService.withContext('UarSidecarService')
@@ -175,10 +176,10 @@ export class UarSidecarService extends BaseService {
     }
     const headers = new Headers(init.headers)
     headers.set('x-uar-admin-key', running.adminKey)
-    return this.authenticatedFetch(running, pathname, 'boss.admin', { ...init, headers })
+    return this.authenticatedFetch(running, pathname, uarPrincipalForSession('admin'), { ...init, headers })
   }
 
-  private authenticatedFetch(
+  private async authenticatedFetch(
     running: RunningSidecar,
     pathname: string,
     principal: string,
@@ -187,7 +188,13 @@ export class UarSidecarService extends BaseService {
     const headers = new Headers(init.headers)
     headers.set('authorization', `Bearer ${running.launchToken}`)
     headers.set('x-uar-principal', principal)
-    return fetch(new URL(pathname, running.baseUrl), { ...init, headers })
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await fetch(new URL(pathname, running.baseUrl), { ...init, headers })
+      if (response.status !== 429 || attempt === 5) return response
+      await response.body?.cancel()
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error('UAR request exhausted its rate-limit retries')
   }
 
   private ensureRunning(): Promise<RunningSidecar> {
