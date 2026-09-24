@@ -86,7 +86,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         : t('settings.provider.cherry_cloud.title')
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
-  const useCloudSubtitleAsTitle = isGlobalEdition && !userName
+  const useCloudSubtitleAsTitle = !userName
   const paidPlanName = isCloudSignedIn && subscriptionLookup.status === 'ready' ? subscriptionLookup.planName : null
   const subscriptionLoading =
     cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && subscriptionLookup.status === 'loading')
