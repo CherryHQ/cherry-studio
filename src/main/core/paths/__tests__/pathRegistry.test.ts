@@ -194,6 +194,13 @@ describe('buildPathRegistry', () => {
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
   })
 
+  it('registers standalone Pi settings as external data', () => {
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
+  })
+
   it('registers the platform-native default Hermes home as external data', () => {
     const registry = buildPathRegistry()
     const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')

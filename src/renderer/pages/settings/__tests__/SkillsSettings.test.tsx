@@ -7,11 +7,17 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { SkillsSettings } from '../SkillsSettings'
 
-const resourceCatalogViewMock = vi.hoisted(() => vi.fn())
-const navigateMock = vi.hoisted(() => vi.fn())
-const searchMock = vi.hoisted(() => ({ id: 'skill-1' as string | undefined }))
+const { launchSkillMock, navigateMock, resourceCatalogViewMock } = vi.hoisted(() => ({
+  launchSkillMock: vi.fn(),
+  navigateMock: vi.fn(),
+  resourceCatalogViewMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
+
+vi.mock('@renderer/hooks/useSkillLauncher', () => ({
+  useSkillLauncher: () => launchSkillMock
+}))
 
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: (props: ResourceCatalogViewProps) => {
@@ -38,7 +44,6 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useSearch: () => searchMock,
   useNavigate: () => navigateMock
 }))
 
@@ -64,14 +69,17 @@ describe('SkillsSettings', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
   })
 
-  it('keeps the selected Skill synchronized with the route', () => {
+  it('opens the dedicated Skill route and exposes the shared launch action', () => {
     render(<SkillsSettings />)
 
     const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
-    expect(props.selectedSkillId).toBe('skill-1')
+    expect(props.onLaunchSkill).toBe(launchSkillMock)
+    expect(props.allowColumnToggle).toBe(true)
 
-    props.onSelectedSkillIdChange?.(undefined)
-    const updateSearch = navigateMock.mock.calls.at(-1)?.[0].search as (previous: { id?: string }) => { id?: string }
-    expect(updateSearch({ id: 'skill-1' })).toEqual({ id: undefined })
+    props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/skills/$skillId',
+      params: { skillId: 'skill-1' }
+    })
   })
 })

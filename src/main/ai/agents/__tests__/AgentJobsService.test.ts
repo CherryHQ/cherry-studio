@@ -21,6 +21,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
@@ -207,6 +208,33 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- create
+
+  it('refreshes workspace visibility after task creation, workspace changes and deletion', async () => {
+    const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/heartbeat-task-visibility')
+    agentSessionService.create(
+      { agentId: AGENT_ID, name: 'Heartbeat', workspace: { type: 'user', workspaceId: workspace.id } },
+      'background'
+    )
+    let visible = agentWorkspaceService.list().map((row) => row.id)
+    notifyDataApiDataChangeMock.mockImplementation((effects) => {
+      if (effects.some((effect: { endpoint: string }) => effect.endpoint === '/agent-workspaces')) {
+        visible = agentWorkspaceService.list().map((row) => row.id)
+      }
+    })
+    try {
+      const source = { type: 'user' as const, workspaceId: workspace.id }
+      const task = service.createTask(AGENT_ID, { ...form, workspace: source })
+      expect(visible).toEqual([workspace.id])
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'system' } })
+      expect(visible).toEqual([])
+      service.updateTask(AGENT_ID, task.id, { workspace: source })
+      expect(visible).toEqual([workspace.id])
+      await service.deleteTask(AGENT_ID, task.id)
+      expect(visible).toEqual([])
+    } finally {
+      notifyDataApiDataChangeMock.mockReset()
+    }
+  })
 
   it('rolls back the Agent, Sessions and schedules together when archive or restore fails', async () => {
     const task = service.createTask(AGENT_ID, form)
@@ -610,7 +638,8 @@ describe('AgentJobsService', () => {
         { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
         { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
         { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] },
+        { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
     })
 
@@ -1255,7 +1284,8 @@ describe('AgentJobsService', () => {
         { endpoint: '/agent-tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
         { endpoint: '/agents/:agentId/tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
         { endpoint: '/agent-tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] }
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
 
       notifyDataApiDataChangeMock.mockClear()
@@ -1278,7 +1308,8 @@ describe('AgentJobsService', () => {
         { endpoint: '/agent-tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
         { endpoint: '/agents/:agentId/tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
         { endpoint: '/agent-tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] }
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
     })
 

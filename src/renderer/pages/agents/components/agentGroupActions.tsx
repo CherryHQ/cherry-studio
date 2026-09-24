@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Pin, PinOff, Smile, SquarePen } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -18,7 +18,7 @@ export interface AgentGroupActionContext {
   deleteSessionsOnly?: boolean
   deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
-  onDeleteAgent: (agentId: string, permanent?: boolean) => void | Promise<void>
+  onDeleteAgent: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void
@@ -61,15 +61,6 @@ agentGroupActionRegistry.registerCommand({
   id: 'agent-group.archive-agent',
   availability: ({ deleteAgentDisabled }) => ({ enabled: !deleteAgentDisabled }),
   run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
-})
-
-agentGroupActionRegistry.registerCommand({
-  id: 'agent-group.delete-agent',
-  availability: ({ deleteAgentDisabled, deleteSessionsOnly }) => ({
-    enabled: !deleteAgentDisabled,
-    visible: !deleteSessionsOnly
-  }),
-  run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId, true)
 })
 
 agentGroupActionRegistry.registerAction(
@@ -122,18 +113,6 @@ agentGroupActionRegistry.registerAction(
     icon: () => <Archive size={14} />,
     group: 'danger',
     order: 40
-  })
-)
-
-agentGroupActionRegistry.registerAction(
-  buildResourceEntityMenuActionDescriptor({
-    id: 'agent-group.delete-agent',
-    commandId: 'agent-group.delete-agent',
-    label: ({ t }) => t('common.delete_permanently'),
-    icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
-    group: 'danger',
-    order: 50,
-    danger: true
   })
 )
 
