@@ -178,8 +178,8 @@ describe('dual-edition release archive', () => {
 describe('archive provenance', () => {
   const run = {
     head_repository: { full_name: repository },
-    head_branch: 'release/v2.1.2',
-    head_sha: sha,
+    head_branch: 'main',
+    head_sha: 'b'.repeat(40),
     path: '.github/workflows/release.yml',
     event: 'workflow_dispatch',
     display_title: `Release build all release/v2.1.2 @ ${sha}`
@@ -189,8 +189,8 @@ describe('archive provenance', () => {
     expect(() => validateSourceRun(run, expected)).not.toThrow()
     for (const invalid of [
       { head_repository: { full_name: 'fork/repo' } },
-      { head_branch: 'main' },
-      { head_sha: 'other' },
+      { head_branch: 'release/v2.1.2' },
+      { display_title: `Release build all release/v2.1.2 @ ${'c'.repeat(40)}` },
       { path: '.github/workflows/ci.yml' },
       { event: 'push' },
       { display_title: 'Release build windows' }
@@ -199,14 +199,20 @@ describe('archive provenance', () => {
     }
   })
   it('chooses the newest retained same-SHA archive without reusing this run', () => {
-    const artifact = { id: 1, name: 'release-bundle-v2.1.2', expired: false, workflow_run: { head_sha: sha, id: 100 } }
+    const artifact = {
+      id: 1,
+      name: 'release-bundle-v2.1.2',
+      expired: false,
+      releaseSha: sha,
+      workflow_run: { head_sha: 'b'.repeat(40), id: 100 }
+    }
     const options = { tag: 'v2.1.2', sha, excludedRunId: '102' }
     expect(
       selectArchive(
         [
           artifact,
           { ...artifact, id: 2, expired: true },
-          { ...artifact, id: 3, workflow_run: { head_sha: 'other', id: 101 } },
+          { ...artifact, id: 3, releaseSha: 'other', workflow_run: { head_sha: sha, id: 101 } },
           { ...artifact, id: 4, workflow_run: { head_sha: sha, id: 102 } }
         ],
         options

@@ -95,7 +95,9 @@ To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BR
 
 ## 2. Wait for Release Branch CI
 
-Pushing `release/v<version>` automatically starts **CI**. After CI succeeds, **Auto Release Build** rechecks that the successful SHA is still the live branch head and dispatches **Release** with `all`. A stale CI completion is ignored, and an exact-head build is never dispatched twice.
+Pushing `release/v<version>` automatically starts **CI**. After CI succeeds, **Auto Release Build** rechecks that the successful SHA is still the live branch head and dispatches **Release** on `main` with `all`, the release tag, and the exact release SHA. A stale CI completion is ignored, and an exact-head build is never dispatched twice.
+
+The workflow and publication scripts are pinned to the selected `main` commit; only build jobs execute release-branch code. Release metadata is read as data by the trusted control jobs. The run title and archive metadata identify the release SHA, while the Actions run `head_sha` identifies the control workflow SHA.
 
 The **Release** workflow checks GitHub Actions for a successful `ci.yml` push run whose `head_sha` exactly equals the commit being released. A successful run for an older commit does not satisfy this gate.
 
@@ -116,13 +118,13 @@ The first release-branch CI run happens before a draft GitHub Release exists, so
 The initial build and every rebuild after a release-branch change start automatically when exact-head CI succeeds. Use the manual **Release** control only to retry a failed build:
 
 1. Open **Actions** → **Release** → **Run workflow**.
-2. Select `release/v<version>` in the branch selector. Never select `main`.
+2. Select `main` in the branch selector. Set `tag=v<version>` and `expected_sha` to the full 40-character SHA of the current `release/v<version>` head.
 3. Leave `mode=release`. Select `all` to retry the complete build, or `windows`, `mac`, or `linux` to replace only that platform's artifacts for the exact commit already referenced by the draft tag.
 4. Run the workflow and wait for every selected build job to finish.
 
 Before building, the workflow verifies that:
 
-- It was started from a `release/v<semver>` branch.
+- The workflow was started from `main`, with a valid tag and exact release SHA.
 - The branch version matches `package.json`.
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
@@ -223,6 +225,8 @@ Publishing triggers **Post Release** automatically. GitCode synchronization then
 4. Run synchronization. It requires an already published GitHub Release, matching repository/tag/SHA, a retained complete archive, and matching Global files. An existing GitCode Release is updated and files are uploaded again, with package files before update manifests.
 
 The archive expires after 90 days (subject to repository retention limits). Missing or expired archives fail closed; synchronization never rebuilds or re-signs historical packages. Use **Re-run failed jobs** for a failed synchronization within the original run. The `clean` input only removes signing-runner dependencies before a normal Windows build.
+
+Preparation, build, draft finalization, approval, publication, cleanup, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
 The repository needs the existing `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
 

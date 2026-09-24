@@ -683,12 +683,15 @@ describe('release preparation state', () => {
 
 describe('release publication state', () => {
   const workflowSha = 'a'.repeat(40)
+  const controlSha = 'c'.repeat(40)
   const expectedBuildTitle = `Release build all release/v1.2.0 @ ${workflowSha}`
   const successfulBuild = {
     conclusion: null,
     display_title: expectedBuildTitle,
     event: 'workflow_dispatch',
-    head_sha: workflowSha,
+    head_sha: controlSha,
+    head_branch: 'main',
+    path: '.github/workflows/release.yml',
     status: 'in_progress'
   }
   const successfulJobs = Object.fromEntries(
@@ -760,6 +763,7 @@ describe('release publication state', () => {
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
     expect(() =>
       validatePublishState({
+        controlSha,
         branchSha: workflowSha,
         buildRun: successfulBuild,
         expectedBuildTitle,
@@ -857,6 +861,16 @@ describe('release publication state', () => {
       'No successful all-platform Release build exists'
     ],
     [
+      'a release-branch-controlled build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, head_branch: 'release/v1.2.0' },
+      'No successful all-platform Release build exists'
+    ],
+    [
       'a stale build',
       draftRelease,
       workflowSha,
@@ -901,6 +915,7 @@ describe('release publication state', () => {
     (_case, release, tagSha, branchSha, openReleasePullRequests, pendingHotfixes, buildRun, expectedError) => {
       expect(() =>
         validatePublishState({
+          controlSha,
           branchSha,
           buildRun,
           expectedBuildTitle,
@@ -920,6 +935,7 @@ describe('release publication state', () => {
     for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
       expect(() =>
         validatePublishState({
+          controlSha,
           branchSha: workflowSha,
           buildRun: successfulBuild,
           expectedBuildTitle,
@@ -1131,24 +1147,26 @@ describe('release workflow gates', () => {
       (step: { name?: string }) => step.name === 'Revalidate and dispatch release build'
     )
     const releaseWorkflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const expectedShaStep = releaseWorkflow.jobs.prepare.steps.find(
-      (step: { name?: string }) => step.name === 'Verify automatically selected release commit'
+    const selection = releaseWorkflow.jobs.prepare.steps.find(
+      (step: { name?: string }) => step.name === 'Validate release selection'
     )
-
     expect(workflow.on.workflow_run.workflows).toEqual(['CI'])
     expect(workflow.jobs.dispatch.if).toContain("github.event.workflow_run.event == 'push'")
     expect(workflow.jobs.dispatch.if).toContain(
       'github.event.workflow_run.head_repository.full_name == github.repository'
     )
-    expect(dispatchStep.run).toContain('if [ "$BRANCH_SHA" != "$CI_SHA" ]')
     expect(dispatchStep.run).toContain('Release build all $BRANCH @ $CI_SHA')
-    expect(dispatchStep.run).toContain('gh workflow run release.yml')
     expect(dispatchStep.run).toContain('-f platform=all')
+    expect(dispatchStep.run).toContain('if [ "$BRANCH_SHA" != "$CI_SHA" ]')
+    expect(dispatchStep.run).toContain('--ref main')
+    expect(dispatchStep.run).toContain('-f tag="$TAG"')
     expect(dispatchStep.run).toContain('-f expected_sha="$CI_SHA"')
-    expect(releaseWorkflow.on.workflow_dispatch.inputs.expected_sha.required).toBe(false)
-    expect(expectedShaStep.if).toBe("inputs.expected_sha != ''")
-    expect(expectedShaStep.run).toContain('if [ "$GITHUB_SHA" != "$EXPECTED_SHA" ]')
-    expect(releaseWorkflow.jobs.prepare.steps.indexOf(expectedShaStep)).toBe(0)
+    expect(dispatchStep.run).not.toContain('runs?head_sha=$CI_SHA')
+    expect(releaseWorkflow.jobs.prepare.if).toContain("github.ref == 'refs/heads/main'")
+    expect(releaseWorkflow.jobs['sync-to-gitcode'].if).toContain("github.ref == 'refs/heads/main'")
+    expect(selection.run).toContain('if [ "$BRANCH_SHA" != "$RELEASE_SHA" ]')
+    expect(releaseWorkflow.jobs.release.steps[0].with.ref).toBe('${{ inputs.expected_sha }}')
+    expect(releaseWorkflow.jobs['finalize-build'].steps[0].with.ref).toBe('${{ github.workflow_sha }}')
   })
 
   it('reports a merged hotfix contract failure before release resolution', () => {

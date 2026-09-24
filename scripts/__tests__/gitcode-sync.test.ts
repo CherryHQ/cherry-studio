@@ -284,3 +284,54 @@ describe('intermediate release artifact cleanup', () => {
     expect(artifacts.map((artifact) => artifact.name)).toEqual([`release-bundle-${tag}`])
   })
 })
+
+describe('release failure notifications', () => {
+  const workflow = parse(readFileSync(path.resolve(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8'))
+  const notify = workflow.jobs.notify
+  const stages = ['prepare', 'release', 'finalize-build', 'cleanup-artifacts', 'approve', 'publish', 'sync-to-gitcode']
+
+  it.each(stages)('reports %s failure even when downstream jobs are skipped', (stage) => {
+    expect(notify.needs).toContain(stage)
+    expect(notify.if).toContain("contains(needs.*.result, 'failure')")
+    expect(notify.if).toContain("contains(needs.*.result, 'cancelled')")
+    expect(notify.if).toContain("!(inputs.mode == 'sync-only' && inputs.dry_run)")
+    for (const result of ['failure', 'cancelled']) {
+      const jobs = Object.fromEntries(stages.map((job) => [job, { result: job === stage ? result : 'skipped' }]))
+      const prefix = notify.steps[0].run.split("node <<'NODE'")[0]
+      const shell = spawnSync('bash', ['-e', '-c', `${prefix}\nprintf '%s\\n%s' "$TITLE" "$DESCRIPTION"`], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          JOB_RESULTS: JSON.stringify(jobs),
+          TAG_NAME: 'v2.1.2',
+          RUN_URL: 'https://example.test/run'
+        }
+      })
+      expect(shell.status, shell.stderr).toBe(0)
+      expect(shell.stdout).toContain(`${stage}: ${result}`)
+      expect(shell.stdout).not.toContain('skipped')
+      expect(shell.stdout).toContain(result === 'failure' ? '失败' : '已取消')
+    }
+  })
+})
+
+describe('trusted release selection', () => {
+  const workflow = parse(readFileSync(path.resolve(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8'))
+  const selection = workflow.jobs.prepare.steps.find(
+    (step: { name: string }) => step.name === 'Validate release selection'
+  )
+
+  it.each([
+    ['v2.1.2', 'a'.repeat(40), 'a'.repeat(40), true],
+    ['v2.1.2', '', 'a'.repeat(40), false],
+    ['v2.1.2', 'main', 'a'.repeat(40), false],
+    ['v2.1.2', 'a'.repeat(40), 'b'.repeat(40), false],
+    ['invalid', 'a'.repeat(40), 'a'.repeat(40), false]
+  ])('validates tag %s and selected SHA %s against the live release head', (tag, sha, head, valid) => {
+    const result = spawnSync('bash', ['-e', '-c', `gh() { printf '%s' "$LIVE_HEAD"; }\n${selection.run}`], {
+      encoding: 'utf8',
+      env: { ...process.env, TAG: tag, RELEASE_SHA: sha, LIVE_HEAD: head, RELEASE_BRANCH: `release/${tag}` }
+    })
+    expect(result.status === 0, result.stderr).toBe(valid)
+  })
+})

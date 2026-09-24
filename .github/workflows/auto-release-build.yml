@@ -48,11 +48,11 @@ jobs:
 
           EXPECTED_TITLE="Release build all $BRANCH @ $CI_SHA"
           RELEASE_RUNS="$(gh api --paginate --slurp \
-            "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$CI_SHA&event=workflow_dispatch&per_page=100")"
-          EXISTING_RUN="$(jq -c --arg title "$EXPECTED_TITLE" --arg sha "$CI_SHA" '
+            "repos/$REPO/actions/workflows/release.yml/runs?branch=main&event=workflow_dispatch&per_page=100")"
+          EXISTING_RUN="$(jq -c --arg title "$EXPECTED_TITLE" '
             [.[] | .workflow_runs[] | select(
               .display_title == $title and
-              .head_sha == $sha and
+              .head_branch == "main" and
               .event == "workflow_dispatch"
             )][0] // empty
           ' <<< "$RELEASE_RUNS")"
@@ -61,7 +61,8 @@ jobs:
             exit 0
           fi
 
-          gh workflow run release.yml --repo "$REPO" --ref "$BRANCH" \
+          gh workflow run release.yml --repo "$REPO" --ref main \
             -f platform=all \
+            -f tag="$TAG" \
             -f expected_sha="$CI_SHA"
           echo "Dispatched all-platform release build for $BRANCH at $CI_SHA"

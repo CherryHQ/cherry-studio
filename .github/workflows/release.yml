@@ -1,5 +1,5 @@
 name: Release
-run-name: ${{ inputs.mode == 'sync-only' && format('GitCode sync {0} from run {1}', inputs.tag, inputs.run_id) || format('Release build {0} {1} @ {2}', inputs.platform, github.ref_name, github.sha) }}
+run-name: ${{ inputs.mode == 'sync-only' && format('GitCode sync {0} from run {1}', inputs.tag, inputs.run_id) || format('Release build {0} {1} @ {2}', inputs.platform, format('release/{0}', inputs.tag), inputs.expected_sha) }}
 
 on:
   workflow_dispatch:
@@ -10,7 +10,8 @@ on:
         default: release
         options: [release, sync-only]
       tag:
-        description: "Published release tag (required for sync-only)"
+        description: "Release tag (required for both modes)"
+        required: true
         type: string
       run_id:
         description: "Original all-platform release run ID (required for sync-only)"
@@ -34,7 +35,7 @@ on:
           - mac
           - linux
       expected_sha:
-        description: "Expected commit for automatic dispatches; leave empty for manual runs"
+        description: "Exact release commit SHA (required for release mode)"
         required: false
         type: string
 
@@ -43,59 +44,64 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  RELEASE_SHA: ${{ inputs.expected_sha }}
+  RELEASE_BRANCH: release/${{ inputs.tag }}
+
 jobs:
   prepare:
     name: Prepare release ref
     concurrency:
       group: release-state
       cancel-in-progress: false
-    if: github.repository == 'CherryHQ/cherry-studio' && inputs.mode != 'sync-only'
+    if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' && inputs.mode != 'sync-only'
     runs-on: ubuntu-latest
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
     steps:
-      - name: Verify automatically selected release commit
-        if: inputs.expected_sha != ''
+      - name: Validate release selection
         shell: bash
         env:
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
         run: |
-          if [ "$GITHUB_SHA" != "$EXPECTED_SHA" ]; then
-            echo "Release branch moved from automatic selection $EXPECTED_SHA to $GITHUB_SHA" >&2
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
+             [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Release mode requires a semantic-version tag and exact expected_sha" >&2
+            exit 1
+          fi
+          BRANCH_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
+          if [ "$BRANCH_SHA" != "$RELEASE_SHA" ]; then
+            echo "Release branch moved away from $RELEASE_SHA" >&2
             exit 1
           fi
 
-      - name: Check out release commit
+      - name: Check out workflow scripts
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+
+      - name: Check out release metadata
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.expected_sha }}
+          path: release-source
 
       - name: Validate release branch and version
         id: release-ref
         shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          export LC_ALL=C
-          BRANCH="${GITHUB_REF_NAME}"
-          TAG="${BRANCH#release/}"
-
-          if [ "$GITHUB_REF_TYPE" != "branch" ] || [[ "$BRANCH" != release/v* ]]; then
-            echo "Release must run from a release/v<semver> branch, not $GITHUB_REF" >&2
-            exit 1
-          fi
-
-          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Invalid release branch: $BRANCH" >&2
-            exit 1
-          fi
-
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
-            echo "Branch $BRANCH does not match package.json version $PACKAGE_VERSION" >&2
+            echo "Tag $TAG does not match package.json version $PACKAGE_VERSION" >&2
             exit 1
           fi
-
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
@@ -105,18 +111,18 @@ jobs:
         run: |
           CI_RUN="$(gh api --method GET \
             "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
-            -f head_sha="$GITHUB_SHA" \
+            -f head_sha="$RELEASE_SHA" \
             -f event=push \
             -f status=completed \
             -F per_page=100 \
             --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
 
           if [ -z "$CI_RUN" ]; then
-            echo "No successful CI push run found for release commit $GITHUB_SHA" >&2
+            echo "No successful CI push run found for release commit $RELEASE_SHA" >&2
             exit 1
           fi
 
-          if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$GITHUB_SHA" ] || \
+          if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$RELEASE_SHA" ] || \
              [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
              [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
              [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then
@@ -134,7 +140,7 @@ jobs:
           REPO: ${{ github.repository }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          BRANCH="$GITHUB_REF_NAME"
+          BRANCH="$RELEASE_BRANCH"
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           RELEASE="$(jq -c --arg tag "$TAG" '
             [.[][] | select(.tag_name == $tag)] |
@@ -149,7 +155,7 @@ jobs:
           RELEASE_JSON="$RELEASE" \
           REMOTE_TAG_SHA="$REMOTE_TAG_SHA" \
           TAG="$TAG" \
-          WORKFLOW_SHA="$GITHUB_SHA" \
+          WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
 
   release:
@@ -176,7 +182,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.expected_sha }}
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -430,12 +436,19 @@ jobs:
       actions: read
       contents: write
     steps:
-      - name: Check out release commit
+      - name: Check out trusted workflow scripts
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.workflow_sha }}
+
+      - name: Check out release metadata
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.expected_sha }}
+          path: release-source
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -455,7 +468,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.expected_sha }}
         run: node scripts/release/release-artifact-source.js baseline
 
       - name: Download baseline archive
@@ -478,15 +491,16 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.expected_sha }}
           SOURCE_RUN_ID: ${{ github.run_id }}
           PLATFORM: ${{ inputs.platform }}
+          RELEASE_BUILDER_FILE: release-source/electron-builder.yml
         run: node scripts/release/release-artifacts.js assemble release-bundle github-release-artifacts
 
       - name: Revalidate current release head
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ env.RELEASE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
@@ -496,7 +510,7 @@ jobs:
           RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
           REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" PLATFORM="${{ inputs.platform }}" \
-          REMOTE_TAG_SHA="$REMOTE_TAG_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+          REMOTE_TAG_SHA="$REMOTE_TAG_SHA" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
           if [ -n "$RELEASE" ]; then
             while IFS= read -r asset_id; do
@@ -511,7 +525,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           node scripts/release/compose-release-body.js \
-            electron-builder.yml \
+            release-source/electron-builder.yml \
             - \
             "$RUNNER_TEMP/release-body.md" \
             "$REPO" \
@@ -526,7 +540,7 @@ jobs:
           artifactErrorsFailBuild: true
           artifacts: "github-release-artifacts/*"
           bodyFile: ${{ runner.temp }}/release-body.md
-          commit: ${{ github.sha }}
+          commit: ${{ inputs.expected_sha }}
           draft: true
           makeLatest: false
           prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
@@ -539,7 +553,7 @@ jobs:
         id: uploaded-draft
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ env.RELEASE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           REPO: ${{ github.repository }}
@@ -547,13 +561,13 @@ jobs:
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
       - name: Move draft tag with lease after artifact upload
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ env.RELEASE_BRANCH }}
           EXPECTED_TAG_SHA: ${{ needs.prepare.outputs.remote-tag-sha }}
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ github.event.inputs.platform }}
@@ -563,7 +577,7 @@ jobs:
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
           REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
@@ -572,21 +586,21 @@ jobs:
               if [ -z "$REMOTE_TAG_SHA" ]; then
                 gh api --method POST "repos/$REPO/git/refs" \
                   -f ref="refs/tags/$TAG" \
-                  -f sha="$GITHUB_SHA" >/dev/null
-              elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+                  -f sha="$RELEASE_SHA" >/dev/null
+              elif [ "$REMOTE_TAG_SHA" != "$RELEASE_SHA" ]; then
                 echo "Tag $TAG was created at $REMOTE_TAG_SHA during artifact upload" >&2
                 exit 1
               fi
             elif [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]; then
               echo "Tag $TAG moved from $EXPECTED_TAG_SHA to $REMOTE_TAG_SHA during the build" >&2
               exit 1
-            elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+            elif [ "$REMOTE_TAG_SHA" != "$RELEASE_SHA" ]; then
               REPOSITORY_ID="$(gh api "repos/$REPO" --jq '.node_id')"
               jq -n \
                 --arg repositoryId "$REPOSITORY_ID" \
                 --arg name "refs/tags/$TAG" \
                 --arg beforeOid "$EXPECTED_TAG_SHA" \
-                --arg afterOid "$GITHUB_SHA" \
+                --arg afterOid "$RELEASE_SHA" \
                 '{
                   query: "mutation($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }",
                   variables: {
@@ -603,19 +617,19 @@ jobs:
                 }' > "$RUNNER_TEMP/move-release-tag.json"
               gh api graphql --input "$RUNNER_TEMP/move-release-tag.json" >/dev/null
             fi
-          elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+          elif [ "$REMOTE_TAG_SHA" != "$RELEASE_SHA" ]; then
             echo "Single-platform retries must not move $TAG away from its existing release commit" >&2
             exit 1
           fi
 
           FINAL_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
-          if [ "$FINAL_TAG_SHA" != "$GITHUB_SHA" ]; then
-            echo "Tag $TAG does not point to $GITHUB_SHA after draft finalization" >&2
+          if [ "$FINAL_TAG_SHA" != "$RELEASE_SHA" ]; then
+            echo "Tag $TAG does not point to $RELEASE_SHA after draft finalization" >&2
             exit 1
           fi
           FINAL_RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$FINAL_RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$FINAL_RELEASE" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-completion
           if [ "$(jq -r '.draft' <<< "$FINAL_RELEASE")" != "true" ]; then
             echo "Release $TAG was published while the build was finalizing" >&2
@@ -625,7 +639,7 @@ jobs:
       - name: Add generated changes to release notes
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ env.RELEASE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ contains(needs.prepare.outputs.tag, '-') }}
           RELEASE_ID: ${{ steps.draft-release.outputs.id }}
@@ -649,7 +663,7 @@ jobs:
             -f previous_tag_name="$PREVIOUS_TAG" \
             --jq '.body' > "$RUNNER_TEMP/generated-release-notes.md"
           node scripts/release/compose-release-body.js \
-            electron-builder.yml \
+            release-source/electron-builder.yml \
             "$RUNNER_TEMP/generated-release-notes.md" \
             "$RUNNER_TEMP/release-body.md" \
             "$REPO" \
@@ -660,7 +674,7 @@ jobs:
           RELEASE="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
             --input "$RUNNER_TEMP/release-body.json")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-completion
           if [ -z "$(jq -r '.body // empty' <<< "$RELEASE")" ]; then
             echo "Draft release $TAG has no release notes" >&2
@@ -757,7 +771,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.expected_sha }}
           SOURCE_RUN_ID: ${{ github.run_id }}
         run: |
           node scripts/release/release-artifacts.js verify-github release-bundle
@@ -765,12 +779,13 @@ jobs:
       - name: Validate and publish current draft
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ env.RELEASE_BRANCH }}
           BUILD_RUN_ID: ${{ github.run_id }}
-          BUILD_SHA: ${{ github.sha }}
+          BUILD_SHA: ${{ inputs.expected_sha }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           REPO: ${{ github.repository }}
           RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}
+          CONTROL_SHA: ${{ github.workflow_sha }}
         run: |
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
 
@@ -819,8 +834,8 @@ jobs:
           BUILD_RUN="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN_ID")"
 
           if [ "$(jq -r '.head_repository.full_name' <<< "$BUILD_RUN")" != "$REPO" ] || \
-             [ "$(jq -r '.head_branch' <<< "$BUILD_RUN")" != "$BRANCH" ]; then
-            echo "The approved build no longer identifies the expected repository and release branch" >&2
+             [ "$(jq -r '.head_branch' <<< "$BUILD_RUN")" != "main" ]; then
+            echo "The approved build no longer identifies the expected repository and main control workflow" >&2
             exit 1
           fi
 
@@ -867,7 +882,7 @@ jobs:
     name: Sync both editions to GitCode
     needs: [prepare, publish]
     if: >-
-      !cancelled() && github.repository == 'CherryHQ/cherry-studio' &&
+      !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&
       (needs.publish.result == 'success' || inputs.mode == 'sync-only')
     runs-on: ubuntu-latest
     concurrency:
@@ -929,11 +944,10 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [prepare, release, sync-to-gitcode]
+    needs: [prepare, release, finalize-build, cleanup-artifacts, approve, publish, sync-to-gitcode]
     if: >-
       always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
-      (needs.release.result == 'failure' || needs.release.result == 'cancelled' ||
-       needs.sync-to-gitcode.result == 'failure' || needs.sync-to-gitcode.result == 'cancelled')
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
     steps:
       - name: Send failure notification to Feishu
         shell: bash
@@ -942,24 +956,17 @@ jobs:
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
           TAG_NAME: ${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BUILD_RESULT: ${{ needs.release.result }}
-          SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          if [ "$BUILD_RESULT" = "cancelled" ] || [ "$SYNC_RESULT" = "cancelled" ]; then
-            STATUS_TEXT="已取消"
-            COLOR="orange"
-          else
+          STAGE="$(jq -r 'to_entries | map(select(.value.result == "failure" or .value.result == "cancelled") | "\(.key): \(.value.result)") | join(", ")' <<< "$JOB_RESULTS")"
+          if jq -e 'any(.[]; .result == "failure")' <<< "$JOB_RESULTS" >/dev/null; then
             STATUS_TEXT="失败"
             COLOR="red"
-          fi
-
-          if [ "$BUILD_RESULT" = "failure" ] || [ "$BUILD_RESULT" = "cancelled" ]; then
-            STAGE="发布构建"
           else
-            STAGE="同步"
+            STATUS_TEXT="已取消"
+            COLOR="orange"
           fi
-
-          TITLE="GitCode ${STAGE}${STATUS_TEXT}"
+          TITLE="Release ${STATUS_TEXT}"
           DESCRIPTION=$(printf "**标签:** %s\n\n**阶段:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "${TAG_NAME:-unknown}" "$STAGE" "$STATUS_TEXT" "$RUN_URL")
           export TITLE DESCRIPTION COLOR
 

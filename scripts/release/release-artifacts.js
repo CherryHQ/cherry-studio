@@ -201,7 +201,7 @@ async function main() {
       sha,
       runId,
       platform: process.env.PLATFORM,
-      builderFile: 'electron-builder.yml'
+      builderFile: process.env.RELEASE_BUILDER_FILE || 'electron-builder.yml'
     })
   }
   const metadata = await verifyArchive(directory, { repository, tag, sha, runId })

@@ -46,6 +46,7 @@ function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
 
 function validatePublishState({
   branchSha,
+  controlSha,
   buildRun,
   expectedBuildTitle,
   jobResults,
@@ -74,7 +75,9 @@ function validatePublishState({
   if (
     !buildRun ||
     buildRun.display_title !== expectedBuildTitle ||
-    buildRun.head_sha !== workflowSha ||
+    buildRun.head_sha !== controlSha ||
+    buildRun.head_branch !== 'main' ||
+    buildRun.path !== '.github/workflows/release.yml' ||
     buildRun.event !== 'workflow_dispatch' ||
     !jobResults ||
     ['prepare', 'release', 'finalize-build', 'approve'].some((job) => jobResults[job]?.result !== 'success')
@@ -139,6 +142,7 @@ function main() {
   if (phase === 'publish') {
     validatePublishState({
       branchSha: requiredEnvironment('BRANCH_SHA'),
+      controlSha: requiredEnvironment('CONTROL_SHA'),
       buildRun: parseOptionalJson(process.env.BUILD_RUN_JSON, 'BUILD_RUN_JSON'),
       expectedBuildTitle: requiredEnvironment('EXPECTED_BUILD_TITLE'),
       jobResults: parseOptionalJson(process.env.RELEASE_JOB_RESULTS, 'RELEASE_JOB_RESULTS'),
