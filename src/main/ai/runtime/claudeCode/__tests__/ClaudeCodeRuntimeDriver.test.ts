@@ -3546,6 +3546,77 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('does not announce a fallback whose query fails to install', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The primary installs; the fallback's install fails after the swap had already been decided.
+    mocks.consumeWarmQuery
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('warm query manager unavailable'))
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: expect.stringContaining('429') })
+      })
+    )
+    void connection.close()
+  })
+
   it('keeps the primary model and surfaces the error when the failed turn already produced content', async () => {
     mocks.getPreference.mockImplementation((key: string) => {
       if (key === 'chat.retry.enabled') return true

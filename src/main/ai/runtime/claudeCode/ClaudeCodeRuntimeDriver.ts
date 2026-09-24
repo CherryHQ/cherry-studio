@@ -868,7 +868,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // and the capture must already describe the fallback model (installQuery may still refine
       // it with a consumed warm query's receipt — same fallback model either way).
       this._usageCapture = request.usageCapture
+      this.sdkInputQueue.close()
+      this.sdkInputQueue = new SdkInputQueue()
+      if (replayedMessage) {
+        this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
+      }
+      await this.installQuery(request)
       // Tell the user in the transcript itself — persisted with the turn like any other data part.
+      // Announced only now: a swap that never installed must leave no notice claiming it did, and
+      // installQuery is pure setup, so nothing of the fallback turn can precede this.
       this.eventQueue.push({
         type: 'chunk',
         chunk: {
@@ -877,12 +885,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
         }
       })
-      this.sdkInputQueue.close()
-      this.sdkInputQueue = new SdkInputQueue()
-      if (replayedMessage) {
-        this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
-      }
-      await this.installQuery(request)
       // installQuery swapped the adapter; the replayed message must land inside an open turn.
       this.adapter?.beginTurn()
       return true
