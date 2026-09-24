@@ -266,6 +266,19 @@ describe('listWorkflows', () => {
     expect(workflows).toEqual(['a', 'sub/nested'])
   })
 
+  it('reaches the API when the host was pasted with a trailing fragment', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe('http://localhost:8188/v2/userdata?path=workflows')
+      return respond([{ name: 'a.json', type: 'file', path: 'workflows/a.json' }])
+    })
+
+    // A fragment is never sent, so without stripping it every request lands on
+    // the ComfyUI console's HTML root and the listing fails to parse.
+    const workflows = await listWorkflows('http://localhost:8188/#', undefined, { fetch: doFetch })
+
+    expect(workflows).toEqual(['a'])
+  })
+
   it('surfaces a failed listing as a structured REMOTE_ERROR with the server message', async () => {
     const doFetch = vi.fn(async () => new Response(JSON.stringify({ message: 'server exploded' }), { status: 500 }))
 

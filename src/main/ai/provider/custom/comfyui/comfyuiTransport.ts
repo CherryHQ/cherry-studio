@@ -103,6 +103,16 @@ interface UserDataEntry {
 
 export const WORKFLOW_FILE_EXTENSION = '.json'
 
+/**
+ * Everything from `#` on belongs to the client and is never sent, so a host the
+ * user pasted as `http://host:8188/#` would otherwise put every request on the
+ * console's HTML root instead of the API. Trailing slashes go with it, or the
+ * fragment leaves a doubled separator behind.
+ */
+export function normalizeComfyuiBaseUrl(baseURL: string): string {
+  return baseURL.split('#')[0].replace(/\/+$/, '')
+}
+
 /** Saved workflow names, newest first. Directories and non-workflow files are skipped. */
 export async function listWorkflows(
   baseURL: string,
@@ -110,7 +120,7 @@ export async function listWorkflows(
   options: ComfyuiRequestOptions = {}
 ): Promise<string[]> {
   const entries = await requestJson<UserDataEntry[]>(
-    `${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`,
+    `${normalizeComfyuiBaseUrl(baseURL)}/v2/userdata?path=${WORKFLOW_DIR}`,
     t('paintings.comfyui.list_failed'),
     signal,
     options
@@ -240,7 +250,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   private capabilitiesPromise?: Promise<ComfyuiCancelCapabilities>
 
   constructor(settings: ComfyuiTransportSettings) {
-    this.baseURL = (settings.baseURL || DEFAULT_COMFYUI_BASE_URL).replace(/\/+$/, '')
+    this.baseURL = normalizeComfyuiBaseUrl(settings.baseURL || DEFAULT_COMFYUI_BASE_URL)
     this.headers = settings.headers ?? {}
     this.doFetch = settings.fetch ?? fetch
   }
