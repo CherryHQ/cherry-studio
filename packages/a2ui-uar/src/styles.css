@@ -1,0 +1,138 @@
+/* KnowMe design tokens — a2ui-uar scoped surface themes (uar-ui-a2ui-retoken).
+ * Values mirror frontend/src/index.css (themselves a port of the KnowMe
+ * standard) so agent-generated uar.a2ui/1 surfaces render the same design
+ * language no matter where they are embedded. The surface paints its OWN
+ * background — a theme that controls text color but not its canvas is not a
+ * theme (this is the fix for the storybook axe color-contrast failure). */
+.uar-a2ui-surface {
+  /* KnowMe light */
+  --background: 240 7% 97%; /* #F7F7F8 canvas */
+  --chrome: 0 0% 100%; /* #FFFFFF */
+  --surface: 210 25% 98%; /* #FAFBFC */
+  --foreground: 213 29% 6%; /* #0B0F14 */
+  --fg-sub: 215 14% 34%; /* #4B5563 */
+  --fg-faint: 220 9% 46%; /* #6B7280 */
+  --card: 0 0% 100%;
+  --card-foreground: 213 29% 6%;
+  --card-hov: 216 24% 96%; /* #F2F4F7 */
+  --primary: 12 75% 52%; /* #E04E28 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 25% 98%;
+  --secondary-foreground: 213 29% 6%;
+  --muted: 216 24% 96%;
+  --muted-foreground: 215 14% 34%; /* fg-sub */
+  --accent: 216 24% 96%;
+  --accent-foreground: 213 29% 6%;
+  --destructive: 0 72% 51%; /* #DC2626 */
+  --destructive-foreground: 0 0% 100%;
+  --ember: 12 75% 52%;
+  --ember-soft: 16 76% 93%; /* #FBE8E1 */
+  --cyan: 192 91% 36%; /* #0891B2 */
+  --success: 142 76% 36%; /* #16A34A */
+  --warning: 32 95% 44%; /* #D97706 */
+  --border: transparent;
+  --input: 210 25% 98%;
+  --ring: 12 75% 52%;
+  min-inline-size: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  color-scheme: light;
+}
+
+.uar-a2ui-surface[data-a2ui-theme='dark'] {
+  /* KnowMe dark — 4-step ladder: canvas → chrome → surface → raised */
+  --background: 213 29% 6%; /* #0B0F14 */
+  --chrome: 220 31% 10%; /* #111620 */
+  --surface: 218 30% 12%; /* #161D29 */
+  --foreground: 213 31% 93%; /* #E8EDF3 */
+  --fg-sub: 214 14% 70%; /* #A7B0BC */
+  --fg-faint: 220 9% 46%; /* #6B7280 */
+  --card: 218 31% 16%; /* #1C2535 */
+  --card-foreground: 213 31% 93%;
+  --card-hov: 219 33% 19%; /* #202B40 */
+  --primary: 14 100% 62%; /* #FF6A3D */
+  --primary-foreground: 213 29% 6%;
+  --secondary: 218 30% 12%;
+  --secondary-foreground: 213 31% 93%;
+  --muted: 219 30% 21%; /* #253044 */
+  --muted-foreground: 214 14% 70%; /* #A7B0BC — fg-sub per KnowMe mapping */
+  --accent: 219 33% 19%;
+  --accent-foreground: 213 31% 93%;
+  --destructive: 0 84% 60%; /* #EF4444 */
+  --destructive-foreground: 213 31% 93%;
+  --ember: 14 100% 62%;
+  --ember-soft: 6 28% 13%; /* #2B1A18 */
+  --cyan: 187 100% 43%; /* #00C2DC */
+  --success: 142 71% 45%; /* #22C55E */
+  --warning: 38 92% 50%; /* #F59E0B */
+  --border: transparent;
+  --input: 218 30% 12%;
+  --ring: 14 100% 62%;
+  color-scheme: dark;
+}
+
+.uar-a2ui-surface[data-a2ui-theme='high-contrast'] {
+  /* Monochrome + yellow, body pairs ≥7:1 (mirrors the frontend HC rebase) */
+  --background: 0 0% 0%;
+  --chrome: 0 0% 6%;
+  --surface: 0 0% 10%;
+  --foreground: 0 0% 100%;
+  --fg-sub: 0 0% 88%;
+  --fg-faint: 0 0% 70%;
+  --card: 0 0% 12%;
+  --card-foreground: 0 0% 100%;
+  --card-hov: 0 0% 18%;
+  --primary: 55 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 85%;
+  --accent: 0 0% 18%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 100% 65%;
+  --destructive-foreground: 0 0% 0%;
+  --ember: 55 100% 50%;
+  --ember-soft: 0 0% 16%;
+  --cyan: 187 100% 60%;
+  --success: 120 100% 50%;
+  --warning: 55 100% 50%;
+  --border: 0 0% 100%; /* HC exception: visible lines are the accessibility feature */
+  --input: 0 0% 14%;
+  --ring: 55 100% 50%;
+  color-scheme: dark;
+}
+
+.uar-a2ui-surface [data-a2ui-component='Row'] {
+  flex-wrap: wrap;
+}
+.uar-a2ui-surface [data-a2ui-component='Row'] > * {
+  min-inline-size: min(100%, 12rem);
+}
+.uar-a2ui-surface :focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .uar-a2ui-surface {
+    forced-color-adjust: auto;
+  }
+  .uar-a2ui-surface :focus-visible {
+    outline: 2px solid Highlight;
+  }
+  .uar-a2ui-surface [role='alert'] {
+    border: 1px solid Mark;
+    color: MarkText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uar-a2ui-surface *,
+  .uar-a2ui-surface *::before,
+  .uar-a2ui-surface *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

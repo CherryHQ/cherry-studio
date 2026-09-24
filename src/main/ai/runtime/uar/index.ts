@@ -12,6 +12,16 @@ export {
   testUarProvider
 } from './UarModelSourceAdapter'
 export {
+  deleteUarA2uiComponent,
+  deleteUarArtifactSchema,
+  deleteUarPresentation,
+  readUarPresentations,
+  saveUarA2uiComponent,
+  saveUarArtifactSchema,
+  saveUarPresentation,
+  saveUarPresentationPolicy
+} from './UarPresentationAdministrationAdapter'
+export {
   compileUarAgent,
   deleteUarAgent,
   readUarCatalog,

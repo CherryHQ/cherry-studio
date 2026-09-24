@@ -118,7 +118,9 @@
     "update:languages": "tsx scripts/update-languages.ts"
   },
   "dependencies": {
+    "@a2ui/web_core": "0.10.6",
     "@anthropic-ai/claude-agent-sdk": "0.3.220",
+    "@base-ui/react": "1.7.0",
     "@cherrystudio/dsh-bridge": "workspace:*",
     "@deepseek-ai/dsh-sdk-client": "0.1.2-rc.1",
     "@deepseek-ai/dsh-sdk-protocol": "0.1.2-rc.1",
@@ -131,6 +133,8 @@
     "@napi-rs/system-ocr": "1.2.0",
     "@node-rs/xxhash": "1.7.6",
     "@paymoapp/electron-shutdown-handler": "1.2.0",
+    "@prometheus-ags/a2ui-core": "workspace:*",
+    "@prometheus-ags/a2ui-uar": "workspace:*",
     "@sentry/electron": "7.18.0",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
@@ -151,6 +155,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
+    "react-aria-components": "^1.20.0",
     "registry-js": "1.16.1",
     "selection-hook": "2.1.1",
     "sharp": "0.35.3",

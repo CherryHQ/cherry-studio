@@ -5,10 +5,14 @@ import {
   integrationActionSchema,
   integrationUpdateSchema,
   secretPatchSchema,
+  uarA2uiComponentSaveSchema,
   uarAgentSaveSchema,
   uarAgentSkillsSchema,
+  uarArtifactSchemaSaveSchema,
   uarCompilerRequestSchema,
   uarFederatedAgentSaveSchema,
+  uarPresentationSaveSchema,
+  uarPresentationSelectionSchema,
   uarProviderMutationSchema,
   uarSkillToggleSchema,
   type IntegrationOperation,
@@ -21,6 +25,7 @@ import {
   type UarCompilerResult,
   type UarAuthorityDiagnosticResult,
   type UarModelSourceSnapshot,
+  type UarPresentationAdministrationSnapshot,
   type UarSettingsSnapshot,
   type UarSettingsUpdateResult
 } from '@shared/types/prometheusIntegration'
@@ -88,6 +93,40 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.catalog.save_federated_agent': defineRoute({
     input: uarFederatedAgentSaveSchema,
     output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.presentations.read': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.save': defineRoute({
+    input: uarPresentationSaveSchema,
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.delete': defineRoute({
+    input: z.object({ id: z.string().min(1).max(256), expectedRevision: z.number().int().nonnegative() }).strict(),
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.save_schema': defineRoute({
+    input: uarArtifactSchemaSaveSchema,
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.delete_schema': defineRoute({
+    input: z.object({ schemaId: z.string().min(1).max(256), expectedRevision: z.string().min(1).max(128) }).strict(),
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.save_component': defineRoute({
+    input: uarA2uiComponentSaveSchema,
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.delete_component': defineRoute({
+    input: z.object({ id: z.string().min(1).max(256), expectedRevision: z.string().min(1).max(128) }).strict(),
+    output: z.custom<UarPresentationAdministrationSnapshot>()
+  }),
+  'prometheus.uar.presentations.save_policy': defineRoute({
+    input: z
+      .object({ expectedPolicy: z.record(z.string(), z.unknown()), selection: uarPresentationSelectionSchema })
+      .strict(),
+    output: z.custom<UarPresentationAdministrationSnapshot>()
   }),
   'prometheus.uar.settings.read': defineRoute({
     input: z.object({ namespace: uarSettingsNamespaceSchema }).strict(),

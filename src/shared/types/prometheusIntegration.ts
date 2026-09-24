@@ -386,6 +386,96 @@ export const uarAgentSkillsSchema = z
   .object({ agentId: z.string().min(1).max(256), skillIds: z.array(z.string().min(1).max(256)).max(1024) })
   .strict()
 export const uarSkillToggleSchema = z.object({ skillId: z.string().min(1).max(256), enabled: z.boolean() }).strict()
+
+export const uarPresentationSelectionSchema = z
+  .object({
+    mode: z.enum(['inherit', 'auto', 'all', 'none', 'selected']),
+    ids: z.array(z.string().min(1).max(256)).max(1024),
+    denied_ids: z.array(z.string().min(1).max(256)).max(1024)
+  })
+  .strict()
+export type UarPresentationSelection = z.infer<typeof uarPresentationSelectionSchema>
+export type UarPresentationTemplate = {
+  version: string
+  catalog_id: string
+  components: Array<Record<string, unknown>>
+  default_data: Record<string, unknown>
+}
+export type UarPresentation = {
+  id: string
+  ownerId: string
+  revision: number
+  title: string
+  description: string
+  enabled: boolean
+  template: UarPresentationTemplate
+  createdAt: string
+  updatedAt: string
+}
+export type UarArtifactSchema = {
+  schemaId: string
+  title: string
+  description: string
+  artifactType: 'form' | 'confirm' | 'select' | 'text_input' | 'display' | 'chart' | 'media'
+  jsonSchema: Record<string, unknown>
+  renderHint?: string
+  builtin: boolean
+  revision?: string
+}
+export type UarA2uiComponent = {
+  id: string
+  title: string
+  description?: string
+  source: string
+  category: string
+  primitiveType: string
+  revision: string
+  builtin: boolean
+}
+export type UarPresentationAdministrationSnapshot = {
+  schemaVersion: 1
+  generation: number
+  ownerId: string
+  presentations: UarPresentation[]
+  schemas: UarArtifactSchema[]
+  components: UarA2uiComponent[]
+  policy: UarPresentationSelection
+  policyBaseline: Record<string, unknown>
+}
+export const uarPresentationSaveSchema = z
+  .object({
+    id: z.string().min(1).max(256).optional(),
+    expectedRevision: z.number().int().nonnegative().optional(),
+    title: z.string().min(1).max(256),
+    description: z.string().max(4096),
+    enabled: z.boolean(),
+    template: z.record(z.string(), z.unknown())
+  })
+  .strict()
+export type UarPresentationSave = z.infer<typeof uarPresentationSaveSchema>
+export const uarArtifactSchemaSaveSchema = z
+  .object({
+    mode: z.enum(['create', 'update']),
+    schemaId: z.string().min(1).max(256),
+    expectedRevision: z.string().min(1).max(128).optional(),
+    title: z.string().min(1).max(256),
+    description: z.string().max(4096),
+    artifactType: z.enum(['form', 'confirm', 'select', 'text_input', 'display', 'chart', 'media']),
+    jsonSchema: z.record(z.string(), z.unknown()),
+    renderHint: z.string().max(128).optional()
+  })
+  .strict()
+export type UarArtifactSchemaSave = z.infer<typeof uarArtifactSchemaSaveSchema>
+export const uarA2uiComponentSaveSchema = z
+  .object({
+    id: z.string().min(1).max(256).optional(),
+    expectedRevision: z.string().min(1).max(128).optional(),
+    title: z.string().min(1).max(256),
+    description: z.string().max(4096).optional(),
+    source: z.string().min(1).max(1_000_000)
+  })
+  .strict()
+export type UarA2uiComponentSave = z.infer<typeof uarA2uiComponentSaveSchema>
 export type UarModelSource = 'boss' | 'gateway' | 'uar'
 export type UarModelSourceSnapshot = {
   schemaVersion: 1
