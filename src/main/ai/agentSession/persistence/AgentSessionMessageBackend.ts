@@ -8,12 +8,13 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
+import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')
 
@@ -41,7 +42,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  persistAssistant(input: PersistAssistantInput): void {
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
     let forkAnchor: RuntimeForkAnchor | undefined
@@ -70,12 +71,18 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         { publishDataChange: true }
       )
+    let saved
     try {
-      save(forkAnchor)
+      saved = save(forkAnchor)
     } catch (error) {
       if (!forkAnchor) throw error
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
-      save()
+      saved = save()
+    }
+    return {
+      messageId: saved.id,
+      messageRevision: String(Date.parse(saved.updatedAt)),
+      historyRevision: String(Date.parse(agentSessionService.getConversationById(this.opts.sessionId).updatedAt))
     }
   }
 
