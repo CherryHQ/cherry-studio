@@ -29,8 +29,8 @@ export interface AgentSessionFallbackInput {
  */
 export function classifyFallbackEligibleError(error: unknown): string | undefined {
   if (!(error instanceof ClaudeCodeResultError)) return undefined
-  if (error.apiErrorStatus != null) {
-    return FALLBACK_STATUS_CODES.has(error.apiErrorStatus) ? `http ${error.apiErrorStatus}` : undefined
+  if (error.statusCode != null) {
+    return FALLBACK_STATUS_CODES.has(error.statusCode) ? `http ${error.statusCode}` : undefined
   }
   if (error.terminalReason !== 'api_error') return undefined
   const matched = error.errors.find((entry) => STATUS_ERROR_PATTERN.test(entry) || RATE_LIMIT_ERROR_PATTERN.test(entry))
