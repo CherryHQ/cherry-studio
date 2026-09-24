@@ -1,6 +1,6 @@
 /**
- * Floating toolbar, right-aligned to the selection and flipped above it when there
- * is no room below.
+ * Floating toolbar, right-aligned to the selection (clamped to the display's left edge)
+ * and flipped above it when there is no room below.
  *
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
@@ -136,7 +136,8 @@ export const Toolbar = memo(function Toolbar({
         zIndex: Z_INDEX.TOOLBAR,
         top,
         left: right,
-        transform: 'translateX(-100%)'
+        // Right-aligned to the selection, but never shifted past the display's left edge.
+        transform: `translateX(max(-100%, ${-right}px))`
       }}
       // Without this, clicking any button also starts a new background selection on
       // the capture canvas underneath and wipes the selection being acted on.
