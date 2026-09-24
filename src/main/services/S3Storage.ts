@@ -219,13 +219,15 @@ export default class S3Storage {
    * Download an object straight to disk. Same reason as {@link putFile}: a
    * profile-sized archive must never be materialized in memory.
    */
-  async downloadToFile(key: string, destPath: string): Promise<void> {
+  async downloadToFile(key: string, destPath: string, signal?: AbortSignal): Promise<void> {
     try {
-      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
+      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }), {
+        abortSignal: signal
+      })
       if (!res.Body || !(res.Body instanceof Readable)) {
         throw new Error('Empty body received from S3')
       }
-      await pipeline(res.Body, fs.createWriteStream(destPath))
+      await pipeline(res.Body, fs.createWriteStream(destPath), { signal })
     } catch (error) {
       logger.error('[S3Storage] Error downloading object:', error as Error)
       throw error

@@ -14,7 +14,17 @@ import type { ResolvedDestination } from './destinationConfig'
 const logger = loggerService.withContext('BackupDestinationTransport')
 
 function throwIfCancelled(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new BackupCancelledError('backup upload cancelled')
+  if (signal?.aborted) throw new BackupCancelledError('backup transfer cancelled')
+}
+
+/** A transfer that failed because it was aborted is reported as the cancellation it is. */
+async function orCancelled(signal: AbortSignal | undefined, work: Promise<void>): Promise<void> {
+  try {
+    await work
+  } catch (error) {
+    throwIfCancelled(signal)
+    throw error
+  }
 }
 
 /** One archive sitting at a destination, as the rotation and the picker see it. */
@@ -36,7 +46,7 @@ export interface RemoteArchive {
  */
 export interface DestinationTransport {
   upload(localPath: string, name: string, signal?: AbortSignal): Promise<void>
-  download(name: string, destPath: string): Promise<void>
+  download(name: string, destPath: string, signal?: AbortSignal): Promise<void>
   list(): Promise<RemoteArchive[]>
   remove(name: string): Promise<void>
   check(): Promise<boolean>
@@ -65,8 +75,8 @@ function webdavTransport(destination: Extract<ResolvedDestination, { kind: 'webd
       throwIfCancelled(signal)
     },
 
-    async download(name, destPath) {
-      await pipeline(client.createReadStream(name), fs.createWriteStream(destPath))
+    async download(name, destPath, signal) {
+      await orCancelled(signal, pipeline(client.createReadStream(name), fs.createWriteStream(destPath), { signal }))
     },
 
     async list() {
@@ -103,18 +113,12 @@ function s3Transport(destination: Extract<ResolvedDestination, { kind: 's3' }>):
   return {
     async upload(localPath, name, signal) {
       throwIfCancelled(signal)
-      try {
-        await client.putFile(name, localPath, signal)
-      } catch (error) {
-        // The SDK's abort error, reported as the cancellation it is.
-        throwIfCancelled(signal)
-        throw error
-      }
+      await orCancelled(signal, client.putFile(name, localPath, signal))
       throwIfCancelled(signal)
     },
 
-    async download(name, destPath) {
-      await client.downloadToFile(name, destPath)
+    async download(name, destPath, signal) {
+      await orCancelled(signal, client.downloadToFile(name, destPath, signal))
     },
 
     async list() {
@@ -160,8 +164,9 @@ function localTransport(destination: Extract<ResolvedDestination, { kind: 'local
       }
     },
 
-    async download(name, destPath) {
-      await fs.copy(target(name), destPath)
+    async download(name, destPath, signal) {
+      // Streamed rather than fs.copy so a cancel can stop a large copy off a slow disk.
+      await orCancelled(signal, pipeline(fs.createReadStream(target(name)), fs.createWriteStream(destPath), { signal }))
     },
 
     async list() {

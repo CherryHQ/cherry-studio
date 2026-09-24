@@ -72,6 +72,17 @@ describe('local destination transport', () => {
     )
     expect(await fs.pathExists(dir)).toBe(false)
   })
+
+  // Cancelling a restore from a folder on a slow disk must not wait out the copy.
+  it('reports a cancelled download as cancelled instead of finishing the copy', async () => {
+    await transport().upload(archive, 'a.cherrybackup')
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      transport().download('a.cherrybackup', path.join(root, 'downloaded'), controller.signal)
+    ).rejects.toBeInstanceOf(BackupCancelledError)
+  })
 })
 
 describe('S3 destination transport', () => {

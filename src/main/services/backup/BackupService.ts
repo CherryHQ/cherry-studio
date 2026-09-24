@@ -318,7 +318,7 @@ export class BackupService extends BaseService {
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        await transport.download(name, scratch.filePath)
+        await transport.download(name, scratch.filePath, signal)
         return await prepareRestore({ archivePath: scratch.filePath, signal })
       } finally {
         await scratch.dispose()
