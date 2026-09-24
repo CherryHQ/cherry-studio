@@ -201,6 +201,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
+    persistedPartsByMessageId: partsByMessageIdMock.value,
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
       id,
       role: 'assistant',

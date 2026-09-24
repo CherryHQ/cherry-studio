@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "Диагностика",
   "error.diagnosis.ai_result": "Результат ИИ-диагностики",
   "error.diagnosis.auth": "API-ключ недействителен, проверьте и перенастройте",
+  "error.diagnosis.bad_request": "Ошибка запроса к провайдеру (HTTP 400)",
   "error.diagnosis.content": "Содержимое заблокировано системой безопасности, измените и повторите",
   "error.diagnosis.context_length": "Слишком длинный разговор, пожалуйста, очистите историю или начните новый чат",
   "error.diagnosis.deprecated": "Эта модель была снята с производства, пожалуйста, переключитесь на другую модель",

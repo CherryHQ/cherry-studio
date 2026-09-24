@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "診断中",
   "error.diagnosis.ai_result": "AI 診断結果",
   "error.diagnosis.auth": "API Key が無効です。確認して再設定してください",
+  "error.diagnosis.bad_request": "プロバイダーへのリクエストに失敗しました（HTTP 400）",
   "error.diagnosis.content": "コンテンツがセキュリティシステムによりブロックされました。修正して再試行してください",
   "error.diagnosis.context_length": "会話が長すぎます。履歴をクリアするか、新しいチャットを開始してください。",
   "error.diagnosis.deprecated": "このモデルは廃止されました。別のモデルに切り替えてください。",

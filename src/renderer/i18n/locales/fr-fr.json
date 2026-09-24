@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "Diagnostic en cours",
   "error.diagnosis.ai_result": "Résultat du diagnostic IA",
   "error.diagnosis.auth": "Clé API invalide, veuillez vérifier et reconfigurer",
+  "error.diagnosis.bad_request": "La requête au fournisseur a échoué (HTTP 400)",
   "error.diagnosis.content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
   "error.diagnosis.context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
   "error.diagnosis.deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",
