@@ -3291,7 +3291,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
-    it('stops retrying a workflow checkpoint that keeps failing and reports it', () => {
+    it('keeps retrying a workflow checkpoint that keeps failing, more slowly', () => {
       vi.useFakeTimers()
       try {
         const { service, entry, checkpoints } = beginCheckpointTurn()
@@ -3305,12 +3305,16 @@ describe('AgentSessionRuntimeService', () => {
         })
         for (let attempt = 0; attempt < 5; attempt++) vi.runOnlyPendingTimers()
 
-        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(3)
+        // The terminal checkpoint is the task's last statistics write, so it must outlive the bounded retries.
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(6)
+        expect(checkpoints()?.has('workflow-stuck')).toBe(true)
+        vi.advanceTimersByTime(1_000)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(6)
+
+        mocks.checkpointWorkflowTaskEvent.mockReturnValue(true)
+        vi.runOnlyPendingTimers()
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(7)
         expect(checkpoints()?.has('workflow-stuck')).toBe(false)
-        expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-          'Gave up persisting workflow statistics',
-          expect.objectContaining({ taskId: 'workflow-stuck' })
-        )
       } finally {
         mocks.checkpointWorkflowTaskEvent.mockReset()
         vi.useRealTimers()
@@ -4009,6 +4013,61 @@ describe('AgentSessionRuntimeService', () => {
         await (service as any).flushOrphanedMessagePartsWrites()
 
         expect(mocks.cacheGetShared(OVERLAY_KEY)).toBeUndefined()
+      })
+
+      describe('workflow checkpoints', () => {
+        const event = {
+          event: 'updated' as const,
+          taskId: 'workflow-stuck',
+          toolUseId: 'workflow-root',
+          status: 'completed' as const,
+          workflow: { runId: 'run-1', taskId: 'workflow-stuck', totalTokens: 90, phases: [], workflowProgress: [] }
+        }
+
+        async function closeWithUnwritableCheckpoint() {
+          const service = new AgentSessionRuntimeService()
+          service.beginTurn(baseTurnInput)
+          // The terminal checkpoint already failed its bounded retries and has no parts write to ride on.
+          getEntry(service).workflowCheckpoints = new Map([
+            ['workflow-stuck', { messageId: 'assistant-1', event, lastWrittenAt: 0, failedAttempts: 3 }]
+          ])
+          mocks.checkpointWorkflowTaskEvent.mockImplementation(() => {
+            throw new Error('database is locked')
+          })
+          await service.closeSession('session-1')
+          mocks.checkpointWorkflowTaskEvent.mockReset()
+          return service
+        }
+
+        afterEach(() => {
+          mocks.checkpointWorkflowTaskEvent.mockReset()
+        })
+
+        it('keeps a checkpoint closing could not merge until a sweep lands it', async () => {
+          const service = await closeWithUnwritableCheckpoint()
+          mocks.checkpointWorkflowTaskEvent.mockImplementationOnce(() => {
+            throw new Error('database is locked')
+          })
+          mocks.checkpointWorkflowTaskEvent.mockReturnValue(true)
+
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+
+          // Refused once, landed once, then released so a later sweep cannot replay it over newer stats.
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith('session-1', 'assistant-1', event)
+        })
+
+        it('releases a held checkpoint whose message row is gone', async () => {
+          const service = await closeWithUnwritableCheckpoint()
+          mocks.checkpointWorkflowTaskEvent.mockReturnValue(false)
+
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+        })
       })
     })
 

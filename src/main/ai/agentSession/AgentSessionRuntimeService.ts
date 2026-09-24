@@ -292,6 +292,15 @@ type OrphanedMessagePartsWrite = {
   events: AgentTaskEventPartData[]
 }
 
+/** A workflow checkpoint a closing entry could not merge; it waits on disk beside the held parts writes. */
+type OrphanedWorkflowCheckpoint = {
+  sessionId: string
+  messageId: string
+  event: AgentTaskEventPartData
+}
+
+const ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX = '.checkpoint.json'
+
 type TaskEventsPublishState = {
   events: AgentSessionTaskEvents
   lastPublishedAt?: number
@@ -2901,17 +2910,18 @@ export class AgentSessionRuntimeService extends BaseService {
     checkpoint: WorkflowCheckpoint
   ): void {
     const attempts = checkpoint.failedAttempts ?? 0
-    if (attempts >= WORKFLOW_CHECKPOINT_MAX_ATTEMPTS) {
-      logger.error('Gave up persisting workflow statistics', {
+    if (attempts === WORKFLOW_CHECKPOINT_MAX_ATTEMPTS) {
+      // A terminal checkpoint is the task's last statistics write, so it slows down instead of being dropped.
+      logger.warn('Delaying a workflow checkpoint that keeps failing', {
         sessionId: entry.sessionId,
         messageId: checkpoint.messageId,
         taskId,
         attempts
       })
-      if (entry.workflowCheckpoints?.get(taskId) === checkpoint) entry.workflowCheckpoints.delete(taskId)
-      return
     }
     if (checkpoint.timer) return
+    const delay =
+      attempts >= WORKFLOW_CHECKPOINT_MAX_ATTEMPTS ? MESSAGE_PARTS_WRITE_SLOW_RETRY_MS : WORKFLOW_CHECKPOINT_THROTTLE_MS
     checkpoint.timer = setTimeout(() => {
       checkpoint.timer = undefined
       if (!this.writeWorkflowCheckpoint(entry, taskId, checkpoint, true)) {
@@ -2928,7 +2938,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       // The retried merge rewrote the row, so the overlay has to follow it.
       this.refreshFlowPartsOverlay(entry, checkpoint.messageId)
-    }, WORKFLOW_CHECKPOINT_THROTTLE_MS)
+    }, delay)
     checkpoint.timer.unref?.()
   }
 
@@ -3105,6 +3115,21 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  private async holdOrphanedWorkflowCheckpoint(taskId: string, held: OrphanedWorkflowCheckpoint): Promise<void> {
+    const name = `${encodeURIComponent(held.messageId)}.${encodeURIComponent(taskId)}${ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX}`
+    const file = application.getPath('feature.agents.orphaned_message_parts', name)
+    try {
+      await atomicWriteFile(AbsoluteFilePathSchema.parse(file), JSON.stringify(held))
+    } catch (error) {
+      logger.error('Dropped workflow statistics that neither the database nor the disk accepted', {
+        sessionId: held.sessionId,
+        messageId: held.messageId,
+        taskId,
+        error
+      })
+    }
+  }
+
   /** Retries the writes closing entries could not land: the service-level fallback for output that has
    * no other copy. A row that is gone is released, since nothing can be written back into it. */
   private async flushOrphanedMessagePartsWrites(): Promise<void> {
@@ -3119,6 +3144,15 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!name.endsWith('.json')) continue
       const file = application.getPath('feature.agents.orphaned_message_parts', name)
       try {
+        if (name.endsWith(ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX)) {
+          const held = JSON.parse(await readFile(file, 'utf8')) as OrphanedWorkflowCheckpoint
+          // False means the row is gone, so the checkpoint is released like a parts write for a missing row.
+          if (agentSessionMessageService.checkpointWorkflowTaskEvent(held.sessionId, held.messageId, held.event)) {
+            this.refreshHeldFlowPartsOverlay(held.sessionId, held.messageId)
+          }
+          await rm(file, { force: true })
+          continue
+        }
         const write = JSON.parse(await readFile(file, 'utf8')) as OrphanedMessagePartsWrite
         const saved = agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
           write.sessionId,
@@ -3139,6 +3173,15 @@ export class AgentSessionRuntimeService extends BaseService {
         logger.warn('Failed to land held detached flow message parts', { file, error })
       }
     }
+  }
+
+  /** A held checkpoint merged into the row, so a live overlay seeded by the closed entry must follow it. */
+  private refreshHeldFlowPartsOverlay(sessionId: string, messageId: string): void {
+    const cache = application.get('CacheService')
+    const cacheKey = AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)
+    if (!cache.hasShared(cacheKey)) return
+    const parts = agentSessionMessageService.getSessionMessage(sessionId, messageId).data.parts
+    if (parts) cache.setShared(cacheKey, parts, BACKGROUND_FLOW_HANDOFF_TTL_MS)
   }
 
   /**
@@ -4203,6 +4246,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // replaces the row before the checkpoint clear below drops what it would have to re-merge.
       const unpersistedParts: string[] = []
       const heldParts: Promise<void>[] = []
+      // Every parts write re-merges the message's checkpoints, whether it lands now or from the disk later.
+      const partsCarryCheckpoints = new Set(entry.pendingMessagePartsWrites?.keys())
       for (const [messageId, pending] of entry.pendingMessagePartsWrites ?? []) {
         if (pending.timer) clearTimeout(pending.timer)
         pending.timer = undefined
@@ -4230,10 +4275,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const unpersisted: string[] = []
       for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
         if (checkpoint.timer) clearTimeout(checkpoint.timer)
-        if ((checkpoint.failedAttempts ?? 0) > 0) unpersisted.push(taskId)
+        if ((checkpoint.failedAttempts ?? 0) === 0 || partsCarryCheckpoints.has(checkpoint.messageId)) continue
+        unpersisted.push(taskId)
+        heldParts.push(
+          this.holdOrphanedWorkflowCheckpoint(taskId, {
+            sessionId: entry.sessionId,
+            messageId: checkpoint.messageId,
+            event: checkpoint.event
+          })
+        )
       }
       if (unpersisted.length > 0) {
-        logger.error('Dropped unpersisted workflow statistics while closing the session', {
+        logger.warn('Holding unpersisted workflow statistics after closing the session', {
           sessionId: entry.sessionId,
           taskIds: unpersisted
         })
