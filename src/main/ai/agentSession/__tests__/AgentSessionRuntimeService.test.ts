@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  getInteractionWindow: vi.fn(),
+  getWindow: vi.fn(),
   abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
@@ -504,6 +506,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          getInteractionWindow: mocks.getInteractionWindow,
           abort: mocks.abortStream,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
@@ -521,6 +524,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -2771,10 +2775,14 @@ describe('AgentSessionRuntimeService', () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
       const interactiveEntry = getEntry(interactive)
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
       interactiveEntry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
       ;(interactive as any).handleRuntimeEvent(interactiveEntry, { type: 'background-work-state', active: true })
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).not.toBe('unavailable')
+      mocks.getInteractionWindow.mockReturnValue(undefined)
+      expect(interactive.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
 
       void interactive.closeSession('session-1')
       interactive.beginTurn({ ...baseTurnInput, headless: true })
@@ -2783,6 +2791,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(interactive as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).toBe('unavailable')
+      expect(interactive.getMcpInteractionHost('session-1')).toBeUndefined()
     })
 
     it('republishes the membership snapshot as session-scoped status', () => {

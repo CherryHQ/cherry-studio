@@ -88,6 +88,41 @@ const BAN_DRIZZLE_MIGRATOR = {
   message:
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
+// These current-main consumers still exchange SDK v1 McpServer instances with agent and
+// gateway hosts. Keep the exception explicit so new v1 imports cannot spread unnoticed.
+const MCP_V1_COMPATIBILITY_FILES = [
+  'src/main/ai/mcp/__tests__/createMcpBridgeServer.test.ts',
+  'src/main/ai/mcp/createMcpBridgeServer.ts',
+  'src/main/ai/mcp/servers/agentMemory.ts',
+  'src/main/ai/mcp/servers/assistant.ts',
+  'src/main/ai/mcp/servers/AssistantFileToolsServer.ts',
+  'src/main/ai/mcp/servers/cherryAutonomyTools.ts',
+  'src/main/ai/mcp/servers/cherryBuiltinTools.ts',
+  'src/main/ai/mcp/servers/cherryCliTools.ts',
+  'src/main/ai/mcp/servers/cherryDocumentTools.ts',
+  'src/main/ai/mcp/servers/cherryKnowledgeTools.ts',
+  'src/main/ai/mcp/servers/mcpManager.ts',
+  'src/main/ai/mcp/servers/neutralToolMcpServer.ts',
+  'src/main/ai/mcp/servers/skills.ts',
+  'src/main/ai/mcp/servers/__tests__/assistant.test.ts',
+  'src/main/ai/runtime/agentMcpServers.ts',
+  'src/main/ai/runtime/dsh/DshCherryToolBridge.ts',
+  'src/main/ai/runtime/dsh/__tests__/DshCherryToolBridge.test.ts',
+  'src/main/ai/runtime/dsh/__tests__/dshToolResultProjection.test.ts',
+  'src/main/ai/runtime/dsh/dshToolResultProjection.ts',
+  'src/main/ai/runtime/pi/piMcpToolAdapter.test.ts',
+  'src/main/ai/runtime/pi/__tests__/piMcpToolAdapter.test.ts',
+  'src/main/features/browser/mcp/server.ts',
+  'src/main/features/browser/BrowserSessionService.ts',
+  'src/main/features/browser/mcp/tools/registry.ts',
+  'src/main/features/browser/mcp/tools/utils.ts',
+  'src/main/ai/tools/adapters/aiSdk/builtin/BrowserTools.ts',
+  'src/main/features/browser/__tests__/mcp/browser.test.ts',
+  'src/main/ai/runtime/pi/piMcpToolAdapter.ts',
+  'src/main/features/apiGateway/McpSessionStore.ts',
+  'src/main/features/apiGateway/errors.ts',
+  'src/main/features/apiGateway/routes/mcp.ts'
+]
 
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
@@ -956,10 +991,50 @@ export default defineConfig([
         {
           patterns: [
             {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is main-only. Renderer protocol schemas must come from @modelcontextprotocol/core.'
+            },
+            {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
               message:
                 'Renderer may only `import type` from @shared/ipc/schemas — a value import pulls the entire zod schema set into the renderer bundle.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // MCP SDK v1 is a Claude Agent SDK compatibility island. Generic main-process
+    // MCP code uses the v2 client/server packages; cross-process schemas use v2 core.
+    files: ['src/shared/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is main-only. Shared protocol schemas must come from @modelcontextprotocol/core.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // Renderer tests are excluded from the bundle-value guard above, but they
+    // still must not acquire a second MCP v1 foothold.
+    files: ['src/renderer/**/*.test.*', 'src/renderer/**/__tests__/**', 'src/renderer/**/__mocks__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is limited to explicitly allowed main-process compatibility adapters.'
             }
           ]
         }
@@ -975,6 +1050,28 @@ export default defineConfig([
     // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
+    ignores: ['src/main/ai/runtime/claudeCode/mcpV1/**', ...MCP_V1_COMPATIBILITY_FILES],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message:
+                'MCP SDK v1 is limited to explicit compatibility adapters. Generic MCP code must use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
+            },
+            BAN_RENDERER_FROM_MAIN,
+            BAN_DRIZZLE_MIGRATOR
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // Compatibility files still obey the normal main→renderer and migration boundaries;
+    // only their MCP SDK v1 imports are exempted from the generic main-process rule above.
+    files: ['src/main/ai/runtime/claudeCode/mcpV1/**/*.{ts,tsx,js,jsx}', ...MCP_V1_COMPATIBILITY_FILES],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -995,6 +1092,24 @@ export default defineConfig([
         { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
+    }
+  },
+  {
+    // Keep workspace packages and repository scripts from bypassing the v1
+    // island simply because they live outside src/.
+    files: ['packages/**/*.{ts,tsx}', 'scripts/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'v2-refactor-temp/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is limited to explicitly allowed main-process compatibility adapters.'
+            }
+          ]
+        }
+      ]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

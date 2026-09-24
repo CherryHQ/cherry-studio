@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 
+import { createMcpJsonSchemaValidator } from '../../mcpSchema'
 import { ToolRegistry } from '../../registry'
 
 const listTools = vi.fn()
@@ -16,18 +17,6 @@ vi.mock('@application', async () => {
     McpCatalogService: { listTools },
     McpRuntimeService: { callTool }
   } as Record<string, unknown>)
-})
-
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
 })
 
 vi.mock('@main/data/services/McpServerService', () => ({
@@ -65,6 +54,17 @@ async function registerToolExecute(reg: ToolRegistry) {
 }
 
 describe('mcpTools execute wrapper', () => {
+  it('honors declared schema dialects and rejects unsupported dialects', () => {
+    const schema = { type: 'array' as const, items: [{ type: 'string' as const }], additionalItems: false }
+    const validate = createMcpJsonSchemaValidator({ ...schema, $schema: 'http://json-schema.org/draft-07/schema#' })
+    expect(validate(['ok']).success).toBe(true)
+    expect(validate([42]).success).toBe(false)
+    expect(validate(['ok', 'extra']).success).toBe(false)
+    expect(() => createMcpJsonSchemaValidator({ $schema: 'https://example.org/unknown-schema' })).toThrow(
+      /unsupported dialect/
+    )
+  })
+
   beforeEach(() => {
     listTools.mockReset()
     list.mockReset()
@@ -121,7 +121,9 @@ describe('mcpTools execute wrapper', () => {
       name: 't',
       args: { q: 'x' },
       callId: 'call-3',
-      signal: abortSignal
+      scope: undefined,
+      signal: abortSignal,
+      interactionContext: undefined
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })

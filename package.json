@@ -235,7 +235,10 @@
     "@j178/prek": "^0.3.4",
     "@lezer/highlight": "1.2.3",
     "@mistralai/mistralai": "^1.7.5",
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/core": "2.0.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@openrouter/ai-sdk-provider": "^2.10.0",
@@ -501,7 +504,7 @@
     "yjs": "^13.6.27",
     "youtubei.js": "^15.0.1",
     "zipread": "^1.3.3",
-    "zod": "^4.1.5"
+    "zod": "4.4.3"
   },
   "optionalDependencies": {
     "@aiany/sqlite-vec-darwin-arm64": "0.1.10-alpha.4.aiany.2",

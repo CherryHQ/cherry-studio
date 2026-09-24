@@ -3,6 +3,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
 
+// SDK v1 compatibility server shared by agent runtimes.
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'

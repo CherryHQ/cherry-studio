@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'

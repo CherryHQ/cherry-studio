@@ -28,11 +28,9 @@ export interface McpTool {
    *  `properties` and `required` are populated; renderers (settings page)
    *  read them directly. */
   inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
-  /** Optional JSON-Schema-shaped output descriptor. Set by main when the MCP
-   *  server advertises one; passed through IPC for downstream consumers
-   *  (AI SDK tool def / future settings inspection) even if no current
-   *  renderer reads it. */
-  outputSchema?: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
+  /** Optional JSON Schema output descriptor. MCP 2026 allows any JSON root,
+   *  including arrays, strings, numbers, booleans and null. */
+  outputSchema?: Record<string, unknown> | boolean
 }
 
 export interface McpPromptArguments {

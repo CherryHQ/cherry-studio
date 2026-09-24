@@ -6,6 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { handleGrepTool } from '../tools/grep'
 import * as types from '../types'
 
+function getTextContent(result: Awaited<ReturnType<typeof handleGrepTool>>): string {
+  const content = result.content[0]
+  if (content?.type !== 'text') throw new Error('Expected text content')
+  return content.text
+}
+
 describe('grep MCP ripgrep integration', () => {
   const tempDirs: string[] = []
 
@@ -52,7 +58,7 @@ describe('grep MCP ripgrep integration', () => {
 
     expect(runRipgrepSpy).toHaveBeenCalledOnce()
     expect(runRipgrepSpy.mock.calls[0][0]).toContain(pattern)
-    expect(result.content[0].text).toBe('No matches found')
+    expect(getTextContent(result)).toBe('No matches found')
   })
 
   it('rejects unsupported regex syntax when manual search is required', async () => {
@@ -96,8 +102,8 @@ describe('grep MCP ripgrep integration', () => {
     expect(rgArgs).toContain('--no-config')
     expect(rgArgs).toContain('--json')
     expect(rgArgs).not.toContain('--field-match-separator')
-    expect(result.content[0].text).toContain(matchedFile)
-    expect(result.content[0].text).toContain(`12: ${matchContent}`)
+    expect(getTextContent(result)).toContain(matchedFile)
+    expect(getTextContent(result)).toContain(`12: ${matchContent}`)
   })
 
   it('falls back to manual search when ripgrep returns malformed match output', async () => {
@@ -119,9 +125,9 @@ describe('grep MCP ripgrep integration', () => {
 
     const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
 
-    expect(result.content[0].text).toContain(matchedFile)
-    expect(result.content[0].text).toContain('1: needle')
-    expect(result.content[0].text).not.toContain('99: stale')
+    expect(getTextContent(result)).toContain(matchedFile)
+    expect(getTextContent(result)).toContain('1: needle')
+    expect(getTextContent(result)).not.toContain('99: stale')
   })
   it('attributes matches to colon-bearing paths and decodes plain `lines.text` payloads', async () => {
     const workspaceRoot = await createTempDir('grep-colon-root-')
@@ -141,8 +147,8 @@ describe('grep MCP ripgrep integration', () => {
 
     const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
 
-    expect(result.content[0].text).toContain(`${matchedFile}:`)
-    expect(result.content[0].text).toContain('7: needle here')
+    expect(getTextContent(result)).toContain(`${matchedFile}:`)
+    expect(getTextContent(result)).toContain('7: needle here')
   })
 
   it('skips a binary file that ripgrep searched because it was named explicitly', async () => {
@@ -170,7 +176,7 @@ describe('grep MCP ripgrep integration', () => {
 
     const result = await handleGrepTool({ pattern: 'needle', path: binaryFile }, workspaceRoot)
 
-    expect(result.content[0].text).not.toContain('needle in the head')
-    expect(result.content[0].text).toBe('No matches found')
+    expect(getTextContent(result)).not.toContain('needle in the head')
+    expect(getTextContent(result)).toBe('No matches found')
   })
 })

@@ -1,3 +1,4 @@
+// v1 compatibility island regression tests.
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -84,9 +85,16 @@ describe('AgentMemoryServer', () => {
     expect(result.content[0].text).toBe('No journal entries found.')
   })
 
-  it('rejects missing update content and missing append text', async () => {
-    await expect(callTool(createServer(), { action: 'update' })).resolves.toMatchObject({ isError: true })
-    await expect(callTool(createServer(), { action: 'append' })).resolves.toMatchObject({ isError: true })
+  it.each([
+    { action: 'update' },
+    { action: 'append' },
+    { action: 'update', content: 42 },
+    { action: 'append', text: 42 }
+  ])('rejects missing or non-string memory content without writing: %j', async (args) => {
+    const result = await callTool(createServer(), args)
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content[0].text).toContain('MCP error -32602:')
+    expect(await readdir(memoryPath)).toEqual([])
   })
 
   it('stops memory access after the owning agent is deleted', async () => {

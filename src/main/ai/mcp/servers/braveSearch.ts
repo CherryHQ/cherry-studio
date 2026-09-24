@@ -1,9 +1,7 @@
 // Brave Search MCP Server
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/brave-search/index.ts
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, type Tool } from '@modelcontextprotocol/server'
 import { net } from 'electron'
 
 const WEB_SEARCH_TOOL: Tool = {
@@ -313,11 +311,11 @@ class BraveSearchServer {
 
   initialize() {
     // Tool handlers
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.server.setRequestHandler('tools/list', async () => ({
       tools: [WEB_SEARCH_TOOL, LOCAL_SEARCH_TOOL]
     }))
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       try {
         const { name, arguments: args } = request.params
 

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { readMcpResourcePreview } from '@main/ai/mcp/resourcePreview'
 import type { mcpRequestSchemas } from '@shared/ipc/schemas/mcp'
@@ -27,10 +29,34 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
-  'mcp.server.get_prompt': async ({ serverId, name, args }) =>
-    application.get('McpRuntimeService').getPrompt({ serverId, name, args }),
-  'mcp.server.read_resource_preview': async ({ serverId, uri, maxChars }) =>
-    readMcpResourcePreview({ serverId, uri, maxChars }),
+  'mcp.server.get_prompt': async ({ serverId, name, args, requestId = randomUUID(), topicId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP prompt request requires a managed window')
+    const runtime = application.get('McpRuntimeService')
+    return runtime.runDesktopRequest(senderId, requestId, (signal) =>
+      runtime.getPrompt({
+        serverId,
+        name,
+        args,
+        signal,
+        interactionContext: { windowId: senderId, topicId: topicId ?? requestId, requestId }
+      })
+    )
+  },
+  'mcp.server.read_resource_preview': async (
+    { serverId, uri, maxChars, requestId = randomUUID(), topicId },
+    { senderId }
+  ) => {
+    if (!senderId) throw new Error('MCP resource request requires a managed window')
+    return application.get('McpRuntimeService').runDesktopRequest(senderId, requestId, (signal) =>
+      readMcpResourcePreview({
+        serverId,
+        uri,
+        maxChars,
+        signal,
+        interactionContext: { windowId: senderId, topicId: topicId ?? requestId, requestId }
+      })
+    )
+  },
   'mcp.server.check_connectivity': async ({ serverId }) =>
     application.get('McpRuntimeService').checkMcpConnectivity(serverId),
   'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
@@ -46,6 +72,11 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   // In-flight tool-call control.
   'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
+  'mcp.interaction.respond': async (response, { senderId }) =>
+    application.get('McpRuntimeService').respondInteraction(response, senderId),
+  'mcp.request.cancel': async ({ requestId }, { senderId }) => {
+    if (senderId) application.get('McpRuntimeService').cancelDesktopRequest(senderId, requestId)
+  },
   // Package upload.
   'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
     application.get('McpPackageService').uploadDxt(buffer, fileName),

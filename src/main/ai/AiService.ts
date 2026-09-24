@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import {
   type EmbeddingModelUsage,
+  type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
@@ -282,6 +284,16 @@ export interface AiGenerateRequest extends AiChatRequest {
 export interface AiGenerateResult {
   text: string
   usage?: LanguageModelUsage
+  finishReason: FinishReason
+  rawFinishReason?: string
+}
+
+function toMcpSamplingStopReason(result: Pick<AiGenerateResult, 'finishReason' | 'rawFinishReason'>): string {
+  if (result.finishReason === 'length') return 'maxTokens'
+  if (result.finishReason !== 'stop') return result.rawFinishReason ?? result.finishReason
+
+  const rawReason = result.rawFinishReason?.replace(/[^a-z]/gi, '').toLowerCase()
+  return rawReason === 'stopsequence' ? 'stopSequence' : 'endTurn'
 }
 
 /** Image generation request. */
@@ -882,6 +894,62 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
+  }
+
+  /**
+   * Restricted host callback for an MCP embedded sampling request. The request
+   * is non-streaming and `disableTools` is enforced in buildAgentParams so an
+   * MCP server cannot recursively reach Cherry or MCP tools.
+   */
+  async generateMcpSampling(
+    model: `${string}::${string}`,
+    request: CreateMessageRequestParamsBase,
+    signal: AbortSignal
+  ): Promise<CreateMessageResult> {
+    const messages = request.messages.map((message): ModelMessage => {
+      const parts = Array.isArray(message.content) ? message.content : [message.content]
+      const content = parts.map((part) => {
+        switch (part.type) {
+          case 'text':
+            return { type: 'text' as const, text: part.text }
+          case 'image':
+            return { type: 'image' as const, image: part.data, mediaType: part.mimeType }
+          case 'audio':
+            return { type: 'file' as const, data: part.data, mediaType: part.mimeType }
+          default:
+            throw new Error(`Unsupported MCP sampling content type: ${part.type}`)
+        }
+      })
+      if (message.role === 'assistant') {
+        // AI SDK represents assistant media as files; image parts are user-only.
+        return {
+          role: 'assistant',
+          content: content.map((part) =>
+            part.type === 'image' ? { type: 'file', data: part.image, mediaType: part.mediaType } : part
+          )
+        }
+      }
+      return { role: message.role, content }
+    })
+    const result = await this.generateText({
+      uniqueModelId: model,
+      conversation: { id: `mcp-sampling:${randomUUID()}` },
+      system: request.systemPrompt,
+      messages,
+      disableTools: true,
+      callOverrides: {
+        maxOutputTokens: request.maxTokens,
+        ...(typeof request.temperature === 'number' ? { temperature: request.temperature } : {}),
+        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences } : {})
+      },
+      requestOptions: { signal }
+    })
+    return {
+      model,
+      role: 'assistant',
+      content: { type: 'text', text: result.text },
+      stopReason: toMcpSamplingStopReason(result)
+    }
   }
 
   // ── Image generation ──

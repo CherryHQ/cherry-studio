@@ -148,7 +148,8 @@ describe('buildMcpToolDefinitions', () => {
       content: [
         { type: 'text', text: 'ok' },
         { type: 'image', data: 'BASE64', mimeType: 'image/png' },
-        { type: 'text', text: 'body' }
+        { type: 'text', text: 'body' },
+        { type: 'text', text: '{"total":3}' }
       ],
       details: { total: 3 }
     })

@@ -1,10 +1,11 @@
+import { Client as ModernClient, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { createMcpHandler } from '@modelcontextprotocol/server'
 import { app, BrowserWindow, nativeTheme } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
@@ -652,12 +653,27 @@ describe('MCP browser on shared sessions', () => {
     expect(windows.size).toBe(0)
   })
 
-  it('keeps legacy open/execute outputs and exposes new tool schemas through the real MCP transport', async () => {
-    const server = await createInMemoryMcpServer('@cherry/browser')
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    await server.connect(serverTransport)
-    const client = new Client({ name: 'browser-test', version: '1' })
-    await client.connect(clientTransport)
+  it.each(['legacy', 'modern'])('keeps browser outputs and tool schemas through the %s MCP transport', async (era) => {
+    const endpoint = era === 'modern' ? await service.createMcpEndpoint() : undefined
+    const handler = endpoint ? createMcpHandler(() => endpoint.createServer(), { legacy: 'reject' }) : undefined
+    let client: Client | ModernClient
+    if (handler) {
+      client = new ModernClient(
+        { name: 'browser-test', version: '1' },
+        { versionNegotiation: { mode: { pin: '2026-07-28' } } }
+      )
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL('http://browser.test/mcp'), {
+          fetch: async (input, init) => handler.fetch(input instanceof Request ? input : new Request(input, init))
+        })
+      )
+    } else {
+      const server = await service.createMcpServer()
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      await server.connect(serverTransport)
+      client = new Client({ name: 'browser-test', version: '1' })
+      await client.connect(clientTransport)
+    }
     try {
       const { tools } = await client.listTools()
       const names = tools.map((tool) => tool.name)
@@ -736,14 +752,17 @@ describe('MCP browser on shared sessions', () => {
       })
       const obsolete = await client.callTool({ name: 'snapshot', arguments: { tabId: data.tabId, selector: '#old' } })
       expect(obsolete.isError).toBe(true)
-      const unknown = await client.callTool({ name: 'constructor', arguments: {} })
-      expect(unknown.isError).toBe(true)
+      const unknown = client.callTool({ name: 'constructor', arguments: {} })
+      if (era === 'modern') await expect(unknown).rejects.toThrow(/disabled|not found/i)
+      else expect((await unknown).isError).toBe(true)
       const missingWaitTarget = await client.callTool({ name: 'wait_for', arguments: {} })
       expect(missingWaitTarget.isError).toBe(true)
       const invalid = await client.callTool({ name: 'click', arguments: { ref: 'e0' } })
       expect(invalid.isError).toBe(true)
     } finally {
       await client.close()
+      await handler?.close()
+      await endpoint?.close()
       await service._doStop()
     }
     expect(windows.size).toBe(0)

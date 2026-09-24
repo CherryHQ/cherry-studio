@@ -1,8 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 
@@ -64,7 +63,7 @@ export class FileSystemServer {
   }
 
   private registerHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
       return {
         tools: [
           globToolDefinition,
@@ -79,7 +78,7 @@ export class FileSystemServer {
     })
 
     // Register tool call handler
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       try {
         const { name, arguments: args } = request.params
 

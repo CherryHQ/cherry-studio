@@ -1,5 +1,4 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -41,7 +40,7 @@ class PythonServer {
 
   private setupRequestHandlers() {
     // List available tools
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -80,17 +79,20 @@ print('python code here')`,
     })
 
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: args } = request.params
 
       if (name !== 'python_execute') {
-        throw new McpError(ErrorCode.MethodNotFound, `Tool ${name} not found`)
+        throw new ProtocolError(ProtocolErrorCode.MethodNotFound, `Tool ${name} not found`)
       }
 
       try {
         const parsed = PythonExecuteArgsSchema.safeParse(args)
         if (!parsed.success) {
-          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for python_execute: ${parsed.error.message}`)
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            `Invalid arguments for python_execute: ${parsed.error.message}`
+          )
         }
 
         const { code, context } = parsed.data
@@ -113,7 +115,7 @@ print('python code here')`,
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Python execution error: ${errorMessage}`)
 
-        throw new McpError(ErrorCode.InternalError, `Python execution failed: ${errorMessage}`)
+        throw new ProtocolError(ProtocolErrorCode.InternalError, `Python execution failed: ${errorMessage}`)
       }
     })
   }

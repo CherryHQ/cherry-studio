@@ -12,7 +12,7 @@ const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
-  private authCode?: string
+  private authCallback?: URLSearchParams
 
   constructor(options: OAuthCallbackServerOptions) {
     const { port, path, events } = options
@@ -25,12 +25,12 @@ export class CallBackServer {
       // Only handle requests to the callback path
       if (req.url?.startsWith(path)) {
         try {
-          // Parse the URL to extract the authorization code
+          // Keep every callback parameter so the SDK can validate `iss` and
+          // complete the authorization-server-bound exchange.
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
-          const code = url.searchParams.get('code')
-          if (code) {
-            this.authCode = code
-            this.events.emit('auth-code-received', code)
+          if (url.searchParams.has('code') || url.searchParams.has('error')) {
+            this.authCallback = new URLSearchParams(url.searchParams)
+            this.events.emit('auth-callback-received', this.authCallback)
             // Send success response to browser
             const title = t('settings.mcp.oauth.callback.title')
             const message = t('settings.mcp.oauth.callback.message')
@@ -79,7 +79,7 @@ export class CallBackServer {
             `)
           } else {
             res.writeHead(400, { 'Content-Type': 'text/plain' })
-            res.end('Missing authorization code')
+            res.end('Missing OAuth callback parameters')
           }
         } catch (error) {
           logger.error('Error processing OAuth callback:', error as Error)
@@ -114,9 +114,15 @@ export class CallBackServer {
     return this.server
   }
 
-  async close() {
-    // Listen may have failed (getServer rejected) or close may run twice (timeout + finally).
-    await this.server.then((server) => server.close()).catch(() => undefined)
+  async close(): Promise<void> {
+    const server = await this.server.catch(() => undefined)
+    if (!server?.listening) return
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error)
+        else resolve()
+      })
+    })
   }
 
   /**
@@ -124,18 +130,29 @@ export class CallBackServer {
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
-  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
-    if (this.authCode !== undefined) return this.authCode
+  async waitForAuthCallback(timeoutMs = 300_000, signal?: AbortSignal): Promise<URLSearchParams> {
+    signal?.throwIfAborted()
+    if (this.authCallback) return new URLSearchParams(this.authCallback)
     return new Promise((resolve, reject) => {
-      const onCode = (code: string) => {
+      const cleanup = () => {
         clearTimeout(timer)
-        resolve(code)
+        this.events.off('auth-callback-received', onCallback)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason)
+      }
+      const onCallback = (params: URLSearchParams) => {
+        cleanup()
+        resolve(params)
       }
       const timer = setTimeout(() => {
-        this.events.off('auth-code-received', onCode)
-        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+        cleanup()
+        reject(new Error(`Timed out waiting for OAuth callback after ${Math.round(timeoutMs / 1000)}s`))
       }, timeoutMs)
-      this.events.once('auth-code-received', onCode)
+      this.events.once('auth-callback-received', onCallback)
+      signal?.addEventListener('abort', onAbort, { once: true })
     })
   }
 }

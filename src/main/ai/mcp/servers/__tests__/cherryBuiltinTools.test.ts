@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// v1 compatibility island regression tests.
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 

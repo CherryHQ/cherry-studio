@@ -61,7 +61,8 @@ Annotation capture preserves the existing isolated-world selector resolution,
 Shadow DOM traversal, request budgets, cancellation, and form-value suppression.
 
 The MCP adapter and input tools live in `mcp/` and `actions/`. The factory calls
-`BrowserSessionService.createMcpServer()`; it has no direct feature import.
+`BrowserSessionService.createMcpEndpoint()` for modern MCP requests; Agent SDK consumers retain
+`createAgentMcpServer()`. The factory has no direct feature import.
 See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limits.
 
 `AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP

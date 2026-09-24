@@ -269,6 +269,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 >
 
 type AgentSessionRuntimeEntry = {
+  interactionWindowId?: string
   sessionId: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
@@ -620,6 +621,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
@@ -1897,6 +1899,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
+        if (event.active) this.getMcpInteractionHost(entry.sessionId)
         this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
         break
       case 'background-task-event':
@@ -3171,6 +3174,15 @@ export class AgentSessionRuntimeService extends BaseService {
         new TraceFlushListener(entry.topicId)
       ]
     })
+  }
+
+  getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
+    const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
+    if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
+    entry.interactionWindowId = windowId
+    return { windowId, topicId: entry.topicId, model: entry.modelId }
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

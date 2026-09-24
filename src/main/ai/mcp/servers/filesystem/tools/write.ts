@@ -1,8 +1,10 @@
 import fs from 'fs/promises'
 import path from 'path'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -22,11 +24,11 @@ export const writeToolDefinition = {
 - NEVER proactively create documentation files unless explicitly requested
 - Parent directories will be created automatically if they don't exist
 - The file_path must resolve within the configured workspace root`,
-  inputSchema: z.toJSONSchema(WriteToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(WriteToolSchema))
 }
 
 // Handler implementation
-export async function handleWriteTool(args: unknown, baseDir: string) {
+export async function handleWriteTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = WriteToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for write: ${parsed.error}`)

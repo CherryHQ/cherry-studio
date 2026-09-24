@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { getRouteApi, useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -336,7 +335,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
-            content: formatMcpError(error as McpError),
+            content: formatMcpError(error as { message: string }),
             centered: true
           })
         }
@@ -352,7 +351,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-        content: formatMcpError(error as McpError),
+        content: formatMcpError(error as { message: string }),
         centered: true
       })
     } finally {

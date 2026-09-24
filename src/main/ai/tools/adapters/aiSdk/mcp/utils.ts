@@ -1,5 +1,6 @@
 /** MCP tool-result formatters. */
 
+import { mcpModelContent } from '@main/ai/mcp/toolResult'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 /** True if the call produced any image / audio / binary resource. */
@@ -7,7 +8,10 @@ export function hasMultimodalContent(result: McpCallToolResponse): boolean {
   return (
     Array.isArray(result?.content) &&
     result.content.some(
-      (item) => item.type === 'image' || item.type === 'audio' || (item.type === 'resource' && !!item.resource?.blob)
+      (item) =>
+        item.type === 'image' ||
+        item.type === 'audio' ||
+        (item.type === 'resource' && 'blob' in item.resource && Boolean(item.resource.blob))
     )
   )
 }
@@ -22,7 +26,7 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   }
 
   const parts: string[] = []
-  for (const item of result.content) {
+  for (const item of mcpModelContent(result)) {
     switch (item.type) {
       case 'text':
         parts.push(item.text || '')
@@ -34,14 +38,14 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
         parts.push(`[Audio: ${item.mimeType || 'audio/mp3'}, delivered to user]`)
         break
       case 'resource':
-        if (item.resource?.blob) {
+        if ('blob' in item.resource) {
           parts.push(
             `[Resource: ${item.resource.mimeType || 'application/octet-stream'}, uri=${
               item.resource.uri || 'unknown'
             }, delivered to user]`
           )
         } else {
-          parts.push(item.resource?.text || JSON.stringify(item))
+          parts.push(item.resource.text || JSON.stringify(item))
         }
         break
       default:

@@ -158,6 +158,30 @@ src/main/ai/
   rows, and per-request choices on assistants. See
   [Provider State Ownership](./provider-state-ownership.md).
 
+## MCP runtime compatibility
+
+The MCP runtime uses SDK v2 and keeps the upstream schemas in its catalog.
+Input validation honors an explicit `$schema` dialect and otherwise uses JSON
+Schema 2020-12. Model adapters include any JSON `structuredContent` in text
+without duplicating an equivalent server-provided JSON block; the stored result
+retains its original content and media. The v1 bridges used by existing Agent
+SDKs omit output schemas and expose non-object structured results through JSON
+text. Main validates the original upstream output schemas.
+
+Tools, prompts and resources share request-scoped interaction hosts and
+cancellation. Modern stdio responses restore their caller's context by JSON-RPC
+ID before the SDK continues an MRTR exchange. Interactive Agent sessions resolve
+a live desktop window at request time; headless turns have no consent host.
+Main validates form responses and closes pending dialogs on cancellation,
+timeout or window closure. URL elicitation requires separate open and confirm
+actions. OAuth can resume a request rejected by an authentication challenge;
+unknown network outcomes are not replayed. Catalog/background reads cannot
+start browser authorization.
+
+The built-in sequential-thinking tool creates a `chainId` for thought 1.
+Subsequent thoughts must provide that ID; completed chains and closed server
+instances release their histories. History and branches are isolated per chain.
+
 ## Related references
 
 - [Service Lifecycle](../lifecycle/README.md) — `AiService` extends `BaseService`

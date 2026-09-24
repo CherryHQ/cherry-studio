@@ -1,3 +1,4 @@
+// v1 compatibility island regression tests.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { installMock, toggleMock } = vi.hoisted(() => ({ installMock: vi.fn(), toggleMock: vi.fn() }))

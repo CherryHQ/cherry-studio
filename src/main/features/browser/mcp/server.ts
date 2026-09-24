@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { McpServer as ModernMcpServer, type Server } from '@modelcontextprotocol/server'
 import { Mutex } from 'async-mutex'
 
 import { loggerService } from '@logger'
@@ -24,6 +25,16 @@ export class BrowserServer {
     const call = this.calls.get(name)
     if (!call) throw new BrowserSessionError('not_allowed')
     return call(args, signal)
+  }
+
+  createServer(): Server {
+    const server = new ModernMcpServer({ name: '@cherry/browser', version: '0.1.0' })
+    for (const { name, description, inputSchema } of toolDefinitions) {
+      server.registerTool(name, { description, inputSchema }, (args, context) =>
+        this.callTool(name, args, context.mcpReq.signal)
+      )
+    }
+    return server.server
   }
 
   private readonly requests = new Set<Promise<CallToolResult>>()

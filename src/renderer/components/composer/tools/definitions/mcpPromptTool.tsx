@@ -60,11 +60,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   // lands, and neither the insert nor the toast may run against a dead runtime.
   const isMountedRef = useRef(true)
   const selectionGenerationRef = useRef(0)
+  const requestIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
     }
   }, [])
 
@@ -122,8 +127,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const fetchAndInsert = useCallback(
     async (prompt: McpPrompt, args: Record<string, string> | undefined, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
+      const requestId = crypto.randomUUID()
+      requestIdRef.current = requestId
       try {
         const result = await ipcApi.request('mcp.server.get_prompt', {
+          requestId,
+          topicId: session?.sessionId,
           serverId: prompt.serverId,
           name: prompt.name,
           args
@@ -143,9 +156,11 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
         toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_prompts.insert_failed')))
         return false
+      } finally {
+        if (requestIdRef.current === requestId) requestIdRef.current = undefined
       }
     },
-    [insertPromptText, t]
+    [insertPromptText, t, session?.sessionId]
   )
 
   const handleSelect = useCallback(

@@ -1,3 +1,4 @@
+// v1 compatibility island regression tests.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManager = {

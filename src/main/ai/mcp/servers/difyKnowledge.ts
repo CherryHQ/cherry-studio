@@ -1,10 +1,11 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
 import { net } from 'electron'
 import * as z from 'zod'
 
 // inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
 import { loggerService } from '@logger'
+
+import { requireToolInputSchema } from './schema'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
@@ -78,7 +79,7 @@ class DifyKnowledgeServer {
   }
 
   initialize() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
       return {
         tools: [
           {
@@ -93,13 +94,13 @@ class DifyKnowledgeServer {
           {
             name: 'search_knowledge',
             description: 'Search knowledge by id and query',
-            inputSchema: z.toJSONSchema(SearchKnowledgeArgsSchema)
+            inputSchema: requireToolInputSchema(z.toJSONSchema(SearchKnowledgeArgsSchema))
           }
         ]
       }
     })
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       try {
         const { name, arguments: args } = request.params
         switch (name) {

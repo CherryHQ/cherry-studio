@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
-  type CallToolResult,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
@@ -24,9 +23,13 @@ import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
+import type { McpInteractionContext } from './connections/McpConnection'
+import { mcpLegacyResult } from './toolResult'
+
 const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
+  interactionContext?: McpInteractionContext
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
    *
@@ -44,6 +47,9 @@ function toSdkTool(tool: McpTool): SdkTool {
   Reflect.deleteProperty(sdkTool, 'serverId')
   Reflect.deleteProperty(sdkTool, 'serverName')
   Reflect.deleteProperty(sdkTool, 'type')
+  // V2 permits any JSON output and newer schema dialects. Main validates the original
+  // schema; advertising it to a v1 client would trigger its incompatible validator.
+  Reflect.deleteProperty(sdkTool, 'outputSchema')
   return sdkTool
 }
 
@@ -98,7 +104,7 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 export function createMcpBridgeServer(
   mcpId: string,
   serverSnapshot?: McpServerEntity,
-  { listChanged = true }: McpBridgeOptions = {}
+  { listChanged = true, interactionContext }: McpBridgeOptions = {}
 ): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
@@ -190,9 +196,10 @@ export function createMcpBridgeServer(
         name: request.params.name,
         args: request.params.arguments,
         onProgress,
-        signal: extra.signal
+        signal: extra.signal,
+        interactionContext
       })
-      return result as CallToolResult
+      return mcpLegacyResult(result)
     } catch (error) {
       if (isMcpCancellation(error, extra.signal)) {
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
@@ -228,11 +235,13 @@ export function createMcpBridgeServer(
     return { resourceTemplates: [] }
   })
 
-  rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  rawServer.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
     const { uri } = request.params
     try {
       logger.debug('MCP bridge: reading resource', { mcpId, uri })
-      const { contents } = await application.get('McpRuntimeService').getResource({ serverId: serverConfig.id, uri })
+      const { contents } = await application
+        .get('McpRuntimeService')
+        .getResource({ serverId: serverConfig.id, uri, signal: extra.signal, interactionContext })
       return {
         contents: contents.map(toSdkResourceContents)
       }
@@ -255,14 +264,16 @@ export function createMcpBridgeServer(
     }
   })
 
-  rawServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  rawServer.setRequestHandler(GetPromptRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params
     try {
       logger.debug('MCP bridge: getting prompt', { mcpId, prompt: name })
       return await application.get('McpRuntimeService').getPrompt({
         serverId: serverConfig.id,
         name,
-        args
+        args,
+        signal: extra.signal,
+        interactionContext
       })
     } catch (error) {
       logger.error('MCP bridge: failed to get prompt', { mcpId, prompt: name, error })

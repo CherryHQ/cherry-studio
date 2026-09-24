@@ -1143,6 +1143,15 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: listener management ───────────────────────────────────
 
+  getInteractionWindow(topicId: string): string | undefined {
+    const listeners = this.activeStreams.get(topicId)?.listeners.values()
+    if (!listeners) return undefined
+    for (const listener of listeners) {
+      if (listener.isAlive() && listener.windowId) return listener.windowId
+    }
+    return undefined
+  }
+
   addListener(topicId: string, listener: StreamListener): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false

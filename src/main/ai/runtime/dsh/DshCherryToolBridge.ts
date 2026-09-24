@@ -9,6 +9,7 @@ import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/d
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
+import { mcpModelContent } from '@main/ai/mcp/toolResult'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
@@ -132,8 +133,9 @@ export async function buildDshCherryToolBridge(
         // Forwarding only: no timeout policy at this layer — McpRuntimeService owns it (#20266).
         { signal, timeout: MCP_FORWARDING_TIMEOUT_MS }
       )) as CallToolResult
-      if (result.isError) throw new Error(dshToolResultErrorText(result.content, binding.rawName))
-      const text = await projectDshToolResult(result.content, binding.rawName, {
+      const content = mcpModelContent(result)
+      if (result.isError) throw new Error(dshToolResultErrorText(content, binding.rawName))
+      const text = await projectDshToolResult(content, binding.rawName, {
         ...options,
         ...(signal ? { signal } : {})
       })

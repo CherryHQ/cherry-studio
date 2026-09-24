@@ -10,8 +10,7 @@
  * Note: Only available in Mainland China.
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server'
 
 import { loggerService } from '@logger'
 
@@ -50,7 +49,7 @@ export class DiDiMcpServer {
 
   private setupRequestHandlers() {
     // List available tools
-    this._server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this._server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
       return {
         tools: [
           {
@@ -212,7 +211,7 @@ export class DiDiMcpServer {
     })
 
     // Handle tool calls
-    this._server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this._server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: args } = request.params
 
       try {
@@ -241,7 +240,7 @@ export class DiDiMcpServer {
     })
   }
 
-  private async handleMapsTextSearch(args: any) {
+  private async handleMapsTextSearch(args: any): Promise<CallToolResult> {
     const { city, keywords, location } = args
 
     const params = {
@@ -269,7 +268,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiCancelOrder(args: any) {
+  private async handleTaxiCancelOrder(args: any): Promise<CallToolResult> {
     const { order_id, reason } = args
 
     const params = {
@@ -296,7 +295,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiCreateOrder(args: any) {
+  private async handleTaxiCreateOrder(args: any): Promise<CallToolResult> {
     const { caller_car_phone, estimate_trace_id, product_category } = args
 
     const params = {
@@ -324,7 +323,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiEstimate(args: any) {
+  private async handleTaxiEstimate(args: any): Promise<CallToolResult> {
     const { from_lng, from_lat, from_name, to_lng, to_lat, to_name } = args
 
     const params = {
@@ -355,7 +354,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiGenerateRideAppLink(args: any) {
+  private async handleTaxiGenerateRideAppLink(args: any): Promise<CallToolResult> {
     const { from_lng, from_lat, to_lng, to_lat, product_category } = args
 
     const params = {
@@ -385,7 +384,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiGetDriverLocation(args: any) {
+  private async handleTaxiGetDriverLocation(args: any): Promise<CallToolResult> {
     const { order_id } = args
 
     const params = {
@@ -411,7 +410,7 @@ export class DiDiMcpServer {
     }
   }
 
-  private async handleTaxiQueryOrder(args: any) {
+  private async handleTaxiQueryOrder(args: any): Promise<CallToolResult> {
     const { order_id } = args
 
     const params = {

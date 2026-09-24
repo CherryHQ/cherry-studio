@@ -11,7 +11,7 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
@@ -154,10 +154,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream.open': async (request, { senderId }) => {
+    if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, request))
+    const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)

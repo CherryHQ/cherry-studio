@@ -2,6 +2,7 @@ import { type JSONSchema7, type Tool } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
@@ -27,6 +28,18 @@ function resolveActiveServerById(serverId: string): McpServer | undefined {
     server = undefined
   }
   return server?.isActive ? server : undefined
+}
+
+function interactionContext(options: Parameters<NonNullable<Tool['execute']>>[1]): McpInteractionContext | undefined {
+  const request = getRequestContext(options)
+  if (!request?.windowId || !request.topicId) return undefined
+
+  return {
+    windowId: request.windowId,
+    topicId: request.topicId,
+    model: request.model,
+    roots: request.roots
+  }
 }
 
 /** Build the AI SDK Tool wrapper around a single McpTool. */
@@ -58,7 +71,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
         // across topics, and the renderer's abort presents the same topicId.
         scope: getRequestContext(options)?.topicId,
-        signal: abortSignal
+        signal: abortSignal,
+        interactionContext: interactionContext(options)
       })
 
       if (result.isError) {

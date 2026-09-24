@@ -1,13 +1,13 @@
+// SDK v1 compatibility server shared by agent runtimes.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { loggerService } from '@logger'
 import { memoryTool, type MemoryToolContext } from '@main/ai/agents/tools/memoryTools'
-
-import { createNeutralToolMcpServer } from './neutralToolMcpServer'
+import { createNeutralToolMcpServer } from '@main/ai/mcp/servers/neutralToolMcpServer'
 
 const logger = loggerService.withContext('McpServer:AgentMemory')
 
-/** Claude SDK wrapper for the runtime-neutral, agent-data-backed memory tool. */
+/** MCP v1 wrapper for the runtime-neutral, agent-data-backed memory tool. */
 class AgentMemoryServer {
   public mcpServer: McpServer
 

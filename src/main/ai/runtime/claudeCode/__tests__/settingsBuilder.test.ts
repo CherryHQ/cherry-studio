@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
+  createSdkMcpServerInstance: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   listMcpTools: vi.fn(),
@@ -168,6 +169,10 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 
 vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
   createMcpBridgeServer: mocks.createMcpBridgeServer
+}))
+
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/createSdkMcpServerInstance', () => ({
+  createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
 }))
 
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
@@ -854,7 +859,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith(
+      'mcp-1',
+      materializedServer,
+      expect.objectContaining({ topicId: 'agent-session:session-1', model: 'anthropic::claude-sonnet' })
+    )
   })
 
   it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {

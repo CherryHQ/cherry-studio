@@ -227,7 +227,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result).toMatchObject({ uri: 'file:///shared.md', serverId: 's2', text: 'hello', totalChars: 5 })
   })
@@ -248,7 +249,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result.text).toBe('from s2')
   })
@@ -302,14 +304,29 @@ describe('mcp_resource_read', () => {
     expect(last.nextOffset).toBeUndefined()
   })
 
-  it('propagates the request abort signal to the server read', async () => {
+  it('propagates the abort signal and originating interaction context to the server read', async () => {
     const abortSignal = new AbortController().signal
     listResources.mockImplementation(async (serverId) => (serverId === 's1' ? [makeResource('s1', 'x://a')] : []))
     getResource.mockResolvedValue({ contents: [{ uri: 'x://a', text: 'hi' }] })
 
-    await callExecute(readEntry, { serverId: 's1', uri: 'x://a' }, { assistant: makeAssistant(), abortSignal })
+    const interactionContext = {
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      model: 'provider::model',
+      roots: [{ uri: 'file:///workspace', name: 'Workspace' }]
+    }
+    await callExecute(
+      readEntry,
+      { serverId: 's1', uri: 'x://a' },
+      { assistant: makeAssistant(), abortSignal, ...interactionContext }
+    )
 
-    expect(getResource).toHaveBeenCalledExactlyOnceWith({ serverId: 's1', uri: 'x://a', signal: abortSignal })
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({
+      serverId: 's1',
+      uri: 'x://a',
+      signal: abortSignal,
+      interactionContext: { ...interactionContext, requestId: 'tc-1' }
+    })
   })
 
   it('decodes binary contents to disk without returning their base64 payload', async () => {

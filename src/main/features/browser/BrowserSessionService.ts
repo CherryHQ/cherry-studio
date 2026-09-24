@@ -140,6 +140,14 @@ export class BrowserSessionService extends BaseService {
     return server.server
   }
 
+  async createMcpEndpoint() {
+    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
+      throw new BrowserSessionError('debugger_unavailable')
+    const server = new BrowserServer(this, () => this.servers.delete(server))
+    this.servers.add(server)
+    return { createServer: () => server.createServer(), close: () => server.close() }
+  }
+
   createAgentMcpServer(context: AgentBrowserContext) {
     if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
       throw new BrowserSessionError('debugger_unavailable')

@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { atomicWriteFile, mimeToExt } from '@main/utils/file'
 import type { McpResourceEntry, McpResourceReadResult, McpResourceSavedBlob } from '@shared/ai/builtinTools'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -32,6 +33,7 @@ export interface ReadScopedMcpResourceOptions {
   /** Max characters this page may return; the caller passes the request's tool-output cap. */
   charCap: number
   signal?: AbortSignal
+  interactionContext?: McpInteractionContext
 }
 
 function toResourceEntry(resource: McpResource): McpResourceEntry {
@@ -78,7 +80,7 @@ async function persistResourceBlob(content: McpResource & { blob: string }): Pro
 
 export async function readScopedMcpResource(
   servers: readonly McpServer[],
-  { serverId, uri, offset = 0, charCap, signal }: ReadScopedMcpResourceOptions
+  { serverId, uri, offset = 0, charCap, signal, interactionContext }: ReadScopedMcpResourceOptions
 ): Promise<McpResourceReadResult> {
   const server = servers.find((candidate) => candidate.id === serverId)
   if (!server) {
@@ -99,7 +101,12 @@ export async function readScopedMcpResource(
   }
 
   try {
-    const { contents } = await application.get('McpRuntimeService').getResource({ serverId: server.id, uri, signal })
+    const { contents } = await application.get('McpRuntimeService').getResource({
+      serverId: server.id,
+      uri,
+      signal,
+      interactionContext
+    })
     const full = contents
       .map((content: McpResource) => content.text ?? '')
       .filter(Boolean)

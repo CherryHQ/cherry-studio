@@ -105,7 +105,14 @@ const mcpResourceReadTool = tool({
       uri,
       offset,
       charCap: request.toolOutputCharCap ?? MCP_RESOURCE_READ_CHAR_CAP,
-      signal: request.abortSignal
+      signal: request.abortSignal,
+      interactionContext: {
+        windowId: request.windowId,
+        topicId: request.topicId,
+        requestId: options.toolCallId,
+        model: request.model,
+        roots: request.roots
+      }
     })
   }
 })

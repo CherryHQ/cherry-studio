@@ -1,8 +1,10 @@
 import fs from 'fs/promises'
 import path from 'path'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
 
 // Schema definition
@@ -25,11 +27,11 @@ export const lsToolDefinition = {
 - Results are limited to 100 entries
 - The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
-  inputSchema: z.toJSONSchema(LsToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(LsToolSchema))
 }
 
 // Handler implementation
-export async function handleLsTool(args: unknown, baseDir: string) {
+export async function handleLsTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = LsToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for ls: ${parsed.error}`)

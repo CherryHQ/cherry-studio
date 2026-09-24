@@ -7,6 +7,8 @@ import { loggerService } from '@logger'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
+import { ModernMcpProxy } from './ModernMcpProxy'
+
 const logger = loggerService.withContext('McpSessionStore')
 
 /** Matches the gateway's other long-lived stream budget (`GATEWAY_STREAM_IDLE_TIMEOUT_MS` in proxyStream.ts). */
@@ -50,6 +52,7 @@ export class StoreClosedError extends Error {
  */
 export class McpSessionStore {
   private readonly sessions = new Map<string, McpSession>()
+  private readonly modern = new Map<string, ModernMcpProxy>()
   private sweepTimer: NodeJS.Timeout | null = null
   /**
    * Initializations that passed admission but have not reached `onsessioninitialized` yet.
@@ -60,6 +63,19 @@ export class McpSessionStore {
   private pendingAdmissions = 0
   /** Set by `closeAll()`. A session opened after the server started closing would never be reachable. */
   private closed = false
+
+  async handleModern(server: McpServer, request: Request, parsedBody?: unknown): Promise<Response> {
+    if (this.closed) throw new StoreClosedError()
+    let proxy = this.modern.get(server.id)
+    if (!proxy) {
+      if (this.sessions.size + this.modern.size + this.pendingAdmissions >= MAX_SESSIONS)
+        throw new SessionLimitReachedError(MAX_SESSIONS)
+      proxy = new ModernMcpProxy(server)
+      this.modern.set(server.id, proxy)
+      this.ensureSweeping()
+    }
+    return proxy.fetch(request, parsedBody)
+  }
 
   /**
    * Open a session for `server` and let it serve the `initialize` request that asked for one.
@@ -72,7 +88,7 @@ export class McpSessionStore {
   async createAndHandle(server: McpServer, request: Request, parsedBody: unknown): Promise<Response> {
     if (this.closed) throw new StoreClosedError()
     // Reserve synchronously — nothing may await between the check and the increment.
-    if (this.sessions.size + this.pendingAdmissions >= MAX_SESSIONS) {
+    if (this.sessions.size + this.modern.size + this.pendingAdmissions >= MAX_SESSIONS) {
       throw new SessionLimitReachedError(MAX_SESSIONS)
     }
     this.pendingAdmissions++
@@ -158,8 +174,10 @@ export class McpSessionStore {
       this.sweepTimer = null
     }
     const live = [...this.sessions.values()]
+    const modern = [...this.modern.values()]
+    this.modern.clear()
     this.sessions.clear()
-    await Promise.all(live.map((session) => this.closeSession(session)))
+    await Promise.all([...live.map((session) => this.closeSession(session)), ...modern.map((proxy) => proxy.close())])
     if (live.length > 0) logger.info('Closed MCP sessions', { count: live.length })
   }
 
@@ -183,11 +201,16 @@ export class McpSessionStore {
 
   private async sweepIdle(): Promise<void> {
     const deadline = Date.now() - SESSION_IDLE_TIMEOUT_MS
+    for (const [id, proxy] of this.modern) {
+      if (proxy.lastActivityAt >= deadline) continue
+      this.modern.delete(id)
+      await proxy.close()
+    }
     const expired = [...this.sessions.values()].filter((session) => session.lastActivityAt < deadline)
     for (const session of expired) this.sessions.delete(session.id)
     await Promise.all(expired.map((session) => this.closeSession(session)))
     if (expired.length > 0) logger.info('Swept idle MCP sessions', { count: expired.length, live: this.sessions.size })
-    if (this.sessions.size === 0 && this.sweepTimer) {
+    if (this.sessions.size === 0 && this.modern.size === 0 && this.sweepTimer) {
       clearInterval(this.sweepTimer)
       this.sweepTimer = null
     }
