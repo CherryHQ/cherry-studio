@@ -179,8 +179,15 @@
     {
       "idx": 25,
       "version": "6",
-      "when": 1790180230856,
-      "tag": "0025_agent_workspace_disconnected_path",
+      "when": 1790186132435,
+      "tag": "0025_remote-access",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790283112194,
+      "tag": "0026_agent_workspace_disconnected_path",
       "breakpoints": true
     }
   ],
