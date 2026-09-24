@@ -6,7 +6,6 @@
  * to the appropriate service method.
  */
 
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -77,9 +76,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      const result = await application
-        .get('AgentLifecycleService')
-        .archiveAgent(params.agentId, { archiveSessions: false })
+      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
       if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
