@@ -754,6 +754,26 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
+  listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {
+    const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
+    return database
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`exists (
+        select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+        where json_extract(part.value, '$.approval.id') is not null
+      )`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
   deleteSessionMessage(sessionId: string, messageId: string): void {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })

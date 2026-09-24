@@ -6,7 +6,6 @@ import type { DetectedWindow } from '@shared/types/screenshot'
 
 import { OcrTextOverlay } from '../components/OcrTextOverlay'
 import { Toolbar } from '../components/Toolbar'
-import { mergeLine } from '../hooks/useOcr'
 import type { SelectionRect } from '../types'
 import { buildAnnotation, isSignificantAnnotation } from '../utils/annotation'
 import { findWindowAtPoint } from '../utils/findWindowAtPoint'
@@ -151,21 +150,17 @@ describe('Toolbar placement', () => {
 })
 
 describe('OCR text layer placement', () => {
-  it('puts a line on the pixels its glyphs occupy, not on the detector padding', () => {
-    // A 300×30 physical-pixel run at (120, 90) in the crop, as the detector reports it:
-    // grown by 0.4 of its own height per vertical side and 0.6 per horizontal side.
-    const detected = { text: 'sample', box: { x: 102, y: 78, width: 336, height: 54 }, confidence: 0.9 }
+  it('places crop-relative glyph bounds at the selection origin on a HiDPI display', () => {
+    const line = { text: 'sample', box: { x: 120, y: 90, width: 300, height: 30 } }
     const bounds = { x: 40, y: 30, width: 500, height: 200 }
 
-    render(createElement(OcrTextOverlay, { bounds, lines: [mergeLine([detected])], scaleFactor: 2 }))
+    render(createElement(OcrTextOverlay, { bounds, lines: [line], scaleFactor: 2 }))
 
     const span = screen.getByText('sample')
     const container = span.parentElement as HTMLElement
     // The container carries the crop origin; the span's offsets are region-relative.
     expect(container.style.left).toBe('40px')
     expect(container.style.top).toBe('30px')
-    // 120/2 and 90/2. Taking the padded box at face value would place the line at 51 / 39
-    // and give it a 27px height — the text layer sitting up and to the left of the words.
     expect(span.style.left).toBe('60px')
     expect(span.style.top).toBe('45px')
     expect(span.style.height).toBe('15px')

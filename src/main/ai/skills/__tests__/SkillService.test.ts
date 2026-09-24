@@ -1495,6 +1495,95 @@ describe('SkillService', () => {
       }
     })
 
+    describe('clawhub archive size cap', () => {
+      const clawhubDetailResponse = () =>
+        new Response(
+          JSON.stringify({
+            skill: { slug: 'code', displayName: 'Code', summary: 'Coding workflow' },
+            owner: { handle: 'ivangdavila', displayName: 'Ivan', image: null },
+            moderation: null
+          }),
+          { headers: { 'Content-Type': 'application/json' }, status: 200 }
+        )
+
+      const oversizedArchiveResponse = (onCancel = () => {}) =>
+        new Response(new ReadableStream<Uint8Array>({ cancel: onCancel }), {
+          headers: { 'Content-Length': String(skillArchive.MAX_SKILL_SIZE + 1) },
+          status: 200
+        })
+
+      it('rejects an archive whose Content-Length is over the skill size limit before reading it', async () => {
+        const skillService = new SkillService()
+        let cancelled = false
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(clawhubDetailResponse())
+          .mockResolvedValueOnce(oversizedArchiveResponse(() => void (cancelled = true)))
+
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          `clawhub archive advertises ${skillArchive.MAX_SKILL_SIZE + 1} bytes`
+        )
+        expect(cancelled).toBe(true)
+        expect(skillPaths.createTempDir).not.toHaveBeenCalled()
+        expect(skillArchive.extractZip).not.toHaveBeenCalled()
+      })
+
+      it('accepts a detail response that starts with a UTF-8 byte order mark', async () => {
+        const skillService = new SkillService()
+        const detail = await clawhubDetailResponse().text()
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(new Response(`\uFEFF${detail}`, { status: 200 }))
+          .mockResolvedValueOnce(oversizedArchiveResponse())
+
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          'clawhub archive advertises'
+        )
+      })
+
+      it('stops reading an unannounced archive once it crosses the skill size limit', async () => {
+        const skillService = new SkillService()
+        const tempDir = await createTempDir('skill-clawhub-oversize-')
+        vi.mocked(skillPaths.createTempDir).mockResolvedValue(tempDir)
+        const chunkSize = 1024 * 1024
+        const chunk = new Uint8Array(chunkSize)
+        const chunksToCrossLimit = Math.floor(skillArchive.MAX_SKILL_SIZE / chunkSize) + 1
+        let pulled = 0
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulled += 1
+            controller.enqueue(chunk)
+          }
+        })
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(clawhubDetailResponse())
+          .mockResolvedValueOnce(new Response(body, { status: 200 }))
+
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          `clawhub archive exceeds the ${skillArchive.MAX_SKILL_SIZE}-byte limit`
+        )
+        expect(pulled).toBeLessThanOrEqual(chunksToCrossLimit + 1)
+        expect(skillArchive.extractZip).not.toHaveBeenCalled()
+      })
+
+      it('stops reading an oversized detail response before requesting the archive', async () => {
+        const skillService = new SkillService()
+        const chunk = new Uint8Array(64 * 1024).fill(0x20)
+        let pulled = 0
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulled += 1
+            controller.enqueue(chunk)
+          }
+        })
+        vi.mocked(net.fetch).mockResolvedValueOnce(new Response(body, { status: 200 }))
+
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          'clawhub detail exceeds the 1048576-byte limit'
+        )
+        expect(pulled).toBeLessThanOrEqual((1024 * 1024) / chunk.byteLength + 2)
+        expect(net.fetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
     it('uses the canonical ZIP path for extraction and provenance', async () => {
       const skillService = new SkillService()
       const root = await createTempDir('skill-zip-install-')
