@@ -33,7 +33,7 @@ When the phase cycle is complete:
 Completed phase <N> of <total>: <phase-name>
 ```
 
-Read `changes_total` and the phase list from `progress.json` or `current-waypoint.json` for accurate totals — never guess. Emit to plain response text — no tool call needed. Individual skills (`kbd-assess`, `kbd-plan`, etc.) emit their own skill-level signals independently.
+Read change totals from the active phase’s `completion.implementation` and phase totals from the canonical phase list — never use change totals as phase totals or guess. Emit to plain response text — no tool call needed. Individual skills (`kbd-assess`, `kbd-plan`, etc.) emit their own skill-level signals independently.
 
 ---
 
@@ -61,18 +61,21 @@ On every invocation, before acting, KBD MUST:
 
 ### Level 1 — Global Phase (this skill)
 
-Assess → Analyze → Plan → Execute (backend selection + dispatch) → Reflect.
-KBD owns canonical phase state and delegates execution to OpenSpec, a native
-planner backend, or a designated AI tool.
+Assess → Analyze → Spec → Plan → Execute (dispatch through completion) → Reflect.
+KBD owns canonical phase state. This repository uses OpenSpec for changes,
+with designated AI tools performing tasks through `kbd-apply`.
 
 ### Level 2 — Change (inner loop)
 
-A change is created in **plan**, driven task-by-task in **execute** by
-whichever apply mechanism this project has ported (an OpenSpec-aware driver
-that wraps the OpenSpec CLI one task at a time so KBD hooks fire and
-`progress.json`/the waypoint stay in sync — never invoke a bare, KBD-unaware
-apply command directly), then `verify` → `archive`. Delegates QA to
-`artifact-refiner` when that skill is installed.
+A change is created during **spec/plan**, then driven task-by-task in
+**execute** by the shipped `kbd-apply` skill and `scripts/kbd-apply.mjs`.
+Use `begin-task` / `end-task` for every task, then driver `verify` → `archive`
+after QA and independent review. Never invoke bare OpenSpec apply inside KBD.
+The parent Execute stage remains active through all assigned changes/tasks and
+their required gates. `execution.md` and `execute-dispatch.json` record dispatch;
+only the completed boundary gets `execute:after` and
+`handoffs/execute.handoff.json`. See `skills/kbd-execute/SKILL.md` for its
+completion checklist.
 
 ### Level 3 — Artifact QA (innermost)
 
@@ -83,18 +86,18 @@ skill is installed in this project.
 
 ## Multi-Tool Coordination Architecture
 
-KBD's coordination contract is a set of files under `.kbd-orchestrator/`,
-described in the table below. Multiple harnesses or tools coordinate by
-reading and writing these files through the shared `lib/kbd/` modules rather
-than by mutating them ad hoc — that is what keeps `progress.json` and the
-waypoint from drifting out of sync with each other.
+The canonical runtime journal under `.kbd-orchestrator/runtime/` is the
+coordination authority. Harnesses use typed `prometheus kbd` commands through
+the shipped Node adapters and read the generated views below. Shared modules
+also retain legacy migration support; that is not permission to hand-edit
+progress, position, or waypoint files.
 
 ### State files
 
 | File                                             | Written by         | Read by     | Purpose                           |
 | ------------------------------------------------ | ------------------ | ----------- | --------------------------------- |
 | `.kbd-orchestrator/current-waypoint.json`        | projection writer  | All tools   | Derived resume view (`lib/kbd/waypoint.mjs`) |
-| `.kbd-orchestrator/current-waypoint.md`          | Any orchestrator   | All tools   | Human-readable waypoint summary   |
+| `.kbd-orchestrator/current-waypoint.md`          | projection writer   | All tools   | Human-readable waypoint summary   |
 | `.kbd-orchestrator/phases/<phase>/assessment.md` | kbd-assess         | kbd-analyze/kbd-plan | Gap analysis output      |
 | `.kbd-orchestrator/phases/<phase>/analysis.md`   | kbd-analyze        | kbd-spec/kbd-plan | Engineering-landscape research |
 | `.kbd-orchestrator/phases/<phase>/library-candidates.json` | kbd-analyze | kbd-spec/kbd-plan | Build-vs-adopt candidate set |
@@ -102,9 +105,10 @@ waypoint from drifting out of sync with each other.
 | `.kbd-orchestrator/position.json`                | projection writer  | kbd-status/renderer | Revision-bound derived position tree |
 | `.kbd-orchestrator/phases/<phase>/plan.md`       | kbd-plan           | kbd-execute | Ordered change list               |
 | `.kbd-orchestrator/phases/<phase>/execution.md`  | kbd-execute        | All tools   | Backend dispatch contract         |
+| `.kbd-orchestrator/phases/<phase>/execute-dispatch.json` | kbd-execute | All tools | Dispatch receipt; never a completed-stage handoff |
 | `.kbd-orchestrator/phases/<phase>/progress.json` | projection writer  | kbd-status  | Derived implementation/evidence/certification/publication ledger (`lib/kbd/progress.mjs`) |
 | `.kbd-orchestrator/phases/<phase>/reflection.md` | kbd-reflect        | Next phase  | Phase retrospective               |
-| `.kbd-orchestrator/project.json`                 | kbd-init           | All tools   | Project identity + config         |
+| `.kbd-orchestrator/project.json`                 | kbd-init; phase helpers for activePhase/bootstrap | All tools   | Project identity + config         |
 | `.kbd-orchestrator/phases/<phase>/hooks.log.jsonl` | hooks dispatcher  | operators   | Append-only hook fire log (`lib/kbd/hooks.mjs`) |
 | `.kbd-orchestrator/phases/<phase>/hooks-status.json` | hooks dispatcher | operators | Rolling hook success/failure summary |
 
@@ -117,6 +121,9 @@ delegates rather than writes directly in that mode. Otherwise it is a legacy
 ledger that `lib/kbd/progress.mjs` reads, transforms, validates
 (`validateProgress`), and atomically rewrites in place — see that module for
 the exact branch logic.
+
+The following is a compatibility ledger example, not an initialization
+template or the full canonical runtime schema:
 
 ```json
 {
@@ -192,32 +199,26 @@ counters in the projection by hand.
 2. **Analyze** (`skills/kbd-analyze/SKILL.md`) — identify highest-leverage missing features, prioritize
 3. **Spec** (`skills/kbd-spec/SKILL.md`) — turn gaps into concrete, ordered changes
 4. **Plan** (`skills/kbd-plan/SKILL.md`) — produce ordered list of changes for this phase
-5. **Execute** (`skills/kbd-execute/SKILL.md`) — select backend, write `execution.md`, dispatch
+5. **Execute** (`skills/kbd-execute/SKILL.md`) — dispatch and remain active through all assigned tasks, QA/review, verification, and archive; write the completion handoff only at that boundary
 6. **Reflect** (`skills/kbd-reflect/SKILL.md`) — capture lessons, seed next phase
-7. **Persist** — write phase state, refresh waypoint, commit
+7. **Persist** — record typed KBD transitions; review and commit intended artifacts and runtime projections under project policy
 
 After each phase: checkpoint + dispatch workflow triggers.
 
 ---
 
-## OpenSpec Availability
+## Spec backend policy
 
-OpenSpec is **optional**. KBD adapts:
+This repository requires OpenSpec and pins `specBackend: openspec`. Create
+changes through the project’s OpenSpec workflow; run their tasks, verification,
+and archival through `kbd-apply`. Missing CLI or change artifacts are blockers
+to repair, not permission to switch backends or claim completion.
 
-### When OpenSpec IS available (`openspec/` directory exists)
-
-- Use `/opsx:new` to create structured changes with proposal → design → tasks
-- Progress tracked in `openspec/changes/<id>/tasks.md`
-- Archiving via `/opsx:archive` feeds the reflection phase
-
-### When OpenSpec is NOT available
-
-- Use KBD's built-in change management via `.kbd-orchestrator/changes/<id>/`
-- Create `change.md` (same structure as OpenSpec proposal + tasks combined)
-- Track task status with `[ ]` / `[/]` / `[x]` in `change.md`
-- Archive by moving to `.kbd-orchestrator/changes/archive/<date>-<id>/`
-
-KBD **never** requires OpenSpec. The `execution.md` format accommodates both.
+The reusable `lib/kbd/spec-backend.mjs` also implements native-kbd for other
+projects and legacy changes. Its detector honors an explicit pin first, then
+change-local shape, then repository evidence. It can recognize Spec Kit, but
+this mini port has no Spec Kit execution adapter. These library capabilities
+do not change the OpenSpec policy for work in this repository.
 
 ---
 
@@ -225,7 +226,7 @@ KBD **never** requires OpenSpec. The `execution.md` format accommodates both.
 
 KBD maintains a resumable return point for the current phase.
 
-- Canonical files:
+- Derived resume files:
   - `.kbd-orchestrator/current-waypoint.md`
   - `.kbd-orchestrator/current-waypoint.json`
 - Minimum fields (all documented, with defaults, in `waypointLoad` —
@@ -237,7 +238,7 @@ KBD maintains a resumable return point for the current phase.
   - `lastCompletedChange` — last archived/completed change ID
   - `nextPendingChange` — next change to start
   - `sourceTool` — which tool last updated this projection
-  - `exactNextCommand` — the exact next command to run
+  - `exactNextCommand` — contextual guidance; confirm against canonical pending work
   - `nextChange` / `nextTask` — the concrete next unit of work
 
 When the waypoint exists, any AI tool should consult it before deriving
@@ -314,8 +315,10 @@ debugging — lives in [`references/hooks.md`](references/hooks.md).**
 
 When an AI tool (Roo, Cursor, Cline, Codex, etc.) is dispatched to execute a
 KBD change, it should follow a start/during/completion/blocker protocol —
-update `progress.json` + the waypoint and commit `.kbd-orchestrator/` on each
-boundary, so the next tool to look at the projection sees accurate state.
+use `kbd-apply begin-task` / `end-task` at every task boundary and typed KBD
+change, completion, and blocker commands. The runtime regenerates progress
+and waypoint views; never edit them directly. Review and commit intended
+artifacts under project policy.
 
 ---
 
@@ -366,11 +369,14 @@ hook it is mirroring.
 
 ```
 /kbd-init               # Auto-discover project and generate .kbd-orchestrator/project.json
-/kbd-assess              # Run the first assessment (writes the first phase from context)
+/kbd-new-phase <name>   # Create and activate the first phase
+/kbd-assess             # Assess the active phase
 ```
 
 > **IMPORTANT — project.json is GENERATED, not shipped.**
-> `.kbd-orchestrator/project.json` is always created by `/kbd-init` using auto-discovery.
+> `/kbd-init` creates full project configuration using auto-discovery. Phase
+> helpers maintain `activePhase` and may bootstrap minimal missing metadata,
+> preserving unrelated configuration; full discovery still belongs to `/kbd-init`.
 > It lives in the project repository, not in this skill directory.
 > The skill ships the generation template at
 > `skills/kbd-init/references/schemas/project.template.json` and the writer
@@ -380,11 +386,14 @@ hook it is mirroring.
 ### Ongoing workflow
 
 - `/kbd-init [--force] [--dry-run]` — Initialize or re-initialize project context
+- `/kbd-new-phase <name>` / `/kbd-next-phase` — Create or advance a phase
+- `/kbd-new-child` / `/kbd-next-child` / `/kbd-child-exit` — Manage nested phases
+- `/kbd-apply <change>` — Drive each task and its lifecycle hooks
 - `/kbd-assess [phase-name]` — Assess current codebase against active phase goals
 - `/kbd-analyze [phase-name]` — Research engineering landscape between Assess and Spec
 - `/kbd-spec [phase-name]` — Turn assessment + analysis into concrete change specs
 - `/kbd-plan [phase-name]` — Create prioritized change list for current phase
-- `/kbd-execute [phase-name]` — Select execution backend and dispatch phase
+- `/kbd-execute [phase-name]` — Dispatch and coordinate work through the completed Execute boundary
 - `/kbd-reflect [phase-name]` — Generate phase reflection report + seed next phase
 - `/kbd-status` — Show current phase, change inventory, and waypoint-guided next action
 - `/kbd-audit` — Inspect causal history, ownership, and drift, read-only
@@ -398,31 +407,17 @@ See each sub-skill's own `SKILL.md` for its detailed invocation contract.
 
 ---
 
-## What this port does not carry
+## Shipped capabilities and limits
 
-This is a scaled-down port of the full KBD process orchestrator. The
-following pieces are documented upstream but are **not** part of this
-project's skill set, and any reference to them elsewhere in this pack should
-be read as aspirational, not wired:
+The following skills and matching `scripts/*.mjs` helpers are shipped:
 
-- `kbd-new-phase` / `kbd-new-child` / `kbd-next-child` / `kbd-next-phase` /
-  `kbd-child-exit` — nested-phase lifecycle writers. The nested-phase *read*
-  model (`path[]`, `kbdNodeDir`, `kbdCurrentNodeDir`) is ported in
-  `lib/kbd/waypoint.mjs` and `lib/kbd/rollup.mjs` above, but nothing in this
-  project's skill set currently writes a new child phase.
-- `kbd-apply` — the per-task OpenSpec/spec-backend driver referenced above as
-  "whichever apply mechanism this project has ported." Confirm whether it
-  exists in `skills/` before assuming task-level hooks fire automatically.
-- `kbd-bottleneck-detector`, `kbd-inject-agent-rules`, `kbd-memory-recall` —
-  referenced by name in the sections above (bottleneck guard, memory
-  integration) because their underlying `lib/kbd/` modules
-  (`bottleneck-guard.mjs`, `memory.mjs`, `memory-log.mjs`) are ported, but the
-  skill wrappers themselves may not be.
-- The **evolver bridge** (`evolver-bridge.json`, iterative-evolver read-back
-  in Reflect) described in the upstream orchestrator is omitted here — this
-  port's `kbd-plan` and `kbd-reflect` do not read or write it. If an outer
-  evolution loop is added to this project later, reintroduce the bridge at
-  that point rather than assuming it already works.
+- `kbd-new-phase`, `kbd-next-phase`, `kbd-new-child`, `kbd-next-child`, and
+  `kbd-child-exit` create, activate, and navigate phase hierarchies.
+- `kbd-apply` drives tasks and KBD boundary hooks through the backend adapters.
+- `kbd-bottleneck-detector`, `kbd-inject-agent-rules`, and `kbd-memory-recall`
+  provide boundary checks, rule injection, and prior-context retrieval.
 
-Before telling an operator that one of these works, check whether the
-corresponding `skills/<name>/SKILL.md` actually exists in this project.
+A shipped wrapper still depends on its documented runtime/service prerequisites;
+report its actual result. Spec Kit execution is not ported. The upstream
+evolver-bridge read-back is also absent from this port’s plan/reflect flow;
+do not claim that an `evolver-bridge.json` file is automatically consumed.
