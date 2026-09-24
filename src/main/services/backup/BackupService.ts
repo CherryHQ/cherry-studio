@@ -6,6 +6,7 @@ import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { BackupArchiveNameSchema, type BackupDestinationId, type BackupProgressStage } from '@shared/ipc/schemas/backup'
+import type { EventPayload } from '@shared/ipc/types'
 
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
@@ -13,7 +14,7 @@ import { createTransport, type RemoteArchive } from './destinations/destinationT
 import { ArchiveAdmissionError, BackupBusyError, BackupCancelledError, renderUntrustedName } from './errors'
 import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
 import { createOwnedScratch, sweepStaleExportOperations } from './export/exportOperation'
-import type { BackupStageReporter } from './progress'
+import type { BackupStageReporter, BackupResourceReporter } from './progress'
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
 import { runPostPromotionWork } from './restore/postPromotion'
 import {
@@ -38,6 +39,7 @@ const POST_PROMOTION_POLL_MS = 10_000
  * on JobManager's own 60s startup window regardless — so it yields the boot.
  */
 const POST_PROMOTION_START_DELAY_MS = 5_000
+const UNIT_EMIT_INTERVAL_MS = 100
 
 /**
  * The IPC schema already refuses these; this is the service's own guard so no
@@ -136,6 +138,10 @@ export class BackupService extends BaseService {
   private exportCleanupWork: Promise<void> | null = null
   private postPromotionPoll: Disposable | null = null
   private postPromotionSuppressed = false
+  /** Last stage reported per operation, so a unit report can name its phase. */
+  private readonly stageOf = new Map<BackupOperation, BackupProgressStage>()
+  /** When a unit report last reached the windows; see {@link reportResource}. */
+  private lastUnitEmitAt = 0
 
   protected onInit(): void {
     // Lifecycle services may be restarted on the same instance.
@@ -247,9 +253,9 @@ export class BackupService extends BaseService {
    * overwrites a prior backup.
    */
   public export(outPath: string): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', async (signal, reportStage) => {
+    return this.runExclusive('export', async (signal, reportStage, reportUnit) => {
       await this.startExportCleanup()
-      return exportArchive({ outPath, signal, reportStage })
+      return exportArchive({ outPath, signal, reportStage, reportUnit })
     })
   }
 
@@ -272,7 +278,7 @@ export class BackupService extends BaseService {
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal, reportStage) => {
+    return this.runExclusive('export', async (signal, reportStage, reportUnit) => {
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.
@@ -284,7 +290,7 @@ export class BackupService extends BaseService {
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage })
+        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage, reportUnit })
         reportStage('uploading')
         await transport.upload(result.outPath, name, signal)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
@@ -465,7 +471,7 @@ export class BackupService extends BaseService {
    */
   public async runExclusive<T>(
     operation: BackupOperation,
-    work: (signal: AbortSignal, reportStage: BackupStageReporter) => Promise<T>,
+    work: (signal: AbortSignal, reportStage: BackupStageReporter, reportUnit: BackupResourceReporter) => Promise<T>,
     options: { readonly cancellable?: boolean } = {}
   ): Promise<T> {
     if (this.shuttingDown) throw new BackupCancelledError('backup service is shutting down')
@@ -484,9 +490,14 @@ export class BackupService extends BaseService {
     }
     this.inFlight = claim
     try {
-      return await work(controller.signal, (stage) => this.reportStage(operation, stage))
+      return await work(
+        controller.signal,
+        (stage) => this.reportStage(operation, stage),
+        (unit) => this.reportResource(operation, unit)
+      )
     } finally {
       if (this.inFlight === claim) this.inFlight = null
+      this.stageOf.delete(operation)
       markSettled()
     }
   }
@@ -497,10 +508,40 @@ export class BackupService extends BaseService {
    * so a broadcast that throws must not surface as an export failure.
    */
   private reportStage(operation: BackupOperation, stage: BackupProgressStage): void {
+    this.stageOf.set(operation, stage)
+    this.emitProgress({ operation, stage })
+  }
+
+  /**
+   * Push one resource unit, tagged with the stage that is walking them.
+   *
+   * The stage comes from the last {@link reportStage} for this operation rather
+   * than from the caller: a loop reports units, not which phase it belongs to,
+   * and re-deriving that here would duplicate the pipeline's own ordering.
+   */
+  private reportResource(operation: BackupOperation, unit: Parameters<BackupResourceReporter>[0]): void {
+    const stage = this.stageOf.get(operation)
+    if (!stage) return
+    // A walk can enter tens of thousands of units; the windows only need a few
+    // updates a second, plus the last unit so the count visibly completes.
+    const now = Date.now()
+    if (unit.done !== unit.total && now - this.lastUnitEmitAt < UNIT_EMIT_INTERVAL_MS) return
+    this.lastUnitEmitAt = now
+    this.emitProgress({
+      operation,
+      stage,
+      resources: { done: unit.done, total: unit.total, kind: unit.kind, livePath: unit.livePath }
+    })
+  }
+
+  private emitProgress(payload: EventPayload<'backup.progress'>): void {
     try {
-      application.get('IpcApiService').broadcast('backup.progress', { operation, stage })
+      application.get('IpcApiService').broadcast('backup.progress', payload)
     } catch (error) {
-      logger.warn('Could not broadcast backup progress', error as Error, { operation, stage })
+      logger.warn('Could not broadcast backup progress', error as Error, {
+        operation: payload.operation,
+        stage: payload.stage
+      })
     }
   }
 
