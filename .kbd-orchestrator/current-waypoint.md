@@ -1,29 +1,9 @@
-# Current Waypoint
+# Current waypoint
 
-**Phase:** rebrand-to-the-boss
-**Status:** planned — 0 of 10 changes complete
-**Next:** `/opsx:apply rebrand-001-sync-upstream`
+Active: **the-boss-shipping-and-settings → the-boss-universal-agent-runtime**.
 
-## Why this change first
+Continue sidecar-session-principal in the UAR sidecar worktree; The Boss UAR driver remains to be implemented on this branch. Release 2.1.3 is published; installed Windows acceptance is pending.
 
-Merging the 3 upstream commits is **provably conflict-free right now**
-(`git merge-tree --write-tree HEAD upstream/main` exits 0 with zero conflicts).
-That stops being true the moment the branding module lands.
+Canonical state is in `/Users/gqadonis/Projects/prometheus/prometheus-skills-mini` (revision 415). Run KBD mutations with `prometheus kbd --path /Users/gqadonis/Projects/prometheus/prometheus-skills-mini`; do not create a separate KBD identity here.
 
-## Ordering invariant (do not reorder)
-
-`rebrand-003-explicit-userdata` **must** land before `rebrand-004-app-identity`.
-userData is name-derived today, so renaming the app before pinning the directory
-silently orphans user profiles.
-
-## Decisions in force
-
-- **D1** Start clean — no data migration; legacy Cherry profiles untouched, not adopted
-- **D2** Separate branding module, not `CHERRY_EDITION`
-- **D3** Updater NOT repointed — `the-boss.know-me.tools` serves a marketing site
-  but `latest-mac.yml` returns 404
-
-## Open decisions carried into execution
-
-- Telemetry: disable or re-target (`analytics.cherry-ai.com` + Sentry)
-- Built-in `cherry_assistant` / `cherry_support`: remove or rebrand
+See [release handoff](phases/the-boss-shipping-and-settings/handoffs/release-to-uar.md) and [driver contract](phases/the-boss-shipping-and-settings/children/the-boss-universal-agent-runtime/uar-driver-contract.md). This snapshot supersedes the old rebranding waypoint.

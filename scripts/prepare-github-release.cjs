@@ -11,7 +11,7 @@ if (existing.status === 0) {
 }
 
 const notes = [
-  'The Boss 2.1.3 — Compass, workspace MCP servers, Prometheus skills, and managed services.',
+  `The Boss ${version} — supervised Universal Agent Runtime, workspace-bound tools, and the complete Prometheus skill payload.`,
   '',
   'Installers are published incrementally by platform. See RELEASES.md for checksums and signing status.'
 ].join('\n')

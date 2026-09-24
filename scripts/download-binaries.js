@@ -510,7 +510,9 @@ function extract(archivePath, archive, outputDir, pkg) {
         )
         for (const b of pkg.binaries) {
           const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
-          fs.copyFileSync(src, path.join(outputDir, b))
+          const dest = path.join(outputDir, b)
+          fs.mkdirSync(path.dirname(dest), { recursive: true })
+          fs.copyFileSync(src, dest)
         }
       } finally {
         fs.rmSync(tmpExtract, { recursive: true, force: true })
@@ -544,7 +546,9 @@ function extract(archivePath, archive, outputDir, pkg) {
     try {
       execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
       for (const b of pkg.binaries) {
-        fs.copyFileSync(path.join(tmpExtract, pkg.strip || '', b), path.join(outputDir, b))
+        const dest = path.join(outputDir, b)
+        fs.mkdirSync(path.dirname(dest), { recursive: true })
+        fs.copyFileSync(path.join(tmpExtract, pkg.strip || '', b), dest)
       }
     } finally {
       fs.rmSync(tmpExtract, { recursive: true, force: true })
@@ -660,7 +664,9 @@ function commitStaged(staging, outputDir, pkg) {
     return
   }
   for (const binary of pkg.binaries) {
-    fs.renameSync(path.join(staging, binary), path.join(outputDir, binary))
+    const dest = path.join(outputDir, binary)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.renameSync(path.join(staging, binary), dest)
   }
 }
 

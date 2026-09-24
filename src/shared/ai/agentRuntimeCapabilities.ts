@@ -178,5 +178,30 @@ export const AGENT_RUNTIME_CAPABILITIES = {
       })),
       ...dshCherryTools()
     ]
+  },
+  uar: {
+    labelKey: 'library.config.agent.field.runtime.option.uar',
+    labelFallback: 'Universal Agent Runtime',
+    permissionModes: ALL_PERMISSION_MODES,
+    modelTiers: false,
+    heartbeat: false,
+    knowledgeBases: false,
+    mcp: true,
+    skills: true,
+    claudeRegistryTools: false,
+    slashCommands: [],
+    createDefaults: { permissionMode: 'default' },
+    isModelCompatible: (provider, model) => {
+      if (!provider) return false
+      const endpoint = model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+      return (
+        endpoint === 'anthropic-messages' ||
+        endpoint === 'openai-chat-completions' ||
+        endpoint === 'openai-responses' ||
+        endpoint === 'ollama-chat'
+      )
+    },
+    transport: 'uar-agent',
+    builtinTools: () => []
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>

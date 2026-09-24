@@ -187,22 +187,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    The Boss 2.1.3 - Workspace tools and Prometheus integration
+    The Boss 2.2.0 - Universal Agent Runtime
 
-    - [Compass] Bundle native Compass with workspace indexing, isolated MCP connections, JSON, SQLite, and remote SurrealDB storage.
-    - [Filesystem] Add managed Rust Filesystem MCP with workspace roots and configurable write access.
-    - [Skills] Package the complete mini skill runtime, Compass skills, OpenSpec, Prometheus, pk, and Node.js. Preserve existing user skills during installation.
-    - [Services] Configure Docker, SurrealDB 3.2.4, surreal-memory-server, and liter-llm from Prometheus settings, including service controls and logs.
-    - [Settings] Add storage selection, command PATH repair, skill installation, and user-invoked operational diagnostics with translated settings.
-    - [Windows] Include native x64 and ARM64 tools and Windows-compatible Prometheus CLI setup.
+    - [Agent runtime] Add the supervised Universal Agent Runtime as a packaged local sidecar with versioned capability negotiation and no Docker requirement.
+    - [Isolation] Bind every run to its conversation, workspace, provider credentials, working directory, and allowed roots.
+    - [Tools] Route Compass, Rust Filesystem, and packaged skill commands through The Boss approval policy with correlated tool results.
+    - [Recovery] Preserve canonical conversation history across sidecar restarts and recover interrupted AG-UI streams without repeating completed effects.
+    - [Skills] Bundle the latest complete mini skill runtime, dependencies, Docker assets, Compass skills, Prometheus, pk, and Node.js.
+    - [Settings] Add translated UAR status, version, backend, capability, restart, and operational diagnostic controls.
 
     <!--LANG:zh-CN-->
-    The Boss 2.1.3 - 工作区工具与 Prometheus 集成
+    The Boss 2.2.0 - 通用智能体运行时
 
-    - [Compass] 内置原生 Compass，支持工作区索引、独立的 MCP 连接，以及 JSON、SQLite 和远程 SurrealDB 存储。
-    - [文件系统] 新增托管的 Rust Filesystem MCP，可配置工作区访问目录与写入权限。
-    - [技能] 打包完整的 mini 技能运行环境、Compass 技能、OpenSpec、Prometheus、pk 和 Node.js，安装时保留用户已有技能。
-    - [服务] 在 Prometheus 设置中配置 Docker、SurrealDB 3.2.4、surreal-memory-server 和 liter-llm，并提供服务控制与日志。
-    - [设置] 新增存储选择、命令 PATH 修复、技能安装，以及由用户启动的运行诊断，并提供翻译后的设置界面。
-    - [Windows] 内置 x64 和 ARM64 原生工具，并提供兼容 Windows 的 Prometheus CLI 配置。
+    - [智能体运行时] 内置受监管的通用智能体运行时本地辅助进程，支持版本化能力协商，无需 Docker 即可启动。
+    - [隔离] 将每次运行绑定到对应的对话、工作区、服务商凭据、工作目录和允许访问的目录。
+    - [工具] 通过 The Boss 的审批策略调用 Compass、Rust Filesystem 和已打包的技能命令，并关联记录工具结果。
+    - [恢复] 在辅助进程重启后保留规范对话历史，恢复中断的 AG-UI 数据流且不会重复已完成的操作。
+    - [技能] 打包最新的完整 mini 技能运行环境、依赖、Docker 资源、Compass 技能、Prometheus、pk 和 Node.js。
+    - [设置] 新增完整翻译的 UAR 状态、版本、后端、能力、重启和运行诊断控制项。
     <!--LANG:END-->

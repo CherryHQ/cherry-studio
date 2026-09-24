@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "2",
+  "generatedBy": "kbd-runtime",
+  "projectionContractVersion": 2,
+  "sourceRevision": 414,
+  "derivedRevision": 414,
+  "frontier": {
+    "52a10e5c-8698-43ec-82a0-53c60bfd5a98": 414
+  },
+  "conflictCount": 0,
+  "phase": "the-boss-universal-agent-runtime",
+  "phaseId": "the-boss-universal-agent-runtime",
+  "parentPhase": "the-boss-shipping-and-settings",
+  "last_updated": "2026-09-23T20:18:23.387983Z",
+  "last_updated_by": "kbd-runtime",
+  "changes_total": 10,
+  "changes_completed": 1,
+  "implementation_total": 10,
+  "implementation_completed": 1,
+  "completion": {
+    "primaryCounter": "implementation",
+    "implementation": {
+      "completed": 1,
+      "total": 10,
+      "status": "IN_PROGRESS"
+    },
+    "evidence": {
+      "status": "PENDING",
+      "summary": null,
+      "blockers": []
+    },
+    "certification": {
+      "status": "PENDING",
+      "summary": null,
+      "blockers": []
+    },
+    "publication": {
+      "status": "PENDING",
+      "summary": null,
+      "blockers": []
+    }
+  },
+  "changes": [
+    {
+      "id": "sidecar-launch-security",
+      "title": "UAR: sidecar-launch-security",
+      "status": "DONE",
+      "implementation_status": "COMPLETE",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "sidecar-session-principal",
+      "title": "UAR: sidecar-session-principal",
+      "status": "IN_PROGRESS",
+      "implementation_status": "IN_PROGRESS",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "run-scoped-credentials-and-mcp-servers",
+      "title": "UAR: run-scoped-credentials-and-mcp-servers",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "run-request-host-context",
+      "title": "UAR: run-request-host-context",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "agui-runs-stream-fidelity",
+      "title": "UAR: agui-runs-stream-fidelity",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "encrypt-persisted-secrets",
+      "title": "UAR: encrypt-persisted-secrets",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "surreal-scoped-signin-and-embedded-fallback",
+      "title": "UAR: surreal-scoped-signin-and-embedded-fallback",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "skill-matching-llm-and-local-embedding",
+      "title": "UAR: skill-matching-llm-and-local-embedding",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "agentic-chunking",
+      "title": "UAR: agentic-chunking",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    },
+    {
+      "id": "sidecar-release-pipeline",
+      "title": "UAR: sidecar-release-pipeline",
+      "status": "PENDING",
+      "implementation_status": "PENDING",
+      "tasks_total": 0,
+      "tasks_done": 0,
+      "last_task_completed": null,
+      "next_task_pending": null,
+      "blockers": []
+    }
+  ],
+  "children": {},
+  "migrationStatus": null
+}

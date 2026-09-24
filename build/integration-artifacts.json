@@ -1,12 +1,7 @@
 {
   "schema": 1,
   "platforms": [
-    "darwin-x64",
-    "darwin-arm64",
-    "linux-x64",
-    "linux-arm64",
-    "win32-x64",
-    "win32-arm64"
+    "win32-x64"
   ],
   "sources": {
     "compass": {
@@ -27,7 +22,11 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "7d3fd056a966a1a30933c3e30c47813d6f1d3e6d"
+      "revision": "86b2c7e1a7ea21d416782ed90fba19e496f02f88"
+    },
+    "uar": {
+      "repository": "Prometheus-AGS/universal-agent-runtime",
+      "revision": "c29af47be3439c69e1a3c124fdcf09ce4cbb5cba"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
@@ -312,6 +311,30 @@
             "node.exe"
           ],
           "strip": "node-v24.11.1-win-arm64"
+        }
+      }
+    },
+    {
+      "name": "uar-sidecar",
+      "version": "1.0.0",
+      "packages": {
+        "win32-x64": {
+          "url": "https://github.com/Prometheus-AGS/universal-agent-runtime/releases/download/boss-sidecar-win32-x64-v1.0.0-p1.8/uar-sidecar-win32-x64.tar.gz",
+          "sha256": "849aacc54e4e9a695699420f6b042d1c0126905d4005c16447e535782f1917ea",
+          "archive": "tar.gz",
+          "binaries": [
+            "crc_fast-c45996daf34d96b5.dll",
+            "LICENSE",
+            "sevenz_rust2-0296aedd6d6c479a.dll",
+            "uar-models/bg-small-en-v1.5.onnx",
+            "uar-models/config.json",
+            "uar-models/MODEL-NOTICE.txt",
+            "uar-models/special_tokens_map.json",
+            "uar-models/tokenizer_config.json",
+            "uar-models/tokenizer.json",
+            "uar-sidecar.exe",
+            "payload-manifest.json"
+          ]
         }
       }
     }
