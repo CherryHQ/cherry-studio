@@ -165,9 +165,7 @@ const BackupProgressDialog: FC<{
                 disabled={cancelling}
                 onClick={onCancel}
                 className="transition-transform active:scale-[0.96]">
-                {t(
-                  cancelling ? 'settings.data.backup.progress.cancelling' : 'settings.data.backup.progress.stop'
-                )}
+                {t(cancelling ? 'settings.data.backup.progress.cancelling' : 'settings.data.backup.progress.stop')}
               </Button>
             ) : null}
           </div>
