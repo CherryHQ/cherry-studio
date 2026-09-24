@@ -53,8 +53,9 @@ async function locateSdkTranscript(
 ): Promise<string | null> {
   const fileName = `${sdkSessionId}.jsonl`
   if (cwd) {
-    const exact = path.join(projectsRoot, encodeClaudeProjectDir(cwd), fileName)
-    if (await isRegularFile(exact)) return exact
+    const dir = path.join(projectsRoot, encodeClaudeProjectDir(cwd))
+    const exact = path.join(dir, fileName)
+    if ((await isRealDirectory(dir)) && (await isRegularFile(exact))) return exact
   }
   let entries: string[]
   try {
@@ -63,8 +64,9 @@ async function locateSdkTranscript(
     return null
   }
   for (const entry of entries) {
-    const candidate = path.join(projectsRoot, entry, fileName)
-    if (await isRegularFile(candidate)) return candidate
+    const dir = path.join(projectsRoot, entry)
+    const candidate = path.join(dir, fileName)
+    if ((await isRealDirectory(dir)) && (await isRegularFile(candidate))) return candidate
   }
   return null
 }
@@ -73,6 +75,15 @@ async function locateSdkTranscript(
 async function isRegularFile(filePath: string): Promise<boolean> {
   try {
     return (await fs.lstat(filePath)).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** The project directory too: a symlinked one would reach outside `projects/` the same way. */
+async function isRealDirectory(dirPath: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(dirPath)).isDirectory()
   } catch {
     return false
   }

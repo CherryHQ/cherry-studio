@@ -171,6 +171,24 @@ describe('stagePortableAgentTranscript', () => {
     ).rejects.toThrow('was not found under the SDK projects root')
   })
 
+  it('refuses a transcript inside a symlinked project directory', async () => {
+    const outside = path.join(root, 'outside')
+    mkdirSync(outside, { recursive: true })
+    writeFileSync(path.join(outside, `${SDK_SESSION_ID}.jsonl`), `${line(BOUNDARY)}\n`)
+    mkdirSync(path.join(claudeRoot, 'projects'), { recursive: true })
+    symlinkSync(outside, path.join(claudeRoot, 'projects', encodeClaudeProjectDir(workspacePath)), 'junction')
+
+    await expect(
+      stagePortableAgentTranscript({
+        detachedDbPath,
+        transcriptRoot,
+        agentRuntimeConfigRoot: claudeRoot,
+        sourcePath: path.join(transcriptRoot, `${SESSION_ID}.jsonl`),
+        stagedPath: path.join(root, 'staged.jsonl')
+      })
+    ).rejects.toThrow('was not found under the SDK projects root')
+  })
+
   it('fails when no transcript exists for the retained session', async () => {
     await expect(
       stagePortableAgentTranscript({
