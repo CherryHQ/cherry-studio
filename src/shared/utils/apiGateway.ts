@@ -1,6 +1,19 @@
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 
 /**
+ * Stable TCP port for the LAN pairing listener. An OS-assigned port (`0`) cannot be covered by a
+ * durable Windows Firewall rule, so pairing fails silently on default Public/Block profiles.
+ * Keep in sync with `build/nsis-installer.nsh`.
+ */
+export const API_GATEWAY_LAN_PORT = 23334
+
+/**
+ * Windows Firewall inbound rule display name for {@link API_GATEWAY_LAN_PORT}.
+ * Keep in sync with `build/nsis-installer.nsh`.
+ */
+export const API_GATEWAY_LAN_FIREWALL_RULE_NAME = 'Cherry Studio LAN Pairing'
+
+/**
  * Separator in the custom-model path Antigravity CLI carries (`gemini-api://<providerId>/models/<apiModelId>`).
  * The producer (`main/services/codeCli/antigravity.ts`) and the gateway route that parses it back
  * (`main/features/apiGateway/routes/gemini.ts`) must agree, so neither may hardcode it.
