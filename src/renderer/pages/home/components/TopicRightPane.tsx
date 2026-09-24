@@ -1,5 +1,9 @@
+import { Activity, GitBranch, Globe } from 'lucide-react'
+import type { PropsWithChildren } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import { type ArtifactPaneFileSelection, ArtifactPaneView } from '@renderer/components/chat/panes/ArtifactPane'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -8,31 +12,18 @@ import {
   type RightPanelCapability,
   type RightPanelComponentProps,
   type RightPanelComposition,
-  RightPanelHeaderControls,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
+  useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
-import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
+import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { Activity, GitBranch } from 'lucide-react'
-import type { PropsWithChildren } from 'react'
-import {
-  createContext,
-  lazy,
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore
-} from 'react'
-import { useTranslation } from 'react-i18next'
+import { useIpcOn } from '@renderer/ipc'
+import { topicBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
@@ -52,21 +43,11 @@ interface TopicRightPaneViewportCallbacks {
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
+  browserTitle: string
   branchTitle: string
   developerMode: boolean
-  filePreviewSelection: ArtifactPaneFileSelection | null
-  filesTitle: string
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
-}
-
-interface TopicRightPaneFileState {
-  previewFileSelection: ArtifactPaneFileSelection | null
-}
-
-interface TopicRightPaneActions {
-  previewInputFile: ComposerInputFilePreviewAction
-  closeFilePreview: () => void
 }
 
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
@@ -115,8 +96,6 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
-const TopicRightPaneFileStateContext = createContext<TopicRightPaneFileState | null>(null)
-const TopicRightPaneActionsContext = createContext<TopicRightPaneActions | null>(null)
 
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
@@ -132,22 +111,6 @@ function useTopicRightPaneViewport(): TopicRightPaneViewportCallbacks {
 
 export function useTopicBranchLiveStateSetter(): TopicBranchLiveStateSetter {
   return useTopicBranchLiveStateStore().setSnapshot
-}
-
-function useTopicRightPaneFileState(): TopicRightPaneFileState {
-  const value = use(TopicRightPaneFileStateContext)
-  if (!value) throw new Error('useTopicRightPaneFileState must be used within <TopicRightPane.Scope>')
-  return value
-}
-
-function useTopicRightPaneActions(): TopicRightPaneActions {
-  const value = use(TopicRightPaneActionsContext)
-  if (!value) throw new Error('useTopicRightPaneActions must be used within <TopicRightPane.Scope>')
-  return value
-}
-
-export function useOptionalTopicRightPaneActions(): TopicRightPaneActions | undefined {
-  return use(TopicRightPaneActionsContext) ?? undefined
 }
 
 function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | null {
@@ -182,6 +145,28 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   )
 }
 
+function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!scope.topicId) return null
+  return (
+    <SessionBrowserView
+      runtime={browserRuntime}
+      sessionId={scope.topicId}
+      securityProfile={WebviewSecurityProfile.AgentBrowser}
+      isHostActive={active}
+      target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
+      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
+    />
+  )
+}
+
+function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
+  const actions = useRightPanelActions()
+  useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
+    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+  })
+  return null
+}
+
 function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   if (!active) return null
   return (
@@ -191,53 +176,8 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
   )
 }
 
-function TopicFilePreviewRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  const state = useTopicRightPaneFileState()
-  const actions = useTopicRightPaneActions()
-
-  if (!state.previewFileSelection) return null
-
-  return (
-    <ArtifactPaneView
-      headerVariant="pane"
-      paneTitle={scope.filesTitle}
-      paneActions={<RightPanelHeaderControls canMaximize />}
-      previewFileSelection={state.previewFileSelection}
-      onPreviewClose={actions.closeFilePreview}
-    />
-  )
-}
-
-function TopicRightPaneActionsProvider({
-  children,
-  previewFileSelection,
-  requestFileSelection,
-  topicId
-}: PropsWithChildren<{
-  previewFileSelection: ArtifactPaneFileSelection | null
-  requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
-  topicId?: string
-}>) {
-  const { closeFilePreview, previewInputFile } = useArtifactPanePreviewNavigation({
-    paneId: FILE_PREVIEW_PANE_ID,
-    previewFileSelection,
-    requestFileSelection,
-    scopeKey: topicId
-  })
-  const actions = useMemo<TopicRightPaneActions>(
-    () => ({
-      previewInputFile,
-      closeFilePreview
-    }),
-    [closeFilePreview, previewInputFile]
-  )
-
-  return <TopicRightPaneActionsContext value={actions}>{children}</TopicRightPaneActionsContext>
-}
-
 /** Stable capability declarations; catalog order is the fallback order. */
 const TRACE_PANE_ID = 'trace'
-const FILE_PREVIEW_PANE_ID = 'files'
 const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
 const TOPIC_TRACE_PANE_CAPABILITY = {
   component: TopicTraceRightPanel,
@@ -251,22 +191,21 @@ const TOPIC_TRACE_PANE_CAPABILITY = {
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   TOPIC_RESOURCE_PANE_CAPABILITY,
   {
-    component: TopicFilePreviewRightPanel,
-    resolve: (scope) => ({
-      id: FILE_PREVIEW_PANE_ID,
-      instanceKey: `topic:${scope.topicId ?? ''}:file-preview`,
-      title: scope.filePreviewSelection?.displayName ?? scope.filesTitle,
-      readiness: scope.filePreviewSelection ? 'ready' : 'unavailable',
-      headerMode: 'content',
-      canMaximize: true
-    })
-  },
-  {
     component: TopicBranchRightPanel,
     resolve: (scope) => ({
       id: 'branch',
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
+    })
+  },
+  {
+    component: TopicBrowserRightPanel,
+    resolve: (scope) => ({
+      id: 'browser',
+      instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
+      title: scope.browserTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
       canMaximize: true
     })
@@ -299,28 +238,18 @@ function TopicRightPaneProvider({
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
-  const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
-  const requestFileSelection = useCallback((selection: ArtifactPaneFileSelection | null) => {
-    setPreviewFileSelection(selection)
-  }, [])
-  const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
-  const fileState = useMemo<TopicRightPaneFileState>(() => ({ previewFileSelection }), [previewFileSelection])
-  useEffect(() => {
-    closeFilePreview()
-  }, [closeFilePreview, topicId])
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
       topicId,
       topicName,
       traceId,
-      filePreviewSelection: previewFileSelection,
       resourcePane: resourcePane ?? null,
       developerMode: enableDeveloperMode,
+      browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
-      filesTitle: t('common.preview'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, previewFileSelection, resourcePane, t, topicId, topicName, traceId]
+    [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (
@@ -332,15 +261,9 @@ function TopicRightPaneProvider({
       onOpenChange={onOpenChange}
       userOpenIntentSeq={userOpenIntentSeq}
       present={present}>
+      <TopicBrowserPaneOpener topicId={topicId} />
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
-      <TopicRightPaneActionsProvider
-        previewFileSelection={previewFileSelection}
-        requestFileSelection={requestFileSelection}
-        topicId={topicId}>
-        <TopicRightPaneFileStateContext value={fileState}>
-          <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
-        </TopicRightPaneFileStateContext>
-      </TopicRightPaneActionsProvider>
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
     </RightPanelProvider>
   )
 }
@@ -355,11 +278,15 @@ function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallb
   )
 }
 
-function TopicRightPaneShortcuts() {
+function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: boolean }) {
   const { t } = useTranslation()
+  const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
 
   return (
     <>
+      {browserEnabled && browserControlEnabled && (
+        <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
+      )}
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>

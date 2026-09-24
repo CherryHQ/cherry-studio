@@ -1,4 +1,3 @@
-import { Input } from '@cherrystudio/ui'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
 import ListTree from 'lucide-react/dist/esm/icons/list-tree'
@@ -7,6 +6,8 @@ import ZoomIn from 'lucide-react/dist/esm/icons/zoom-in'
 import ZoomOut from 'lucide-react/dist/esm/icons/zoom-out'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Input } from '@cherrystudio/ui'
 
 import { FilePreviewToolbar } from '../../FilePreviewToolbar'
 import { FilePreviewToolbarButton } from '../../FilePreviewToolbarButton'

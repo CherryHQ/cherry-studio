@@ -1,8 +1,10 @@
+import { EventEmitter } from 'events'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'

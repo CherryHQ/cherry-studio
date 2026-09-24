@@ -1,6 +1,7 @@
+import useSWRImmutable from 'swr/immutable'
+
 import { ipcApi } from '@renderer/ipc'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
-import useSWRImmutable from 'swr/immutable'
 
 /**
  * Resolves a tool output deferred at the process boundary. SWR supplies the dedup and

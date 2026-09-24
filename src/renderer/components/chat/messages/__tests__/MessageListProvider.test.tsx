@@ -1,7 +1,8 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { MessageListProvider, useMessagePriorCitationParts } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../types'

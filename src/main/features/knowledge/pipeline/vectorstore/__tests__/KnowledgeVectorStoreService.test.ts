@@ -2,13 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   type KnowledgeBase
 } from '@shared/data/types/knowledge'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   loggerDebugMock,

@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { isEditImageModel } from '@shared/utils/model'
-import { useCallback } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
@@ -55,7 +56,7 @@ export function usePaintingModelSwitch({
           params: { ...painting.params, ...resetPatch },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
-        } as Partial<PaintingData>)
+        })
         return
       }
 
@@ -81,7 +82,7 @@ export function usePaintingModelSwitch({
         // Switching providers resets the form context; never carry input
         // images across to a different provider's model.
         inputFiles: []
-      } as Partial<PaintingData>)
+      })
     },
     [currentProviderId, ensureProviderCatalog, models, onPaintingChange, painting]
   )

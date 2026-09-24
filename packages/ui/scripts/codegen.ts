@@ -12,6 +12,7 @@
  */
 
 import * as fs from 'fs'
+
 import { IndentationText, NewLineKind, Project, QuoteKind, VariableDeclarationKind } from 'ts-morph'
 
 const project = new Project({
@@ -184,8 +185,9 @@ export function generateMeta(opts: {
   dirName: string
   colorPrimary: string
   colorScheme: 'mono' | 'color'
+  artworkKind?: 'tile'
 }): void {
-  const { outPath, dirName, colorPrimary, colorScheme } = opts
+  const { outPath, dirName, colorPrimary, colorScheme, artworkKind } = opts
 
   const sf = project.createSourceFile('meta.ts', '', { overwrite: true })
 
@@ -204,7 +206,7 @@ export function generateMeta(opts: {
         initializer: `{
   id: '${dirName}',
   colorPrimary: '${colorPrimary}',
-  colorScheme: '${colorScheme}',
+  colorScheme: '${colorScheme}',${artworkKind ? `\n  artworkKind: '${artworkKind}',` : ''}
 }`
       }
     ]

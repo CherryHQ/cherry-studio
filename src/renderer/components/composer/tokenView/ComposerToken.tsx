@@ -1,6 +1,5 @@
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { cacheService } from '@data/CacheService'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
@@ -42,11 +41,10 @@ const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
-const PASTED_TEXT_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
   'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
-const pastedTextPreviewCacheKey = (path: string) => `composer:pasted-text-preview:${path}`
+const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <ToolCase className={tokenIconClassName} />,
@@ -269,18 +267,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     })
   }
 
-  const openLink = () => {
-    void ipcApi.request('system.shell.open_website', link.url)
+  const openLink = (modified: boolean) => {
+    if (!modified && props.onOpenLink) void props.onOpenLink(link.url)
+    else void ipcApi.request('system.shell.open_website', link.url)
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     event.stopPropagation()
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
 
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
@@ -324,14 +323,13 @@ function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
 }
 
 function readPastedTextPreview(path: string) {
-  const cacheKey = pastedTextPreviewCacheKey(path)
-  let request = cacheService.getCasual<Promise<string>>(cacheKey)
+  let request = pastedTextPreviewCache.get(path)
   if (!request) {
     request = window.api.fs.readText(path).catch((error) => {
-      cacheService.deleteCasual(cacheKey)
+      pastedTextPreviewCache.delete(path)
       throw error
     })
-    cacheService.setCasual(cacheKey, request, PASTED_TEXT_PREVIEW_CACHE_TTL_MS)
+    pastedTextPreviewCache.set(path, request)
   }
   return request
 }
@@ -1055,6 +1053,14 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
 }
 
+export function WebviewAnnotationComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.webviewAnnotation })
+}
+
+export function MessagePartComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.messagePart })
+}
+
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
   link: LinkComposerToken,
@@ -1063,7 +1069,9 @@ export const composerInputTokenComponentByKind = {
   knowledge: KnowledgeComposerToken,
   reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
-  promptVariable: PromptVariableComposerToken
+  promptVariable: PromptVariableComposerToken,
+  webviewAnnotation: WebviewAnnotationComposerToken,
+  messagePart: MessagePartComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {

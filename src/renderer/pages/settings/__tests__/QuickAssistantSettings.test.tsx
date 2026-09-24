@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { Model } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
 
 import QuickAssistantSettings from '../QuickAssistantSettings'
 

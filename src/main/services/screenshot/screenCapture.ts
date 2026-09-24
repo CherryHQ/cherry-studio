@@ -1,6 +1,7 @@
+import type { Monitor } from 'node-screenshots'
+
 import { loggerService } from '@logger'
 import { getScreenCapturePermissionStatus } from '@main/utils/screenCapturePermission'
-import type { Monitor } from 'node-screenshots'
 
 import { loadNativeCaptureBackend } from './nativeCaptureBackend'
 import { type CaptureResult, type MonitorInfo, ScreenCaptureError, ScreenCapturePermissionError } from './types'

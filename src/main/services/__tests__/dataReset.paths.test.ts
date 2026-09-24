@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { describe, expect, it, vi } from 'vitest'
+
+import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 
 import { USER_DATA_KEPT, USER_DATA_WIPE } from '../dataReset'
 

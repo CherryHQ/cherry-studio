@@ -1,12 +1,13 @@
+import { Info } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
 import { SettingGroup, SettingSubtitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { toast } from '@renderer/services/toast'
-import { Info } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { parseWebSearchBlacklistInput } from '../utils/webSearchBlacklist'

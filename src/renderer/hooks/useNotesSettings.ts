@@ -1,9 +1,10 @@
+import { useTranslation } from 'react-i18next'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import type { NotesSortType } from '@renderer/types/note'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useNotesSettings')
 

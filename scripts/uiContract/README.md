@@ -5,7 +5,8 @@ The normative consumer contract, stability tiers, maintained anchors, and Custom
 [`docs/references/components/ui-semantic-contract.md`](../../docs/references/components/ui-semantic-contract.md).
 
 - `vitePlugin.ts` injects readable semantic tokens before React compilation.
-- `transform.ts` performs source-mapped AST/HTML transformations without using display text or line numbers.
+- `transform.ts` parses TypeScript/TSX with Oxc ESTree and performs source-mapped AST/HTML transformations without
+  using display text or line numbers.
 - `semanticId.ts` derives best-effort roles from source domain, component name, element role, and stable attributes.
 - `scan.ts` discovers semantic boundaries in current renderer and `packages/ui` source.
 - `query.ts` resolves a semantic prefix to source metadata for developers and AI tooling.

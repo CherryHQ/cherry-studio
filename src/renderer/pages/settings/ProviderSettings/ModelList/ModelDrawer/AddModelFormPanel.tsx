@@ -1,12 +1,13 @@
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { FormEvent } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'

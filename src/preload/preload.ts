@@ -1,12 +1,16 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
+import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileHandle } from '@shared/data/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -28,11 +32,7 @@ import type {
   LanTransferState
 } from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
-import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { CommandId } from '@shared/utils/command'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
 
@@ -109,7 +109,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
@@ -190,7 +189,7 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
-  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
+  // `ipcApi.request('oauth.*' | 'cherryin.*')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
@@ -254,7 +253,7 @@ const api = {
   },
   // Data API related APIs
   dataApi: {
-    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    request: (req: DataRequest): Promise<DataResponse<unknown>> => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
     // DataApi data change notifications: single fixed channel, main → all windows.
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
@@ -267,12 +266,6 @@ const api = {
   // All `ai.*` / `translate.*` capability IPC moved to IpcApi (`ipcApi.request(...)` /
   // `ipcApi.on('ai.stream_*')`): model ops, streaming chat + translate, agent-session
   // warm-up, tool approval, agent run-task, and the topic/agent-session auto-rename events.
-  skill: {
-    readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
-    listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
-  },
   lanTransfer: {
     startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
     stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),

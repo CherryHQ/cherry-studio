@@ -1,13 +1,14 @@
+import { MoreHorizontal } from 'lucide-react'
+import type { ReactNode, RefObject } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { MoreHorizontal } from 'lucide-react'
-import type { ReactNode, RefObject } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   buildResourceListGroupDropAnchor,

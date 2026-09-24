@@ -17,6 +17,8 @@
  * @see {@link CacheService} For implementation details
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import type {
   InferSharedCacheValue,
@@ -35,7 +37,6 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 

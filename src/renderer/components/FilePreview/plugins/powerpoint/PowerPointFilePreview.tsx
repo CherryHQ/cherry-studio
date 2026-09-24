@@ -1,20 +1,18 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
-import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PowerPointFilePreviewToolbar } from './PowerPointFilePreviewToolbar'
+import { slideExcerpt, slideToPptxAnchor } from './pptxSelectionAnchor'
 
 const logger = loggerService.withContext('PowerPointFilePreview')
 
@@ -22,20 +20,12 @@ const PPTX_PREVIEW_DEFAULT_ZOOM = 100
 const PPTX_PREVIEW_ZOOM_STEP = 10
 const PPTX_PREVIEW_MIN_ZOOM = 50
 const PPTX_PREVIEW_MAX_ZOOM = 200
-const PPTX_PREVIEW_MAX_SOURCE_MIB = 25
-const PPTX_PREVIEW_MAX_SOURCE_BYTES = PPTX_PREVIEW_MAX_SOURCE_MIB * 1024 * 1024
+const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
 const EXTERNAL_TARGET_MODE = 'external'
 const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
-
-class PptxPreviewTooLargeError extends Error {
-  constructor() {
-    super('PPTX preview source exceeds the safe size limit')
-    this.name = 'PptxPreviewTooLargeError'
-  }
-}
 
 function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
   if (data instanceof Uint8Array) return data
@@ -57,12 +47,8 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function assertSourceSize(size: number): void {
   if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
-    throw new PptxPreviewTooLargeError()
+    throw new Error('PPTX preview supports files up to 25 MB')
   }
-}
-
-function isPptxPreviewTooLargeError(error: Error): boolean {
-  return error instanceof PptxPreviewTooLargeError || error.message.startsWith('PPTX zip limit exceeded:')
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -100,41 +86,35 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
-function PowerPointPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
-  const { t } = useTranslation()
-
-  const handleOpenWithDefaultApp = () => {
-    void safeOpen(createFilePathHandle(filePath)).catch(() =>
-      toast.error(t('file_preview.powerpoint.too_large.open_error'))
-    )
-  }
-
-  return (
-    <div role="alert" className="absolute inset-0 bg-background">
-      <EmptyState
-        icon={FileWarning}
-        title={t('file_preview.powerpoint.too_large.title')}
-        description={t('file_preview.powerpoint.too_large.description')}
-        actionLabel={t('file_preview.powerpoint.too_large.action')}
-        onAction={handleOpenWithDefaultApp}
-        className="h-full"
-      />
-    </div>
-  )
-}
-
-export default function PowerPointFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+/**
+ * PowerPoint preview with slide-level selection picking. The pick lives in React state and the DOM
+ * marker is derived from it, because the renderer rebuilds every slide element on zoom (`setZoom` ->
+ * `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth would be wiped. The excerpt comes
+ * from the parsed deck rather than the clicked element (see `slideExcerpt`), so a slide the windowed
+ * renderer has not mounted yet cannot be mis-read. `preventDefault` makes a click inside an external
+ * hyperlink a pick; the renderer's in-deck jump links are `role="link"` spans that stop propagation,
+ * so they jump without picking (known limitation, see the FilePreview README).
+ */
+export default function PowerPointFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
+  // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
+  const presentationRef = useRef<PresentationData | null>(null)
   const controlsBusyRef = useRef(false)
   const [error, setError] = useState<Error | null>(null)
-  const [tooLarge, setTooLarge] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(PPTX_PREVIEW_DEFAULT_ZOOM)
   const [controlsBusy, setControlsBusy] = useState(false)
+  const [pickedSlide, setPickedSlide] = useState<number | null>(null)
 
   const setPreviewControlsBusy = useCallback((busy: boolean) => {
     controlsBusyRef.current = busy
@@ -210,7 +190,6 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
     let viewer: PptxViewer | null = null
 
     setError(null)
-    setTooLarge(false)
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
@@ -231,6 +210,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
         throwIfAborted(controller.signal)
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
         stripExternalMediaRelationships(presentation)
+        presentationRef.current = presentation
         throwIfAborted(controller.signal)
 
         viewer = new PptxViewer(container, {
@@ -292,11 +272,6 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
-        if (isPptxPreviewTooLargeError(normalized)) {
-          logger.warn('PPTX preview exceeded the safe size limit', { filePath, size: metadata.size })
-          setTooLarge(true)
-          return
-        }
         logger.error(`Failed to load PPTX preview: ${filePath}`, normalized)
         setError(normalized)
       } finally {
@@ -308,6 +283,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
       cancelled = true
       controller.abort()
       controlsBusyRef.current = false
+      presentationRef.current = null
       if (viewerRef.current === viewer) {
         viewerRef.current = null
       }
@@ -316,7 +292,62 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
     }
   }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
 
-  const hasPages = !error && !tooLarge && pageCount > 0
+  // The marker goes on only after createSelectionReference confirms the host receives something: a slide
+  // with no text must not look picked while the host gets null.
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelectionReference || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+
+      const result = slideToPptxAnchor(event.target)
+      const presentation = presentationRef.current
+      if (!result || !presentation || result.anchor.slide === pickedSlide) {
+        setPickedSlide(null)
+        onSelectionReference(null)
+        return
+      }
+      const reference = createSelectionReference({
+        filePath,
+        anchor: result.anchor,
+        excerpt: slideExcerpt(presentation, result.anchor.slide),
+        metadata
+      })
+      setPickedSlide(reference ? result.anchor.slide : null)
+      onSelectionReference(reference)
+    },
+    [filePath, metadata, onSelectionReference, pickedSlide]
+  )
+
+  // Sole owner of the marker: the renderer replaces the container's children wholesale on zoom and fit
+  // changes, so a childList mutation repaints it. A rebuild is not a pick — report nothing.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const applyMarker = () => {
+      container.querySelectorAll('[data-pptx-picked]').forEach((marked) => marked.removeAttribute('data-pptx-picked'))
+      if (pickedSlide === null) return
+      container.querySelector(`[data-slide-index="${pickedSlide - 1}"]`)?.setAttribute('data-pptx-picked', 'true')
+    }
+
+    applyMarker()
+    const observer = new MutationObserver(applyMarker)
+    observer.observe(container, { childList: true })
+    return () => observer.disconnect()
+  }, [pickedSlide])
+
+  useEffect(() => {
+    if (onSelectionReference) return
+    setPickedSlide(null)
+  }, [onSelectionReference])
+
+  // A different document — or the same one reloaded — carries no pick; the host drops its reference
+  // on refresh too.
+  useEffect(() => {
+    setPickedSlide(null)
+  }, [filePath, refreshKey])
+
+  const hasPages = !error && pageCount > 0
 
   return (
     <FilePreviewLayout.Frame>
@@ -345,20 +376,21 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
           <div
             ref={containerRef}
             data-testid="pptx-viewer-container"
+            data-picker={onSelectionReference ? 'true' : undefined}
             role="region"
             aria-label={fileName}
-            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary"
             tabIndex={0}
+            onClick={handlePick}
           />
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>
           ) : null}
-          {tooLarge ? <PowerPointPreviewTooLarge filePath={filePath} /> : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
               <EmptyState

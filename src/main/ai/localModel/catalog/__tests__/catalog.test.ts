@@ -1,9 +1,10 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
   LOCAL_MODEL_BUNDLE_IDS,
   LOCAL_MODEL_CAPABILITIES
 } from '@shared/data/presets/localModel'
-import { describe, expect, it } from 'vitest'
 
 import {
   ALL_MODEL_BUNDLE_IDS,

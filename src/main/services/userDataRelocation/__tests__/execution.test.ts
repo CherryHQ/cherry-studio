@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { cp, statfs, symlink } from 'node:fs/promises'
+import type * as FsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -80,6 +80,22 @@ vi.mock('electron', () => ({
 
 const roots: string[] = []
 
+const fsPromisesMocks = vi.hoisted(() => ({
+  cp: vi.fn<typeof FsPromises.cp>(),
+  statfs: vi.fn<typeof FsPromises.statfs>(),
+  symlink: vi.fn<typeof FsPromises.symlink>()
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>()
+  const overrides = {
+    cp: fsPromisesMocks.cp,
+    statfs: fsPromisesMocks.statfs,
+    symlink: fsPromisesMocks.symlink
+  }
+  return { ...actual, ...overrides, default: { ...actual, ...overrides } }
+})
+
 function makeRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-relocation-'))
   roots.push(root)
@@ -101,14 +117,17 @@ function expectNotCommitted() {
   expect(bootConfigPersistMock).not.toHaveBeenCalled()
 }
 
-type FsPromisesOverrides = Partial<{ cp: typeof cp; statfs: typeof statfs; symlink: typeof symlink }>
+type FsPromisesOverrides = Partial<{
+  cp: typeof FsPromises.cp
+  statfs: typeof FsPromises.statfs
+  symlink: typeof FsPromises.symlink
+}>
 
 async function usePromises(overrides: FsPromisesOverrides = {}) {
-  vi.doMock('node:fs/promises', async () => {
-    const actual = await vi.importActual<Record<string, unknown>>('node:fs/promises')
-    const merged = { ...actual, ...overrides }
-    return { ...merged, default: merged }
-  })
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
+  fsPromisesMocks.cp.mockReset().mockImplementation(overrides.cp ?? actual.cp)
+  fsPromisesMocks.statfs.mockReset().mockImplementation(overrides.statfs ?? actual.statfs)
+  fsPromisesMocks.symlink.mockReset().mockImplementation(overrides.symlink ?? actual.symlink)
 }
 
 async function loadDomain() {
@@ -340,7 +359,7 @@ describe('userDataRelocation execution', () => {
     relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
     const permissionError = Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
-    const symlinkMock = vi.fn<typeof symlink>().mockRejectedValue(permissionError)
+    const symlinkMock = vi.fn<typeof FsPromises.symlink>().mockRejectedValue(permissionError)
     await usePromises({ symlink: symlinkMock })
 
     const { runUserDataRelocation } = await loadDomain()
@@ -409,7 +428,7 @@ describe('userDataRelocation execution', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      cp: vi.fn<typeof cp>().mockImplementation(async (_source, destination, options) => {
+      cp: vi.fn<typeof FsPromises.cp>().mockImplementation(async (_source, destination, options) => {
         const sourcePath = path.join(source, 'volatile.txt')
         fs.mkdirSync(String(destination), { recursive: true })
         fs.rmSync(sourcePath)
@@ -614,7 +633,9 @@ describe('userDataRelocation execution', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      cp: vi.fn<typeof cp>().mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
+      cp: vi
+        .fn<typeof FsPromises.cp>()
+        .mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
     })
     const { runUserDataRelocation } = await loadDomain()
     await expect(runUserDataRelocation()).resolves.toBe('handled')

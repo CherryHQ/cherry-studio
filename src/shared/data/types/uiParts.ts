@@ -23,9 +23,10 @@
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
-import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
+
+import type { CompactionAnchorData } from '@shared/ai/compaction'
+import { type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
@@ -144,6 +145,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData
@@ -218,8 +220,6 @@ export interface CherryFileMeta {
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
-  /** Original absolute path selected by the user before Cherry copied it into managed storage. */
-  originalPath?: AbsoluteFilePath
 }
 
 /**
@@ -266,7 +266,8 @@ const ComposerMessageTokenKindSchema = z.enum([
   'command',
   'knowledge',
   'reference',
-  'quote'
+  'quote',
+  'webviewAnnotation'
 ])
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
@@ -311,8 +312,7 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
   fileTokenSourceId: z.string().optional(),
-  composerFileKind: z.literal('pasted-text').optional(),
-  originalPath: AbsoluteFilePathSchema.optional()
+  composerFileKind: z.literal('pasted-text').optional()
 })
 
 const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({
@@ -388,7 +388,7 @@ export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: read
     {
       type: KNOWLEDGE_SCOPE_PART_TYPE,
       data: { baseIds: uniqueBaseIds }
-    } as CherryMessagePart
+    }
   ]
 }
 
@@ -472,5 +472,5 @@ export function withCherryMeta<P extends CherryMessagePart>(
       ...existingMeta,
       cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
     }
-  } as P
+  }
 }

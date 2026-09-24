@@ -1,7 +1,8 @@
-import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { act, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 
 import { ModelListHealthProvider, useModelListHealthRun } from '../modelListHealthContext'
 

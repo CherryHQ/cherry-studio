@@ -1,8 +1,9 @@
-import type { ContentHash, FileEntryId } from '@shared/data/types/file'
-import type { FileUrlString } from '@shared/types/file'
 import { vi } from 'vitest'
 
-interface MockFileSweepStats {
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
+import type { FileUrlString } from '@shared/types/file'
+
+export interface MockFileSweepStats {
   entriesInDb: number
   direntsScanned: number
   filesOnDisk: number
@@ -15,7 +16,7 @@ interface MockFileSweepStats {
   scanDurationMs: number
 }
 
-type MockFileSweepReport = MockFileSweepStats &
+export type MockFileSweepReport = MockFileSweepStats &
   (
     | { outcome: 'completed' }
     | { outcome: 'partial'; failedDeleteCount: number; failedSamples: readonly string[] }

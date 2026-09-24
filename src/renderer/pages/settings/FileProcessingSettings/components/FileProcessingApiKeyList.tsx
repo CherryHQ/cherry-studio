@@ -1,3 +1,8 @@
+import { Check, Copy, Minus, Plus, X } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EditIcon from '@renderer/components/icons/EditIcon'
@@ -6,10 +11,6 @@ import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { Check, Copy, Minus, Plus, X } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type FileProcessingApiKeyListItem as ApiKeyListItem,
@@ -123,7 +124,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border-subtle border-b px-3 py-2 last:border-b-0">
+    <div className="flex min-h-10 items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -165,7 +166,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             type="button"
             variant="ghost"
             size="sm"
-            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-muted-foreground text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground"
+            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-sm leading-tight text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground"
             onClick={handleCopy}>
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>
@@ -209,7 +210,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
     <div className="py-3">
       <div className="overflow-hidden rounded-xl border border-border-subtle bg-foreground/2">
         {displayItems.length === 0 ? (
-          <div className="px-3 py-2 text-muted-foreground text-xs leading-tight">{t('error.no_api_key')}</div>
+          <div className="px-3 py-2 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
         ) : (
           <Scrollbar className="max-h-[60vh] overflow-x-hidden">
             <div>
@@ -227,7 +228,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-muted-foreground text-xs leading-tight">
+        <span className="min-w-0 text-xs leading-tight text-muted-foreground">
           {t('settings.provider.api_key.tip')}
         </span>
         <Button

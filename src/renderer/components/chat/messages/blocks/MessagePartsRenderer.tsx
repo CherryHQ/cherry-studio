@@ -14,6 +14,13 @@
  * - data-video parts with same filePath → video block row
  */
 
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { Check, ChevronDown } from 'lucide-react'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
+import React, { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
@@ -38,15 +45,11 @@ import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import {
   useMessageListActions,
@@ -59,20 +62,22 @@ import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
-  SessionResultCards
+  SessionResultCards,
+  getSubagentTaskStatus
 } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
-import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
-import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -208,6 +213,11 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   return filePart.url || undefined
 }
 
+function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
+  const url = extractImageUrl(part)
+  return url ? { handle: fileHandleFromPart(part), url } : undefined
+}
+
 export interface HoistedFileAttachment {
   key: string
   handle: FileHandle
@@ -230,18 +240,18 @@ function isHoistableFilePart(part: CherryMessagePart): boolean {
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
-export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
-  const images: string[] = []
+export function getHoistedAttachments(parts: readonly CherryMessagePart[], _message?: MessageListItem) {
+  const images: MessageImageSource[] = []
 
   parts.forEach((part) => {
     if ((part.type as string) !== 'file') return
     if (isImageFilePart(part)) {
-      const url = extractImageUrl(part)
-      if (url) images.push(url)
+      const source = toImageSource(part)
+      if (source) images.push(source)
     }
   })
 
-  return { images }
+  return { images, files: [] as HoistedFileAttachment[] }
 }
 
 /** Get video filePath from a data-video part. */
@@ -276,7 +286,6 @@ interface RenderGroupedEntryOptions {
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
-  onRemoveTranslation?: () => void
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
@@ -418,7 +427,6 @@ function getReadOnlyFileTokenPreviews(
 
 function getPreviewPathFromFileUrl(url: string | undefined) {
   if (!url) return null
-
   try {
     const parsed = fileUrlToPath(url as FileUrlString)
     return AbsoluteFilePathSchema.safeParse(parsed).data ?? null
@@ -564,20 +572,12 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
 /** Extract CherryProviderMetadata from a part. */
 function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
   if ('providerMetadata' in part && part.providerMetadata) {
-    return part.providerMetadata.cherry as CherryProviderMetadata | undefined
+    return part.providerMetadata.cherry
   }
   return undefined
 }
 
-/**
- * Memoized adapter from a `data-error` part to the normalized `SerializedError`
- * shape `ErrorBlock` consumes, plus the persisted AI diagnosis it rehydrates.
- * Takes the whole `part` — not pre-extracted props — so both the normalized
- * error and the parsed `cachedDiagnosis` derive their identity from the part,
- * not from whichever render of the parent triggered it. Keeping identity stable
- * lets `React.memo(ErrorBlock)` and the downstream `useMemo`s actually do their
- * job; passing a freshly-parsed object every render would break memoization.
- */
+// Keep normalized error identity stable across parent renders.
 const ErrorPartView = React.memo(function ErrorPartView({
   partId,
   part,
@@ -597,8 +597,35 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  const cachedDiagnosis = useMemo(() => readCherryMeta(part)?.diagnosis, [part])
-  return <ErrorBlock partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
+  return <ErrorBlock partId={partId} error={error} message={message} />
+})
+
+const TranslationPartView = React.memo(function TranslationPartView({
+  content,
+  id,
+  isStreaming,
+  messageId
+}: {
+  content: string
+  id: string
+  isStreaming: boolean
+  messageId: string
+}) {
+  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { t } = useTranslation()
+  const handleRemoveTranslation = React.useCallback(async () => {
+    await removeMessageTranslation?.(messageId)
+    notifySuccess?.(t('translate.closed'))
+  }, [messageId, notifySuccess, removeMessageTranslation, t])
+
+  return (
+    <TranslationBlock
+      id={id}
+      content={content}
+      isStreaming={isStreaming}
+      onDelete={removeMessageTranslation ? handleRemoveTranslation : undefined}
+    />
+  )
 })
 
 /**
@@ -656,15 +683,18 @@ function renderPart(
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
 
+    case 'data-agent-session-fork':
+      return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
+
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
-        <TranslationBlock
+        <TranslationPartView
           key={partId}
           id={partId}
           content={translationData.content}
           isStreaming={isStreaming}
-          onDelete={options?.onRemoveTranslation}
+          messageId={message.id}
         />
       )
     }
@@ -760,9 +790,9 @@ function renderPart(
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
       if (filePart.mediaType?.startsWith('image/')) {
-        const url = filePart.url
-        if (!url) return null
-        return <ImageBlock key={partId} images={[url]} isSingle={true} thumbnail={message.role === 'user'} />
+        const source = toImageSource(part)
+        if (!source) return null
+        return <MessageImageBlock key={partId} sources={[source]} isSingle={true} thumbnail={message.role === 'user'} />
       }
       const attachment = toFileAttachment(part, partId)
       if (!attachment) {
@@ -926,20 +956,20 @@ function renderGroupedEntry(
     const firstPart = entry[0].part
 
     if (isImageFilePart(firstPart)) {
-      const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
+      const images = entry.map((e) => toImageSource(e.part)).filter((s) => s !== undefined)
       if (images.length === 0) return null
 
       const thumbnail = message.role === 'user'
       if (images.length === 1) {
         return (
           <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-            <ImageBlock images={images} isSingle={true} thumbnail={thumbnail} />
+            <MessageImageBlock sources={images} isSingle={true} thumbnail={thumbnail} />
           </AnimatedBlockWrapper>
         )
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <ImageBlock images={images} isSingle={false} thumbnail={thumbnail} />
+          <MessageImageBlock sources={images} isSingle={false} thumbnail={thumbnail} />
         </AnimatedBlockWrapper>
       )
     }
@@ -1447,6 +1477,11 @@ interface MessagePartsRendererContentProps extends Props {
   priorCitationParts: readonly CherryMessagePart[]
 }
 
+const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
+  const activeTurnStatus = useMessageListActiveTurnStatus()
+  return activeTurnStatus ? activeTurnStatus(fallback) : fallback
+}
+
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
   hoistAttachments,
@@ -1456,19 +1491,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
-  // renders it; the node itself renders nothing when there is no such state.
-  const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess, previewInputFile } = useMessageListActions()
+  const { subagentListTitle } = useMessageRenderConfig()
+  const { openAgentToolFlow, isAgentToolFlowActive, previewInputFile } = useMessageListActions()
   const { t } = useTranslation()
-  const canRemoveTranslation = !!removeMessageTranslation
-  const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
-  removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
-  const handleRemoveTranslation = React.useCallback(async () => {
-    const { removeMessageTranslation, notifySuccess, t } = removeTranslationRef.current
-    await removeMessageTranslation?.(message.id)
-    notifySuccess?.(t('translate.closed'))
-  }, [message.id])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1548,7 +1573,48 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
     [hoistAttachments, message, partEntries, visibleComposerFileTokens]
   )
-  const displayEntries = displayProjection.entries
+  const subagentEntries = useMemo(
+    () =>
+      openAgentToolFlow
+        ? displayProjection.entries.filter((entry) => {
+            if (!isToolUIPart(entry.part)) return false
+            const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
+              .name
+            return name === AgentToolsType.Agent || name === AgentToolsType.Task
+          })
+        : [],
+    [displayProjection.entries, message.id, openAgentToolFlow]
+  )
+  const subagentStatuses = subagentEntries.map(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response
+      ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
+      : undefined
+  })
+  const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
+  const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
+  const stoppedSubagents = subagentStatuses.filter((status) => status === 'cancelled').length
+  const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
+  const viewingSubagent = subagentEntries.some(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
+  })
+  const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
+    'subtasks',
+    isActiveTurnProcessing || !allSubagentsCompleted || viewingSubagent,
+    message.id
+  )
+  React.useEffect(() => {
+    if (viewingSubagent) setSubagentsExpanded(true)
+  }, [viewingSubagent, setSubagentsExpanded])
+  const subagentContentId = React.useId()
+  const displayEntries = useMemo(
+    () =>
+      subagentEntries.length
+        ? displayProjection.entries.filter((entry) => !subagentEntries.includes(entry))
+        : displayProjection.entries,
+    [displayProjection.entries, subagentEntries]
+  )
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1586,19 +1652,16 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       onReadOnlyFilePreviewActivate: previewInputFile ? handleReadOnlyFilePreviewActivate : undefined,
       hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
-      onTextPartExpandedChange: handleTextPartExpandedChange,
-      onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
+      onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
-      canRemoveTranslation,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
-      handleRemoveTranslation,
-      handleReadOnlyFilePreviewActivate,
       messageCitations,
       readOnlyFilePreviews,
+      handleReadOnlyFilePreviewActivate,
       previewInputFile,
       displayProjection.hiddenImageTokens
     ]
@@ -1611,7 +1674,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Report-artifact entries don't count as renderable here: the live layout filters
   // them out and the card itself is gated on canRenderReportArtifacts, so a message
   // whose only content is report_artifacts must keep its placeholder until the card can show.
-  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
+  if (
+    partEntries.length === 0 ||
+    (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts && subagentEntries.length === 0)
+  ) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
@@ -1621,7 +1687,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
       // back to it otherwise.
       return (
-        <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
+        <AnimatePresence mode="sync">
+          <ActiveTurnStatusView fallback={placeholder} />
+        </AnimatePresence>
       )
     }
     if (message.role === 'assistant' && message.status === 'paused') {
@@ -1641,7 +1709,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {isActiveTurnProcessing && activeTurnStatus?.(null)}
+      {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
       {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards targets={sessionTargets} />
@@ -1650,6 +1718,64 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+        </AnimatedBlockWrapper>
+      )}
+      {subagentEntries.length > 0 && (
+        <AnimatedBlockWrapper
+          key={`subagents-${message.id}`}
+          enableAnimation={false}
+          animation="fade"
+          className="mt-1!">
+          <div className="-mx-2 mb-3">
+            <Button
+              variant="ghost"
+              aria-expanded={showSubagents}
+              aria-controls={subagentContentId}
+              onClick={() => setSubagentsExpanded(!showSubagents)}
+              className="h-8 max-w-full justify-start gap-2 px-2 text-xs font-normal text-muted-foreground">
+              <ChevronDown
+                className={showSubagents ? 'size-3.5 shrink-0' : 'size-3.5 shrink-0 -rotate-90'}
+                aria-hidden="true"
+              />
+              <span className="flex min-w-0 items-center gap-2">
+                <span>{subagentListTitle ?? t('agent.right_pane.flow.subtasks')}</span>
+                <span>
+                  {allSubagentsCompleted ? (
+                    <>· {t('agent.right_pane.status.tasks_completed', { count: completedSubagents })}</>
+                  ) : (
+                    t('agent.right_pane.status.task_count', {
+                      completed: completedSubagents,
+                      total: subagentEntries.length
+                    })
+                  )}
+                  {failedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {failedSubagents} {t('message.tools.status.failed')}
+                    </>
+                  )}
+                  {stoppedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {stoppedSubagents} {t('message.tools.cancelled')}
+                    </>
+                  )}
+                </span>
+              </span>
+              {allSubagentsCompleted && (
+                <span className="shrink-0 text-success">
+                  <Check className="size-3.5" aria-hidden="true" />
+                </span>
+              )}
+            </Button>
+            {showSubagents && (
+              <div id={subagentContentId} className="mt-1 flex flex-col gap-1">
+                {subagentEntries.map(({ part, index }) =>
+                  renderToolPart(part, `${message.id}-part-${index}`, !isActiveTurnProcessing)
+                )}
+              </div>
+            )}
+          </div>
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

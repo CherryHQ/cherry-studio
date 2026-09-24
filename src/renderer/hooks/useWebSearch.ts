@@ -1,3 +1,6 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -12,8 +15,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearch')
 

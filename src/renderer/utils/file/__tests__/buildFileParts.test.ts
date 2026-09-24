@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
 

@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { StreamingMarkdown } from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { Element } from 'hast'
 import type { ImgHTMLAttributes } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { StreamingMarkdown } from '@cherrystudio/ui'
 
 import { ChatMarkdownRenderProvider } from '../ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from '../ChatMarkdownRenderers'

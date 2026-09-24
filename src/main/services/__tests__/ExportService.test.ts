@@ -1,8 +1,9 @@
-import AdmZip from 'adm-zip'
-import { dialog } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+
+import AdmZip from 'adm-zip'
+import { dialog } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -61,7 +62,7 @@ describe('ExportService.exportToWord', () => {
     })
 
     it('writes an openable docx whose document.xml contains the converted paragraphs', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('# Title\n\nBody paragraph', 'doc.docx')
@@ -73,7 +74,7 @@ describe('ExportService.exportToWord', () => {
 
     describe('blockquotes', () => {
       async function exportXml(markdown: string) {
-        vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+        vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
         const service = await freshService()
         await service.exportToWord(markdown, 'doc.docx')
         return new AdmZip(tmpFile).readAsText('word/document.xml')
@@ -186,7 +187,7 @@ describe('ExportService.exportToWord', () => {
     // Catches the link handler taking only the first text token: `[A **B** C](url)` used to
     // come out as B, C, then a hyperlink holding just "A ".
     it('exports a link with inline formatting as one hyperlink in source order', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('[A **B** C](https://example.com) tail', 'doc.docx')
@@ -208,7 +209,7 @@ describe('ExportService.exportToWord', () => {
     })
 
     it('keeps the text of a link with an empty target as plain text', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('[empty]()', 'doc.docx')
@@ -222,7 +223,7 @@ describe('ExportService.exportToWord', () => {
     // Catches the block switch dropping markdown-it's `code_block` token: four-space-indented
     // code used to vanish from the document while the export still reported success.
     it('exports indented code as a monospace code block', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('Intro\n\n    const answer = 42\n    return answer\n', 'doc.docx')
@@ -237,7 +238,7 @@ describe('ExportService.exportToWord', () => {
     // Catches ordered lists falling through the block switch: items came out as unindented
     // bullets, and a nested ordered list did not push the indent level.
     it('numbers ordered list items from their start value and indents nested lists', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('- a\n  1. b\n  2. c\n- d\n\n5. e\n6. f\n', 'doc.docx')
@@ -261,7 +262,7 @@ describe('ExportService.exportToWord', () => {
     // Catches the code paragraph putting a line break before every line and keeping the
     // trailing newline: the shaded box used to open and close with an empty line.
     it('exports a code block without leading or trailing blank lines', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('```\nline1\nline2\n```\n', 'doc.docx')
@@ -276,7 +277,7 @@ describe('ExportService.exportToWord', () => {
 
     // Catches the inline switch dropping the `image` token together with its alt text.
     it('exports image alt text as plain text', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('before ![alt **text**](x.png) after', 'doc.docx')
@@ -288,7 +289,7 @@ describe('ExportService.exportToWord', () => {
     // Catches alt text being built from token.content alone: soft and hard breaks carry an
     // empty content, so a multi-line alt used to glue its words together.
     it('keeps word boundaries across lines in image alt text', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('![first\nsecond  \nthird `code` ![inner](y.png) tail](x.png)', 'doc.docx')
@@ -299,7 +300,7 @@ describe('ExportService.exportToWord', () => {
 
     // Catches `s_open` / `s_close` being ignored: struck text came out as plain text.
     it('strikes through text wrapped in ~~', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('keep ~~gone~~ tail', 'doc.docx')
@@ -313,7 +314,7 @@ describe('ExportService.exportToWord', () => {
     // Catches the heading handler exporting the raw inline source: `# Title ![alt](x.png) ~~old~~`
     // came out as literal markdown, with no alt text and no strikethrough.
     it('renders inline markdown in headings', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('# Head ![alt **x**](a.png) ~~gone~~ **b** tail', 'doc.docx')
@@ -332,7 +333,7 @@ describe('ExportService.exportToWord', () => {
     // Catches runs writing off flags as `w:val="false"`: an explicit off overrides the
     // paragraph style, so Heading 4 lost the italics its style defines.
     it('does not override heading style formatting with off flags', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('#### Title', 'doc.docx')
@@ -347,7 +348,7 @@ describe('ExportService.exportToWord', () => {
     // Catches `list_item_open` skipping items whose first block is not a paragraph: the code
     // block or nested list was rendered, but the item's own number or bullet was dropped.
     it('keeps the marker of a list item whose first block is not a paragraph', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('1. ```\n   code\n   ```\n2. two\n\n- - nested\n- top\n', 'doc.docx')
@@ -373,7 +374,7 @@ describe('ExportService.exportToWord', () => {
       ['- 1. ```\n     code\n     ```', 1440],
       ['> 1. ```\n>    code\n>    ```', 1440]
     ])('keeps code inside its list in %j without indenting following content', async (markdown, indent) => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
       const service = await freshService()
       await service.exportToWord(`${markdown}\n\noutside`, 'doc.docx')
 

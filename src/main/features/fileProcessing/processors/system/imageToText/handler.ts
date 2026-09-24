@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises'
 
+import type * as SystemOcrModule from '@napi-rs/system-ocr'
+
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
 import { transcodeToPng } from '@main/utils/image'
-import type * as SystemOcrModule from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 

@@ -37,6 +37,13 @@ const deepSeekModelOverrides = [
 
 const qwenAudioCompatibilityOverrides = [
   {
+    apiModelId: 'qwen/qwen3.5-9b',
+    modelId: 'qwen3-5-9b',
+    capabilities: { remove: ['audio-recognition', 'video-recognition'] },
+    inputModalities: ['text', 'image'],
+    reason: 'CherryIN rejects native audio and video for the Qwen3.5 9B endpoint'
+  },
+  {
     apiModelId: 'qwen/qwen3.5-122b-a10b',
     modelId: 'qwen3-5-122b-a10b',
     capabilities: { remove: ['audio-recognition'] },
@@ -83,9 +90,10 @@ const qwenAudioCompatibilityOverrides = [
     reason: 'CherryIN free endpoint accepts text and image_url parts only'
   },
   {
-    modelId: 'qwen3-5-9b',
+    modelId: 'qwen3-5-9b-free',
     apiModelId: 'qwen/qwen3.5-9b(free)',
     modelVariants: ['9b', 'free'],
+    name: 'Qwen3.5 9B (Free)',
     capabilities: { remove: ['audio-recognition', 'video-recognition'] },
     inputModalities: ['text', 'image'],
     reason: 'CherryIN free endpoint accepts text and image_url parts only'

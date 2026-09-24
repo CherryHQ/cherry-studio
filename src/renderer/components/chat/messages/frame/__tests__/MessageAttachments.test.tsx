@@ -1,6 +1,7 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import MessageAttachments from '../MessageAttachments'
 

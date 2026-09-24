@@ -1,8 +1,9 @@
-import type { Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Message } from '@shared/data/types/message'
 
 import { useTopicMessages } from '../useTopicMessages'
 
@@ -264,5 +265,35 @@ describe('useTopicMessages', () => {
     ])
     expect(Object.keys(result.current.siblingsMap).sort()).toEqual(['reply-c-1', 'reply-c-2'])
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
+  })
+
+  it('keeps a retried select-all alive despite a retained query error', () => {
+    // A previous page fetch failed and SWR still holds its error.
+    const retained = new Error('page fetch failed')
+    // One shared spy: the mock factory runs on every render.
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages: [{ items: [], nextCursor: 'cursor', activeNodeId: null }],
+          isLoading: false,
+          isRefreshing: false,
+          error: retained,
+          hasNext: true,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate
+        }) as never
+    )
+
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    act(() => result.current.selectAllPagination.start())
+
+    // The pre-existing error must not instantly abandon the retry, and the
+    // retained error is revalidated away so pagination can proceed.
+    expect(result.current.selectAllPagination.isLoading).toBe(true)
+    expect(mutate).toHaveBeenCalled()
   })
 })

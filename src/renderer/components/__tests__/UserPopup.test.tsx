@@ -1,11 +1,12 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'cn' as 'cn' | 'global',
@@ -212,6 +213,36 @@ describe('UserPopup', () => {
     const image = await screen.findByTestId('avatar-image')
     expect(image).toHaveClass('object-cover')
     expect(image).toHaveAttribute('src', avatar)
+  })
+
+  it('lets a space be typed inside the name and stores the name without surrounding whitespace', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', '')
+    showUserPopup()
+
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    await user.type(input, 'John Doe ')
+
+    expect(input).toHaveValue('John Doe ')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('John Doe')
+  })
+
+  it('follows the stored name until the draft is typed', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Before')
+    showUserPopup()
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    expect(input).toHaveValue('Before')
+
+    // The mocked hook has no subscription, so re-render through an unrelated interaction.
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'After')
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    expect(input).toHaveValue('After')
+
+    await user.type(input, ' X')
+
+    expect(input).toHaveValue('After X')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('After X')
   })
 
   it('only customizes avatar picker popover width and padding', async () => {

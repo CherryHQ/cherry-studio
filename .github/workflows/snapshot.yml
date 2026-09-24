@@ -38,7 +38,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -50,6 +50,11 @@ jobs:
 
       - name: Build Packages
         run: pnpm packages:build
+
+      - name: Check Remote Packages
+        run: |
+          pnpm --filter '@cherrystudio/remote-*' typecheck
+          pnpm --filter '@cherrystudio/remote-*' test
 
       - name: Version Snapshot
         run: pnpm changeset version --snapshot snapshot
@@ -71,6 +76,8 @@ jobs:
           echo 'pnpm add @cherrystudio/ai-core@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-sdk-provider@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/extension-table-plus@snapshot' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/remote-protocol@snapshot' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/remote-transport@snapshot' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
         env:
           BRANCH: ${{ github.event.inputs.branch }}

@@ -1,8 +1,9 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
 import MarkdownFilePreview from '../MarkdownFilePreview'
@@ -21,11 +22,6 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
@@ -35,26 +31,22 @@ vi.mock('@cherrystudio/ui', () => ({
   Markdown: ({ children }: { children: ReactNode }) => <article data-testid="markdown-preview">{children}</article>,
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
   SegmentedControl: ({
-    'aria-label': ariaLabel,
     disabled,
     onValueChange,
     options,
     value
   }: {
-    'aria-label'?: string
     disabled?: boolean
     onValueChange: (value: string) => void
-    options: Array<{ ariaLabel?: string; disabled?: boolean; label: ReactNode; value: string }>
+    options: Array<{ label: string; value: string }>
     value: string
   }) => (
-    <div role="radiogroup" aria-label={ariaLabel} aria-disabled={disabled}>
+    <div>
       {options.map((option) => (
         <button
           type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          aria-label={option.ariaLabel}
-          disabled={disabled || option.disabled}
+          aria-pressed={value === option.value}
+          disabled={disabled}
           key={option.value}
           onClick={() => onValueChange(option.value)}>
           {option.label}
@@ -62,7 +54,6 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   withFullMarkdown: mocks.withFullMarkdown
 }))
 
@@ -85,7 +76,7 @@ function renderPreview(
     <MarkdownFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'README.md'}
-      metadata={{ size: overrides.size ?? 15 }}
+      metadata={{ size: overrides.size ?? 15, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
     />
@@ -108,7 +99,6 @@ describe('MarkdownFilePreview', () => {
     renderPreview()
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
-    expect(screen.getByTestId('markdown-preview').parentElement).toHaveClass('pt-4')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
     expect(mocks.withFullMarkdown).toHaveBeenCalledWith({ singleDollarMath: true })
   })
@@ -150,23 +140,28 @@ describe('MarkdownFilePreview', () => {
     renderPreview()
     await screen.findByTestId('markdown-preview')
 
-    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.markdown.mode.source' }))
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# File preview')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'markdown', value: '# File preview', wrapped: true })
     )
 
-    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.markdown.mode.preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
   })
 
-  it('hides the source switch for artifact previews whose host owns editing', async () => {
+  it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
+    mocks.readText.mockResolvedValueOnce(
+      '---\r\nname: Writer\r\ndescription: Draft clear prose\r\n---\r\n# File preview'
+    )
     renderPreview({ type: 'artifact' })
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
-    expect(screen.queryByRole('radio', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('name: Writer')
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('description: Draft clear prose')
+    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads when the path or refresh key changes', async () => {
@@ -175,12 +170,22 @@ describe('MarkdownFilePreview', () => {
     await screen.findByTestId('markdown-preview')
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={1} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
@@ -199,7 +204,12 @@ describe('MarkdownFilePreview', () => {
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="SECOND.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="SECOND.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# Second file')
 

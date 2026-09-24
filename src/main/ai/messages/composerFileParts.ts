@@ -1,6 +1,7 @@
+import type { UIMessage } from 'ai'
+
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { UIMessage } from 'ai'
 
 export function collectComposerFileTokenIds(message: UIMessage): Set<string> {
   const tokenIds = new Set<string>()

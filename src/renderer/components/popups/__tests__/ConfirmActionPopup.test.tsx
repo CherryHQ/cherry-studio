@@ -1,9 +1,10 @@
-import i18n from '@renderer/i18n/resolver'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { formatErrorMessage } from '@renderer/utils/error'
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
 const dialogMock = vi.hoisted(() => ({

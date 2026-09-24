@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => {
   const createValidDocxBytes = () => {
@@ -81,7 +81,6 @@ beforeEach(() => {
   })
   HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
-  vi.stubGlobal('PointerEvent', MouseEvent)
 })
 
 afterEach(() => {
@@ -90,8 +89,185 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
-  it('loads and renders DOCX pages with preview controls', async () => {
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+  /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
+  function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
+    const bodyContainer = screen.getByTestId('docx-preview-content')
+    const paragraph = document.createElement('p')
+    for (const [name, value] of Object.entries(attributes)) paragraph.setAttribute(name, value)
+    paragraph.appendChild(document.createTextNode(text))
+    bodyContainer.appendChild(paragraph)
+    return paragraph
+  }
+
+  function renderWithCapture(onSelectionReference?: (reference: unknown) => void) {
+    return render(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 7 }}
+        refreshKey={0}
+        onSelectionReference={onSelectionReference as never}
+      />
+    )
+  }
+
+  it('reports the clicked body paragraph as a reference and marks it as picked', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked sentence', {
+      'data-docx-part': 'body',
+      'data-docx-index': '3',
+      'data-para-id': '1A2B3C4D'
+    })
+
+    fireEvent.click(paragraph)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith({
+      path: filePath,
+      anchor: { format: 'docx', paragraph: 3, paraId: '1A2B3C4D' },
+      excerpt: 'picked sentence',
+      fileStamp: { size: 1024, mtimeMs: 7 }
+    })
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+    expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-picker', 'true')
+  })
+
+  it('moves the pick to the next clicked paragraph and clears it when the same one is clicked again', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const first = renderParagraph('first', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    const second = renderParagraph('second', { 'data-docx-part': 'body', 'data-docx-index': '1' })
+
+    fireEvent.click(first)
+    fireEvent.click(second)
+    expect(first).not.toHaveAttribute('data-docx-picked')
+    expect(second).toHaveAttribute('data-docx-picked', 'true')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(expect.objectContaining({ excerpt: 'second' }))
+
+    fireEvent.click(second)
+    expect(second).not.toHaveAttribute('data-docx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('reports null for a paragraph the docx-preview patch left unnumbered', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('text box paragraph', { 'data-docx-part': 'body' })
+
+    fireEvent.click(paragraph)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('does not mark an empty paragraph as picked and reports null', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const picked = renderParagraph('picked sentence', { 'data-docx-part': 'body', 'data-docx-index': '3' })
+    fireEvent.click(picked)
+    expect(picked).toHaveAttribute('data-docx-picked', 'true')
+
+    const empty = renderParagraph('', { 'data-docx-part': 'body', 'data-docx-index': '12' })
+    fireEvent.click(empty)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(empty).not.toHaveAttribute('data-docx-picked')
+    expect(picked).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('prevents a hyperlink from navigating when the click is a pick', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const link = document.createElement('a')
+    link.href = 'https://example.com/'
+    link.textContent = 'ref'
+    paragraph.appendChild(link)
+
+    let observed: boolean | undefined
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ excerpt: expect.stringContaining('ref') })
+    )
+
+    cleanup()
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
+    const plainParagraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const plainLink = document.createElement('a')
+    plainLink.href = 'https://example.com/'
+    plainLink.textContent = 'ref'
+    plainParagraph.appendChild(plainLink)
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('neither marks the body nor reacts to clicks when the host is not capturing', async () => {
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('plain reading', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+
+    fireEvent.click(paragraph)
+
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('drops the picked marker when the host stops capturing', async () => {
+    const onSelectionReference = vi.fn()
+    const view = renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    fireEvent.click(paragraph)
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+
+    view.rerender(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 7 }}
+        refreshKey={0}
+      />
+    )
+
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
+  })
+
+  it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
+    render(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
     await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
@@ -109,6 +285,10 @@ describe('WordFilePreview', () => {
         useBase64URL: true
       })
     )
+    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
+    expect(toolbar).not.toHaveClass('bg-background')
+    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
@@ -119,164 +299,20 @@ describe('WordFilePreview', () => {
     expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '1.1')
   })
 
-  it('fits rendered DOCX pages to a narrow preview width before manual zoom', async () => {
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      return this.getAttribute('aria-label') === 'report.docx' ? 524 : 0
-    })
-    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      if (this.getAttribute('aria-label') === 'report.docx') {
-        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
-        return Math.max(524, Math.round(800 * zoom))
-      }
-      if (this.classList.contains('docx-preview-wrapper')) return 800
-      if (this.classList.contains('docx-preview-page')) return 760
-      return 0
-    })
-    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
-      body.innerHTML = '<div class="docx-preview-wrapper"><section>Page 1</section></div>'
-    })
-
-    try {
-      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
-
-      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%'))
-      expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '0.63')
-
-      fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
-      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('73%')
-      await waitFor(() => expect(screen.getByRole('region', { name: 'report.docx' }).scrollLeft).toBe(30))
-
-      fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
-      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%')
-      await waitFor(() => expect(screen.getByRole('region', { name: 'report.docx' }).scrollLeft).toBe(0))
-    } finally {
-      clientWidthSpy.mockRestore()
-      scrollWidthSpy.mockRestore()
-    }
-  })
-
-  it('resets to the same fit zoom when browser geometry reflects the current CSS zoom', async () => {
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      return this.getAttribute('aria-label') === 'report.docx' ? 524 : 0
-    })
-    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      if (this.getAttribute('aria-label') !== 'report.docx') return 0
-      const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
-      return Math.max(524, Math.round(800 * zoom))
-    })
-    const boundingRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      const zoom = Number(this.closest('[data-testid="docx-preview-content"]')?.getAttribute('data-zoom') ?? '1')
-      const width =
-        this.classList.contains('docx-preview-wrapper') || this.classList.contains('docx-preview-page') ? 800 * zoom : 0
-      return { bottom: 0, height: 0, left: 0, right: width, top: 0, width, x: 0, y: 0, toJSON: () => ({}) }
-    })
-    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
-      body.innerHTML = '<div class="docx-preview-wrapper"><section>Page 1</section></div>'
-    })
-
-    try {
-      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
-
-      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%'))
-      fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
-      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('73%')
-
-      fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
-
-      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%')
-    } finally {
-      clientWidthSpy.mockRestore()
-      scrollWidthSpy.mockRestore()
-      boundingRectSpy.mockRestore()
-    }
-  })
-
-  it('pans zoomed DOCX pages by dragging the preview canvas', async () => {
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      return this.getAttribute('aria-label') === 'report.docx' ? 300 : 0
-    })
-    const clientHeightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      return this.getAttribute('aria-label') === 'report.docx' ? 220 : 0
-    })
-    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      if (this.getAttribute('aria-label') === 'report.docx') {
-        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
-        return Math.max(300, Math.round(800 * zoom))
-      }
-      if (this.classList.contains('docx-preview-wrapper')) return 800
-      if (this.classList.contains('docx-preview-page')) return 760
-      return 0
-    })
-    const scrollHeightSpy = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      if (this.getAttribute('aria-label') === 'report.docx') {
-        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
-        return Math.max(220, Math.round(900 * zoom))
-      }
-      return 0
-    })
-    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
-      body.innerHTML = '<div class="docx-preview-wrapper"><section><strong>Selectable text</strong></section></div>'
-    })
-
-    try {
-      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
-
-      const region = await screen.findByRole('region', { name: 'report.docx' })
-      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('50%'))
-
-      region.scrollLeft = 20
-      region.scrollTop = 30
-
-      const selectableText = screen.getByText('Selectable text')
-      // `selectable` overrides the renderer's global user-select:none contract.
-      expect(selectableText.closest('.docx-preview-page')).toHaveClass('selectable')
-      expect(
-        fireEvent.pointerDown(selectableText, { button: 0, buttons: 1, pointerId: 6, clientX: 100, clientY: 100 })
-      ).toBe(true)
-      fireEvent.pointerMove(selectableText, { pointerId: 6, clientX: 80, clientY: 70 })
-      expect(region.scrollLeft).toBe(20)
-      expect(region.scrollTop).toBe(30)
-
-      fireEvent.pointerDown(region, { button: 0, buttons: 1, pointerId: 7, clientX: 100, clientY: 100 })
-      fireEvent.pointerMove(region, { pointerId: 7, clientX: 80, clientY: 70 })
-
-      expect(region.scrollLeft).toBe(40)
-      expect(region.scrollTop).toBe(60)
-
-      fireEvent.pointerUp(region, { pointerId: 7 })
-    } finally {
-      clientWidthSpy.mockRestore()
-      clientHeightSpy.mockRestore()
-      scrollWidthSpy.mockRestore()
-      scrollHeightSpy.mockRestore()
-    }
-  })
-
   it('sanitizes unsafe hyperlinks rendered by docx-preview', async () => {
     mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
       body.innerHTML =
         '<section><a href="javascript:alert(1)">unsafe</a><a href="https://example.com">safe</a></section>'
     })
 
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+    render(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
 
     const unsafeLink = await screen.findByText('unsafe')
     expect(unsafeLink).not.toHaveAttribute('href')
@@ -289,7 +325,7 @@ describe('WordFilePreview', () => {
       <WordFilePreview
         filePath={filePath}
         fileName="report.docx"
-        metadata={{ size: 25 * 1024 * 1024 + 1 }}
+        metadata={{ size: 25 * 1024 * 1024 + 1, modifiedAt: 1 }}
         refreshKey={0}
       />
     )
@@ -303,7 +339,14 @@ describe('WordFilePreview', () => {
     const error = new Error('corrupt docx')
     mocks.fsRead.mockRejectedValueOnce(error)
 
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+    render(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
@@ -312,12 +355,22 @@ describe('WordFilePreview', () => {
 
   it('reloads the file when refreshKey changes', async () => {
     const view = render(
-      <WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
 
     view.rerender(
-      <WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={1} />
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
 
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))

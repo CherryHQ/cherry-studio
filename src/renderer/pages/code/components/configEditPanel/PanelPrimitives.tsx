@@ -1,6 +1,7 @@
+import type { FC } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { FC } from 'react'
 
 /** "Advanced Settings" toggle (ghost button with a leading icon). */
 export const AdvancedSettingsButton: FC<React.ComponentPropsWithoutRef<typeof Button>> = ({

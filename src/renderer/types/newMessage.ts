@@ -1,8 +1,9 @@
 //TODO [v2] 类型将转移至 src/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
 
+import type { ProviderMetadata } from 'ai'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { ProviderMetadata } from 'ai'
 
 import type { SerializedError } from './error'
 import type { FileMetadata } from './file'

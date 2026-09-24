@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -340,11 +341,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // A live turn's connection pins the model captured at turn creation; the agent may have been
     // edited to a different model since (here: agent.model is still provider-1::model-1).
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     expect(request?.sdkModelId).toBe('model-2-api')
     // The whole route follows the override — the unset plan/small defaults must pin to the captured
@@ -387,11 +384,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       contextWindow: 262_144
     }))
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
     expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
@@ -547,11 +540,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       smallModel: 'other::small'
     })
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     // The captured turn only recorded its primary; the edited plan/small must NOT leak in. They pin to the
     // captured primary, so every ANTHROPIC_DEFAULT_* stays on model-2 and the cross-provider sub-models do
@@ -914,6 +903,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:14b'
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('injects a per-provider dummy token for a keyless local provider', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'omlx::qwen3-coder-30b' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:8000' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'qwen3-coder-30b', apiModelId: 'qwen3-coder-30b' })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://localhost:8000',
+      ANTHROPIC_API_KEY: 'omlx',
+      ANTHROPIC_AUTH_TOKEN: 'omlx'
+    })
   })
 
   it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
@@ -1645,6 +1655,16 @@ describe('deriveConnectionConfig', () => {
         (name) => original.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
       )
     ).toEqual(['contextWindow'])
+  })
+
+  it('rebuilds when browser control or browser permissions change', async () => {
+    const originalGet = mocks.preferenceGet.getMockImplementation()
+    const base = await deriveSignature()
+    mocks.preferenceGet.mockImplementation((key) =>
+      key === 'app.browser.agent_control.enabled' ? true : originalGet?.(key)
+    )
+    const enabled = await deriveSignature()
+    expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

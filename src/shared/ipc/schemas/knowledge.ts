@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
 import {
   CreateKnowledgeBaseSchema,
@@ -12,7 +14,6 @@ import {
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

@@ -1,3 +1,7 @@
+import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useRef } from 'react'
+
 import {
   Button,
   Dialog,
@@ -11,9 +15,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import i18n from '@renderer/i18n/resolver'
 import type { ConfirmPopupEntry, ConfirmPopupProps, ConfirmPopupType } from '@renderer/services/popup'
 import { popupService } from '@renderer/services/popup'
-import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
-import type React from 'react'
-import { useCallback } from 'react'
 
 function getIcon(type: ConfirmPopupType, icon: React.ReactNode) {
   if (icon === null) return null
@@ -76,6 +77,7 @@ function getCancelText(props: ConfirmPopupProps) {
  */
 export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }) {
   const { props, confirmType: type, instanceId, open } = entry
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   const icon = getIcon(type, props.icon)
   const showOkButton = shouldShowOkButton(props)
@@ -108,6 +110,12 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
         overlayClassName="z-[90]"
         className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg', props.rootClassName, props.className)}
         style={getContentStyle(props)}
+        onOpenAutoFocus={(event) => {
+          if (props.autoFocusConfirm && confirmButtonRef.current && !confirmButtonRef.current.disabled) {
+            event.preventDefault()
+            confirmButtonRef.current.focus()
+          }
+        }}
         onCloseAutoFocus={
           props.focusOnClose
             ? (event) => {
@@ -132,7 +140,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
                 <DialogDescription asChild>
                   <div
                     className={cn(
-                      'wrap-anywhere mt-2 min-w-0 max-w-full text-muted-foreground text-sm leading-5',
+                      'mt-2 max-w-full min-w-0 text-sm leading-5 wrap-anywhere text-muted-foreground',
                       props.title ? '' : 'mt-0'
                     )}>
                     {props.content}
@@ -158,6 +166,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
             {showOkButton && (
               <Button
                 variant={props.okButtonProps?.danger ? 'destructive' : 'default'}
+                ref={confirmButtonRef}
                 onClick={handleConfirm}
                 disabled={props.okButtonProps?.disabled}
                 className={props.okButtonProps?.className}

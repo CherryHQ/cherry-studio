@@ -1,3 +1,11 @@
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -25,18 +33,11 @@ import {
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
-import type { EditorView } from '@tiptap/pm/view'
-import type { Editor } from '@tiptap/react'
-import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { useActiveComposerOverride } from './ComposerContext'
+import { useComposerLayerActive } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
-import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
+import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -120,11 +121,14 @@ export interface ComposerSurfaceActions {
   replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken, updateOnly?: boolean) => void
   getDraft: () => ComposerSerializedDraft
 }
 
 export interface ComposerSurfaceEditingState {
+  description?: string
+  sendLabel?: string
+  cancelDisabled?: boolean
   messageId: string
   highlightKey?: number
   onCancel: () => void
@@ -214,7 +218,7 @@ export interface ComposerSurfaceProps {
 export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
-  insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  insertToken?: { token: ComposerDraftToken; updateOnly?: boolean; selection: { start: number; end: number } }
   /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
   hadFocus?: boolean
 }
@@ -341,9 +345,9 @@ function shouldDelegateLongTextPasteToFileHandler(
 ) {
   return Boolean(
     pasteLongTextAsFile &&
-      text &&
-      text.length > pasteLongTextThreshold &&
-      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+    text &&
+    text.length > pasteLongTextThreshold &&
+    supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
   )
 }
 
@@ -510,7 +514,7 @@ export default function ComposerSurfaceRuntime({
   filesCount,
   isExpanded,
   onExpandedChange,
-  quickPanelEnabled,
+  quickPanelEnabled: enableQuickPanel,
   enableDragDrop,
   enableSpellCheck,
   editable = true,
@@ -555,9 +559,10 @@ export default function ComposerSurfaceRuntime({
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const composerOverridden = useActiveComposerOverride() !== null
-  const closeQuickPanel = quickPanel.close
-  const isQuickPanelVisible = quickPanel.isVisible
+  const layerActive = useComposerLayerActive()
+  const quickPanelEnabled = enableQuickPanel && layerActive
+  const suggestionPanelActiveRef = useRef(quickPanelEnabled)
+  const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
@@ -620,10 +625,17 @@ export default function ComposerSurfaceRuntime({
   ])
 
   useLayoutEffect(() => {
-    if (composerOverridden && isQuickPanelVisible) {
-      closeQuickPanel('composer_override')
+    suggestionPanelActiveRef.current = quickPanelEnabled
+    return () => {
+      suggestionPanelActiveRef.current = false
     }
-  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
+  }, [quickPanelEnabled])
+
+  useLayoutEffect(() => {
+    if (previousLayerActiveRef.current === layerActive) return
+    previousLayerActiveRef.current = layerActive
+    if (quickPanelRef.current.isVisible) quickPanelRef.current.close('composer_override')
+  }, [layerActive])
 
   useEffect(() => {
     textRef.current = text
@@ -668,9 +680,8 @@ export default function ComposerSurfaceRuntime({
       const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
-      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
-      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
-      // or quote/file/knowledge tokens degrade to their serialized text.
+      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update must
+      // skip the rebuild or quote/file/knowledge tokens degrade to their serialized text.
       if (limitedText === currentText) return
       textRef.current = limitedText
       pendingLocalTextEchoRef.current = limitedText
@@ -679,14 +690,6 @@ export default function ComposerSurfaceRuntime({
       if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
-  )
-
-  const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
-    (value) => {
-      const nextText = typeof value === 'function' ? value(textRef.current) : value
-      applyComposerText(nextText)
-    },
-    [applyComposerText]
   )
 
   const pasteHandlerOptions = useMemo(
@@ -701,7 +704,7 @@ export default function ComposerSurfaceRuntime({
     [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
-  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
+  const { handlePaste } = usePasteHandler(pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
@@ -857,10 +860,15 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const currentText = serializeComposerDocument(editor).text
-        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        // Refuse instead of truncating: pasting a truncated copy and dropping the
+        // file token would silently lose everything beyond the input limit.
+        if (exceedsComposerInputMaxLength(currentText, fileText)) {
+          toast.error(t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
+          return
+        }
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = textToInsert
-          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+        const content = fileText
+          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
           : []
 
         if (typeof position === 'number') {
@@ -893,11 +901,12 @@ export default function ComposerSurfaceRuntime({
     [setFiles, t]
   )
 
-  const insertToken = useCallback((token: ComposerDraftToken) => {
+  const insertToken = useCallback((token: ComposerDraftToken, updateOnly = false) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
 
-    insertComposerTokenAtCursor(editor, token)
+    if (updateOnly) updateComposerToken(editor, token)
+    else insertComposerTokenAtCursor(editor, token)
   }, [])
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
@@ -1197,6 +1206,7 @@ export default function ComposerSurfaceRuntime({
         allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
         items: () => [],
         onActiveChange: ({ editor, query, range, text }) => {
+          if (!suggestionPanelActiveRef.current) return
           const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             editor,
@@ -1267,9 +1277,11 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: ({ event }) => {
+          if (!suggestionPanelActiveRef.current) return false
           return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
         },
         onExit: () => {
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
           // Read this pluginKey's own last-active generation. @tiptap/suggestion
           // only fires onExit when prev.active was true, so this should be at
           // least 1; ?? 0 is a defensive fallback for the type system, not a
@@ -1305,7 +1317,12 @@ export default function ComposerSurfaceRuntime({
             }
 
             const { quickPanel } = rootSuggestionStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === ComposerPanelSymbol.Root
+            ) {
               quickPanel.close()
             }
           }, 0)
@@ -1326,6 +1343,7 @@ export default function ComposerSurfaceRuntime({
         ...source,
         renderMode: 'headless',
         onActiveChange: (options) => {
+          if (!suggestionPanelActiveRef.current) return
           source.onActiveChange?.(options)
 
           const { quickPanel } = suggestionPanelStateRef.current
@@ -1372,16 +1390,23 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: (props) => {
+          if (!suggestionPanelActiveRef.current) return false
           const handledByQuickPanel = suggestionPanelStateRef.current.quickPanel.dispatchKeyDown(props.event)
           if (handledByQuickPanel) return true
           return source.onKeyDown?.(props) ?? false
         },
         onExit: (options) => {
           source.onExit?.(options)
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
 
           window.setTimeout(() => {
             const { quickPanel } = suggestionPanelStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === source.char) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === source.char
+            ) {
               quickPanel.close()
             }
           }, 0)
@@ -1391,8 +1416,9 @@ export default function ComposerSurfaceRuntime({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
-    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
+    // Tiptap installs plugins at editor creation, including when the composer starts hidden.
+    () => (enableQuickPanel ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
@@ -1449,8 +1475,10 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
+        // Keep the input focusable while a send temporarily makes it read-only.
+        tabindex: '0',
         class: cn(
-          'composer-tiptap after:hidden! box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
@@ -2137,7 +2165,8 @@ export default function ComposerSurfaceRuntime({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
           })
-          insertComposerTokenAtCursor(editor, pendingToken.token)
+          if (pendingToken.updateOnly) updateComposerToken(editor, pendingToken.token)
+          else insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {
           // Do not bubble: ProseMirror listens on the view element itself, while the document-level
@@ -2177,18 +2206,23 @@ export default function ComposerSurfaceRuntime({
       </button>
     </Tooltip>
   ) : (
-    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+    <SendMessageButton
+      sendMessage={sendDraft}
+      disabled={sendDisabled}
+      onDisabledClick={showBlockedSendReason}
+      label={editingState?.sendLabel}
+    />
   )
   const editingModeHeader = editingState ? (
     <div
       role="status"
       aria-live="polite"
-      aria-label={t('chat.input.editing_message')}
+      aria-label={editingState.description ?? t('chat.input.editing_message')}
       data-composer-editing-header=""
       className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+        <span className="min-w-0 font-medium">{editingState.description ?? t('chat.input.editing')}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {editingState.onLocate ? (
@@ -2221,6 +2255,7 @@ export default function ComposerSurfaceRuntime({
           <Button
             type="button"
             onClick={editingState.onCancel}
+            disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
             className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"

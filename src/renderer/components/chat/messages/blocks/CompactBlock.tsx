@@ -1,7 +1,8 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, type MarkdownSource } from '@cherrystudio/ui'
 import { ChevronDown } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, type MarkdownSource } from '@cherrystudio/ui'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -36,12 +37,12 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
           <AccordionTrigger className="[&>svg]:hidden">
             <div className="flex items-center gap-2">
               <span className="text-lg">📦</span>
-              <span className="font-medium text-foreground text-sm">{t('message.message.compact.title')}</span>
+              <span className="text-sm font-medium text-foreground">{t('message.message.compact.title')}</span>
             </div>
             <ChevronDown size={16} />
           </AccordionTrigger>
           <AccordionContent>
-            <div className="py-2 text-muted-foreground text-sm leading-relaxed">
+            <div className="py-2 text-sm leading-relaxed text-muted-foreground">
               <ChatMarkdown block={markdownSource} />
             </div>
           </AccordionContent>
@@ -50,7 +51,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
 
       {compactedContent && (
         <div className="mt-2">
-          <div className="whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">{compactedContent}</div>
+          <div className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{compactedContent}</div>
         </div>
       )}
     </div>

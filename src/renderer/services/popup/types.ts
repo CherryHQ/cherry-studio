@@ -73,6 +73,8 @@ export interface ConfirmPopupProps {
   rootClassName?: string
   style?: React.CSSProperties
   okCancel?: boolean
+  /** Focus the confirmation button when the dialog opens. */
+  autoFocusConfirm?: boolean
   /**
    * Place focus when the dialog closes, overriding Radix's default focus-return.
    *

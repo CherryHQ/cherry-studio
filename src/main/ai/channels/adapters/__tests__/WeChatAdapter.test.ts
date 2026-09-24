@@ -1,14 +1,11 @@
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
-}))
-
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -42,19 +39,12 @@ const mockBot = {
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
-  WeixinBot: vi.fn().mockImplementation(() => mockBot)
+  WeixinBot: vi.fn().mockImplementation(function WeixinBotMock() {
+    return mockBot
+  })
 }))
 
-// Import the module to trigger self-registration side effect
-import '../wechat/WeChatAdapter'
-
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'wechat')
-  if (!call) throw new Error('registerAdapterFactory was not called for wechat')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createWeChatAdapter } from '../wechat/WeChatAdapter'
 
 describe('WeChatAdapter', () => {
   beforeEach(() => {
@@ -79,20 +69,16 @@ describe('WeChatAdapter', () => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'wechat',
-        enabled: true,
-        config: {
-          token_path: (overrides.token_path as string) ?? '',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createWeChatAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'wechat',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        token_path: (overrides.token_path as string) ?? '',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
+      }
+    })
   }
 
   it('connect() logs in, registers message handler, and starts polling', async () => {

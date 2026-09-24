@@ -1,5 +1,6 @@
-import { RuntimeModelPricingSchema } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { RuntimeModelPricingSchema } from '@shared/data/types/model'
 
 const basePricing = {
   input: { perMillionTokens: 1, currency: 'USD' as const },

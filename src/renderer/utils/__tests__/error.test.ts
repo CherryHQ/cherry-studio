@@ -1,9 +1,10 @@
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
+
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { APICallError, NoSuchToolError, RetryError } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
 
 import {
   formatAiSdkError,
@@ -60,6 +61,17 @@ describe('error', () => {
     expect(getErrorMessage(error)).toBe('message.error.stream_admission.model_already_in_live_group')
     expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
       'message.error.stream_admission.model_already_in_live_group'
+    )
+  })
+
+  it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {
+    const error = new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, 'internal session IDs', {
+      sessionIds: ['session-a']
+    })
+
+    expect(getErrorMessage(error)).toBe('recycle_bin.move.blocked_generation')
+    expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
+      'recycle_bin.move.blocked_generation'
     )
   })
 
@@ -475,10 +487,7 @@ describe('error', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',
         reason: 'maxRetriesExceeded',
-        errors: [
-          'Authorization: Bearer string-secret',
-          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
-        ] as unknown as Error[]
+        errors: ['Authorization: Bearer string-secret', { apiKey: 'object-secret', nested: { token: 'nested-secret' } }]
       })
 
       const serialized = serializeError(retryError)

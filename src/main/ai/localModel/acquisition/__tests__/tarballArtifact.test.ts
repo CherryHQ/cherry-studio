@@ -57,9 +57,8 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } = await import(
-  '../tarballArtifact'
-)
+const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } =
+  await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
@@ -172,9 +171,9 @@ describe('shared artifact acquisition', () => {
 
   it('falls back to the second mirror when the first fails', async () => {
     vi.mocked(net.fetch)
-      .mockImplementationOnce((async () => {
+      .mockImplementationOnce(async () => {
         throw new Error('network down')
-      }) as unknown as typeof net.fetch)
+      })
       .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
 
     await ensure()

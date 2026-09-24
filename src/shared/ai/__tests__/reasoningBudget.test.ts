@@ -1,5 +1,6 @@
-import type { RuntimeReasoning } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { RuntimeReasoning } from '@shared/data/types/model'
 
 import { computeBudgetTokens, getThinkingBudget, nearestEffortForBudget } from '../reasoning'
 

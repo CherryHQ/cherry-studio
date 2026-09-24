@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Pins the gateway boundary contract for issue #18255: authenticated internal
@@ -98,7 +99,7 @@ beforeEach(() => {
 async function resolveRequest(): Promise<Record<string, Record<string, unknown>> | undefined> {
   captured.opts = undefined
   const promise = processMessage({
-    params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [] } as any,
+    params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai',
     requestHeaders: new Headers()

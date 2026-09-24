@@ -34,9 +34,7 @@ export const providerDetailColumnClasses = {
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  // h-full (not min-h-full): the model list below sizes itself from the remaining
-  // space, which only works if this column has a definite height.
-  sectionStack: 'mx-auto flex h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */
@@ -175,9 +173,9 @@ export const drawerClasses = {
 } as const
 
 export const modelListClasses = {
-  cqRoot: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
-  section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
-  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3',
+  cqRoot: 'flex min-w-0 w-full flex-col gap-2.5',
+  section: 'flex min-w-0 w-full flex-col gap-2.5',
+  headerBlock: 'flex min-w-0 w-full flex-col gap-3',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
   headerInlineRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2',
   headerInlineActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
@@ -192,7 +190,7 @@ export const modelListClasses = {
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
   sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
-  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
+  sectionTitle: cn(sectionHeadingBase, 'shrink-0 font-semibold whitespace-nowrap'),
   titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-tertiary',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-link transition-colors hover:underline',
@@ -237,9 +235,7 @@ export const modelListClasses = {
     'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
-  // mt-1, not pt-1: rows scroll through a scroller's top padding, but the pinned
-  // group header sticks below it, so padding here leaks a sliver of the row above.
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden mt-1',
+  listScroller: 'min-h-0 min-w-0 w-full mt-1',
   virtualModelRow: 'border-x border-border-subtle bg-transparent',
   virtualModelRowLast: 'rounded-b-lg border-b border-border-subtle pb-1',
   /**

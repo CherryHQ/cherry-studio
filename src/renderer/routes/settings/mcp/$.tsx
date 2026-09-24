@@ -1,9 +1,10 @@
-import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import ProviderDetail from '@renderer/pages/settings/McpSettings/McpProviderSettings'
-import { providers } from '@renderer/pages/settings/McpSettings/providers/config'
 import { useParams } from '@tanstack/react-router'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import ProviderDetail from '@renderer/pages/settings/McpSettings/McpProviderSettings'
+import { providers } from '@renderer/pages/settings/McpSettings/providers/config'
 
 // 通配符路由：捕获 provider 页面 /settings/mcp/:providerKey
 const ProviderPage = () => {

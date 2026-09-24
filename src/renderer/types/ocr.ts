@@ -1,6 +1,7 @@
+import type Tesseract from 'tesseract.js'
+
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { ImageFileMetadata } from '@shared/data/types/legacyFile'
-import type Tesseract from 'tesseract.js'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',

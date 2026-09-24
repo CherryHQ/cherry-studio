@@ -1,29 +1,27 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { fileEntryService } from '@data/services/FileEntryService'
-import { messageService } from '@data/services/MessageService'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type {
-  AiStreamOpenRequest,
-  AiToolResultResponse,
-  PersistedToolOutput,
-  PersistedToolOutputBlobRef
-} from '@shared/ai/transport'
-import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { PathStaleVersionError } from '@main/utils/file'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
-import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -59,6 +57,9 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (error) {
+    if (error instanceof AgentSessionEditError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.reason, { reason: error.reason })
+    }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
@@ -75,62 +76,6 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
   return application.get('WindowManager').getWindow(senderId)?.webContents
-}
-
-/** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
-async function findPersistedToolOutput(
-  topicId: string,
-  messageId: string,
-  toolCallId: string
-): Promise<AiToolResultResponse> {
-  try {
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
-    for (const part of parts ?? []) {
-      if (!isToolUIPart(part) || part.state !== 'output-available') continue
-      if (part.toolCallId !== toolCallId) continue
-      if (isPersistedToolOutput(part.output)) {
-        return { found: true, output: await resolvePersistedToolOutput(part.output) }
-      }
-      return { found: true, output: part.output }
-    }
-  } catch (e) {
-    logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
-  }
-  return { found: false }
-}
-
-/**
- * Rebuild a `$persistedToolOutput` envelope into the original output by
- * reading the blobs back from FileManager. When an entry is gone (manual DB
- * surgery, restore of an older backup) or is not a blob the tool-output store
- * wrote (a forged / colliding envelope in arbitrary tool output — the
- * ownership gate against reading unrelated entries), that blob degrades to
- * its stored excerpt with an explanatory note rather than `found: false` —
- * the renderer treats a miss as a permanent error, and the excerpt is still
- * real content.
- */
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
-  const ref = output.$persistedToolOutput
-  const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
-    try {
-      const entry = fileEntryService.findById(blob.fileEntryId)
-      if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
-      const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
-      return content
-    } catch (e) {
-      logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, err: e })
-      return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
-    }
-  }
-  if (ref.shape === 'entities') {
-    const texts = Object.fromEntries(
-      await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
-    )
-    return inflateEntities(ref, texts)
-  }
-  return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
 }
 
 /**
@@ -153,6 +98,30 @@ async function exposeAgentTaskError<T>(op: () => T | Promise<T>): Promise<T> {
 
 function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
+}
+
+async function restoreAgentSession(sessionId: string) {
+  try {
+    return await application.get('AgentLifecycleService').restoreSession(sessionId)
+  } catch (e) {
+    if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
+    }
+    throw e
+  }
+}
+
+async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (error instanceof AgentSessionArchiveBusyError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, error.message, {
+        sessionIds: error.sessionIds
+      })
+    }
+    throw error
+  }
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
@@ -188,9 +157,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return exposeAiStreamAdmission(() =>
-      application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
-    )
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, request))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -219,11 +186,30 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.delete': ({ agentId, deleteSessions }) =>
-    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.restore': async ({ agentId }) => {
+    try {
+      return await application.get('AgentLifecycleService').restoreAgent(agentId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
+      }
+      throw error
+    }
+  },
+  'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
+    exposeAgentSessionArchiveError(() =>
+      permanent
+        ? application.get('AgentLifecycleService').purgeAgent(agentId)
+        : application.get('AgentLifecycleService').archiveAgent(agentId, { archiveSessions: deleteSessions })
+    ),
+  'ai.agent.delete_permanently': ({ agentId, deleteSessions }) =>
+    exposeAgentSessionArchiveError(() =>
+      application.get('AgentLifecycleService').deleteActiveAgentPermanently(agentId, deleteSessions)
+    ),
   'ai.agent.sessions.delete': ({ agentId }) =>
-    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
+    exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -237,12 +223,64 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
-  'ai.agent.session.delete': ({ sessionIds }) =>
-    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
-  'ai.agent.session.reuse_or_create': (input) =>
-    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
+  'ai.agent.session.delete': ({ sessionIds, permanent }) =>
+    exposeAgentSessionArchiveError(() =>
+      permanent
+        ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
+        : application.get('AgentLifecycleService').archiveSessions(sessionIds)
+    ),
+  'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
+  'ai.agent.session.delete_permanently': ({ sessionIds }) =>
+    exposeAgentSessionArchiveError(() =>
+      application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
+    ),
+  'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
+    try {
+      return {
+        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+      }
+    } catch (error) {
+      logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      const failure =
+        error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
+          ? error.reason
+          : undefined
+      const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+    }
+  },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
-    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
+    application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
+
+  'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
+    exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
+  'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) return
+    application.get('AgentSessionRuntimeService').setPendingInputCount(wc, sessionId, count)
+  },
+  'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
+    exposeAiStreamAdmission(async () => {
+      const wc = senderWebContents(senderId)
+      if (!wc) throw new Error('Edit and resend requires a managed window')
+      try {
+        return await application
+          .get('AiStreamManager')
+          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
+            ...input,
+            trigger: 'edit-agent-message',
+            topicId: buildAgentSessionTopicId(sessionId),
+            editTarget: target
+          })
+      } catch (error) {
+        if (error instanceof AgentSessionForkError) {
+          const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
+          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+        }
+        throw error
+      }
+    }),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
@@ -252,6 +290,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
+  'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
+  'ai.agent.heartbeat.write': async ({ agentId, ...document }) => {
+    try {
+      return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)
+    } catch (error) {
+      if (error instanceof PathStaleVersionError) throw new IpcError(fileErrorCodes.STALE_VERSION, error.message)
+      throw error
+    }
+  },
+  'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>

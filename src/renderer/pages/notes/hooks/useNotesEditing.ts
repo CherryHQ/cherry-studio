@@ -1,10 +1,11 @@
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { fetchNoteSummary } from '@renderer/utils/aiGeneration'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('UseNotesEditing')
 

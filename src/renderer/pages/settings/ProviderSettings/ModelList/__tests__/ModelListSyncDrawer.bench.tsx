@@ -1,9 +1,10 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { Profiler } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { bench, describe, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import ModelListSyncDrawer from '../ModelListSyncDrawer'
 

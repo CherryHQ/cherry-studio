@@ -1,11 +1,12 @@
-import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -18,8 +19,7 @@ const exportActionsMock = vi.hoisted(() => ({
 }))
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
-  copyImage: vi.fn(),
-  previewFile: vi.fn()
+  copyImage: vi.fn()
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
@@ -56,8 +56,6 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 const openRouteMock = vi.hoisted(() => vi.fn())
-const ipcRequestMock = vi.hoisted(() => vi.fn())
-const topicPreviewInputFileMock = vi.hoisted(() => vi.fn())
 const getMessageActivityStateMock = vi.hoisted(() =>
   vi.fn(() => ({
     isProcessing: false,
@@ -108,8 +106,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
   resolvePartFromParts: vi.fn(() => undefined)
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
-  getMessageListItemModel: vi.fn(() => undefined),
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageListItemUtils>()),
   toMessageListItem: vi.fn((message) => message)
 }))
 
@@ -118,18 +116,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     modelSelectorMock.props.push(props)
     return <>{props.trigger}</>
   }
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: ipcRequestMock
-  }
-}))
-
-vi.mock('../../components/TopicRightPane', () => ({
-  useOptionalTopicRightPaneActions: () => ({
-    previewInputFile: topicPreviewInputFileMock
-  })
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -277,6 +263,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -290,16 +277,15 @@ import {
   requestTopicImageAction
 } from '../topicImageActionBus'
 
-const createTopic = (id: string): Topic =>
-  ({
-    id,
-    assistantId: 'assistant-1',
-    name: `Topic ${id}`,
-    lastActivityAt: '2026-01-01T00:00:00.000Z',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    messages: []
-  }) as Topic
+const createTopic = (id: string): Topic => ({
+  id,
+  assistantId: 'assistant-1',
+  name: `Topic ${id}`,
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  messages: []
+})
 
 function MessageListAdapterHarness({
   imageActionConsumer,
@@ -352,7 +338,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       writable: true,
       value: {
         file: {
-          getPhysicalPath: vi.fn(),
           openPath: vi.fn(),
           select: vi.fn(),
           showInFolder: vi.fn()
@@ -440,86 +425,24 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
-  it('opens sent input file previews through the topic right pane action', async () => {
-    let value: MessageListProviderValue | undefined
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    await waitFor(() => expect(value?.actions.previewInputFile).toBeDefined())
-    await value?.actions.previewInputFile?.({
-      displayName: 'report.docx',
-      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
-      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
-      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    })
-
-    expect(topicPreviewInputFileMock).toHaveBeenCalledWith({
-      displayName: 'report.docx',
-      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
-      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
-      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    })
-  })
-
-  it('opens sent attachment cards through the topic right pane action', async () => {
-    let value: MessageListProviderValue | undefined
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    await value?.actions.previewFile?.({
-      handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath },
-      name: 'report.pdf',
-      ext: '.pdf'
-    })
-
-    expect(topicPreviewInputFileMock).toHaveBeenCalledWith({
-      displayName: 'report.pdf',
-      previewPath: '/tmp/report.pdf'
-    })
-    expect(leafCapabilitiesMock.previewFile).not.toHaveBeenCalled()
-
-    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(
-      '/data/Application Support/report.pdf' as AbsoluteFilePath
-    )
-    await value?.actions.previewFile?.({
-      handle: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' },
-      name: 'managed-report.pdf',
-      ext: '.pdf'
-    })
-
-    expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
-    expect(topicPreviewInputFileMock).toHaveBeenLastCalledWith({
-      displayName: 'managed-report.pdf',
-      previewPath: '/data/Application Support/report.pdf'
-    })
-  })
-
-  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
-    vi.mocked(dataApiService.get).mockResolvedValue({
-      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
-    } as Awaited<ReturnType<typeof dataApiService.get<'/messages/:id'>>>)
-
+  it('diagnoses the message model without falling back to the current selection', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
-
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
-      diagnosticReport: { location: string }
-      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+      getDoctorSubject: (message: MessageListItem) => unknown
     }
-    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.home' })
-    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
-
-    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
-    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
-              })
-            })
-          ]
-        }
-      }
-    })
+    expect(
+      options.getDoctorSubject({
+        id: 'm1',
+        role: 'assistant',
+        topicId: 'topic-a',
+        createdAt: '',
+        status: 'error',
+        modelId: 'openai::historical-model'
+      })
+    ).toEqual({ kind: 'chat', providerId: 'openai', modelId: 'historical-model' })
+    expect(
+      options.getDoctorSubject({ id: 'm2', role: 'assistant', topicId: 'topic-a', createdAt: '', status: 'error' })
+    ).toBeUndefined()
   })
 
   it('rejects pending requests for its topic when unmounted before runtime binding', async () => {
@@ -593,7 +516,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       <MessageListAdapterHarness
         topic={createTopic('topic-a')}
         messages={[historyMessage, liveMessage]}
-        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
+        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts }}
         streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}
       />
@@ -612,7 +535,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         messages={[historyMessage, nextLiveMessage]}
         partsByMessageId={{
           ...historyPartsByMessageId,
-          'live-message': nextLiveMessage.parts as CherryMessagePart[]
+          'live-message': nextLiveMessage.parts
         }}
         streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}
@@ -768,13 +691,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
     expect(updateCodeBlock).toHaveBeenCalledWith(
       '```ts\nconst value = "old"\n```',
-      'code-block-1',
+      'const value = "old"',
       'const value = "new"'
     )
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
@@ -873,6 +796,40 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
+  it('reports a failure without writing when the edited code block cannot be located', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue(null)
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      originalContent: 'const value = "missing"',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('shows an error when saving code block edits through chat write fails', async () => {
     const textPart = {
       type: 'text',
@@ -902,7 +859,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 

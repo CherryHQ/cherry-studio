@@ -1,17 +1,20 @@
+import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 'react'
+
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, type CSSProperties, useEffect, useRef } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -21,7 +24,7 @@ const WINDOW_FRAME: WindowFrame = { mode: 'window' }
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
   <Activity mode={isActive ? 'visible' : 'hidden'}>
     <div className="flex h-full w-full flex-col items-center justify-center bg-background">
-      <div className="mb-2 font-bold text-lg">Webview App</div>
+      <div className="mb-2 text-lg font-bold">Webview App</div>
       <code className="rounded bg-muted p-2">{url}</code>
     </div>
   </Activity>
@@ -32,6 +35,14 @@ export const SubWindowAppShell = () => {
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
+
+  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
+  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
+  const handleCloseTab = useCallback(() => {
+    void ipcApi.request('window.close')
+  }, [])
+
+  useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip

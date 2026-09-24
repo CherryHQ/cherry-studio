@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import { isMainExternalModule, mainResolveAlias } from './electron.vite.config'
+import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -19,6 +19,7 @@ export default {
     plugins: [hermeticEntryGuardPlugin()],
     resolve: { alias: mainResolveAlias },
     build: {
+      externalizeDeps: { include: mainExternalModules },
       emptyOutDir: true,
       outDir: resolve(__dirname, 'out/utility-process'),
       lib: {
@@ -31,8 +32,7 @@ export default {
           'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts')
         }
       },
-      rollupOptions: {
-        external: isMainExternalModule,
+      rolldownOptions: {
         output: {
           entryFileNames: '[name].js',
           chunkFileNames: '[name]-[hash].js',

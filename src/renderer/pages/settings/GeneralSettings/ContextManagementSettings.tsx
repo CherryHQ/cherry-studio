@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   InfoTooltip,
   InputGroup,
@@ -29,8 +32,6 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">

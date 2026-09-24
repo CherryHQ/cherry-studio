@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { TranslateBidirectionalPair } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { describe, expect, it } from 'vitest'
 
 import { determineTargetLanguage, pickBidirectionalTarget } from '../language'
 

@@ -1,3 +1,7 @@
+import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -7,9 +11,6 @@ import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useTasks')
 
@@ -212,11 +213,14 @@ export const useDeleteTask = () => {
 }
 
 export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
     query: { limit: 50 },
     enabled: !!(agentId && taskId),
     swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/agents/:agentId/tasks/:taskId/logs', () => refetch(), {
+    routeParams: taskId ? { taskId } : undefined
   })
   return {
     logs: data?.items ?? [],

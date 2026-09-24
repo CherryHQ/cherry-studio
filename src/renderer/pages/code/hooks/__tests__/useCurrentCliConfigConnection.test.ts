@@ -1,8 +1,9 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractConnection: vi.fn(),

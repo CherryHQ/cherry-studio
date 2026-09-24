@@ -1,8 +1,9 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
 import HtmlFilePreview from '../HtmlFilePreview'
@@ -10,7 +11,28 @@ import HtmlFilePreview from '../HtmlFilePreview'
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
   htmlFrame: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  webviewBrowser: vi.fn()
+}))
+
+vi.mock('@renderer/components/WebviewBrowser', () => ({
+  WebviewBrowser: (props: {
+    initialUrl: string
+    reloadKey?: number
+    securityProfile: string
+    target: { id: string; label: string }
+  }) => {
+    mocks.webviewBrowser(props)
+    return (
+      <div
+        data-testid="webview-browser"
+        data-url={props.initialUrl}
+        data-security-profile={props.securityProfile}
+        data-target-id={props.target.id}
+        data-target-label={props.target.label}
+      />
+    )
+  }
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -44,11 +66,6 @@ vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOrig
 })
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
@@ -56,26 +73,22 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   SegmentedControl: ({
-    'aria-label': ariaLabel,
     disabled,
     onValueChange,
     options,
     value
   }: {
-    'aria-label'?: string
     disabled?: boolean
     onValueChange: (value: string) => void
-    options: Array<{ ariaLabel?: string; disabled?: boolean; label: ReactNode; value: string }>
+    options: Array<{ label: string; value: string }>
     value: string
   }) => (
-    <div role="radiogroup" aria-label={ariaLabel} aria-disabled={disabled}>
+    <div>
       {options.map((option) => (
         <button
           type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          aria-label={option.ariaLabel}
-          disabled={disabled || option.disabled}
+          aria-pressed={value === option.value}
+          disabled={disabled}
           key={option.value}
           onClick={() => onValueChange(option.value)}>
           {option.label}
@@ -83,8 +96,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -106,7 +118,7 @@ function renderPreview(
     <HtmlFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'index.html'}
-      metadata={{ size: overrides.size ?? 42 }}
+      metadata={{ size: overrides.size ?? 42, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
     />
@@ -185,26 +197,28 @@ describe('HtmlFilePreview', () => {
     renderPreview()
     await screen.findByTestId('html-frame')
 
-    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.html.mode.source' }))
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'html', value: '<h1>Hello</h1>', wrapped: true })
     )
 
-    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.html.mode.preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()
   })
 
-  it('uses the interactive sandbox and hides the source switch for artifact previews', async () => {
+  it('opens artifact HTML in the shared WebView browser and keeps ordinary file HTML in the restricted iframe', async () => {
     renderPreview({ type: 'artifact' })
 
-    expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
-    const props = mocks.htmlFrame.mock.calls.at(-1)?.[0]
-    expect(props?.sandbox).toBe('allow-scripts allow-same-origin allow-forms')
-    expect(props?.csp).toBeUndefined()
-    expect(screen.queryByRole('radio', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
+    const browser = await screen.findByTestId('webview-browser')
+    expect(browser.getAttribute('data-url')).toMatch(/^file:\/\/.*index\.html$/)
+    expect(browser).toHaveAttribute('data-target-label', 'index.html')
+    expect(browser).toHaveAttribute('data-security-profile', 'agent-html-artifact')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads when the path or refresh key changes', async () => {
@@ -213,12 +227,22 @@ describe('HtmlFilePreview', () => {
     await screen.findByTestId('html-frame')
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="about.html" metadata={{ size: 42 }} refreshKey={0} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="about.html" metadata={{ size: 42 }} refreshKey={1} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
@@ -237,7 +261,12 @@ describe('HtmlFilePreview', () => {
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="second.html" metadata={{ size: 42 }} refreshKey={0} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="second.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<p>Second</p>')
 
