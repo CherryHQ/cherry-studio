@@ -218,6 +218,14 @@ describe('finalizeInterruptedParts', () => {
     expect(result[0]).not.toBe(taskEvent)
   })
 
+  it('shows an Agent task the user paused mid-run as stopped, not failed', () => {
+    const taskEvent = taskEventPart({ event: 'progress', taskId: 'task-7', status: 'in_progress' })
+
+    const result = finalizeInterruptedParts([taskEvent], 'paused')
+
+    expect(result[0]).toMatchObject({ data: { taskId: 'task-7', status: 'stopped', synthetic: true } })
+  })
+
   it('keeps completed and pending Agent task events unchanged', () => {
     const completed = {
       type: 'data-agent-task-event',

@@ -57,9 +57,13 @@ export function mergeAgentSessionTaskEvent(
 
   const merged = { ...existing }
   // A synthesized interruption only guesses that the owning process died. A real terminal edge
-  // disproves that guess, so it takes the lifecycle fields and the stale error goes with them.
+  // disproves that guess, so it takes the lifecycle fields and the stale error goes with them —
+  // except a `stopped` edge over a failure: the runtime stopping a dead task confirms the interruption.
   const superseded =
-    existing.synthetic === true && incoming.synthetic !== true && isTerminalAgentSessionTaskStatus(incoming.status)
+    existing.synthetic === true &&
+    incoming.synthetic !== true &&
+    isTerminalAgentSessionTaskStatus(incoming.status) &&
+    !(existing.status === 'error' && incoming.status === 'stopped')
   if (superseded) {
     delete merged.synthetic
     delete merged.error

@@ -99,7 +99,8 @@ export function finalizeInterruptedParts(
         ...taskPart,
         data: {
           ...taskPart.data,
-          status: 'error',
+          // A pause is the user stopping the turn, so its unfinished tasks read as stopped, not failed.
+          status: status === 'paused' ? 'stopped' : 'error',
           synthetic: true,
           error: taskPart.data.error ?? taskError
         }

@@ -197,6 +197,27 @@ describe('mergeAgentSessionTaskEvent', () => {
     })
   })
 
+  it('keeps a restart interruption when the runtime later reports the dead task as stopped', () => {
+    const interrupted = {
+      event: 'started' as const,
+      taskId: 'bg-1',
+      status: 'error' as const,
+      completedAt: '2026-08-12T08:05:00.000Z',
+      error: 'Interrupted by app restart before task completed',
+      synthetic: true
+    }
+
+    // Stopping a task whose process already died confirms the interruption instead of disproving it.
+    expect(
+      mergeAgentSessionTaskEvent(interrupted, {
+        event: 'notification',
+        taskId: 'bg-1',
+        status: 'stopped',
+        completedAt: '2026-08-12T08:09:00.000Z'
+      })
+    ).toEqual({ ...interrupted })
+  })
+
   it('does not let late progress revive a synthesized interruption', () => {
     const interrupted = {
       event: 'started' as const,
