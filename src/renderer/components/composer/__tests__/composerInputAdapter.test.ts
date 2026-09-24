@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { serializeComposerDocument } from '../composerDraft'
-import { createComposerInputAdapter } from '../composerInputAdapter'
+import { createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
 
 describe('createComposerInputAdapter', () => {
@@ -17,6 +17,28 @@ describe('createComposerInputAdapter', () => {
     editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
     return editor
   }
+
+  it('updates an existing annotation in place without duplicating or resurrecting a removed token', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    const token = { id: 'annotation-1', kind: 'webviewAnnotation' as const, label: 'Old', promptText: 'Old note' }
+    adapter.insertText('Before ')
+    adapter.insertToken!(token)
+    adapter.insertText('after')
+    const selection = editor.state.selection.toJSON()
+
+    updateComposerToken(editor, { ...token, label: 'Revised', promptText: 'Revised note' })
+
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('Before Revised note after')
+    expect(draft.tokens).toMatchObject([{ id: 'annotation-1', label: 'Revised', promptText: 'Revised note' }])
+    expect(draft.tokens).toHaveLength(1)
+    expect(editor.state.selection.toJSON()).toEqual(selection)
+
+    editor.commands.clearContent()
+    updateComposerToken(editor, token)
+    expect(serializeComposerDocument(editor)).toEqual({ text: '', tokens: [] })
+  })
 
   it('turns ${name} into an editable field by default (quick phrases rely on it)', () => {
     const adapter = createComposerInputAdapter(createEditor())

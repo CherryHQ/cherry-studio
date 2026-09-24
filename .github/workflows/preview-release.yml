@@ -92,7 +92,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -118,6 +118,10 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
@@ -133,6 +137,10 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
@@ -145,6 +153,10 @@ jobs:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Validate edition preview artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"

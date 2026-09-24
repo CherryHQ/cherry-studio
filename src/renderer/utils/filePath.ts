@@ -32,7 +32,12 @@ export const normalizeInlineFilePath = (value: string) =>
     .replace(/^[`("'[]+|[`)"'\],.;:!?]+$/g, '')
     .replace(INLINE_FILE_PATH_LOCATION_PATTERN, '')
 
-export const resolveInlineFilePath = (value: string) => expandHomeRelativePath(normalizeInlineFilePath(value))
+export const resolveInlineFilePath = (value: string, options: { preserveWrappingPunctuation?: boolean } = {}) => {
+  const normalizedPath = options.preserveWrappingPunctuation
+    ? value.trim().replace(INLINE_FILE_PATH_LOCATION_PATTERN, '')
+    : normalizeInlineFilePath(value)
+  return expandHomeRelativePath(normalizedPath)
+}
 
 export function isInlineFilePath(value: string): boolean {
   const normalizedPath = normalizeInlineFilePath(value)

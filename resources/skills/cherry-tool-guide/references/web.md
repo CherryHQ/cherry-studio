@@ -23,9 +23,13 @@ with shell commands.
 If a search returns nothing useful, **refine the query before fetching** anything. Don't
 fetch low-relevance URLs just because they came back.
 
-## Browser limitation (important)
+## Browser interaction
 
-Cherry's web built-ins **search and fetch only**. They cannot:
+Load the bundled `cherry-browser` skill for live `mcp__browser__*` tools. These control
+the current Agent Session’s visible right pane when Browser settings enables Agent
+control. History and login-data imports are managed in Browser settings.
+
+The separate web search/fetch tools cannot:
 
 - click, hover, or otherwise interact with a page,
 - fill or submit forms,

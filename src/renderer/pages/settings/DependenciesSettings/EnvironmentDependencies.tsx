@@ -51,6 +51,7 @@ import {
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -154,18 +155,27 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const refreshState = useCallback(async () => {
+  const refreshState = useCallback(async (propagateError = false): Promise<boolean> => {
     const requestId = ++resolutionRequestIdRef.current
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
         PRESETS_BINARY_TOOLS.map((tool) => tool.name)
       )
-      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
+      const queryFailure = Object.values(nextSnapshots).find(
+        (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
+      )?.application
+      if (propagateError && queryFailure?.status === 'unknown') {
+        throw new Error(queryFailure.message ?? queryFailure.reason)
+      }
+      return true
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+      if (propagateError) throw error
+      return false
     }
   }, [])
 
@@ -174,23 +184,30 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
       try {
-        const versions = await ipcApi.request('binary.get_latest_versions', force)
+        const [versionsResult, stateResult] = await Promise.allSettled([
+          ipcApi.request('binary.get_latest_versions', force),
+          force ? refreshState(true) : Promise.resolve(true)
+        ])
+        if (versionsResult.status === 'rejected') throw versionsResult.reason
+        if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
-          setLatestVersions(versions)
+          setLatestVersions(versionsResult.value)
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
-          if (force) toast.success(t('settings.dependencies.updateCheckSuccess'))
+          if (force && stateResult.value) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
-        return versions
+        return versionsResult.value
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
+          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        }
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
       }
     },
-    [t]
+    [refreshState, t]
   )
 
   useEffect(() => {
@@ -205,7 +222,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.availability_changed', () => {
+    latestRequestIdRef.current++
     setLatestVersions(null)
+    setCheckingUpdates(false)
     void refreshState()
   })
 
@@ -640,7 +659,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
+          onClick={() => void openExternalWebsite(tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -648,7 +667,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
+            onClick={() => void openExternalWebsite(tool.homepage!)}>
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>

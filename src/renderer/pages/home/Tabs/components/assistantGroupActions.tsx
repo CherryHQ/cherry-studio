@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -9,6 +9,7 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 export interface AssistantGroupActionContext {
@@ -71,7 +72,7 @@ assistantGroupActionRegistry.registerCommand({
 })
 
 assistantGroupActionRegistry.registerCommand({
-  id: 'assistant-group.delete-assistant',
+  id: 'assistant-group.archive-assistant',
   availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
   run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId)
 })
@@ -102,7 +103,7 @@ assistantGroupActionRegistry.registerAction(
     commandId: 'assistant-group.toggle-sidebar',
     label: ({ sidebarPinned, t }) =>
       sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
     order: 22
   })
 )
@@ -140,13 +141,12 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
-    id: 'assistant-group.delete-assistant',
-    commandId: 'assistant-group.delete-assistant',
-    label: ({ t }) => t('assistants.delete.title'),
-    icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
+    id: 'assistant-group.archive-assistant',
+    commandId: 'assistant-group.archive-assistant',
+    label: ({ t }) => t('common.archive'),
+    icon: () => <Archive size={14} />,
     group: 'danger',
-    order: 40,
-    danger: true
+    order: 40
   })
 )
 

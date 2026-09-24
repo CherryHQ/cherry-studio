@@ -124,6 +124,7 @@ vi.mock('electron', () => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
         const created = {
+          fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),

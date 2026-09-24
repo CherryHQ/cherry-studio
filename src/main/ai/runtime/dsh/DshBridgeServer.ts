@@ -37,6 +37,7 @@ const READY_TIMEOUT_MS = 15_000
 export interface DshBridgeServerOptions {
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
+  nativeSessionId?: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (
     event: AgentRuntimeEvent,
@@ -53,7 +54,10 @@ export interface DshBridgeServerOptions {
     cwd: string
   ) => Promise<BridgePluginRequestMap['guard/check']['result']>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
+  onSessionState?: (state: BridgeNotificationMap['session/state']) => void
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
+  /** Called when an authenticated connection closes unexpectedly. */
+  onDisconnect?: () => void
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
 }
@@ -130,24 +134,25 @@ export class DshBridgeServer {
   request<M extends keyof BridgeHostRequestMap>(
     method: M,
     params: BridgeHostRequestMap[M]['params'],
-    options?: { timeoutMs?: number }
+    options?: { timeoutMs?: number; signal?: AbortSignal }
   ): Promise<BridgeHostRequestMap[M]['result']> {
     const transport = this.transport
     if (!transport || !this.connection || this.connection.destroyed) {
       return Promise.reject(new Error('dsh bridge plugin is not connected'))
     }
     if (options?.timeoutMs === undefined) {
-      return transport.request(method, params) as Promise<BridgeHostRequestMap[M]['result']>
+      return transport.request(method, params, options?.signal) as Promise<BridgeHostRequestMap[M]['result']>
     }
     // The transport has no timeouts; aborting drops the pending entry and rejects with this reason.
     const { timeoutMs } = options
     const controller = new AbortController()
+    const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal
     const timer = setTimeout(() => {
       controller.abort(new Error(`dsh bridge ${method} timed out after ${timeoutMs}ms`))
     }, timeoutMs)
     timer.unref?.()
-    return (transport.request(method, params, controller.signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(
-      () => clearTimeout(timer)
+    return (transport.request(method, params, signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(() =>
+      clearTimeout(timer)
     )
   }
 
@@ -204,6 +209,7 @@ export class DshBridgeServer {
         this.connection = undefined
         this.transport = undefined
         this.abortToolCalls()
+        if (!this.closed) this.options.onDisconnect?.()
       }
     })
     transport.onRequest(async (method, params) => {
@@ -222,7 +228,15 @@ export class DshBridgeServer {
       if (!authenticated) return
       if (method === 'tool/cancel') {
         const cancel = params as BridgeNotificationMap['tool/cancel']
-        if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+        if (cancel.sessionId === (this.options.nativeSessionId ?? this.options.sessionId))
+          this.activeToolCalls.get(cancel.callId)?.abort()
+        return
+      }
+      if (method === 'session/state') {
+        const state = params as BridgeNotificationMap['session/state']
+        if (state.sessionId === (this.options.nativeSessionId ?? this.options.sessionId)) {
+          this.options.onSessionState?.(state)
+        }
         return
       }
       if (method === 'subagent/lifecycle') {
@@ -265,7 +279,8 @@ export class DshBridgeServer {
   }
 
   private async handleToolCall(call: BridgePluginRequestMap['tool/call']['params']): Promise<BridgeToolCallResult> {
-    if (call.sessionId !== this.options.sessionId) throw new Error('dsh bridge tool call used the wrong session')
+    if (call.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId))
+      throw new Error('dsh bridge tool call used the wrong session')
     if (!call.callId || this.activeToolCalls.has(call.callId)) {
       throw new Error('dsh bridge tool call id is missing or already active')
     }
@@ -281,7 +296,7 @@ export class DshBridgeServer {
   private async handleGuardCheck(
     check: BridgePluginRequestMap['guard/check']['params']
   ): Promise<BridgePluginRequestMap['guard/check']['result']> {
-    if (check.sessionId !== this.options.sessionId) {
+    if (check.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId)) {
       return Promise.reject(new Error('dsh bridge guard check used the wrong session'))
     }
     if (typeof check.toolName !== 'string' || !check.toolName || typeof check.cwd !== 'string' || !check.cwd) {
@@ -353,7 +368,7 @@ export class DshBridgeServer {
   private handleQuestionAsk(
     ask: BridgePluginRequestMap['question/ask']['params']
   ): Promise<BridgePluginRequestMap['question/ask']['result']> {
-    if (ask.sessionId !== this.options.sessionId) {
+    if (ask.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId)) {
       return Promise.reject(new Error('dsh bridge question used the wrong session'))
     }
     const review = ask.questions.length === 1 ? ask.questions[0] : undefined
