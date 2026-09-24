@@ -213,7 +213,9 @@ const BUNDLED_TOOLS: Array<{
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
   ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node'].map((name) => ({
-    name, binaries: [name], versionFile: `.${name}-version`
+    name,
+    binaries: [name],
+    versionFile: `.${name}-version`
   }))
 ]
 
@@ -253,11 +255,12 @@ type IsolatedEnvSnapshot = {
 const normalizeToolIdentity = (tool: string): string =>
   (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
 
-function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
+function addNpmAllowBuildsOption(tool: string, packages?: readonly string[], shellOutNpm = false): string {
   if (!packages?.length) return tool
   // mise 2026.7.14 splits ToolArg on `@` before parsing options, so scoped values use TOML Unicode escapes.
   const allowBuilds = JSON.stringify(packages).replaceAll('@', '\\u0040')
-  const option = `allow_builds=${allowBuilds}`
+  // mise maps allow_builds only onto npm 11.16+ and otherwise skips every script, so shelled-out npm runs them all.
+  const option = shellOutNpm ? 'npm_args="--ignore-scripts=false"' : `allow_builds=${allowBuilds}`
   return tool.endsWith(']') ? `${tool.slice(0, -1)},${option}]` : `${tool}[${option}]`
 }
 
@@ -1356,9 +1359,9 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
-    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
-    const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds, shellOutNpm)}@${requested}`
+    const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined

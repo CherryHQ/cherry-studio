@@ -146,6 +146,8 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     skillFolderName: 'code-mate-minimax-code',
     packageName: '@minimax-ai/code',
     install: 'npm',
+    // mise 2026.7.14 aube writes Windows bin shims without the virtual-store hash, so better-sqlite3 never builds.
+    miseNpmShellOut: true,
     // The optional better-sqlite3 dependency builds from source via lifecycle scripts.
     npmAllowBuilds: ['@minimax-ai/code', 'better-sqlite3']
   })
