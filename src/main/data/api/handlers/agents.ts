@@ -6,8 +6,10 @@
  * to the appropriate service method.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -76,9 +78,23 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
-      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
-      return undefined
+      const lifecycleState = agentService.getLifecycleState(params.agentId)
+      if (lifecycleState === 'missing') throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      if (lifecycleState === 'trashed') return undefined
+
+      try {
+        const result = await application
+          .get('AgentLifecycleService')
+          .archiveAgent(params.agentId, { archiveSessions: false })
+        if (result.deleted) return undefined
+        if (agentService.getLifecycleState(params.agentId) === 'trashed') return undefined
+        throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      } catch (error) {
+        if (error instanceof AgentSessionArchiveBusyError) {
+          throw DataApiErrorFactory.invalidOperation('delete agent', error.message)
+        }
+        throw error
+      }
     }
   },
 

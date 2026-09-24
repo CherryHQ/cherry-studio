@@ -287,10 +287,10 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get, update, or soft-delete a specific agent. Data API DELETE only
-      performs the SQLite-backed state change and leaves sessions intact;
-      IpcApi `ai.agent.delete` owns runtime, schedule-timer, channel, and
-      full session/pin lifecycle effects. */
+  /** Get, update, or soft-delete a specific agent. DELETE archives the agent
+      (sessions remain) via AgentLifecycleService — same semantics as IpcApi
+      `ai.agent.delete` with `deleteSessions: false`. Use IpcApi when sessions
+      should be archived with the agent or for permanent purge. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }

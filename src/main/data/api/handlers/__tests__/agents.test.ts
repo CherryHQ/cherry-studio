@@ -1,33 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
-  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
+  getLifecycleStateMock,
   listAllTasksMock,
   getTaskByIdMock,
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock
+  getSkillByIdMock,
+  archiveAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
-  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  getLifecycleStateMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn()
+  getSkillByIdMock: vi.fn(),
+  archiveAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -35,9 +38,9 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
-    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    getLifecycleState: getLifecycleStateMock
   }
 }))
 
@@ -59,6 +62,15 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'AgentLifecycleService') return { archiveAgent: archiveAgentMock }
+      return undefined
+    })
+  }
+}))
+
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
 
@@ -73,6 +85,8 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getLifecycleStateMock.mockReturnValue('active')
+    archiveAgentMock.mockResolvedValue({ deleted: true })
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
@@ -189,21 +203,46 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE to agentService and returns undefined on success', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
-
+    it('delegates DELETE to AgentLifecycleService.archiveAgent', async () => {
       const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(archiveAgentMock).toHaveBeenCalledWith(AGENT_ID, { archiveSessions: false })
       expect(result).toBeUndefined()
     })
 
-    it('throws notFound when agentService reports a missing agent', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+    it('returns undefined without archiving when the agent is already trashed', async () => {
+      getLifecycleStateMock.mockReturnValueOnce('trashed')
 
-      await expect(
-        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
+
+      expect(archiveAgentMock).not.toHaveBeenCalled()
+      expect(result).toBeUndefined()
+    })
+
+    it('returns undefined when archive reports no-op but the agent is trashed (retry after success)', async () => {
+      archiveAgentMock.mockResolvedValueOnce({ deleted: false })
+      getLifecycleStateMock.mockReturnValueOnce('active').mockReturnValueOnce('trashed')
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
+
+      expect(result).toBeUndefined()
+    })
+
+    it('maps AgentSessionArchiveBusyError to INVALID_OPERATION', async () => {
+      archiveAgentMock.mockRejectedValueOnce(new AgentSessionArchiveBusyError(['session-1']))
+
+      await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('throws notFound when agent does not exist on DELETE', async () => {
+      getLifecycleStateMock.mockReturnValueOnce('missing')
+
+      await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(archiveAgentMock).not.toHaveBeenCalled()
     })
   })
 
