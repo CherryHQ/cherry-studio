@@ -158,4 +158,14 @@ describe('getPathComparisonKey', () => {
     expect(isPathWithinAccessiblePath(nested, [workspace])).toBe(true)
     expect(accessibleFileReference(nested)).toBe(nested)
   })
+
+  it('matches UNC workspace paths case-insensitively on Windows', async () => {
+    vi.resetModules()
+    vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: true, isLinux: false }))
+    const { isPathWithinAccessiblePath: isWithin } = await import('../accessiblePath')
+    const workspace = AbsoluteFilePathSchema.parse('\\\\SERVER\\Share\\Workspace')
+    const nested = AbsoluteFilePathSchema.parse('\\\\server\\share\\workspace\\notes.md')
+
+    expect(isWithin(nested, [workspace])).toBe(true)
+  })
 })

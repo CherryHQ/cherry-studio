@@ -15,13 +15,20 @@ import { canonicalizeFilePath, type PosixRelativeFilePath } from '@shared/utils/
 
 const isUncAbsolutePath = (path: AbsoluteFilePath): boolean => path.startsWith('\\\\') || path.startsWith('//')
 
+/**
+ * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
+ * case-insensitive on macOS/Windows (default APFS/NTFS), case-sensitive on Linux.
+ */
+const isCaseInsensitivePlatform = isMac || isWin
+
 /** Lexical containment when `toPathKey` cannot canonicalize UNC roots. */
 const isPathWithinUncPath = (filePath: AbsoluteFilePath, workspacePath: AbsoluteFilePath): boolean => {
   const normalize = (value: AbsoluteFilePath) => value.replace(/\//g, '\\').replace(/[\\]+$/, '')
   const workspace = normalize(workspacePath)
   const file = normalize(filePath)
-  if (file === workspace) return true
-  return file.startsWith(`${workspace}\\`)
+  const fold = (value: string) => (isCaseInsensitivePlatform ? value.toLowerCase() : value)
+  if (fold(file) === fold(workspace)) return true
+  return fold(file).startsWith(`${fold(workspace)}\\`)
 }
 
 /** Reference key for accessible attachments; UNC paths stay as absolute bytes. */
@@ -63,12 +70,6 @@ export const getAccessiblePathRelativePath = (
   }
   return filePath
 }
-
-/**
- * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
- * case-insensitive on macOS/Windows (default APFS/NTFS), case-sensitive on Linux.
- */
-const isCaseInsensitivePlatform = isMac || isWin
 
 /**
  * A `Set`-able identity key for mention dedup — **deliberately looser than

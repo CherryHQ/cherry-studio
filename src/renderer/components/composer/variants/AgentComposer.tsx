@@ -222,7 +222,8 @@ const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[
 
 const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
-  accessiblePaths: readonly AbsoluteFilePath[]
+  accessiblePaths: readonly AbsoluteFilePath[],
+  sessionId: string
 ): Promise<{ fileParts: FileUIPart[]; copiedDestPaths: AbsoluteFilePath[] }> => {
   const workspacePath = accessiblePaths[0]
   const accessibleAttachments: AccessibleAttachment[] = []
@@ -288,8 +289,8 @@ const buildAgentFilePartsForAttachments = async (
 
     return { fileParts, copiedDestPaths }
   } catch (error) {
-    if (workspacePath && copiedDestPaths.length > 0) {
-      await rollbackWorkspaceCopies(workspacePath, copiedDestPaths)
+    if (copiedDestPaths.length > 0) {
+      await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
     }
     throw error
   }
@@ -1495,7 +1496,6 @@ const AgentComposerInner = ({
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
       let copiedDestPaths: AbsoluteFilePath[] = []
-      const workspacePath = accessiblePaths[0]
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
@@ -1505,7 +1505,8 @@ const AgentComposerInner = ({
         })
         const built = await buildAgentFilePartsForAttachments(
           attachments.filter((_, index) => !retainedParts[index]),
-          accessiblePaths
+          accessiblePaths,
+          sessionId
         )
         copiedDestPaths = built.copiedDestPaths
         let addedIndex = 0
@@ -1524,8 +1525,8 @@ const AgentComposerInner = ({
           }
         )
         if (sent === false) {
-          if (workspacePath && copiedDestPaths.length > 0) {
-            await rollbackWorkspaceCopies(workspacePath, copiedDestPaths)
+          if (copiedDestPaths.length > 0) {
+            await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
           }
           return false
         }
@@ -1535,8 +1536,8 @@ const AgentComposerInner = ({
         launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
-        if (workspacePath && copiedDestPaths.length > 0) {
-          await rollbackWorkspaceCopies(workspacePath, copiedDestPaths)
+        if (copiedDestPaths.length > 0) {
+          await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
         }
         logger.warn('Failed to send message:', error as Error)
         toast.error(t('chat.input.send_failed'))

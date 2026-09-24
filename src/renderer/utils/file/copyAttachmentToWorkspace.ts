@@ -55,13 +55,10 @@ export type WorkspaceCopyResult = {
 }
 
 /** Best-effort cleanup of workspace copies when a batched send fails mid-copy. */
-export async function rollbackWorkspaceCopies(
-  workspacePath: AbsoluteFilePath,
-  paths: readonly AbsoluteFilePath[]
-): Promise<void> {
+export async function rollbackWorkspaceCopies(sessionId: string, paths: readonly AbsoluteFilePath[]): Promise<void> {
   for (const path of paths) {
     try {
-      await ipcApi.request('file.unlink', { path, workspacePath })
+      await ipcApi.request('file.unlink', { path, sessionId })
     } catch {
       // Preserve the original send failure; cleanup is best-effort.
     }

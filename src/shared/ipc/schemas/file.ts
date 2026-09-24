@@ -173,7 +173,7 @@ export const fileRequestSchemas = {
   'file.unlink': defineRoute({
     input: z.strictObject({
       path: AbsoluteFilePathSchema,
-      workspacePath: AbsoluteFilePathSchema
+      sessionId: z.string().min(1)
     }),
     output: z.void()
   }),

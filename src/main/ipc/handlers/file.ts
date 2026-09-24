@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -11,12 +12,19 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { copyNew, isSameOrInside, PathStaleVersionError, remove } from '@main/utils/file'
+import {
+  copyNew,
+  canonicalizePathForContainment,
+  isSameOrInside,
+  PathStaleVersionError,
+  remove
+} from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 /**
  * The caller window's WebContents — the directory tree addresses its mutation
@@ -32,6 +40,18 @@ function requireManagedSender(senderId: WindowId | null): TreeOwner {
   const webContents = senderWebContents(senderId)
   if (senderId == null || !webContents) throw new Error('file.tree.create requires a managed window sender')
   return { windowId: senderId, webContents }
+}
+
+async function assertPathInsideSessionWorkspace(targetPath: AbsoluteFilePath, sessionId: string): Promise<void> {
+  const session = agentSessionService.getById(sessionId)
+  const workspacePath = session.workspace.path
+  const [resolvedTarget, resolvedWorkspace] = await Promise.all([
+    canonicalizePathForContainment(targetPath, { allowMissing: false }),
+    canonicalizePathForContainment(workspacePath, { allowMissing: true })
+  ])
+  if (!resolvedTarget || !resolvedWorkspace || !isSameOrInside(resolvedTarget, resolvedWorkspace)) {
+    throw new Error('file.unlink path must be inside session workspace')
+  }
 }
 
 /**
@@ -153,12 +173,10 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       throw error
     }
   },
-  'file.unlink': async ({ path, workspacePath }, { senderId }) => {
+  'file.unlink': async ({ path, sessionId }, { senderId }) => {
     if (senderId == null) throw new Error('file.unlink requires a managed window sender')
     await assertOutsideManagedStorageMutation(path)
-    if (!isSameOrInside(path, workspacePath)) {
-      throw new Error('file.unlink path must be inside workspacePath')
-    }
+    await assertPathInsideSessionWorkspace(path, sessionId)
     await remove(path)
   },
   'file.open': async (handle) => {

@@ -9,6 +9,8 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 const {
   appGetMock,
   assertOutsideManagedStorageMutationMock,
+  agentSessionGetByIdMock,
+  canonicalizePathForContainmentMock,
   copyNewMock,
   getMetadataByPathMock,
   readByPathMock,
@@ -20,6 +22,8 @@ const {
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
+  agentSessionGetByIdMock: vi.fn(),
+  canonicalizePathForContainmentMock: vi.fn(async (target: string) => target),
   copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
@@ -30,10 +34,14 @@ const {
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: agentSessionGetByIdMock }
+}))
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtilsModule>()),
   copyNew: copyNewMock,
-  remove: removeMock
+  remove: removeMock,
+  canonicalizePathForContainment: canonicalizePathForContainmentMock
 }))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
@@ -348,10 +356,14 @@ describe('fileHandlers', () => {
   })
 
   it('unlink guards the path and delegates to the remove primitive', async () => {
+    agentSessionGetByIdMock.mockReturnValueOnce({
+      workspace: { path: '/tmp/exports' }
+    })
+
     await fileHandlers['file.unlink'](
       {
         path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath,
-        workspacePath: '/tmp/exports' as AbsoluteFilePath
+        sessionId: 'session-1'
       },
       windowCtx
     )
@@ -365,7 +377,7 @@ describe('fileHandlers', () => {
       fileHandlers['file.unlink'](
         {
           path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath,
-          workspacePath: '/tmp/exports' as AbsoluteFilePath
+          sessionId: 'session-1'
         },
         ctx
       )
@@ -607,28 +619,37 @@ describe('fileHandlers', () => {
     expect((error as IpcError).code).toBe(fileErrorCodes.DESTINATION_EXISTS)
   })
 
-  it('refuses file.unlink when the path is outside the declared workspace', async () => {
+  it('refuses file.unlink when the path is outside the session workspace', async () => {
+    agentSessionGetByIdMock.mockReturnValueOnce({
+      workspace: { path: '/tmp/ws' }
+    })
+
     await expect(
       fileHandlers['file.unlink'](
         {
           path: '/etc/passwd' as AbsoluteFilePath,
-          workspacePath: '/tmp/ws' as AbsoluteFilePath
+          sessionId: 'session-1'
         },
         windowCtx
       )
-    ).rejects.toThrow('inside workspacePath')
+    ).rejects.toThrow('inside session workspace')
     expect(removeMock).not.toHaveBeenCalled()
   })
 
-  it('unlinks a path inside the declared workspace', async () => {
+  it('unlinks a path inside the session workspace from the database', async () => {
+    agentSessionGetByIdMock.mockReturnValueOnce({
+      workspace: { path: '/tmp/ws' }
+    })
+
     await fileHandlers['file.unlink'](
       {
         path: '/tmp/ws/report.md' as AbsoluteFilePath,
-        workspacePath: '/tmp/ws' as AbsoluteFilePath
+        sessionId: 'session-1'
       },
       windowCtx
     )
 
+    expect(agentSessionGetByIdMock).toHaveBeenCalledWith('session-1')
     expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/ws/report.md')
     expect(removeMock).toHaveBeenCalledWith('/tmp/ws/report.md')
   })
