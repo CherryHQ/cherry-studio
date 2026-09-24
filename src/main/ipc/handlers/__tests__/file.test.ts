@@ -13,6 +13,7 @@ const {
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
+  removeMock,
   safeOpenMock,
   showPathInFolderMock,
   writeIfUnchangedByPathMock
@@ -23,6 +24,7 @@ const {
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
+  removeMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
@@ -30,7 +32,8 @@ const {
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtilsModule>()),
-  copyNew: copyNewMock
+  copyNew: copyNewMock,
+  remove: removeMock
 }))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
@@ -342,6 +345,21 @@ describe('fileHandlers', () => {
       )
     ).rejects.toThrow('managed storage')
     expect(copyNewMock).not.toHaveBeenCalled()
+  })
+
+  it('unlink guards the path and delegates to the remove primitive', async () => {
+    await fileHandlers['file.unlink']({ path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath }, windowCtx)
+
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
+    expect(removeMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
+  })
+
+  it('unlink refuses a trusted-but-unmanaged sender before touching anything', async () => {
+    await expect(
+      fileHandlers['file.unlink']({ path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath }, ctx)
+    ).rejects.toThrow('requires a managed window sender')
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(removeMock).not.toHaveBeenCalled()
   })
 
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {

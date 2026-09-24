@@ -66,7 +66,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { copyAttachmentToWorkspace } from '@renderer/utils/file/copyAttachmentToWorkspace'
+import { copyAttachmentToWorkspace, rollbackWorkspaceCopies } from '@renderer/utils/file/copyAttachmentToWorkspace'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -84,7 +84,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
@@ -154,7 +154,7 @@ const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
   attachment: ComposerAttachment
-  filePath: CanonicalFilePath
+  filePath: AbsoluteFilePath
   index: number
 }
 
@@ -184,7 +184,7 @@ const requestAccessiblePathMetadata = async (
 
 const buildAccessiblePathFilePart = (
   attachment: ComposerAttachment,
-  filePath: CanonicalFilePath,
+  filePath: AbsoluteFilePath,
   metadataByPath: OutputFor<'file.batch_get_metadata'>
 ): FileUIPart => {
   const metadata = metadataByPath[filePath]
@@ -254,14 +254,21 @@ const buildAgentFilePartsForAttachments = async (
 
   const workspaceCopyReservation = { reservedDestinations: new Set<string>() }
   const copiedAttachments: AccessibleAttachment[] = []
-  for (const { attachment, index } of workspaceCopiedAttachments) {
-    const copiedPath = await copyAttachmentToWorkspace(
-      attachment.path!,
-      workspacePath,
-      attachment.origin_name || attachment.name,
-      workspaceCopyReservation
-    )
-    copiedAttachments.push({ attachment, filePath: copiedPath, index })
+  const copiedDestPaths: AbsoluteFilePath[] = []
+  try {
+    for (const { attachment, index } of workspaceCopiedAttachments) {
+      const { reference, destPath } = await copyAttachmentToWorkspace(
+        attachment.path!,
+        workspacePath,
+        attachment.origin_name || attachment.name,
+        workspaceCopyReservation
+      )
+      copiedDestPaths.push(destPath)
+      copiedAttachments.push({ attachment, filePath: reference, index })
+    }
+  } catch (error) {
+    await rollbackWorkspaceCopies(copiedDestPaths)
+    throw error
   }
 
   const [metadataByPath, internalizedFileParts] = await Promise.all([

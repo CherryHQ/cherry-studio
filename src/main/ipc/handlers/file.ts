@@ -11,7 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { copyNew, PathStaleVersionError } from '@main/utils/file'
+import { copyNew, PathStaleVersionError, remove } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -145,6 +145,11 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
     await assertOutsideManagedStorageMutation(destPath)
     await copyNew(sourcePath, destPath)
+  },
+  'file.unlink': async ({ path }, { senderId }) => {
+    if (senderId == null) throw new Error('file.unlink requires a managed window sender')
+    await assertOutsideManagedStorageMutation(path)
+    await remove(path)
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
