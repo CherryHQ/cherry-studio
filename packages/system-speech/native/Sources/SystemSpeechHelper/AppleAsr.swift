@@ -10,7 +10,7 @@ struct AppleAsrCapability: Sendable {
 enum AppleAsr {
     static func listLocales() async -> AsrLocalesResult {
         guard #available(macOS 26.0, *) else {
-            return AsrLocalesResult(supported: [], installed: [])
+            return AppleLegacyAsr.listLocales()
         }
 
         return localesResult(
@@ -29,7 +29,7 @@ enum AppleAsr {
 
     static func capabilities(locale identifier: String) async -> AppleAsrCapability {
         guard #available(macOS 26.0, *) else {
-            return AppleAsrCapability(supportedLocale: nil, assetStatus: .unsupported)
+            return AppleLegacyAsr.capabilities(locale: identifier)
         }
 
         guard let supported = await SpeechTranscriber.supportedLocale(
@@ -90,7 +90,7 @@ enum AppleAsr {
 
     static func transcribe(locale identifier: String, inputPath: String) async throws -> TranscribeResult {
         guard #available(macOS 26.0, *) else {
-            throw HelperError(code: .unsupportedOs)
+            return try await AppleLegacyAsr.transcribe(locale: identifier, inputPath: inputPath)
         }
 
         guard let supported = await SpeechTranscriber.supportedLocale(

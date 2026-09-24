@@ -26,8 +26,12 @@ function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
 }
 
-function supportsApple(asr: boolean): boolean {
-  return process.platform === 'darwin' && Number.parseInt(process.getSystemVersion(), 10) >= (asr ? 26 : 13)
+function supportsApple(): boolean {
+  return process.platform === 'darwin' && Number.parseInt(process.getSystemVersion(), 10) >= 13
+}
+
+function supportsAppleAssetInstall(): boolean {
+  return supportsApple() && Number.parseInt(process.getSystemVersion(), 10) >= 26
 }
 
 function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
@@ -69,7 +73,7 @@ export async function getAppleVoiceStatus(
   signal?: AbortSignal
 ): Promise<LocalVoiceStatus> {
   checkAbort(signal)
-  if (!supportsApple(modelId === APPLE_ASR_MODEL_ID)) return { status: 'unsupported', reason: 'unsupported' }
+  if (!supportsApple()) return { status: 'unsupported', reason: 'unsupported' }
   try {
     const { result } = await nativeClient().request(
       { operation: 'capabilities', locale: options.language ?? DEFAULT_APPLE_ASR_LOCALE },
@@ -99,7 +103,7 @@ export async function getAppleVoiceStatus(
 
 export async function listLocalVoices(signal?: AbortSignal) {
   checkAbort(signal)
-  if (!supportsApple(false)) return []
+  if (!supportsApple()) return []
   try {
     return (await nativeClient().request({ operation: 'capabilities', locale: DEFAULT_APPLE_ASR_LOCALE }, { signal }))
       .result.voices
@@ -110,7 +114,7 @@ export async function listLocalVoices(signal?: AbortSignal) {
 
 export async function listAppleAsrLocales(signal?: AbortSignal) {
   checkAbort(signal)
-  if (!supportsApple(true)) return { supported: [], installed: [] }
+  if (!supportsApple()) return { supported: [], installed: [] }
   try {
     return (await nativeClient().request({ operation: 'list_asr_locales' }, { signal })).result
   } catch (error) {
@@ -120,7 +124,7 @@ export async function listAppleAsrLocales(signal?: AbortSignal) {
 
 export async function installAppleAsrAsset(language: string, signal?: AbortSignal) {
   checkAbort(signal)
-  if (!supportsApple(true)) throw new VoiceRuntimeError('unsupported')
+  if (!supportsAppleAssetInstall()) throw new VoiceRuntimeError('unsupported')
   try {
     return (
       await nativeClient(600_000).request(
