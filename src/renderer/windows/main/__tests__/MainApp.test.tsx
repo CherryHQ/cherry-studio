@@ -36,7 +36,6 @@ vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMoni
 vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({
   ConversationNotificationRuntime: () => null
 }))
-vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('../hooks/useBackupRestoreNotice', () => ({ useBackupRestoreNotice: () => {} }))

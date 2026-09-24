@@ -168,6 +168,10 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
   - **`interval`** triggers compare persisted `nextRun ≤ now()`. Rows written before interval due times were persisted fall back to `(lastRun ?? createdAt) + intervalMs`, so upgrades do not lose catch-up detection.
   - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally. Startup recovery enforces the complementary invariant: natural `once` fires persist `lastRun` clamped to no earlier than `trigger.at` (the once timer elapses on the monotonic clock, so an unclamped wall-clock read can land at `at - 1`), and `armSchedule` skips rows with `lastRun >= trigger.at` instead of re-arming them, while a never-fired past-due `once` still re-arms and fires immediately. This is a recovery-side guard, not strict exactly-once delivery — a crash between a fire's enqueue and its `markFired` write can still replay the one-shot on the next startup.
 
+### Overlapping fires: `skipFireWhileUnfinished`
+
+A schedule fire enqueues a new job whether or not the schedule's previous job has finished, so a run slower than its interval builds a backlog. A handler that only ever wants the latest run sets `skipFireWhileUnfinished: true`: a fire that finds the schedule's previous job `pending`, `delayed` or `running` enqueues nothing but still advances `lastRun` / `nextRun`. Catch-up and manual triggers are unaffected.
+
 ## 5. Error codes
 
 Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and are thrown by `JobManager` / `JobScheduleService`. The persisted `JobSnapshot.error.code` is the machine-readable contract; a domain UI may branch on it or provide its own localized presentation. There is no generic renderer error-code mapper today.

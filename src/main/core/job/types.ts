@@ -88,6 +88,12 @@ export interface JobHandler<TPayload = unknown> {
   defaultTimeoutMs?: number
   /** Grace period to wait for handler to react to AbortSignal after cancel. Defaults to 30000ms. */
   cancelTimeoutMs?: number
+  /**
+   * Skip a schedule fire while that schedule still has an unfinished job, so a
+   * run slower than its interval cannot build a backlog. The skipped fire still
+   * advances `lastRun` / `nextRun`. Defaults to false.
+   */
+  skipFireWhileUnfinished?: boolean
   /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
   execute(ctx: JobContext<TPayload>): Promise<unknown>
   /**

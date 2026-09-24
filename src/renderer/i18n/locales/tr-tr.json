@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Bağlantı başarılı",
   "message.attachments.pasted_image": "Yapıştırılan Görsel",
   "message.attachments.pasted_text": "Yapıştırılan Metin",
-  "message.backup.cleanup_failed": "Yedekleme tamamlandı ancak eski yedekler temizlenemedi.",
   "message.backup.failed": "Yedekleme başarısız oldu",
   "message.backup.success": "Yedekleme başarılı",
   "message.chat.completion.paused": "Sohbet tamamlama duraklatıldı",

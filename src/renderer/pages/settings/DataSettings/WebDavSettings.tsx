@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save } from 'lucide-react'
+import { FolderOpen, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,8 +17,9 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
+
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -41,15 +42,15 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const webdavSync = useBackupSyncState('webdav')
+  const { status: autoSync, refresh: refreshAutoSync } = useAutoSyncStatus('webdav')
+
+  // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
 
   const onSyncIntervalChange = async (value: number) => {
     await setWebdavSyncInterval(value)
-    if (value === 0) {
-      await setWebdavAutoSync(false)
-    } else {
-      await setWebdavAutoSync(true)
-    }
+    await setWebdavAutoSync(value > 0)
+    // Main reconciles the schedule from these settings; read back what it decided.
+    await refreshAutoSync()
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -63,22 +64,23 @@ const WebDavSettings: FC = () => {
   const renderSyncStatus = () => {
     if (!webdavHost) return null
 
-    if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!webdavSync.syncing && webdavSync.lastSyncError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
+            content={`${t('settings.data.webdav.syncError')}: ${t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem])}`}
             iconProps={{ color: 'var(--error)' }}
           />
         )}
-        {webdavSync.lastSyncTime && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.webdav.lastSync')}: {dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')}
           </span>
         )}
       </RowFlex>
@@ -86,7 +88,7 @@ const WebDavSettings: FC = () => {
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useWebdavBackupModal()
+    useWebdavBackupModal({ destination: 'webdav' })
 
   const showBackupManager = () => {
     setBackupManagerVisible(true)
@@ -220,7 +222,7 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
       </SettingRow>
-      {webdavSync && webdavSyncInterval > 0 && (
+      {webdavSyncInterval > 0 && (
         <>
           <SettingDivider />
           <SettingRow>

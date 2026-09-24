@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Соединение успешно",
   "message.attachments.pasted_image": "Вырезанное изображение",
   "message.attachments.pasted_text": "Вырезанный текст",
-  "message.backup.cleanup_failed": "Резервное копирование завершено, но удалить старые резервные копии не удалось.",
   "message.backup.failed": "Создание резервной копии не удалось",
   "message.backup.success": "Резервная копия успешно создана",
   "message.chat.completion.paused": "Завершение чата приостановлено",

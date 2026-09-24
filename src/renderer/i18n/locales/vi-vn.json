@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Kết nối thành công",
   "message.attachments.pasted_image": "Hình ảnh đã dán",
   "message.attachments.pasted_text": "Văn bản đã dán",
-  "message.backup.cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",
   "message.backup.failed": "Sao lưu thất bại",
   "message.backup.success": "Sao lưu thành công",
   "message.chat.completion.paused": "Đã tạm dừng hoàn tất trò chuyện",

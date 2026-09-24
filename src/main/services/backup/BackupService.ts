@@ -8,6 +8,12 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import { BackupArchiveNameSchema, type BackupDestinationId, type BackupProgressStage } from '@shared/ipc/schemas/backup'
 import type { EventPayload } from '@shared/ipc/types'
 
+import {
+  AUTO_SYNC_JOB_TYPE,
+  AUTO_SYNC_PREFERENCE_KEYS,
+  autoSyncJobHandler,
+  reconcileAutoSyncSchedules
+} from './autoSync'
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
 import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
@@ -128,7 +134,7 @@ export interface BackupStatus {
 @ServicePhase(Phase.WhenReady)
 // Post-promotion work calls KnowledgeService. The owner must be initialized
 // before BackupService starts and remain alive until BackupService has stopped.
-@DependsOn(['KnowledgeService'])
+@DependsOn(['KnowledgeService', 'JobManager'])
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
@@ -148,6 +154,29 @@ export class BackupService extends BaseService {
     this.shuttingDown = false
     this.postPromotionSuppressed = false
     this.exportCleanupWork = null
+
+    // HERE, not in a later hook: JobManager's startup recovery cancels
+    // non-terminal jobs whose type has no registered handler, and it wakes on
+    // its own timer rather than waiting for us.
+    const jobManager = application.get('JobManager')
+    // A restart re-runs onInit; JobManager has no unregister and throws on a duplicate.
+    if (!jobManager.hasHandler(AUTO_SYNC_JOB_TYPE)) jobManager.registerHandler(AUTO_SYNC_JOB_TYPE, autoSyncJobHandler)
+
+    // Preference is the source of truth; the schedule row is its projection.
+    this.registerDisposable(
+      application
+        .get('PreferenceService')
+        .subscribeMultipleChanges([...AUTO_SYNC_PREFERENCE_KEYS], () => this.reconcileAutoSync())
+    )
+  }
+
+  /** Never let a settings edit — or a restore's forced disable — throw here. */
+  private reconcileAutoSync(): void {
+    try {
+      reconcileAutoSyncSchedules()
+    } catch (error) {
+      logger.error('Could not reconcile automatic backup schedules', error as Error)
+    }
   }
 
   /**
@@ -156,6 +185,10 @@ export class BackupService extends BaseService {
    * expired) any promotion, so acting on the journal here could only fight it.
    */
   protected onReady(): void {
+    // Settings are the source of truth; after a restore they say "off" until
+    // the user turns each destination back on.
+    this.reconcileAutoSync()
+
     const status = this.getRestoreStatus()
     switch (status.kind) {
       case 'none':
@@ -271,14 +304,17 @@ export class BackupService extends BaseService {
    */
   public async exportToDestination(
     id: BackupDestinationId,
-    customName?: string
+    customName?: string,
+    /** The caller's own cancellation, on top of {@link cancelOperation}'s. */
+    callerSignal?: AbortSignal
   ): Promise<{ name: string; degradations: ExportArchiveResult['manifest']['degradations'] }> {
     // Resolved before the claim: an unconfigured destination is not an operation,
     // and must not make a concurrent export look busy.
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal, reportStage, reportUnit) => {
+    return this.runExclusive('export', async (operationSignal, reportStage, reportUnit) => {
+      const signal = callerSignal ? AbortSignal.any([operationSignal, callerSignal]) : operationSignal
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.

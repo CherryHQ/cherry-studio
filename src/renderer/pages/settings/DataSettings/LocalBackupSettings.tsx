@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { FolderOpen, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,13 +16,14 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 
 const logger = loggerService.withContext('LocalBackupSettings')
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
+
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const LocalBackupSettings: React.FC = () => {
@@ -32,6 +33,8 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
+  // The field edits a draft; only a validated blur reaches the preference, so a
+  // half-typed path is never persisted.
   const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
@@ -55,15 +58,13 @@ const LocalBackupSettings: React.FC = () => {
 
   const { t } = useTranslation()
 
-  const localBackupSync = useBackupSyncState('local')
+  const { status: autoSync, refresh: refreshAutoSync } = useAutoSyncStatus('local')
 
   const onSyncIntervalChange = async (value: number) => {
     await setLocalBackupSyncInterval(value)
-    if (value === 0) {
-      await setLocalBackupAutoSync(false)
-    } else {
-      await setLocalBackupAutoSync(true)
-    }
+    await setLocalBackupAutoSync(value > 0)
+    // Main reconciles the schedule from these settings; read back what it decided.
+    await refreshAutoSync()
   }
 
   const checkLocalBackupDirValid = async (dir: string) => {
@@ -72,6 +73,9 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     const resolvedDir = await window.api.resolvePath(dir)
+    // Fetched on mount, but the user can blur this field before that lands —
+    // and a validator that throws here leaves the directory neither saved nor
+    // reverted, with nothing shown.
     const info = appInfo ?? (await ipcApi.request('app.get_info'))
 
     // check new local backup dir is not in app data path
@@ -105,7 +109,7 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     if (value === '') {
-      await handleClearDirectory()
+      void handleClearDirectory()
       return
     }
 
@@ -115,6 +119,7 @@ const LocalBackupSettings: React.FC = () => {
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
+      await refreshAutoSync()
       return
     }
 
@@ -146,27 +151,29 @@ const LocalBackupSettings: React.FC = () => {
     setLocalBackupDirDraft('')
     await setLocalBackupDir('')
     await setLocalBackupAutoSync(false)
+    await refreshAutoSync()
   }
 
   const renderSyncStatus = () => {
     if (!localBackupDir) return null
 
-    if (!localBackupSync.lastSyncTime && !localBackupSync.syncing && !localBackupSync.lastSyncError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.local.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!localBackupSync.syncing && localBackupSync.lastSyncError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
+            content={`${t('settings.data.local.syncError')}: ${t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem])}`}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {localBackupSync.lastSyncTime && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.local.lastSync')}: {dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')}
           </span>
         )}
       </RowFlex>
@@ -263,7 +270,7 @@ const LocalBackupSettings: React.FC = () => {
           ]}
         />
       </SettingRow>
-      {localBackupSync && localBackupSyncInterval > 0 && (
+      {localBackupSyncInterval > 0 && (
         <>
           <SettingDivider />
           <SettingRow>

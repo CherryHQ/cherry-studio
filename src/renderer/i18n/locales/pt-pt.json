@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Conexão bem-sucedida",
   "message.attachments.pasted_image": "Imagem da área de transferência",
   "message.attachments.pasted_text": "Ficheiro da área de transferência",
-  "message.backup.cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
   "message.backup.failed": "Backup falhou",
   "message.backup.success": "Backup bem-sucedido",
   "message.chat.completion.paused": "Conversa pausada",

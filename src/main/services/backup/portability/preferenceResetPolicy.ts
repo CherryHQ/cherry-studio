@@ -144,14 +144,12 @@ export const PREFERENCE_RESET_KEYS = [
   'feature.api_gateway.api_key',
 
   // -- Automatic remote sync (armed capability, §1.5) --
-  // `startAutoSync()` arms a recurring upload for every destination whose
-  // auto-sync flag and endpoint are both set
-  // (src/renderer/services/BackupService.ts:585-593), reachable as soon as the
-  // Data Settings page mounts (e.g.
-  // src/renderer/pages/settings/DataSettings/WebDavSettings.tsx:54). Since the
-  // archive also supplies the destination host and credentials in plaintext,
-  // preserving these flags would let a restored archive automatically upload the
-  // TARGET user's database to a destination the archive chose. The destination
+  // `reconcileAutoSyncSchedules()` (src/main/services/backup/autoSync.ts) arms
+  // a recurring upload in main for every destination whose auto-sync flag is
+  // set, from app start. Since the archive also supplies the destination host
+  // and credentials in plaintext, preserving these flags would let a restored
+  // archive automatically upload the TARGET user's database to a destination
+  // the archive chose. The destination
   // config itself is preserved (as with MCP `command`); only the automation is
   // reset, so the user re-confirms with one switch.
   'data.backup.local.auto_sync',

@@ -28,7 +28,6 @@ import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
-import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useBackupRestoreNotice } from './hooks/useBackupRestoreNotice'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
@@ -50,8 +49,8 @@ function BootFallback(): React.ReactElement {
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification /
-// useTopicNamingErrorNotification / useBackupRestoreNotice are
+// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification /
+// useBackupRestoreNotice are
 // intentionally main-only (update events only reach the main window; the storage warning,
 // topic-naming-failed toast and restore-outcome notice must not duplicate across windows)
 // and intentionally React hooks:
@@ -86,7 +85,6 @@ function MainWindowRuntime(): null {
   }, [])
 
   useAppUpdateHandler()
-  useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
   useBackupRestoreNotice()

@@ -518,6 +518,43 @@ profile, so materializing one in memory to hand to a client is how a large
 backup becomes an out-of-memory crash on the machine that could least afford to
 lose it.
 
+### 7.2 Scheduled backups
+
+`backup.auto-sync` is a JobManager type with one schedule per destination, named
+after it. `autoSync.ts` owns the handler and the reconciler; `BackupService`
+registers the handler in `onInit`, because JobManager's startup recovery cancels
+non-terminal jobs whose type has no handler and it wakes on its own timer.
+
+**Preference is the source of truth; the schedule row is its projection.** The
+reconciler runs on any change to `data.backup.*.{auto_sync,sync_interval}` and
+at `onReady`, and it is written to be safe at any time. A restore forces every
+schedule row to `enabled: false` (§7.1's table policy) and also resets every
+`auto_sync` preference, so the reconcile after it leaves each destination off
+until the user turns it back on.
+
+Three rules the reconciler exists to keep:
+
+- **Patch only what differs.** `updateJobSchedule` re-arms on field *presence*,
+  not on a changed value, so an unchanged trigger in the patch restarts the
+  interval — and a reconcile on every unrelated settings edit would push the
+  next backup further away forever.
+- **A zero interval is "off", not "immediately".** That is how the settings UI
+  spells disabled.
+- **`after-startup`, not `skip-missed`.** A daily backup would otherwise never
+  run for anyone who does not leave the app open across the interval boundary.
+
+The handler is `abandon`: a run interrupted by quitting is not resumed. A turn
+missed while the app was closed is the `after-startup` catch-up above, not a
+recovered job. All destinations share one queue, because an export holds the
+service exclusively — concurrent destinations would fail each other with
+`BackupBusyError` instead of waiting. A run that still meets a busy service (a
+manual export or restore) is skipped, not failed; the next turn covers it.
+
+The status the settings pages show is read from each schedule's terminal runs,
+not from the schedule row: `lastRun` there is when the timer fired, which a
+failed, skipped, or retrying run writes too. "Last backup" is the last run that
+wrote an archive; a failed or not-configured latest run is reported beside it.
+
 ## 8. Restore transaction
 
 Restore is split across runtime preparation and preboot promotion.

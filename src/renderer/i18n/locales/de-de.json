@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Verbindung erfolgreich",
   "message.attachments.pasted_image": "Bild aus Zwischenablage",
   "message.attachments.pasted_text": "Datei aus Zwischenablage",
-  "message.backup.cleanup_failed": "Die Sicherung wurde abgeschlossen, aber alte Sicherungen konnten nicht bereinigt werden.",
   "message.backup.failed": "Backup fehlgeschlagen",
   "message.backup.success": "Backup erfolgreich",
   "message.chat.completion.paused": "Sitzung gestoppt",

@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Conexión exitosa",
   "message.attachments.pasted_image": "Imagen del portapapeles",
   "message.attachments.pasted_text": "Archivo del portapapeles",
-  "message.backup.cleanup_failed": "La copia de seguridad se completó, pero no se pudieron limpiar las copias antiguas.",
   "message.backup.failed": "Backup fallido",
   "message.backup.success": "Backup exitoso",
   "message.chat.completion.paused": "Chat pausado",

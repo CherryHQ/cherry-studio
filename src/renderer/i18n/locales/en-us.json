@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Connection successful",
   "message.attachments.pasted_image": "Pasted Image",
   "message.attachments.pasted_text": "Pasted Text",
-  "message.backup.cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
   "message.backup.failed": "Backup failed",
   "message.backup.success": "Backup successful",
   "message.chat.completion.paused": "Chat completion paused",

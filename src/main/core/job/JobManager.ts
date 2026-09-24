@@ -2151,9 +2151,13 @@ export class JobManager extends BaseService {
 
       const firedAt = Date.now()
       try {
-        this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
-          scheduleId: currentSchedule.id
-        })
+        if (this.hasUnfinishedRunToSkipFor(currentSchedule)) {
+          logger.info('Schedule fire skipped — the previous run is unfinished', { scheduleId: currentSchedule.id })
+        } else {
+          this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
+            scheduleId: currentSchedule.id
+          })
+        }
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
@@ -2388,6 +2392,13 @@ export class JobManager extends BaseService {
     })
     this.finishedResolvers.set(snapshot.id, { resolve, promise })
     return { id: snapshot.id, snapshot, finished: promise }
+  }
+
+  /** See `JobHandler.skipFireWhileUnfinished`. */
+  private hasUnfinishedRunToSkipFor(schedule: JobScheduleSnapshot): boolean {
+    if (!this.handlers.get(schedule.type)?.skipFireWhileUnfinished) return false
+    const kind = jobService.getRunStatesByScheduleIds(schedule.type, [schedule.id]).get(schedule.id)?.kind
+    return kind === 'running' || kind === 'unfinished'
   }
 
   private isTerminal(status: JobSnapshot['status']): boolean {

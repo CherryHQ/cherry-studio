@@ -4,7 +4,6 @@ import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
-import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
@@ -361,7 +360,6 @@ export type SharedCacheSchema = {
   'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
   'channel.status.${channelId}': ChannelStatus | null
   'storage.health': StorageHealth
-  'backup.auto_sync.state.${type}': AutoBackupEvent | null
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
@@ -403,7 +401,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mini_app.attention': [],
   'channel.status.${channelId}': null,
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
-  'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
@@ -536,9 +533,6 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  */
 export type MainPersistCacheSchema = {
   'browser.favicons': Record<string, string>
-  // Last completed automatic-backup attempt (or manual backup) per backend.
-  // AutoBackupService owns this restart-safe scheduling baseline.
-  'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -551,7 +545,6 @@ export type MainPersistCacheSchema = {
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
-  'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

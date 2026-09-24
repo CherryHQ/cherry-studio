@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { backupToLocal } from '@renderer/services/BackupService'
+import { backupToDestination } from '@renderer/services/backupDestination'
 import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 
 interface LocalBackupModalProps {
@@ -75,7 +75,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
     setBackuping(true)
     try {
-      await backupToLocal({ customFileName })
+      await backupToDestination('local', { showMessage: true, name: customFileName || undefined })
       setIsModalVisible(false)
     } catch (error) {
       logger.error('Backup failed:', error as Error)

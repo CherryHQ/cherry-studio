@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "接続に成功しました",
   "message.attachments.pasted_image": "クリップボード画像",
   "message.attachments.pasted_text": "クリップボードファイル",
-  "message.backup.cleanup_failed": "バックアップは完了しましたが、古いバックアップを削除できませんでした。",
   "message.backup.failed": "バックアップに失敗しました",
   "message.backup.success": "バックアップに成功しました",
   "message.chat.completion.paused": "チャットの完了が一時停止されました",

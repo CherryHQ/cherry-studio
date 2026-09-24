@@ -65,6 +65,7 @@ const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
     vi.fn<
       (input: {
         outPath: string
+        signal?: AbortSignal
         reportStage?: (stage: string) => void
         reportUnit?: (unit: { kind: string; livePath: string; done: number; total: number }) => void
       }) => Promise<unknown>
@@ -93,11 +94,26 @@ vi.mock('@main/utils/system', () => ({ getHostname: () => 'work-laptop', getDevi
 
 let userDataDir = ''
 const broadcastMock = vi.hoisted(() => vi.fn())
+// Mirrors the real registry: one handler per type, and a second registration throws.
+const jobManagerFake = vi.hoisted(() => {
+  const types = new Set<string>()
+  return {
+    hasHandler: (type: string) => types.has(type),
+    registerHandler: (type: string) => {
+      if (types.has(type)) throw new Error(`handler for type "${type}" is already registered`)
+      types.add(type)
+    },
+    getJobSchedule: () => null
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'KnowledgeService') return { cancelRestoredMaterialRebuild: cancelRebuildMock }
+      // Registered in `onInit`; the auto-sync behaviour itself is proven in autoSync.test.ts.
+      if (name === 'JobManager') return jobManagerFake
+      if (name === 'PreferenceService') return { get: () => false, subscribeMultipleChanges: () => () => {} }
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       throw new Error(`Unexpected service in BackupService test: ${name}`)
     }),
@@ -196,10 +212,10 @@ describe('BackupService', () => {
     it('initializes after the path registry is frozen and declares its same-phase owner dependency', () => {
       // Journal paths resolve through `application.getPath`, so BeforeReady
       // would be too early. Phase ordering to DbService/PreferenceService is
-      // enforced by the container, never by @DependsOn; KnowledgeService is a
-      // same-phase peer this service calls, so that one IS declared.
+      // enforced by the container, never by @DependsOn; KnowledgeService and
+      // JobManager are same-phase peers this service calls, so both ARE declared.
       expect(getPhase(BackupService)).toBe(Phase.WhenReady)
-      expect(getDependencies(BackupService)).toEqual(['KnowledgeService'])
+      expect(getDependencies(BackupService)).toEqual(['KnowledgeService', 'JobManager'])
     })
 
     it('starts after KnowledgeService and stops before it', () => {
@@ -781,6 +797,19 @@ describe('BackupService.exportToDestination', () => {
       .map(([, payload]) => payload as { stage: string; resources?: { done: number } })
     expect(payloads.map((p) => p.stage)).toEqual(['capturing-resources', 'capturing-resources', 'uploading'])
     expect(payloads[1].resources?.done).toBe(1)
+  })
+
+  it("aborts the export when the caller's own signal does", async () => {
+    const caller = new AbortController()
+    let seen: AbortSignal | undefined
+    exportArchiveMock.mockImplementationOnce(async ({ signal }) => {
+      seen = signal
+      caller.abort()
+      throw new Error('aborted')
+    })
+
+    await expect(service.exportToDestination('webdav', undefined, caller.signal)).rejects.toThrow('aborted')
+    expect(seen?.aborted).toBe(true)
   })
 
   it('reports the admission stage for a restore prepared from a destination', async () => {

@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save } from 'lucide-react'
+import { FolderOpen, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,9 +18,10 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
+
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -42,15 +43,13 @@ const S3Settings: FC = () => {
 
   const { openSmartMiniApp } = useMiniAppPopup()
 
-  const s3Sync = useBackupSyncState('s3')
+  const { status: autoSync, refresh: refreshAutoSync } = useAutoSyncStatus('s3')
 
   const onSyncIntervalChange = async (value: number) => {
     await setS3SyncInterval(value)
-    if (value === 0) {
-      await setS3AutoSync(false)
-    } else {
-      await setS3AutoSync(true)
-    }
+    await setS3AutoSync(value > 0)
+    // Main reconciles the schedule from these settings; read back what it decided.
+    await refreshAutoSync()
   }
 
   const handleTitleClick = () => {
@@ -69,22 +68,25 @@ const S3Settings: FC = () => {
   const renderSyncStatus = () => {
     if (!s3Endpoint) return null
 
-    if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.s3.syncStatus.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!s3Sync?.syncing && s3Sync?.lastSyncError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
+            content={t('settings.data.s3.syncStatus.error', { message: t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem]) })}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {s3Sync?.lastSyncTime && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
+            {t('settings.data.s3.syncStatus.lastSync', {
+              time: dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')
+            })}
           </span>
         )}
       </RowFlex>

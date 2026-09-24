@@ -2162,7 +2162,6 @@
   "message.api.connection.success": "Conexiune reușită",
   "message.attachments.pasted_image": "Imagine lipită",
   "message.attachments.pasted_text": "Text lipit",
-  "message.backup.cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",
   "message.backup.failed": "Backup eșuat",
   "message.backup.success": "Backup reușit",
   "message.chat.completion.paused": "Completarea chat-ului a fost pusă în pauză",
