@@ -20,7 +20,11 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "7d3fd056a966a1a30933c3e30c47813d6f1d3e6d"
+      "revision": "86b2c7e1a7ea21d416782ed90fba19e496f02f88"
+    },
+    "uar": {
+      "repository": "Prometheus-AGS/universal-agent-runtime",
+      "revision": "03026c5a074c5f16eba87d7bcf39300ce4660cc0"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
@@ -53,6 +57,12 @@
       "source": "pk",
       "package": "pk-cli",
       "version": "1.9.0"
+    },
+    "uar-sidecar": {
+      "source": "uar",
+      "package": "universal-agent-runtime",
+      "version": "1.0.0",
+      "features": "minimal,local-models,document-intelligence,wasm-runtime"
     }
   },
   "parser": {

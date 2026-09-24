@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
@@ -164,6 +165,7 @@ export class UarSidecarService extends BaseService {
       UAR_PERSISTENCE__PROVIDER: 'surreal',
       UAR_PERSISTENCE__DATABASE_URL: `surrealkv://${path.resolve(dataRoot, 'runtime.db').replaceAll('\\', '/')}`,
       UAR_BUILTIN_SKILLS_DIR: path.join(application.getPath('feature.prometheus.pack.runtime'), 'skills'),
+      UAR_MODELS_DIR: path.join(path.dirname(executable), 'uar-models'),
       UAR_LOAD_IMPORTED_SKILLS: 'true',
       UAR_NATIVE_TOOLS__FILE_TOOLS_ENABLED: 'false',
       UAR_NATIVE_TOOLS__WEB_FETCH_ENABLED: 'false',
@@ -272,6 +274,12 @@ export class UarSidecarService extends BaseService {
   private async resolveExecutable(): Promise<string> {
     const override = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
     if (override) return override
+    const bundled = path.join(
+      application.getPath('app.root.resources.binaries'),
+      `${process.platform}-${process.arch}`,
+      `uar-sidecar${isWin ? '.exe' : ''}`
+    )
+    if (existsSync(bundled)) return bundled
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
     if (snapshot.availability.source !== 'none') return snapshot.availability.path
     throw new Error('UAR sidecar binary is not installed')

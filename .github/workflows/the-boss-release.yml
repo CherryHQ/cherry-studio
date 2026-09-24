@@ -10,7 +10,13 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      ["**/*.md", "docs/**", ".kbd-orchestrator/**", ".prometheus/**", "openspec/**", "release-manifest.json"]
+      - "**/*.md"
+      - docs/**
+      - .kbd-orchestrator/**
+      - .prometheus/**
+      - openspec/**
+      - release-manifest.json
+      - build/integration-artifacts.json
 concurrency:
   group: the-boss-release-${{ github.ref }}
   cancel-in-progress: false
