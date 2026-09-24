@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Bitte optimieren oder überarbeiten Sie die Nutzereingabe innerhalb des XML-Elements INPUT, ohne Bedeutung oder Vollständigkeit des ursprünglichen Inhalts zu verändern. Anforderungen: Geben Sie die Antwort in derselben Sprache wie die Nutzereingabe aus; erklären Sie diesen Prompt nicht, sondern geben Sie direkt die Antwort aus; geben Sie keine XML-Tags aus, sondern nur den optimierten Inhalt:\n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Bitte fassen Sie den folgenden Inhalt zusammen. Anforderungen: Antworten Sie auf {{language}}; erklären Sie diesen Prompt nicht, sondern geben Sie direkt die Antwort aus: \n\n",
   "selection.action.translate.smart_translate_tips": "Intelligente Übersetzung: Inhalt wird bevorzugt in Zielsprache übersetzt; wenn Inhalt bereits in Zielsprache, Übersetzung in Alternativsprache",
+  "selection.action.voice.read_original": "Original vorlesen",
+  "selection.action.voice.read_result": "Ergebnis vorlesen",
   "selection.action.window.c_copy": "C zum Kopieren",
   "selection.action.window.esc_close": "Esc Schließen",
   "selection.action.window.esc_stop": "Esc Stoppen",

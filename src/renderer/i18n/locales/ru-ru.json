@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Оптимизируйте или улучшите пользовательский ввод внутри XML-элемента INPUT, сохранив смысл и целостность исходного текста. Требования: ответ должен быть на том же языке, что и пользовательский ввод; не объясняйте этот промпт, сразу дайте результат; не выводите XML-теги, выведите только улучшенный текст: \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Кратко изложите следующее содержимое. Требования: ответьте на языке {{language}}; не объясняйте этот промпт, сразу дайте ответ: \n\n",
   "selection.action.translate.smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык",
+  "selection.action.voice.read_original": "Озвучить исходный текст",
+  "selection.action.voice.read_result": "Озвучить результат",
   "selection.action.window.c_copy": "C - копировать",
   "selection.action.window.esc_close": "Esc - закрыть",
   "selection.action.window.esc_stop": "Esc - остановить",

@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Please optimize or polish the user input inside the INPUT XML element while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
   "selection.action.translate.smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language",
+  "selection.action.voice.read_original": "Read original aloud",
+  "selection.action.voice.read_result": "Read result aloud",
   "selection.action.window.c_copy": "C: Copy",
   "selection.action.window.esc_close": "Esc: Close",
   "selection.action.window.esc_stop": "Esc: Stop",

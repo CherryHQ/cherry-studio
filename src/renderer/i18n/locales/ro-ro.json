@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Optimizează sau îmbunătățește textul introdus de utilizator în elementul XML INPUT, păstrând sensul și integritatea conținutului original. Cerințe: răspunde în aceeași limbă ca textul introdus; nu include nicio explicație a acestui prompt, ci oferă direct răspunsul; nu afișa etichete XML, ci doar conținutul optimizat: \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Rezumă următorul conținut. Cerințe: răspunde în {{language}}; nu include nicio explicație a acestui prompt, ci oferă direct răspunsul: \n\n",
   "selection.action.translate.smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă",
+  "selection.action.voice.read_original": "Citește originalul cu voce tare",
+  "selection.action.voice.read_result": "Citește rezultatul cu voce tare",
   "selection.action.window.c_copy": "C: Copiază",
   "selection.action.window.esc_close": "Esc: Închide",
   "selection.action.window.esc_stop": "Esc: Oprește",
