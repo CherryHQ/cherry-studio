@@ -25,12 +25,13 @@ const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypas
   `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
 
 /**
- * Loopback targets that must never travel through the configured proxy: a proxy is an egress
- * route, and routing same-host services (local MCP servers, dev gateways) through it breaks
- * them — with a user proxy set, WSL-facing `127.0.0.1` MCP endpoints were unreachable (#20920).
- * Same rule set the agent runtime injects into subprocess environments.
+ * Loopback and link-local targets that must never travel through the configured proxy: a proxy
+ * is an egress route, and routing same-host services (local MCP servers, dev gateways) through
+ * it breaks them — with a user proxy set, WSL-facing `127.0.0.1` MCP endpoints were unreachable
+ * (#20920). Chromium enforces this scope implicitly (net/docs/proxy.md, "Implicit bypass
+ * rules"); restating it explicitly keeps the guarantee even where the implicit pass doesn't.
  */
-const LOOPBACK_BYPASS_RULES = ['localhost', '127.0.0.1', '::1', '[::1]']
+const LOOPBACK_BYPASS_RULES = ['localhost', '*.localhost', '127.0.0.0/8', '0.0.0.0', '[::1]', '169.254/16', 'fe80::/10']
 
 /**
  * Merge the loopback bypass rules into the user's `app.proxy.bypass_rules`, keeping their
@@ -209,9 +210,15 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
+    // `<-loopback>` only cancels the Electron session's implicit loopback bypass; the Node
+    // matcher has no implicit scope of its own, so the directive would be a dead rule there.
+    const nodeBypassRules = config.proxyBypassRules
+      ?.split(',')
+      .filter((entry) => entry.trim() !== '<-loopback>')
+      .join(',')
     await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
-      proxyBypassRules: config.proxyBypassRules
+      proxyBypassRules: nodeBypassRules || undefined
     })
     await this.setSessionsProxy(config)
   }
