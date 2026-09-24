@@ -458,10 +458,10 @@ export class AiStreamManager extends BaseService {
     return this.dispatchLock.runExclusive(topicId, fn)
   }
 
-  // ── Write quiesce (backup restore) ───────────────────────────────
+  // ── Write quiesce (backup capture / restore) ───────────────────────────────
   // Contract shared with JobManager / AgentSessionRuntimeService / ChannelManager
   // (issues #16849/#16850): pause() gates new-turn ADMISSION (before prepareDispatch
-  // writes rows) so a restore snapshot sees no new `agent_session_message`/`message`
+  // writes rows) so backup capture and restore see no new `agent_session_message`/`message`
   // writes; drainInFlight() awaits everything already writing. Prompt streams
   // (translate / API gateway / topic naming) carry no persistence listener and are
   // neither gated nor drained. `AiService.embedMany` never routes through this

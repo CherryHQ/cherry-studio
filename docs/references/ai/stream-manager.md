@@ -609,9 +609,11 @@ unhandledRejection.
 
 ## Write quiesce (pause / drainInFlight)
 
-Serves backup restore (#16849, same contract as JobManager's — see
-[job overview](../job-and-scheduler/overview.md#pause-and-drain-write-quiesce)): after
-the restore snapshot is staged, any main-side write to the old live DB fails the
+Serves both backup capture and restore (#16849, same contract as JobManager's — see
+[job overview](../job-and-scheduler/overview.md#pause-and-drain-write-quiesce)): a backup
+capture holds the gate while the snapshot is copied and releases it in a `finally`;
+a restore holds it from the staged snapshot until relaunch once the journal is committed.
+After the restore snapshot is staged, any main-side write to the old live DB fails the
 fingerprint re-check and wastes the whole restore attempt. Three AI-side writers carry
 the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel intake
 (`ChannelManager` → `ChannelMessageHandler`) — each exposing
@@ -641,8 +643,8 @@ between flush and `startAgentSessionRun`, the batch hits the closed AI gate and 
 Because the adapter already ACKed it, it cannot be recovered by aborting the restore. The
 channel-drain-before-AI-pause ordering is therefore a correctness precondition, not merely a
 performance optimization. On any drain timeout the orchestrator aborts the attempt (dispose
-all holds); the happy path never disposes — the holds stand until relaunch, and a lost hold
-fails closed.
+all holds); the restore happy path never disposes — the holds stand until relaunch, and a
+lost hold fails closed. A backup capture releases its holds in a `finally`.
 
 AiStreamManager specifics:
 
