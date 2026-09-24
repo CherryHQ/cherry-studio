@@ -19,6 +19,7 @@ on:
           - mini-app
           - notes
           - custom-provider-chat
+          - provider-model-scroll
           - custom-assistant
           - translation
           - quick-assistant
