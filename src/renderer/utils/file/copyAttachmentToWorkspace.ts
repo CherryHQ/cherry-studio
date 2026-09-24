@@ -1,4 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath, createFilePathHandle, sanitizeFilename } from '@shared/utils/file'
 
@@ -39,6 +41,10 @@ function destinationReference(destPath: AbsoluteFilePath): AbsoluteFilePath {
   }
 }
 
+function isDestinationExistsError(error: unknown): boolean {
+  return error instanceof IpcError && error.code === fileErrorCodes.DESTINATION_EXISTS
+}
+
 export type WorkspaceCopyReservation = {
   reservedDestinations: Set<string>
 }
@@ -49,10 +55,13 @@ export type WorkspaceCopyResult = {
 }
 
 /** Best-effort cleanup of workspace copies when a batched send fails mid-copy. */
-export async function rollbackWorkspaceCopies(paths: readonly AbsoluteFilePath[]): Promise<void> {
+export async function rollbackWorkspaceCopies(
+  workspacePath: AbsoluteFilePath,
+  paths: readonly AbsoluteFilePath[]
+): Promise<void> {
   for (const path of paths) {
     try {
-      await ipcApi.request('file.unlink', { path })
+      await ipcApi.request('file.unlink', { path, workspacePath })
     } catch {
       // Preserve the original send failure; cleanup is best-effort.
     }
@@ -73,7 +82,12 @@ export async function copyAttachmentToWorkspace(
     const destKey = destinationIdentity(destPath)
     if (reservation?.reservedDestinations.has(destKey)) continue
     if (await destinationExists(destPath)) continue
-    await ipcApi.request('file.copy', { sourcePath, destPath })
+    try {
+      await ipcApi.request('file.copy', { sourcePath, destPath })
+    } catch (error) {
+      if (isDestinationExistsError(error)) continue
+      throw error
+    }
     reservation?.reservedDestinations.add(destKey)
     return { reference: destinationReference(destPath), destPath }
   }

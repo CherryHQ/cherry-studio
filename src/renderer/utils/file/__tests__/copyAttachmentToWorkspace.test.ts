@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const { ipcApiRequest } = vi.hoisted(() => ({
@@ -79,6 +81,24 @@ describe('copyAttachmentToWorkspace', () => {
     expect(ipcApiRequest).toHaveBeenCalledWith('file.copy', {
       sourcePath: '/tmp/report.md',
       destPath: '\\\\server\\share\\workspace\\report.md'
+    })
+  })
+
+  it('retries with the next filename when copy rejects with DESTINATION_EXISTS', async () => {
+    ipcApiRequest.mockImplementation(async (route: string, input?: { destPath?: string }) => {
+      if (route === 'file.get_metadata') return null
+      if (route === 'file.copy' && input?.destPath === '/workspace/report.md') {
+        throw new IpcError(fileErrorCodes.DESTINATION_EXISTS, 'EEXIST')
+      }
+      return undefined
+    })
+
+    const { reference } = await copyAttachmentToWorkspace(tmpReport, workspaceRoot, 'report.md')
+
+    expect(reference).toBe('/workspace/report (1).md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.copy', {
+      sourcePath: '/tmp/report.md',
+      destPath: '/workspace/report (1).md'
     })
   })
 })

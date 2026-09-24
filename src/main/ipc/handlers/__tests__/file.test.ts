@@ -348,7 +348,13 @@ describe('fileHandlers', () => {
   })
 
   it('unlink guards the path and delegates to the remove primitive', async () => {
-    await fileHandlers['file.unlink']({ path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath }, windowCtx)
+    await fileHandlers['file.unlink'](
+      {
+        path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath,
+        workspacePath: '/tmp/exports' as AbsoluteFilePath
+      },
+      windowCtx
+    )
 
     expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
     expect(removeMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
@@ -356,7 +362,13 @@ describe('fileHandlers', () => {
 
   it('unlink refuses a trusted-but-unmanaged sender before touching anything', async () => {
     await expect(
-      fileHandlers['file.unlink']({ path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath }, ctx)
+      fileHandlers['file.unlink'](
+        {
+          path: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath,
+          workspacePath: '/tmp/exports' as AbsoluteFilePath
+        },
+        ctx
+      )
     ).rejects.toThrow('requires a managed window sender')
     expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
     expect(removeMock).not.toHaveBeenCalled()
@@ -578,5 +590,46 @@ describe('fileHandlers', () => {
     expect(directoryTreeManager.activateTree).not.toHaveBeenCalled()
     expect(directoryTreeManager.rename).not.toHaveBeenCalled()
     expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
+  })
+
+  it('maps copy EEXIST to DESTINATION_EXISTS', async () => {
+    copyNewMock.mockRejectedValueOnce(Object.assign(new Error('EEXIST: file already exists'), { code: 'EEXIST' }))
+
+    const error = await fileHandlers['file.copy'](
+      {
+        sourcePath: '/tmp/a.txt' as AbsoluteFilePath,
+        destPath: '/tmp/b.txt' as AbsoluteFilePath
+      },
+      windowCtx
+    ).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect((error as IpcError).code).toBe(fileErrorCodes.DESTINATION_EXISTS)
+  })
+
+  it('refuses file.unlink when the path is outside the declared workspace', async () => {
+    await expect(
+      fileHandlers['file.unlink'](
+        {
+          path: '/etc/passwd' as AbsoluteFilePath,
+          workspacePath: '/tmp/ws' as AbsoluteFilePath
+        },
+        windowCtx
+      )
+    ).rejects.toThrow('inside workspacePath')
+    expect(removeMock).not.toHaveBeenCalled()
+  })
+
+  it('unlinks a path inside the declared workspace', async () => {
+    await fileHandlers['file.unlink'](
+      {
+        path: '/tmp/ws/report.md' as AbsoluteFilePath,
+        workspacePath: '/tmp/ws' as AbsoluteFilePath
+      },
+      windowCtx
+    )
+
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/ws/report.md')
+    expect(removeMock).toHaveBeenCalledWith('/tmp/ws/report.md')
   })
 })

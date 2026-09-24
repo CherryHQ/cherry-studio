@@ -171,7 +171,10 @@ export const fileRequestSchemas = {
   }),
   // Best-effort undo for failed workspace attachment copies (create-only `file.copy` leaves partial files).
   'file.unlink': defineRoute({
-    input: z.strictObject({ path: AbsoluteFilePathSchema }),
+    input: z.strictObject({
+      path: AbsoluteFilePathSchema,
+      workspacePath: AbsoluteFilePathSchema
+    }),
     output: z.void()
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),

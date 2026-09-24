@@ -11,7 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { copyNew, PathStaleVersionError, remove } from '@main/utils/file'
+import { copyNew, isSameOrInside, PathStaleVersionError, remove } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -144,11 +144,21 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
     await assertOutsideManagedStorageMutation(destPath)
-    await copyNew(sourcePath, destPath)
+    try {
+      await copyNew(sourcePath, destPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw new IpcError(fileErrorCodes.DESTINATION_EXISTS, (error as Error).message)
+      }
+      throw error
+    }
   },
-  'file.unlink': async ({ path }, { senderId }) => {
+  'file.unlink': async ({ path, workspacePath }, { senderId }) => {
     if (senderId == null) throw new Error('file.unlink requires a managed window sender')
     await assertOutsideManagedStorageMutation(path)
+    if (!isSameOrInside(path, workspacePath)) {
+      throw new Error('file.unlink path must be inside workspacePath')
+    }
     await remove(path)
   },
   'file.open': async (handle) => {

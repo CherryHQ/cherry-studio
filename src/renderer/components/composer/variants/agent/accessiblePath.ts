@@ -2,7 +2,7 @@ import { getRelativePath, isPathInside, isSamePath, toPathKey } from '@renderer/
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { PosixRelativeFilePath } from '@shared/utils/file'
+import { canonicalizeFilePath, type PosixRelativeFilePath } from '@shared/utils/file'
 
 /**
  * Agent-specific policy over the generic renderer path primitives: match a path
@@ -13,11 +13,35 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
  * `WorkspaceFileGuard.resolveWorkspaceFile`.
  */
 
+const isUncAbsolutePath = (path: AbsoluteFilePath): boolean => path.startsWith('\\\\') || path.startsWith('//')
+
+/** Lexical containment when `toPathKey` cannot canonicalize UNC roots. */
+const isPathWithinUncPath = (filePath: AbsoluteFilePath, workspacePath: AbsoluteFilePath): boolean => {
+  const normalize = (value: AbsoluteFilePath) => value.replace(/\//g, '\\').replace(/[\\]+$/, '')
+  const workspace = normalize(workspacePath)
+  const file = normalize(filePath)
+  if (file === workspace) return true
+  return file.startsWith(`${workspace}\\`)
+}
+
+/** Reference key for accessible attachments; UNC paths stay as absolute bytes. */
+export const accessibleFileReference = (filePath: AbsoluteFilePath): AbsoluteFilePath => {
+  try {
+    return canonicalizeFilePath(filePath)
+  } catch {
+    return filePath
+  }
+}
+
 /** True iff `filePath` is one of `accessiblePaths` or a descendant of one. */
 export const isPathWithinAccessiblePath = (
   filePath: AbsoluteFilePath,
   accessiblePaths: readonly AbsoluteFilePath[]
-): boolean => accessiblePaths.some((base) => isSamePath(filePath, base) || isPathInside(filePath, base))
+): boolean =>
+  accessiblePaths.some((base) => {
+    if (isSamePath(filePath, base) || isPathInside(filePath, base)) return true
+    return isUncAbsolutePath(filePath) && isUncAbsolutePath(base) && isPathWithinUncPath(filePath, base)
+  })
 
 /**
  * `filePath` relative to the accessible base that contains it, or `filePath`
