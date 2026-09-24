@@ -44,6 +44,8 @@ sources:
 
 普通命令可以只使用标准流；需要参与双向调用的目标才接入 RPC。Node 与 Python 是首轮验收运行时，不把“可执行任意程序”误写成“已验证所有语言或原生模块”。
 
+跨语言要求由协议、消息样例与互通验证承载，不要求为每种语言提供完整 SDK。首轮 Node/Python 接入层仅封装握手、分帧、请求处理及生命周期；其他语言可复用已有 JSON-RPC 库实现相同契约。接入库不是安全边界，宿主必须验证目标自行构造的消息。
+
 ## 3. 启动描述与权限
 
 以下类型均为草案，宿主侧 `AbortSignal`、回调与流对象不进入 wire protocol。
@@ -107,6 +109,8 @@ interface SandboxLimits {
 
 允许根在启动时必须存在，需新建的私有目录由宿主准备；其子项可在运行时创建。启动时检查和 `realpath` 不能代替运行中的限制，链接、重解析点、硬链接和目录替换不能使访问范围扩大。无法保证特定路径语义时，以不支持拒绝启动；非现存 deny 路径也必须持续受限，不能只在启动时扫描一次。
 
+此策略不授权宿主绕过限制代目标访问文件。准备挂载、授予 ACL、业务文件操作及清理均遵循[宿主文件规则](./design.md#51-宿主代办操作与输出边界)，不得对目标可替换的路径先检查再重新解析操作。
+
 `env` 是完整的业务环境白名单，不自动合并 `process.env`。运行时 profile 可加入必要系统变量，通道引导信息由宿主另行注入；保留键冲突直接拒绝。策略需单独处理解释器注入变量、动态加载配置和代理设置，不向目标透传宿主凭据。诊断只记录变量名，不能输出变量值或引导凭证。
 
 ### 3.3 网络与限额
@@ -121,6 +125,8 @@ interface SandboxLimits {
 
 上表是 API 要求，不是三平台已经做到的保证。例如后端只能阻止连接但不能限制系统 DNS 时，不能接受 `deny` 并返回成功；应报告能力缺失。用户主动选择 `unrestricted` 与后端自动降级是不同操作。
 
+`proxy` 只约束连接目标，不阻止向获准服务发送可读数据；`deny` 约束目标自身网络，也不能替代宿主代办网络操作的业务授权。`unrestricted` 包括不限制回环和 LAN，不暗含“仅公网”；是否允许某个消费者选择它由可信授权方决定。所有模式仍须满足本地 IPC 与系统服务限制；若网络实现同时开放了桌面或代启动服务，应拒绝该组合，不能当作网络授权的附带效果。
+
 时间单位为毫秒、大小单位为字节，所有已给数值必须为正安全整数，`stopTimeoutMs >= stopGraceMs`。`lifetimeMs` 从可信目标启动开始计时，未给则允许长驻。`memoryBytes` 和 `processCount` 分别限制整棵目标进程树的总内存和同时存活进程数，不包含可信管理组件；要求了却不能强制执行就拒绝启动，未要求不代表有配额。其他字段是宿主执行预算，不能描述成 OS 配额。CPU、磁盘硬配额暂不进入首版 API。
 
 ## 4. 宿主控制 API
@@ -128,24 +134,35 @@ interface SandboxLimits {
 ```typescript
 interface SandboxManager {
   probe(spec: SandboxSpec): Promise<SandboxProbe>
-  start(spec: SandboxSpec, options?: {
+  start(spec: SandboxSpec & { channel: 'none' }, options?: {
     signal?: AbortSignal
-    rpc?: HostRpcBinding
-  }): SandboxInstance
+    rpc?: never
+  }): Extract<SandboxInstance, { channel: 'none' }>
+  start(spec: SandboxSpec & { channel: 'dedicated' }, options: {
+    signal?: AbortSignal
+    rpc: HostRpcBinding
+  }): Extract<SandboxInstance, { channel: 'dedicated' }>
+  start(spec: SandboxSpec & { channel: 'stdio' }, options: {
+    signal?: AbortSignal
+    rpc: HostRpcBinding
+  }): Extract<SandboxInstance, { channel: 'stdio' }>
 }
 
-interface SandboxProbe {
+interface SandboxProbeDetails {
   environment: { id: string; kind: 'native' | 'wsl2'; os: 'macos' | 'linux' | 'windows' }
-  backend: { id: string; version: string } | null
-  status: 'ready' | 'setup-required' | 'unavailable'
   checks: readonly {
     feature: string
     status: 'supported' | 'unsupported' | 'unknown'
     reason?: string
   }[]
   requirements: readonly { code: string; message: string; adminRequired: boolean }[]
-  policyPreview?: EffectivePolicy
 }
+
+type SandboxProbe = SandboxProbeDetails & (
+  | { status: 'ready'; backend: { id: string; version: string }; policyPreview: EffectivePolicy }
+  | { status: 'setup-required' | 'unavailable'; backend: { id: string; version: string } | null;
+      policyPreview?: EffectivePolicy }
+)
 
 interface EffectivePolicy {
   runtimeProfile: { id: string; version: string }
@@ -157,18 +174,28 @@ interface EffectivePolicy {
   channel: SandboxSpec['channel']
 }
 
-interface SandboxInstance {
+interface SandboxInstanceBase {
   readonly id: string
   readonly ownerId: string
   readonly ready: Promise<{ backendId: string; effectivePolicy: EffectivePolicy }>
   readonly completion: Promise<SandboxCompletion>
-  readonly stdin: { write(data: Uint8Array): Promise<void>; end(): Promise<void> } | null
-  readonly stdout: AsyncIterable<Uint8Array> | null
   readonly stderr: AsyncIterable<Uint8Array>
-  readonly rpc: RpcPeer | null
   snapshot(): { state: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'; lastCompletion?: SandboxCompletion }
   stop(): Promise<SandboxCompletion>
 }
+
+interface SandboxInput {
+  write(data: Uint8Array): Promise<void>
+  end(): Promise<void>
+}
+
+type SandboxInstance = SandboxInstanceBase & (
+  | { readonly channel: 'none'; readonly stdin: SandboxInput;
+      readonly stdout: AsyncIterable<Uint8Array>; readonly rpc: null }
+  | { readonly channel: 'dedicated'; readonly stdin: SandboxInput;
+      readonly stdout: AsyncIterable<Uint8Array>; readonly rpc: RpcPeer }
+  | { readonly channel: 'stdio'; readonly stdin: null; readonly stdout: null; readonly rpc: RpcPeer }
+)
 
 interface SandboxCompletion {
   reason: 'exited' | 'stopped' | 'cancelled' | 'limit' | 'startup-error' | 'channel-error'
@@ -182,6 +209,10 @@ interface SandboxCompletion {
 ### 4.1 探测与启动
 
 `probe` 验证完整 spec 所需能力，可以运行可信的临时功能探针，但不运行目标代码、不提权或修改持久权限。检查覆盖文件读取/写入、网络/DNS、本地 IPC、实例隔离、进程树终止、父进程死亡和所要求配额；不能只检查可执行文件存在。任何必需项为 unknown/unsupported 时 status 不能为 ready。无可用后端时 backend=null，ready 必须返回后端身份与策略预览。探测总耗时受 startupTimeoutMs 限制，探针退出和临时资源清理也必须有界；超时不能留下后台探针。
+
+每个 check 回答是否完整满足本次 spec 的一项要求，包含[系统服务验证项](./backend-options.md#21-系统服务与资源验证矩阵)。部分能力拆成具体检查，例如直接连接限制 supported、DNS 限制 unsupported；需要完全断网时整体不可 ready。reason 记录缺失范围，不增加允许部分执行的 partial 状态。非 ready 的 policyPreview 仅用于诊断，不是有效授权。
+
+start 的重载约束 channel 与 binding 的组合，返回实例保留相同的 channel 判别字段。动态配置在完成运行时校验并收窄到具体模式后调用；不能提供宽泛重载绕过约束。RPC 模式从分配实例起即持有 RpcPeer，但只有 ready 后才可发业务请求；标准流可在目标启动前订阅读取，启动失败时按退出契约结算。JavaScript 调用同样必须验证这些组合。
 
 `start` 同步分配实例并纳入管理，然后异步探测、准备和启动。可识别的配置或环境失败通过 `ready` 拒绝返回；调用方应立即处理其 rejection。`start` 返回之前不得创建无法追踪的 OS 资源。实例句柄从准备阶段就可停止，避免启动失败后丢失回收入口。
 
@@ -213,16 +244,25 @@ interface RpcMethod<I extends JsonObject, O extends JsonValue> {
 }
 interface RpcEvent<T extends JsonObject> { name: string; data: Validator<T> }
 interface RpcContext { requestId: string; signal: AbortSignal }
+type RpcOutcome = 'not-dispatched' | 'unknown' | 'response-received'
+type RpcLocalErrorCode = 'NOT_READY' | 'INVALID_INPUT' | 'INVALID_RESULT' | 'SERIALIZATION_FAILED'
+  | 'TIMEOUT' | 'CANCELLED' | 'DISCONNECTED' | 'BUSY' | 'PROTOCOL_ERROR'
+type RpcError = Error & { readonly outcome: RpcOutcome } & (
+  | { readonly source: 'local'; readonly code: RpcLocalErrorCode }
+  | { readonly source: 'remote'; readonly code: number }
+)
+declare function isRpcError(value: unknown): value is RpcError
+
 interface RpcPeer {
   request<I extends JsonObject, O extends JsonValue>(method: RpcMethod<I, O>, input: I,
     options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<O>
   handle<I extends JsonObject, O extends JsonValue>(method: RpcMethod<I, O>,
     handler: (input: I, context: RpcContext) => Promise<O>): Disposable
   notify<T extends JsonObject>(event: RpcEvent<T>, data: T): Promise<void>
-  on<T extends JsonObject>(event: RpcEvent<T>, listener: (data: T) => void): Disposable
+  on<T extends JsonObject>(event: RpcEvent<T>, listener: (data: T) => undefined): Disposable
 }
 interface HostRpcBinding {
-  configure(peer: RpcPeer): void
+  configure: (peer: RpcPeer) => undefined
   authorize(context: {
     instanceId: string; ownerId: string
     kind: 'request' | 'notification'; method: string; params: JsonObject
@@ -245,6 +285,8 @@ interface HostRpcBinding {
 宿主接收处理顺序为：验证帧 → 查找明确注册的方法 → 校验参数 → 检查当前授权与资源范围 → 执行业务 handler → 校验结果 → 返回。方法使用 Map 或自有属性查找，不能从对象原型链分派。发送侧和接收侧均校验边界数据，TS 泛型不能替代运行时验证；Validator 不做扩权式转换。Python 使用等价 schema；首版不要求 schema 代码生成或远程方法发现。业务方法由调用方提供，本文不定义。
 
 `handle` 同名注册拒绝，注销只撤销对应注册。`on` 可以有多个监听者，共用同一事件契约；监听者同步返回，异常被记录，不得变成无人处理的异步 rejection。已开始的 handler 由实例跟踪，注销不代表已完成。`notify` 只表示帧写入成功，不确认对端执行业务；需要结果或副作用确认时使用 request。
+
+configure/listener 返回 undefined 而非 void，用于拒绝误传 async 回调；这是同步返回契约，不保证回调没有自行启动后台任务。接入层仍检查实际返回值：configure 抛错或返回非 undefined 时，在启动目标前令 ready 失败并撤销注册，该失败实例的 peer 不再接受迟到注册；listener 误用时撤销该监听并做有界诊断。若误传回调返回 Promise/thenable，应观察其 rejection 防止无人处理，但不等待其完成来认可同步调用；异步工作及其副作用不能由这种检测回滚。需要异步业务时使用被跟踪的 request handler。
 
 RPC 限额均为正安全整数，`maxBufferedBytes` 限制每端收发队列的总字节数，须容纳至少一帧及控制帧余量。等待某个 handler 时，读取、响应、取消和另一方向的请求继续处理。`maxActiveRequests` 限制每端发起的待结算请求，`maxActiveHandlers` 限制接收侧的授权检查及未结束 handler（含通知处理）；超过限制的请求立即返回 BUSY，通知按拒绝规则处理，不无限排队。取消不释放仍在执行的槽位，避免用取消绕过并发限制。响应和控制帧不占业务 handler 槽位，发送预算须预留控制帧空间。
 
@@ -294,6 +336,8 @@ Content-Length 必须恰好出现一次，为非负十进制整数；按字节�
 
 本地超时、断连、未 ready、序列化失败使用本地错误，不伪造对端响应。RPC 错误对象还记录 `outcome: 'not-dispatched' | 'unknown' | 'response-received'`：未写出或宿主验证阶段拒绝才可确认未分派；写出后超时/断连/取消为 unknown；收到结果或 handler 错误为 response-received。目标声称“未执行”不能作为重试副作用的安全证据。普通 request 错误不必终止实例；非法响应或通道不可信须停止。
 
+request/notify 的失败以 RpcError 拒绝，调用方在 catch 中用 isRpcError 收窄 unknown；Promise 的类型参数仅表示成功值。source/code 区分本地故障与对端 JSON-RPC 错误，outcome 由本地通信层根据发送与校验事实填写，不能直接复制对端自报字段。收到未知远端错误码也保留 remote/code，但不赋予自动重试语义；畸形响应不能作为 response-received 的有效结果证据。上面的类型和识别函数仍是拟议 API，并非已有导出。
+
 结果和取消竞争时只结算一次；已收到并完成的结果不被后续取消覆盖。拒绝通知不能返回 JSON-RPC response，宿主丢弃并做有界诊断；超限通知流终止异常连接。传输层和接入层均不自动重放请求。
 
 ## 6. 平台后端契约
@@ -334,21 +378,22 @@ dedicated 通道不占业务标准流；stdio 通道使用独占协议标准流�
 主进程提前注册允许目标请求的 `example.double`，再请求目标的 `example.compute`：
 
 ```typescript
-const instance = sandbox.start(spec, {
+const instance = sandbox.start({ ...spec, channel: 'dedicated' }, {
   rpc: {
     limits: rpcLimits,
-    configure(peer) {
+    configure: (peer) => {
       peer.handle(doubleMethod, async ({ value }, { signal }) => {
         signal.throwIfAborted()
         return { value: value * 2 }
       })
+      return undefined
     },
     authorize: async ({ method }) => method === 'example.double'
   }
 })
 try {
   await instance.ready
-  const result = await instance.rpc!.request(computeMethod, { value: 7 })
+  const result = await instance.rpc.request(computeMethod, { value: 7 })
   // 示例结果为 { value: 15 }。
 } finally {
   const stopped = await instance.stop()
@@ -356,7 +401,7 @@ try {
 }
 ```
 
-`doubleMethod` 与 `computeMethod` 均声明 `{ value: number }` 输入输出 schema，示例仅允许能安全运算的有限整数；实际业务的 authorize 还必须检查资源范围。spec 选择 dedicated 或 stdio，并提供执行路径、最小文件权限与 network=deny。
+`doubleMethod` 与 `computeMethod` 均声明 `{ value: number }` 输入输出 schema，示例仅允许能安全运算的有限整数；实际业务的 authorize 还必须检查资源范围。示例显式选择 dedicated，并提供执行路径、最小文件权限与 network=deny；选择 stdio 时 RPC 可用，但原始 stdin/stdout 为 null。
 
 Node 侧在握手完成前注册处理函数：
 
@@ -367,6 +412,7 @@ const connection = connectSandboxRpcFromBootstrap({
       const doubled = await peer.request(doubleMethod, { value }, { signal })
       return { value: doubled.value + 1 }
     })
+    return undefined
   }
 })
 await connection.closed
@@ -399,6 +445,8 @@ await serve_sandbox_rpc_from_bootstrap(configure)
 | 普通 Node/Python 程序 | 标准流、退出码、允许文件操作正常；无需实现 RPC |
 | 跨语言嵌套调用 | 两种运行时分别返回示例结果，等待 A 时仍可处理 B；并发响应按 ID 正确关联 |
 | 受限访问 | 越界文件操作、链接替换、直接联网、DNS 和其他本地通道被拒绝；授权内对照组成功 |
+| 系统服务与宿主代办 | 按后端矩阵拒绝凭据、桌面及代启动越权；宿主文件操作抗路径替换；输出不隐式取得执行或 renderer 权限 |
+| API 契约 | ready 必有后端与策略；非法 channel/binding 组合被拒绝；错误可识别且 outcome 不信任对端；失败 configure 的迟到注册被拒绝，异步回调误用不留下无人处理的 rejection |
 | 认证与载荷 | 伪造实例、旧凭证、错误版本、非法参数、非法结果、超大/碎片帧在边界被处理，内存和等待有界 |
 | 并发与取消 | 饱和返回 BUSY；取消不释放仍在执行的槽位；结果/取消竞争只结算一次，迟到响应不污染新请求 |
 | 启动中失败/停止 | 句柄可观察，可取消，没有启动后失去 owner 的进程；ready 拒绝后 completion 仍结算 |
