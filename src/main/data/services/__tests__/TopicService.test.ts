@@ -222,6 +222,28 @@ describe('TopicService', () => {
   })
 
   describe('listByCursor', () => {
+    it('filters exact ids across pinned and unpinned sections', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'pinned', name: 'Pinned', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'unpinned', name: 'Unpinned', orderKey: 'a1', createdAt: 1, updatedAt: 1 },
+        { id: 'other', name: 'Other', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-exact',
+        entityType: 'topic',
+        entityId: 'pinned',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = service.listByCursor({ ids: ['pinned', 'unpinned'], limit: 2 })
+
+      expect(result.items.map((topic) => topic.id)).toEqual(['pinned', 'unpinned'])
+      expect(result.nextCursor).toBeUndefined()
+    })
+
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
@@ -474,7 +496,7 @@ describe('TopicService', () => {
   })
 
   describe('delete', () => {
-    it('should soft-delete the topic, preserve messages and tags, purge pins', async () => {
+    it('moves the topic to the Recycle Bin (row survives with deletedAt), keeps messages, and purges entity tags', async () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-1', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -504,13 +526,15 @@ describe('TopicService', () => {
       notifyDataApiDataChangeMock.mockClear()
       topicService.delete('topic-1')
 
-      // Row still exists but is soft-deleted
-      const topicRows = await dbh.db.select().from(topicTable)
-      expect(topicRows).toHaveLength(1)
-      expect(topicRows[0].deletedAt).not.toBeNull()
-      // Messages and tags survive for restore
-      expect(await dbh.db.select().from(messageTable)).not.toHaveLength(0)
-      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(1)
+      // Recycle Bin: row still present, marked deleted.
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topicRow.deletedAt).not.toBeNull()
+      // Messages untouched — hidden via the trashed container, restore stays lossless.
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(messages).toHaveLength(2)
+      expect(messages.every((m) => m.deletedAt === null)).toBe(true)
+      // Tags purged immediately (not restored on restore).
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
@@ -518,10 +542,7 @@ describe('TopicService', () => {
         { endpoint: '/topics/latest' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
-        { endpoint: '/topics/trash', kind: 'membership', entityIds: ['topic-1'] }
-      ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('emits one broadcast-wide by-id effect for batch deletes and a scoped one for single deletes', async () => {
@@ -538,10 +559,6 @@ describe('TopicService', () => {
         { endpoint: '/topics/:id', entityIds: ['topic-1', 'topic-2'] },
         { endpoint: '/topics/latest' }
       ])
-      // trash notification emitted after pin notification
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
-        { endpoint: '/topics/trash', kind: 'membership', entityIds: ['topic-1', 'topic-2'] }
-      ])
 
       await dbh.db
         .insert(topicTable)
@@ -556,7 +573,11 @@ describe('TopicService', () => {
       ])
     })
 
-    it('soft-deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
+    it('permanently deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
+      // Regression: purgeByTopicIdsTx is one multi-row DELETE. Under the old self-FK
+      // ON DELETE SET NULL, removing u1 (parent of the a1/a2 multi-model group) nulled
+      // both surviving children mid-statement → a second parentId-NULL row colliding
+      // with message_topic_root_uniq. ON DELETE CASCADE removes the subtree instead.
       await dbh.db.insert(topicTable).values({ id: 'topic-mm', name: 'MM', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-mm', [
@@ -597,17 +618,15 @@ describe('TopicService', () => {
       )
 
       topicService.delete('topic-mm')
+      topicService.delete('topic-mm', { permanent: true })
 
-      // Topic is soft-deleted, messages preserved
-      const topicRows = await dbh.db.select().from(topicTable)
-      expect(topicRows).toHaveLength(1)
-      expect(topicRows[0].deletedAt).not.toBeNull()
-      expect(await dbh.db.select().from(messageTable)).not.toHaveLength(0)
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
     })
 
-    it('purges the pin row when an underlying topic is soft-deleted', async () => {
-      // Pin must be purged on soft-delete: a surviving pin row makes listByCursor's
-      // JOIN silently hide the topic from both sections. Re-pinning after restore is OK.
+    it('purges the pin row when an underlying topic moves to the Recycle Bin', async () => {
+      // Without purgeForEntitiesTx in the Delete transaction, the pin row would survive
+      // and listByCursor's JOIN would silently hide the topic from both sections.
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-1', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -618,10 +637,6 @@ describe('TopicService', () => {
       topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
-      // Topic row still there, soft-deleted
-      const topicRows = await dbh.db.select().from(topicTable)
-      expect(topicRows).toHaveLength(1)
-      expect(topicRows[0].deletedAt).not.toBeNull()
     })
 
     it('keeps all selected topics when any selected id is missing', async () => {
@@ -655,13 +670,348 @@ describe('TopicService', () => {
         code: ErrorCode.NOT_FOUND
       })
 
-      // Both topics survive the rejected delete and remain unmodified (no soft-delete)
-      const topics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      const topics = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
       expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
-      const notDeletedTopics = await dbh.db.select().from(topicTable).where(isNull(topicTable.deletedAt))
-      expect(notDeletedTopics).toHaveLength(2)
+      // Rolled back: neither topic was moved to the Recycle Bin.
+      expect(topics.every((topic) => topic.deletedAt === null)).toBe(true)
       // virtual root + message-1 both survive the rejected delete
       expect(await dbh.db.select().from(messageTable)).toHaveLength(2)
+    })
+
+    it('permanent=true removes the topic row, its messages, and chat message file refs', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000fb02' as FileEntryId
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-purge', name: 'Purge', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'purge-attachment',
+        ext: 'txt',
+        size: 1,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-purge', [
+          {
+            id: 'purge-m1',
+            parentId: null,
+            topicId: 'topic-purge',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
+      await dbh.db.insert(chatMessageFileRefTable).values({
+        id: '22222222-2222-4222-8222-123456789abc',
+        fileEntryId,
+        sourceId: 'purge-m1',
+        role: 'attachment',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      topicService.delete('topic-purge')
+      topicService.delete('topic-purge', { permanent: true })
+
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(chatMessageFileRefTable)).toHaveLength(0)
+    })
+
+    it('permanent=true purges an already-trashed topic from the Recycle Bin', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-trashed',
+        name: 'Trashed',
+        orderKey: 'a0',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      topicService.delete('topic-trashed', { permanent: true })
+
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+    })
+
+    it('rejects permanent deletion of an active topic and keeps it active', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-active', name: 'Active', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      let err: unknown
+      try {
+        topicService.delete('topic-active', { permanent: true })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-active'))
+      expect(row).toMatchObject({ id: 'topic-active', deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the topic has been restored', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-restored', name: 'Restored', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      topicService.delete('topic-restored')
+      topicService.restore('topic-restored')
+
+      let err: unknown
+      try {
+        topicService.delete('topic-restored', { permanent: true })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-restored'))
+      expect(row).toMatchObject({ id: 'topic-restored', deletedAt: null })
+    })
+
+    it('moving an already-trashed topic to the Recycle Bin throws NOT_FOUND', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-gone',
+        name: 'Gone',
+        orderKey: 'a0',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      let err: unknown
+      try {
+        topicService.delete('topic-gone')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
+  describe('trash listing (inTrash)', () => {
+    it('permanently deletes active Topics and messages without permitting stale trash deletion', async () => {
+      dbh.db.insert(topicTable).values({ id: 'active-purge', name: 'Active', orderKey: 'a0' }).run()
+      dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('active-purge', [
+            {
+              id: 'active-message',
+              topicId: 'active-purge',
+              parentId: null,
+              role: 'user',
+              data: { parts: [{ type: 'text', text: 'Do not retain' }] },
+              status: 'success',
+              siblingsGroupId: 0
+            }
+          ])
+        )
+        .run()
+      expect(() => topicService.delete('active-purge', { permanent: true })).toThrow()
+      topicService.delete('active-purge')
+      expect(() => topicService.deleteByIds(['active-purge'], { permanent: true, targetState: 'active' })).toThrow()
+      topicService.restore('active-purge')
+      expect(topicService.deleteByIds(['active-purge'], { permanent: true, targetState: 'active' })).toEqual({
+        deletedIds: ['active-purge'],
+        deletedCount: 1
+      })
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'active-purge')).all()).toEqual([])
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'active-purge')).all()).toEqual([])
+      expect(() => topicService.restore('active-purge')).toThrow()
+    })
+    it('hides trashed topics from the default list and shows them with inTrash', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 't-live', name: 'Live', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't-trash', name: 'Trash', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
+      ])
+
+      topicService.delete('t-trash')
+
+      const active = topicService.listByCursor()
+      expect(active.items.map((t) => t.id)).toEqual(['t-live'])
+      expect(active.items[0].deletedAt).toBeUndefined()
+
+      const trash = topicService.listByCursor({ inTrash: true })
+      expect(trash.items.map((t) => t.id)).toEqual(['t-trash'])
+      expect(trash.items[0].deletedAt).toEqual(expect.any(String))
+    })
+
+    it('moving a pinned topic to the Recycle Bin keeps it out of the default list and visible in trash mode', async () => {
+      // A surviving pin row would make listByCursor's JOIN hide the topic from
+      // both sections — Delete must purge the pin so trash mode can list it.
+      await dbh.db.insert(topicTable).values([
+        { id: 't-pinned', name: 'Pinned', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't-other', name: 'Other', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
+      ])
+      await dbh.db
+        .insert(pinTable)
+        .values({ id: 'pin-1', entityType: 'topic', entityId: 't-pinned', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      topicService.delete('t-pinned')
+
+      const active = topicService.listByCursor()
+      expect(active.items.map((t) => t.id)).toEqual(['t-other'])
+
+      const trash = topicService.listByCursor({ inTrash: true })
+      expect(trash.items.map((t) => t.id)).toEqual(['t-pinned'])
+    })
+
+    it('paginates the trash with the (updatedAt DESC, id ASC) tuple cursor', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'tr-1', name: 'T1', orderKey: 'a0', deletedAt: 10, createdAt: 1, updatedAt: 100 },
+        { id: 'tr-2', name: 'T2', orderKey: 'a1', deletedAt: 10, createdAt: 1, updatedAt: 200 },
+        { id: 'tr-3', name: 'T3', orderKey: 'a2', deletedAt: 10, createdAt: 1, updatedAt: 300 }
+      ])
+
+      const page1 = topicService.listByCursor({ inTrash: true, limit: 2 })
+      expect(page1.items.map((t) => t.id)).toEqual(['tr-3', 'tr-2'])
+      expect(page1.nextCursor).toBeDefined()
+
+      const page2 = topicService.listByCursor({ inTrash: true, limit: 2, cursor: page1.nextCursor })
+      expect(page2.items.map((t) => t.id)).toEqual(['tr-1'])
+      expect(page2.nextCursor).toBeUndefined()
+    })
+  })
+
+  describe('restore', () => {
+    it('makes a trashed topic visible again with messages intact', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 't-restore', name: 'Restore me', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values(
+        withRoot('t-restore', [
+          {
+            id: 'rm-1',
+            parentId: null,
+            topicId: 't-restore',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
+
+      topicService.delete('t-restore')
+      const restored = topicService.restore('t-restore')
+
+      expect(restored.id).toBe('t-restore')
+      expect(restored.deletedAt).toBeUndefined()
+      expect(topicService.listByCursor().items.map((t) => t.id)).toEqual(['t-restore'])
+      // Messages were never touched by Delete/Restore.
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 't-restore'))
+      expect(messages).toHaveLength(2)
+      expect(messages.every((m) => m.deletedAt === null)).toBe(true)
+    })
+
+    it('does not resurrect pins purged at Delete time', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 't-pin-restore', name: 'P', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-1',
+        entityType: 'topic',
+        entityId: 't-pin-restore',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      topicService.delete('t-pin-restore')
+      topicService.restore('t-pin-restore')
+
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('restores a topic independently while its assistant remains trashed', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-trashed',
+        name: 'Trashed assistant',
+        emoji: '✨',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        deletedAt: 500
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-independent-restore',
+        name: 'Restore independently',
+        assistantId: 'asst-trashed',
+        orderKey: 'a0',
+        deletedAt: 500
+      })
+
+      const restored = topicService.restore('topic-independent-restore')
+
+      expect(restored).toMatchObject({ id: 'topic-independent-restore', assistantId: 'asst-trashed' })
+      expect(restored.deletedAt).toBeUndefined()
+      const [assistant] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'asst-trashed'))
+      expect(assistant).toMatchObject({ deletedAt: 500 })
+      const [topic] = await dbh.db
+        .select({ deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .where(eq(topicTable.id, 'topic-independent-restore'))
+      expect(topic.deletedAt).toBeNull()
+    })
+
+    it('throws NOT_FOUND when restoring a missing or active topic', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 't-active', name: 'Active', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      for (const id of ['missing-topic', 't-active']) {
+        let err: unknown
+        try {
+          topicService.restore(id)
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      }
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('hard-deletes only trashed topics past the cutoff, respecting the limit', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 't-old-1', name: 'Old 1', orderKey: 'a0', deletedAt: 100, createdAt: 1, updatedAt: 1 },
+        { id: 't-old-2', name: 'Old 2', orderKey: 'a1', deletedAt: 200, createdAt: 1, updatedAt: 1 },
+        { id: 't-fresh', name: 'Fresh', orderKey: 'a2', deletedAt: 900, createdAt: 1, updatedAt: 1 },
+        { id: 't-live', name: 'Live', orderKey: 'a3', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values(withRoot('t-old-1', []))
+
+      const firstBatch = topicService.purgeExpiredTx(dbh.db, 500, 1)
+      expect(firstBatch).toHaveLength(1)
+
+      const secondBatch = topicService.purgeExpiredTx(dbh.db, 500, 10)
+      expect(secondBatch).toHaveLength(1)
+      expect([...firstBatch, ...secondBatch].sort()).toEqual(['t-old-1', 't-old-2'])
+
+      // Fresh-in-trash and live rows survive; purged topic's messages are gone.
+      const remaining = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(remaining.map((r) => r.id)).toEqual(['t-fresh', 't-live'])
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
+    })
+
+    it('returns an empty array when nothing is expired', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 't-fresh', name: 'Fresh', orderKey: 'a0', deletedAt: 900, createdAt: 1, updatedAt: 1 })
+
+      expect(topicService.purgeExpiredTx(dbh.db, 500, 10)).toEqual([])
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(1)
     })
   })
 
@@ -679,7 +1029,19 @@ describe('TopicService', () => {
       })
     }
 
-    it('soft-deletes the assistant topics, preserves messages/tags, purges pins', async () => {
+    it('lists only active Assistant Topics in stable lock order', async () => {
+      await seedAssistant('asst-1', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-b', name: 'B', assistantId: 'asst-1', orderKey: 'a0' },
+        { id: 'topic-a', name: 'A', assistantId: 'asst-1', orderKey: 'a1' },
+        { id: 'topic-trashed', name: 'Trashed', assistantId: 'asst-1', orderKey: 'a2', deletedAt: 1 },
+        { id: 'topic-other', name: 'Other', orderKey: 'a3' }
+      ])
+
+      expect(topicService.listActiveIdsByAssistant('asst-1')).toEqual(['topic-a', 'topic-b'])
+    })
+
+    it('moves only the assistant non-deleted topics to the Recycle Bin, keeps messages, and purges tags/pins', async () => {
       await seedAssistant('asst-1', 'a0')
       await dbh.db.insert(topicTable).values([
         { id: 'topic-1', name: 'Topic 1', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
@@ -716,17 +1078,17 @@ describe('TopicService', () => {
 
       expect(result.deletedIds.sort()).toEqual(['topic-1', 'topic-2'])
       expect(result.deletedCount).toBe(2)
-      // Topics soft-deleted (still in table with deletedAt set)
-      const topicRows = await dbh.db.select().from(topicTable).where(isNotNull(topicTable.deletedAt))
-      expect(topicRows.map((r) => r.id).sort()).toEqual(['topic-1', 'topic-2'])
-      // Messages and tags preserved for restore
-      expect(await dbh.db.select().from(messageTable)).not.toHaveLength(0)
-      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(1)
-      // Pins purged
+      // Trashed, not purged: rows survive with deletedAt set.
+      const topics = await dbh.db.select().from(topicTable).orderBy(asc(topicTable.id))
+      expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
+      expect(topics.every((topic) => topic.deletedAt !== null)).toBe(true)
+      // Messages stay in place; tags/pins are purged immediately.
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(2)
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
 
-    it('only soft-deletes topics scoped to the target assistant', async () => {
+    it('only trashes topics scoped to the target assistant', async () => {
       await seedAssistant('asst-1', 'a0')
       await seedAssistant('asst-2', 'a1')
       await dbh.db.insert(topicTable).values([
@@ -737,15 +1099,15 @@ describe('TopicService', () => {
       const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result).toEqual({ deletedIds: ['topic-1'], deletedCount: 1 })
-      // topic-1 is soft-deleted; topic-2 is untouched
-      const activeTopic = await dbh.db
+      const remaining = await dbh.db
         .select({ id: topicTable.id })
         .from(topicTable)
         .where(isNull(topicTable.deletedAt))
-      expect(activeTopic.map((t) => t.id)).toEqual(['topic-2'])
+        .orderBy(asc(topicTable.id))
+      expect(remaining.map((topic) => topic.id)).toEqual(['topic-2'])
     })
 
-    it('excludes already soft-deleted topics from the count', async () => {
+    it('excludes soft-deleted topics from the count', async () => {
       await seedAssistant('asst-1', 'a0')
       await dbh.db.insert(topicTable).values([
         { id: 'topic-live', name: 'Live', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
@@ -763,12 +1125,45 @@ describe('TopicService', () => {
       const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result).toEqual({ deletedIds: ['topic-live'], deletedCount: 1 })
-      // Both rows still exist: topic-live is now soft-deleted too, topic-gone was already soft-deleted.
-      const allRows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
-      expect(allRows.map((t) => t.id)).toEqual(['topic-gone', 'topic-live'])
-      // Neither is active
-      const activeRows = await dbh.db.select().from(topicTable).where(isNull(topicTable.deletedAt))
-      expect(activeRows).toHaveLength(0)
+      // The already-trashed row keeps its original deletedAt (untouched by another Delete).
+      const rows = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(rows.find((row) => row.id === 'topic-gone')?.deletedAt).toBe(999)
+      expect(rows.find((row) => row.id === 'topic-live')?.deletedAt).not.toBeNull()
+    })
+
+    it('uses the caller timestamp for active topics and leaves earlier trash untouched', async () => {
+      await seedAssistant('asst-batch', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-active-1', name: 'Active 1', assistantId: 'asst-batch', orderKey: 'a0' },
+        { id: 'topic-active-2', name: 'Active 2', assistantId: 'asst-batch', orderKey: 'a1' },
+        {
+          id: 'topic-previously-trashed',
+          name: 'Earlier trash',
+          assistantId: 'asst-batch',
+          orderKey: 'a2',
+          deletedAt: 99
+        }
+      ])
+
+      const deletedIds = dbh.db.transaction((tx) =>
+        topicService.deleteByAssistantIdTx(tx, 'asst-batch', {
+          deletedAt: 0
+        })
+      )
+
+      expect(deletedIds.sort()).toEqual(['topic-active-1', 'topic-active-2'])
+      const rows = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(rows).toEqual([
+        { id: 'topic-active-1', deletedAt: 0 },
+        { id: 'topic-active-2', deletedAt: 0 },
+        { id: 'topic-previously-trashed', deletedAt: 99 }
+      ])
     })
 
     it('returns deletedCount 0 without throwing when the assistant has no topics', async () => {
@@ -818,84 +1213,6 @@ describe('TopicService', () => {
       })
       // The topic must survive the rejected call.
       expect(await dbh.db.select().from(topicTable)).toHaveLength(1)
-    })
-  })
-
-  describe('trash (listTrashed / restore / purgeOldTrashed / emptyTrash)', () => {
-    it('listTrashed returns only soft-deleted topics ordered by deletedAt DESC', async () => {
-      await dbh.db.insert(topicTable).values([
-        { id: 'active', name: 'Active', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'trash-1', name: 'Trash 1', orderKey: 'a1', deletedAt: 100, createdAt: 1, updatedAt: 1 },
-        { id: 'trash-2', name: 'Trash 2', orderKey: 'a2', deletedAt: 200, createdAt: 1, updatedAt: 1 }
-      ])
-
-      const result = topicService.listTrashed()
-
-      expect(result.map((t) => t.id)).toEqual(['trash-2', 'trash-1'])
-      expect(result.every((t) => t.deletedAt)).toBe(true)
-    })
-
-    it('restore clears deletedAt and returns the topic as active', async () => {
-      await dbh.db.insert(topicTable).values({
-        id: 'topic-restore',
-        name: 'To Restore',
-        orderKey: 'a0',
-        deletedAt: 500,
-        createdAt: 1,
-        updatedAt: 1
-      })
-
-      const topic = topicService.restore('topic-restore')
-
-      expect(topic.id).toBe('topic-restore')
-      // Restored topic has no deletedAt field (active)
-      expect('deletedAt' in topic && topic.deletedAt).toBeFalsy()
-
-      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-restore'))
-      expect(row?.deletedAt).toBeNull()
-    })
-
-    it('restore throws NOT_FOUND for an active (non-deleted) topic', async () => {
-      await dbh.db
-        .insert(topicTable)
-        .values({ id: 'active', name: 'Active', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-
-      let err: unknown
-      try {
-        topicService.restore('active')
-      } catch (e) {
-        err = e
-      }
-      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('purgeOldTrashed hard-deletes topics whose deletedAt is before the cutoff', async () => {
-      const cutoff = 1000
-      await dbh.db.insert(topicTable).values([
-        { id: 'old-trash', name: 'Old', orderKey: 'a0', deletedAt: 500, createdAt: 1, updatedAt: 1 },
-        { id: 'new-trash', name: 'New', orderKey: 'a1', deletedAt: 2000, createdAt: 1, updatedAt: 1 },
-        { id: 'active', name: 'Active', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
-      ])
-
-      const purged = topicService.purgeOldTrashed(cutoff)
-
-      expect(purged).toBe(1)
-      const ids = (await dbh.db.select({ id: topicTable.id }).from(topicTable)).map((r) => r.id).sort()
-      expect(ids).toEqual(['active', 'new-trash'])
-    })
-
-    it('emptyTrash hard-deletes all trashed topics', async () => {
-      await dbh.db.insert(topicTable).values([
-        { id: 'trash-1', name: 'T1', orderKey: 'a0', deletedAt: 100, createdAt: 1, updatedAt: 1 },
-        { id: 'trash-2', name: 'T2', orderKey: 'a1', deletedAt: 200, createdAt: 1, updatedAt: 1 },
-        { id: 'active', name: 'Active', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
-      ])
-
-      const result = topicService.emptyTrash()
-
-      expect(result.purgedCount).toBe(2)
-      const remaining = await dbh.db.select({ id: topicTable.id }).from(topicTable)
-      expect(remaining.map((r) => r.id)).toEqual(['active'])
     })
   })
 

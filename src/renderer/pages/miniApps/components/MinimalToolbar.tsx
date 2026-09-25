@@ -1,38 +1,35 @@
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { isHttpUrl } from '@shared/utils/url'
 
 const logger = loggerService.withContext('MinimalToolbar')
-
-// Constants for timing delays
-const WEBVIEW_CHECK_INITIAL_MS = 100 // Initial check interval
-const WEBVIEW_CHECK_MAX_MS = 1000 // Maximum check interval (1 second)
-const WEBVIEW_CHECK_MULTIPLIER = 2 // Exponential backoff multiplier
-const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
-const NAVIGATION_UPDATE_DELAY_MS = 50
-const NAVIGATION_COMPLETE_DELAY_MS = 100
 
 /** `open` splits the view in two; `close` is the split pane's way back to one. */
 export type SplitMode = 'open' | 'close'
 
 interface Props {
   app: MiniApp
-  webviewRef: React.RefObject<WebviewTag | null>
+  webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   currentUrl: string | null
+  isWebviewReady: boolean
   onReload: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
@@ -44,186 +41,49 @@ interface Props {
 const MinimalToolbar: FC<Props> = ({
   app,
   webviewRef,
+  webviewRevision,
   currentUrl,
+  isWebviewReady,
   onReload,
   onOpenDevTools,
   splitMode,
   splitActive = false,
   onSplit
 }) => {
+  const webview = webviewRef.current
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
-  const [canGoBack, setCanGoBack] = useState(false)
-  const [canGoForward, setCanGoForward] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
+  const {
+    canGoBack,
+    canGoForward,
+    currentPageUrl,
+    addressValue,
+    setAddressValue,
+    isAddressEditingRef,
+    restoreCurrentPageUrl,
+    goBack: handleGoBack,
+    goForward: handleGoForward
+  } = useWebviewNavigation({ webview, revision: webviewRevision, targetId: app.appId, url: currentUrl || app.url })
   // While split, the primary pane's control closes the split rather than being
   // a dead "open it again" button.
   const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
-  const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
+  const canOpenExternalLink = isHttpUrl(currentPageUrl)
 
-  // Ref to track navigation update timeout
-  const navigationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const addressInputRef = useRef<HTMLInputElement | null>(null)
+  const addressLoadGenerationRef = useRef(0)
+  const addressLoadOwnerRef = useRef({ appId: app.appId, webview, webviewRevision })
+  addressLoadOwnerRef.current = { appId: app.appId, webview, webviewRevision }
 
-  // Update navigation state
-  const updateNavigationState = useCallback(() => {
-    if (webviewRef.current) {
-      try {
-        setCanGoBack(webviewRef.current.canGoBack())
-        setCanGoForward(webviewRef.current.canGoForward())
-      } catch (error) {
-        logger.debug('WebView not ready for navigation state update', { appId: app.appId })
-        setCanGoBack(false)
-        setCanGoForward(false)
-      }
-    } else {
-      setCanGoBack(false)
-      setCanGoForward(false)
-    }
-  }, [app.appId, webviewRef])
-
-  // Schedule navigation state update with debouncing
-  const scheduleNavigationUpdate = useCallback(
-    (delay: number) => {
-      if (navigationUpdateTimeoutRef.current) {
-        clearTimeout(navigationUpdateTimeoutRef.current)
-      }
-      navigationUpdateTimeoutRef.current = setTimeout(() => {
-        updateNavigationState()
-        navigationUpdateTimeoutRef.current = null
-      }, delay)
+  useEffect(
+    () => () => {
+      addressLoadGenerationRef.current += 1
     },
-    [updateNavigationState]
+    []
   )
-
-  // Cleanup navigation timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (navigationUpdateTimeoutRef.current) {
-        clearTimeout(navigationUpdateTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Monitor webviewRef changes and update navigation state
-  useEffect(() => {
-    let checkTimeout: NodeJS.Timeout | null = null
-    let navigationListener: (() => void) | null = null
-    let listenersAttached = false
-    let currentInterval = WEBVIEW_CHECK_INITIAL_MS
-    let attemptCount = 0
-
-    const attachListeners = () => {
-      if (webviewRef.current && !listenersAttached) {
-        // Update state immediately
-        updateNavigationState()
-
-        // Add navigation event listeners
-        const handleNavigation = () => {
-          scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
-        }
-
-        webviewRef.current.addEventListener('did-navigate', handleNavigation)
-        webviewRef.current.addEventListener('did-navigate-in-page', handleNavigation)
-        listenersAttached = true
-
-        navigationListener = () => {
-          if (webviewRef.current) {
-            webviewRef.current.removeEventListener('did-navigate', handleNavigation)
-            webviewRef.current.removeEventListener('did-navigate-in-page', handleNavigation)
-          }
-          listenersAttached = false
-        }
-
-        if (checkTimeout) {
-          clearTimeout(checkTimeout)
-          checkTimeout = null
-        }
-
-        logger.debug('Navigation listeners attached', { appId: app.appId, attempts: attemptCount })
-        return true
-      }
-      return false
-    }
-
-    const scheduleCheck = () => {
-      checkTimeout = setTimeout(() => {
-        // Use requestAnimationFrame to avoid blocking the main thread
-        requestAnimationFrame(() => {
-          attemptCount++
-          if (!attachListeners()) {
-            // Stop checking after max attempts to prevent infinite loops
-            if (attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) {
-              logger.warn('WebView attachment timeout', {
-                appId: app.appId,
-                attempts: attemptCount,
-                totalTimeMs: currentInterval * attemptCount
-              })
-              return
-            }
-
-            // Exponential backoff: double the interval up to the maximum
-            currentInterval = Math.min(currentInterval * WEBVIEW_CHECK_MULTIPLIER, WEBVIEW_CHECK_MAX_MS)
-
-            // Log only on first few attempts or when interval changes significantly
-            if (attemptCount <= 3 || attemptCount % 10 === 0) {
-              logger.debug('WebView not ready, scheduling next check', {
-                appId: app.appId,
-                nextCheckMs: currentInterval,
-                attempt: attemptCount
-              })
-            }
-
-            scheduleCheck()
-          }
-        })
-      }, currentInterval)
-    }
-
-    // Check for webview attachment
-    if (!webviewRef.current) {
-      scheduleCheck()
-    } else {
-      attachListeners()
-    }
-
-    // Cleanup
-    return () => {
-      if (checkTimeout) clearTimeout(checkTimeout)
-      if (navigationListener) navigationListener()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.appId, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
-
-  const handleGoBack = useCallback(() => {
-    if (webviewRef.current) {
-      try {
-        if (webviewRef.current.canGoBack()) {
-          webviewRef.current.goBack()
-          // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
-        }
-      } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goBack' })
-      }
-    }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
-
-  const handleGoForward = useCallback(() => {
-    if (webviewRef.current) {
-      try {
-        if (webviewRef.current.canGoForward()) {
-          webviewRef.current.goForward()
-          // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
-        }
-      } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goForward' })
-      }
-    }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
   const handleTogglePin = useCallback(() => {
     const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
@@ -244,13 +104,95 @@ const MinimalToolbar: FC<Props> = ({
   }, [setOpenLinkExternal, openLinkExternal])
 
   const handleOpenLink = useCallback(() => {
-    const urlToOpen = currentUrl || app.url
-    void ipcApi.request('system.shell.open_website', urlToOpen)
-  }, [currentUrl, app.url])
+    void ipcApi.request('system.shell.open_external_website', currentPageUrl)
+  }, [currentPageUrl])
+
+  const handleAddressSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      const normalizedAddress = normalizeWebviewAddress(addressValue)
+      if (!normalizedAddress) {
+        toast.error(t('settings.miniApps.custom.url_invalid'))
+        restoreCurrentPageUrl()
+        return
+      }
+
+      if (!webview) {
+        toast.error(t('miniApp.error.load_failed'))
+        restoreCurrentPageUrl()
+        return
+      }
+
+      isAddressEditingRef.current = false
+      setAddressValue(normalizedAddress)
+      addressInputRef.current?.blur()
+
+      const loadGeneration = ++addressLoadGenerationRef.current
+      const loadOwner = { appId: app.appId, webview, webviewRevision }
+      const handleLoadFailure = (error: unknown) => {
+        const currentOwner = addressLoadOwnerRef.current
+        if (
+          addressLoadGenerationRef.current !== loadGeneration ||
+          webviewRef.current !== webview ||
+          currentOwner.appId !== loadOwner.appId ||
+          currentOwner.webview !== loadOwner.webview ||
+          currentOwner.webviewRevision !== loadOwner.webviewRevision
+        ) {
+          return
+        }
+        restoreCurrentPageUrl()
+        if (error instanceof Error && /ERR_ABORTED/.test(error.message)) return
+        logger.error('Failed to navigate WebView from address bar', error as Error)
+        toast.error(t('miniApp.error.load_failed'))
+      }
+
+      try {
+        void webview.loadURL(normalizedAddress).catch(handleLoadFailure)
+      } catch (error) {
+        handleLoadFailure(error)
+      }
+    },
+    [
+      addressValue,
+      app.appId,
+      isAddressEditingRef,
+      restoreCurrentPageUrl,
+      setAddressValue,
+      t,
+      webview,
+      webviewRef,
+      webviewRevision
+    ]
+  )
+
+  const handleAddressFocus = useCallback(
+    (event: React.FocusEvent<HTMLInputElement>) => {
+      isAddressEditingRef.current = true
+      event.currentTarget.select()
+    },
+    [isAddressEditingRef]
+  )
+
+  const handleAddressBlur = useCallback(() => {
+    if (!isAddressEditingRef.current) return
+    isAddressEditingRef.current = false
+    restoreCurrentPageUrl()
+  }, [isAddressEditingRef, restoreCurrentPageUrl])
+
+  const handleAddressKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      isAddressEditingRef.current = false
+      restoreCurrentPageUrl()
+      event.currentTarget.blur()
+    },
+    [isAddressEditingRef, restoreCurrentPageUrl]
+  )
 
   return (
-    <div className="flex h-8.75 shrink-0 items-center justify-between bg-background px-3">
-      <div className="flex items-center gap-2">
+    <div className="flex h-8.75 shrink-0 items-center gap-2 bg-background px-3">
+      <div className="flex shrink-0 items-center gap-2">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">
             <Button
@@ -292,7 +234,31 @@ const MinimalToolbar: FC<Props> = ({
         </div>
       </div>
 
-      <div className="flex items-center">
+      {app.kind === 'site' && (
+        <form className="mx-1 min-w-0 flex-1" onSubmit={handleAddressSubmit}>
+          <Input
+            ref={addressInputRef}
+            type="text"
+            inputMode="url"
+            value={addressValue}
+            onChange={(event) => setAddressValue(event.target.value)}
+            onFocus={handleAddressFocus}
+            onBlur={handleAddressBlur}
+            onKeyDown={handleAddressKeyDown}
+            disabled={!isWebviewReady}
+            aria-label={t('settings.miniApps.custom.url')}
+            title={currentPageUrl}
+            placeholder={t('settings.miniApps.custom.url_placeholder')}
+            autoCapitalize="none"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="text-muted-foreground h-7 rounded-md border-input bg-background px-2.5 text-xs shadow-none focus-visible:text-foreground"
+          />
+        </form>
+      )}
+
+      <div className="ml-auto flex shrink-0 items-center">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t(splitLabelKey)} placement="bottom">
             <Button
@@ -401,7 +367,7 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
   cn(
     'rounded shadow-none active:scale-95',
     disabled
-      ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
+      ? 'text-foreground-disabled hover:text-foreground-disabled cursor-default hover:bg-transparent active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
         : 'text-muted-foreground hover:text-foreground'

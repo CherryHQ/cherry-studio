@@ -18,7 +18,7 @@ export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, a
   useTabSelfVisuals({
     title,
     emoji,
-    appId: 'assistants',
+    routePrefix: '/app/chat',
     preserveVisuals
   })
 

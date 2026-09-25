@@ -7,6 +7,7 @@ import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherryst
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDescription,
@@ -51,6 +52,7 @@ const GeneralSettings: FC = () => {
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
+  const [commitAttribution, setCommitAttribution] = usePreference('agent.commit_attribution.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
@@ -63,6 +65,7 @@ const GeneralSettings: FC = () => {
   const [healthPriorityEnabled, setHealthPriorityEnabled] = usePreference('chat.retry.health_priority_enabled')
   const [backgroundScanEnabled, setBackgroundScanEnabled] = usePreference('chat.retry.background_scan_enabled')
   const [autoContinueTruncated, setAutoContinueTruncated] = usePreference('chat.retry.auto_continue_truncated')
+  const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -260,9 +263,51 @@ const GeneralSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup theme={theme}>
+        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="commit-attribution-title">
+              {t('settings.general.commit_attribution.title')}
+            </SettingRowTitle>
+            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
+          </div>
+          <Switch
+            checked={commitAttribution}
+            onCheckedChange={(checked) => void setCommitAttribution(checked)}
+            aria-labelledby="commit-attribution-title"
+          />
+        </SettingRow>
+      </SettingGroup>
+
       <ContextManagementSettings />
 
       <TaskRoutingSettings />
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.agent.language.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle className="gap-1">
+              {t('settings.agent.language.label')}
+              <InfoTooltip content={t('settings.agent.language.description')} />
+            </SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">
+              {t('settings.agent.language.description')}
+            </SettingDescription>
+          </div>
+          <div className="w-[220px] shrink-0">
+            <AgentLanguageField
+              value={agentLanguage}
+              onChange={(next) => void setAgentLanguage(next)}
+              nullOptionLabel={t('settings.agent.language.follow_conversation')}
+              customPlaceholder={t('settings.agent.language.custom_placeholder')}
+              comboLabel={t('settings.agent.language.combo_label')}
+              inputLabel={t('settings.agent.language.custom_label')}
+            />
+          </div>
+        </SettingRow>
+      </SettingGroup>
 
       <SettingGroup theme={theme}>
         <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6 items-start gap-6">

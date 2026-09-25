@@ -13,7 +13,7 @@ import { topicService } from '@data/services/TopicService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
-  DeleteTopicsQuerySchema,
+  DeleteTopicQuerySchema,
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
@@ -35,11 +35,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
       return topicService.create(parsed)
-    },
-
-    DELETE: async ({ query }) => {
-      const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids)
     }
   },
 
@@ -67,10 +62,15 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.update(params.id, parsed)
     },
 
-    DELETE: async ({ params }) => {
-      topicService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      DeleteTopicQuerySchema.parse(query)
+      topicService.delete(params.id, { permanent: true })
       return undefined
     }
+  },
+
+  '/topics/:id/restore': {
+    POST: async ({ params }) => topicService.restore(params.id)
   },
 
   '/topics/:id/move': {
@@ -93,35 +93,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.duplicate(params.id, parsed)
     }
   },
-
-  '/assistants/:assistantId/topics': {
-    DELETE: async ({ params }) => {
-      return topicService.deleteByAssistantId(params.assistantId)
-    }
-  },
-
-  '/topics/trash': {
-    GET: async () => {
-      return topicService.listTrashed()
-    },
-    DELETE: async () => {
-      return topicService.emptyTrash()
-    }
-  },
-
-  '/topics/trash/:id': {
-    DELETE: async ({ params }) => {
-      topicService.purgeTrashedById(params.id)
-      return undefined
-    }
-  },
-
-  '/topics/:id/restore': {
-    POST: async ({ params }) => {
-      return topicService.restore(params.id)
-    }
-  },
-
   '/topics/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

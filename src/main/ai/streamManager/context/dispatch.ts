@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -76,6 +77,10 @@ export interface MainControllerMergeRequest {
 
 export type MainDispatchRequest = (
   | AiStreamOpenRequest
+  | (Omit<Extract<AiStreamOpenRequest, { trigger: 'submit-message' }>, 'trigger'> & {
+      trigger: 'edit-agent-message'
+      editTarget: AgentSessionEditTarget
+    })
   | MainContinueConversationRequest
   | MainSteerContinuationRequest
   | MainControllerMergeRequest

@@ -32,7 +32,6 @@ import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature,
 import { getMachineCode } from './machineCode'
 
 const logger = loggerService.withContext('CherryCloudService')
-const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const PRODUCTION_API_ORIGINS = {
   cn: 'https://cloud.cherryai.com.cn',
   global: 'https://cloud.cherryai.com'
@@ -73,10 +72,10 @@ function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
 
-function resolveApiOrigin(): string {
+export function resolveCherryCloudApiOrigin(): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   if (configuredOrigin) return new URL(configuredOrigin).origin
-  return app.isPackaged ? PRODUCTION_API_ORIGINS[getAppEdition()] : DEVELOPMENT_API_ORIGIN
+  return PRODUCTION_API_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -177,7 +176,7 @@ export class CherryCloudService extends BaseService {
   }
 
   public getApiOrigin(): string {
-    return resolveApiOrigin()
+    return resolveCherryCloudApiOrigin()
   }
 
   public async startLogin(): Promise<CherryCloudStatus> {
@@ -296,7 +295,7 @@ export class CherryCloudService extends BaseService {
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
       if (this.loopbackCallback === receiver) this.loopbackCallback = null
-    }, resolveApiOrigin())
+    }, resolveCherryCloudApiOrigin())
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       receiver.dispose()
       this.assertLifecycleGeneration(lifecycleGeneration)
@@ -815,7 +814,7 @@ export class CherryCloudService extends BaseService {
 
   private async refreshSession(session: ProductSession): Promise<ProductSession> {
     const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
-    const url = new URL('/api/v1/product-sessions/refresh', `${resolveApiOrigin()}/`)
+    const url = new URL('/api/v1/product-sessions/refresh', `${resolveCherryCloudApiOrigin()}/`)
     const response = await this.signedFetch(
       url,
       {
@@ -897,8 +896,8 @@ export class CherryCloudService extends BaseService {
   }
 
   private resolveRequestUrl(path: string): URL {
-    const url = new URL(path, `${resolveApiOrigin()}/`)
-    if (url.origin !== new URL(resolveApiOrigin()).origin) {
+    const url = new URL(path, `${resolveCherryCloudApiOrigin()}/`)
+    if (url.origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
       throw new Error('Cherry Cloud signed requests must stay on the configured API origin')
     }
     return url
@@ -1020,7 +1019,7 @@ export class CherryCloudService extends BaseService {
     let response: Response
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
-      response = await net.fetch(`${resolveApiOrigin()}${path}`, {
+      response = await net.fetch(`${resolveCherryCloudApiOrigin()}${path}`, {
         method: 'POST',
         redirect: 'error',
         headers: { 'Content-Type': 'application/json', ...signature },

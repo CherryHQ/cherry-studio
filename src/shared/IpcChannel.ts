@@ -73,7 +73,6 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
-  File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
   // backup
@@ -132,10 +131,6 @@ export enum IpcChannel {
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-
-  // Global Skills
-  Skill_ReadFile = 'skill:read-file',
-  Skill_ListFiles = 'skill:list-files',
 
   // LAN Transfer
   LanTransfer_StartScan = 'lan-transfer:start-scan',

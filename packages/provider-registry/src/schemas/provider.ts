@@ -216,6 +216,8 @@ export const ProviderConfigSchema = z
      * to `'api'` (the provider exposes a `/models` endpoint).
      */
     modelListSource: z.enum(['api', 'registry']).default('api'),
+    /** Append registry-only models omitted by the API list. Absent means the API list is authoritative. */
+    supplementModelsFromRegistry: z.boolean().optional(),
     /**
      * Which credential kinds the provider accepts — the auth UIs to surface and
      * the runtime credential semantics. A *set*, because a provider can offer

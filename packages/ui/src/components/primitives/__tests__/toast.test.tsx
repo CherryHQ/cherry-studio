@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getToastUtilities, type ToastLabels, ToastProvider, ToastViewport, useToasts } from '../toast'
@@ -19,6 +20,80 @@ describe('Toast', () => {
     vi.useRealTimers()
   })
 
+  it('keeps older actions inaccessible until the stack expands, then restores the chosen item', async () => {
+    const user = userEvent.setup()
+    const archived = new Set(['First', 'Second', 'Third', 'Fourth'])
+    render(<ToastViewport />)
+    act(() => {
+      for (const title of archived) {
+        toast.success({
+          title,
+          action: {
+            label: `Restore ${title}`,
+            onClick: () => {
+              archived.delete(title)
+            }
+          }
+        })
+      }
+    })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+    expect(screen.getByText('Fourth').closest('[inert]')).toBeNull()
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Restore Second' }))
+    expect([...archived]).toEqual(['First', 'Third', 'Fourth'])
+    expect(screen.queryByText('Second')).not.toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
+  it('pauses existing and newly arriving notifications while expanded and resumes the remaining timeout', () => {
+    vi.useFakeTimers()
+    render(<ToastViewport />)
+    act(() => {
+      toast.info({ title: 'First', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    act(() => {
+      toast.info({ title: 'Second', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('First')).toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+    expect(screen.queryByText('First')).not.toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('expands for keyboard focus and stays expanded when the pointer leaves', () => {
+    render(<ToastViewport />)
+    act(() => {
+      toast.info('First')
+      toast.info('Second')
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.focus(screen.getAllByRole('button', { name: 'Close' })[0])
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    fireEvent.blur(region, { relatedTarget: document.body })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
   it('renders a string toast in the viewport', () => {
     render(<ToastViewport />)
 
@@ -29,6 +104,55 @@ describe('Toast', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'notifications' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
+    const user = userEvent.setup()
+    const onToastClick = vi.fn()
+    const onAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'deleted-item',
+        onClick: onToastClick,
+        title: 'Item deleted'
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('aligns actionable toast controls to the primary content row', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.info({
+        action: { label: 'Undo', onClick: vi.fn() },
+        description: 'The item can be restored for 30 days.',
+        title: 'Item deleted'
+      })
+    })
+
+    const actionButton = screen.getByRole('button', { name: 'Undo' })
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const title = screen.getByText('Item deleted')
+
+    expect(actionButton).toHaveAttribute('data-variant', 'outline')
+    // These layout classes keep the 28px action, primary copy, and close control on one row
+    // while the root remains top-aligned so the description stays below that row.
+    expect(screen.getByRole('status')).toHaveClass('items-start')
+    expect(actionButton).toHaveClass('min-h-7')
+    expect(title).toHaveClass('min-h-7', 'py-1')
+    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {

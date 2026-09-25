@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0c08d547-80d5-48e9-a940-aa0c05701b9b",
-  "prevId": "7499aa68-ff99-46be-bd70-cd61db385c9a",
+  "id": "5637ac06-8c5f-4c9f-a11c-508966683923",
+  "prevId": "6c3a7ff2-86f0-45cc-b1ba-79a637eae98a",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1606,6 +1606,66 @@
         }
       }
     },
+    "api_gateway_paired_device": {
+      "name": "api_gateway_paired_device",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "api_gateway_paired_device_token_hash_unique_idx": {
+          "name": "api_gateway_paired_device_token_hash_unique_idx",
+          "columns": [
+            "token_hash"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "app_state": {
       "name": "app_state",
       "columns": {
@@ -2081,8 +2141,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "course_lesson": {
-      "name": "course_lesson",
+    "browser_visit": {
+      "name": "browser_visit",
       "columns": {
         "id": {
           "name": "id",
@@ -2091,16 +2151,9 @@
           "notNull": true,
           "autoincrement": false
         },
-        "course_id": {
-          "name": "course_id",
+        "url": {
+          "name": "url",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2112,172 +2165,50 @@
           "notNull": true,
           "autoincrement": false
         },
-        "page_start": {
-          "name": "page_start",
+        "visited_at": {
+          "name": "visited_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "page_end": {
-          "name": "page_end",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "chunk_start": {
-          "name": "chunk_start",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "chunk_end": {
-          "name": "chunk_end",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
+        "source": {
+          "name": "source",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'locked'"
+          "default": "'local'"
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
       "indexes": {
-        "course_lesson_course_sort_idx": {
-          "name": "course_lesson_course_sort_idx",
+        "browser_visit_time_idx": {
+          "name": "browser_visit_time_idx",
           "columns": [
-            "course_id",
-            "sort_order"
+            "visited_at",
+            "id"
           ],
           "isUnique": false
+        },
+        "browser_visit_source_key_idx": {
+          "name": "browser_visit_source_key_idx",
+          "columns": [
+            "source_key"
+          ],
+          "isUnique": true
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "course_lesson_status_check": {
-          "name": "course_lesson_status_check",
-          "value": "\"course_lesson\".\"status\" IN ('locked','ready','in_progress','completed')"
-        }
-      }
-    },
-    "course": {
-      "name": "course",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "knowledge_base_id": {
-          "name": "knowledge_base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "current_lesson_id": {
-          "name": "current_lesson_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "syllabus_job_id": {
-          "name": "syllabus_job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "syllabus_status": {
-          "name": "syllabus_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "total_lessons": {
-          "name": "total_lessons",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "completed_lessons": {
-          "name": "completed_lessons",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "course_knowledge_base_idx": {
-          "name": "course_knowledge_base_idx",
-          "columns": [
-            "knowledge_base_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "course_syllabus_status_check": {
-          "name": "course_syllabus_status_check",
-          "value": "\"course\".\"syllabus_status\" IN ('pending','building','ready','failed')"
-        }
-      }
+      "checkConstraints": {}
     },
     "file_entry": {
       "name": "file_entry",
@@ -6099,128 +6030,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "video": {
-      "name": "video",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "duration": {
-          "name": "duration",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "resolution": {
-          "name": "resolution",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "provider_task_id": {
-          "name": "provider_task_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "video_url": {
-          "name": "video_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "job_id": {
-          "name": "job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "video_status_idx": {
-          "name": "video_status_idx",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
-        "video_created_at_idx": {
-          "name": "video_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "video_status_check": {
-          "name": "video_status_check",
-          "value": "\"video\".\"status\" IN ('pending','processing','completed','failed')"
-        }
-      }
     }
   },
   "views": {},

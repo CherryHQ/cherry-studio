@@ -43,6 +43,7 @@ export interface AssistantFormState {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
+  enableBrowser: boolean
   mcpMode: AssistantSettings['mcpMode']
   /** Locks replies to one language; null = Auto (no instruction, today's behavior). */
   replyLanguage: AssistantReplyLanguage | null
@@ -93,6 +94,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
+    enableBrowser: settings.enableBrowser ?? true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     replyLanguage: settings.replyLanguage ?? null,
     // Only an offload/compression field means "override": a lone maxMessages is
@@ -171,6 +173,7 @@ export function diffAssistantUpdate(
     ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
+    ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
     ...(baseline.replyLanguage !== form.replyLanguage ? { replyLanguage: form.replyLanguage } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),

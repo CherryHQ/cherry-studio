@@ -4,7 +4,6 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
@@ -235,12 +234,8 @@ class WeChatAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('wechat', (channel, agentId) => {
+export function createWeChatAdapter(config: ChannelAdapterConfig<'wechat'>) {
   return new WeChatAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

@@ -9,6 +9,7 @@ import {
 } from '@data/services/AiUsageRecordService'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'
+import { ensureNestedV3Usage, recordTotalTokens } from '../utils/usageNormalize'
 
 export const BILLABLE_AI_OPERATIONS = ['streamText', 'generateText', 'embedMany', 'generateImage', 'rerank'] as const
 export type BillableAiOperation = (typeof BILLABLE_AI_OPERATIONS)[number]
@@ -22,18 +23,18 @@ export const AI_USAGE_RECORD_OPERATION_COVERAGE = {
 } as const
 
 function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocationInput['usage']> {
-  const inputTokens = usage.inputTokens.total
-  const outputTokens = usage.outputTokens.total
+  const normalized = ensureNestedV3Usage(usage)
+  const inputTokens = normalized.inputTokens.total
+  const outputTokens = normalized.outputTokens.total
+  const totalTokens = recordTotalTokens(usage, inputTokens, outputTokens)
   return {
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(inputTokens !== undefined || outputTokens !== undefined
-      ? { totalTokens: (inputTokens ?? 0) + (outputTokens ?? 0) }
-      : {}),
-    ...(usage.outputTokens.reasoning !== undefined ? { reasoningTokens: usage.outputTokens.reasoning } : {}),
-    ...(usage.inputTokens.noCache !== undefined ? { noCacheTokens: usage.inputTokens.noCache } : {}),
-    ...(usage.inputTokens.cacheRead !== undefined ? { cacheReadTokens: usage.inputTokens.cacheRead } : {}),
-    ...(usage.inputTokens.cacheWrite !== undefined ? { cacheWriteTokens: usage.inputTokens.cacheWrite } : {})
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(normalized.outputTokens.reasoning !== undefined ? { reasoningTokens: normalized.outputTokens.reasoning } : {}),
+    ...(normalized.inputTokens.noCache !== undefined ? { noCacheTokens: normalized.inputTokens.noCache } : {}),
+    ...(normalized.inputTokens.cacheRead !== undefined ? { cacheReadTokens: normalized.inputTokens.cacheRead } : {}),
+    ...(normalized.inputTokens.cacheWrite !== undefined ? { cacheWriteTokens: normalized.inputTokens.cacheWrite } : {})
   }
 }
 
@@ -115,6 +116,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
               thinkingDurationMs = Math.max(0, Math.round(now - thinkingStartedAt))
             }
 
+            // Each provider call emits one V3 `finish` with usage; tool loops are separate calls.
             if (part.type === 'finish' && !finished) {
               finished = true
               recordLanguageInvocation(

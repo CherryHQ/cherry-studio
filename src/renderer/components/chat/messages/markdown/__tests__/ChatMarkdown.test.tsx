@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { remarkLatexMath } from '@renderer/components/markdown'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import ChatMarkdown from '../ChatMarkdownRuntime'
 import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'

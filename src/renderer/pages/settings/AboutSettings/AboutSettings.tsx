@@ -1,3 +1,4 @@
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
@@ -12,7 +13,7 @@ import {
   Rss
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -27,7 +28,8 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
+import { DoctorPopup } from '@renderer/components/doctor'
+import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
@@ -45,8 +47,10 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 import { HealthOverview } from './HealthOverview'
@@ -58,13 +62,38 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
+  const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+
+  useEffect(() => {
+    const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
+    if (!initialPanel) {
+      consumedDoctorPanelRef.current = undefined
+      return
+    }
+    if (consumedDoctorPanelRef.current === initialPanel) return
+    consumedDoctorPanelRef.current = initialPanel
+
+    void navigate({
+      to: location.pathname,
+      search: (previous: Record<string, unknown>) => {
+        const remaining = { ...previous }
+        delete remaining[DOCTOR_OPEN_QUERY_PARAM]
+        return remaining
+      },
+      replace: true
+    })
+    void DoctorPopup.show({ initialPanel })
+  }, [location.pathname, navigate, search])
 
   const onCheckUpdate = debounce(
     async () => {
@@ -93,7 +122,7 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    void ipcApi.request('system.shell.open_website', url)
+    void openExternalWebsite(url)
   }
 
   const mailto = async () => {
@@ -182,10 +211,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void ipcApi.request(
-      'system.shell.open_website',
-      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us'
-    )
+    void openExternalWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
   const testChannels = getAvailableTestChannels()
@@ -199,7 +225,7 @@ const AboutSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle className="gap-2">
-          <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
+          <span className="text-[15px] font-semibold">{t('settings.about.title')}</span>
           <button
             type="button"
             aria-label={t('settings.about.repository')}
@@ -220,7 +246,7 @@ const AboutSettings: FC = () => {
               className="relative cursor-pointer">
               <span aria-hidden="true">
                 {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
-                  <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
+                  <div className="pointer-events-none absolute -top-0.5 -left-0.5">
                     <CircularProgress
                       value={appUpdateState.downloadProgress}
                       size={76}
@@ -236,14 +262,14 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
+              <div className="mb-1 text-lg font-bold text-foreground">Cherry Studio</div>
               <div className="text-muted-foreground text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 aria-label={t('settings.about.releases.title')}
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 className="mt-1.5">
-                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
+                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] leading-4 text-primary transition-colors hover:bg-primary/15">
                   v{version}
                 </Badge>
               </button>

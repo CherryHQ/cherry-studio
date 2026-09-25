@@ -13,7 +13,7 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
-import ImageBlock from '../blocks/ImageBlock'
+import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -37,7 +37,7 @@ import MessageHeader, { AgentSessionDeliveryBadge } from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -96,7 +96,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
-    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
+    actions.canEditMessage?.(message) ??
+    (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
@@ -123,7 +124,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -237,7 +238,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
         />
@@ -264,7 +265,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
         />
@@ -278,7 +279,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       key={message.id}
       className={cn(
         classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
@@ -295,7 +296,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
@@ -382,7 +383,7 @@ const UserBubbleMessage = ({
           {(attachments.images.length > 0 || attachments.files.length > 0) && (
             <div className="flex max-w-full flex-col items-end">
               {attachments.images.length > 0 && (
-                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
+                <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
               )}
               {attachments.files.map((file) => (
                 <MessageAttachments

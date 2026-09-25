@@ -53,12 +53,16 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  * Query parameters for `GET /topics` (cursor pagination + search).
  */
 export const ListTopicsQuerySchema = z.strictObject({
+  /** Exact topic ids to include. */
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  q: z.string().optional(),
+  /** `true` lists only trashed topics; omitted/false lists active topics. */
+  inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
@@ -144,20 +148,11 @@ export interface ReusableTopicPlaceholderResponse {
   created: boolean
 }
 
-const DeleteTopicsIdsQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).min(1))
-
-export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: DeleteTopicsIdsQueryValueSchema
+export const DeleteTopicQuerySchema = z.strictObject({
+  /** DataApi owns only the DB-only purge path; archiving is an IpcApi lifecycle command. */
+  permanent: z.literal(true)
 })
-export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -176,7 +171,6 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
-   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -196,17 +190,6 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
-    }
-    /**
-     * Delete an explicit set of topics.
-     *
-     * Used by multi-select table flows where the selection can span assistants.
-     * This operation is all-or-nothing: if any supplied ID does not resolve to
-     * a non-deleted topic, the request fails and no selected topics are deleted.
-     */
-    DELETE: {
-      query: DeleteTopicsQuery
-      response: DeleteTopicsResult
     }
   }
 
@@ -244,7 +227,7 @@ export type TopicSchemas = {
    * Individual topic endpoint
    * @example GET /topics/abc123
    * @example PATCH /topics/abc123 { "name": "Updated Name" }
-   * @example DELETE /topics/abc123
+   * @example DELETE /topics/abc123?permanent=true
    */
   '/topics/:id': {
     /** Get a topic by ID */
@@ -258,10 +241,19 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Delete a topic and all its messages */
+    /** Permanently delete a topic already in the Recycle Bin. */
     DELETE: {
       params: { id: string }
+      query: DeleteTopicQuery
       response: void
+    }
+  }
+
+  /** Restore one trashed topic. Pins and tags are not restored. */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 
@@ -300,59 +292,6 @@ export type TopicSchemas = {
     POST: {
       params: { id: string }
       body: DuplicateTopicDto
-      response: Topic
-    }
-  }
-
-  /**
-   * Delete all topics currently linked to an assistant.
-   *
-   * This is an explicit scoped collection delete. It does not change
-   * the default `DELETE /assistants/:id` behavior, which only deletes the
-   * assistant itself unless the caller opts into `deleteTopics=true`.
-   */
-  '/assistants/:assistantId/topics': {
-    DELETE: {
-      params: { assistantId: string }
-      response: DeleteTopicsResult
-    }
-  }
-
-  /**
-   * Trash collection — soft-deleted topics awaiting the 30-day retention window.
-   *
-   * @example GET /topics/trash
-   * @example DELETE /topics/trash  (empty all trash)
-   */
-  '/topics/trash': {
-    GET: {
-      response: TrashedTopic[]
-    }
-    DELETE: {
-      response: EmptyTrashResult
-    }
-  }
-
-  /**
-   * Permanently delete one specific trashed topic.
-   *
-   * @example DELETE /topics/trash/abc123
-   */
-  '/topics/trash/:id': {
-    DELETE: {
-      params: { id: string }
-      response: void
-    }
-  }
-
-  /**
-   * Restore a soft-deleted topic back to the active list.
-   *
-   * @example POST /topics/abc123/restore
-   */
-  '/topics/:id/restore': {
-    POST: {
-      params: { id: string }
       response: Topic
     }
   }

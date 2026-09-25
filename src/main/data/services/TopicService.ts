@@ -22,7 +22,6 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
-  EmptyTrashResult,
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
@@ -31,7 +30,6 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
-import type { TrashedTopic } from '@shared/data/types/topic'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -66,12 +64,9 @@ function rowToTopic(row: TopicRow): Topic {
     ...clean,
     lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined
   }
-}
-
-function rowToTrashedTopic(row: TopicRow): TrashedTopic {
-  return { ...rowToTopic(row), deletedAt: timestampToISO(row.deletedAt!) }
 }
 
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
@@ -146,6 +141,16 @@ export class TopicService {
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
       { endpoint: '/topics/latest' }
+    ])
+  }
+
+  notifyPurged(topicIds: readonly string[]): void {
+    if (topicIds.length === 0) return
+    this.notifyReadModelChange(topicIds, 'membership')
+    notifyDataApiDataChange([
+      { endpoint: '/topics/:topicId/messages', kind: 'membership' },
+      { endpoint: '/topics/:topicId/tree' },
+      { endpoint: '/messages/:id' }
     ])
   }
 
@@ -459,37 +464,44 @@ export class TopicService {
     return topic
   }
 
-  /**
-   * Soft-delete: sets `deletedAt` so the topic lands in the 30-day trash.
-   * Pins are purged immediately — a surviving pin row makes `listByCursor`'s
-   * JOIN silently hide the topic from both sections. Messages and tags are
-   * preserved so a restore brings them back intact.
-   */
-  delete(id: string): void {
+  delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) =>
+      options.permanent === true
+        ? this.purgeManyByIdsTx(tx, [id], { requireAll: true })
+        : this.trashManyByIdsTx(tx, [id], { requireAll: true })
+    )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
-    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: deletedIds }])
 
-    logger.info('Soft-deleted topic', { id })
+    logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
 
-  deleteByIds(ids: string[]): DeleteTopicsResult {
+  deleteByIds(
+    ids: string[],
+    options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): DeleteTopicsResult {
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) =>
+      options.permanent === true
+        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true, targetState: options.targetState })
+        : this.trashManyByIdsTx(tx, ids, { requireAll: true })
+    )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
-    if (deletedIds.length > 0) {
-      pinService.notifyPurged()
-      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: deletedIds }])
-    }
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
-    logger.info('Soft-deleted topics', { count: deletedIds.length })
+    logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
+      count: deletedIds.length
+    })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private deleteManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  private trashManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; deletedAt?: number } = {}
+  ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -498,126 +510,91 @@ export class TopicService {
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
       .all()
-    const foundIds = rows.map((row) => row.id)
+    const trashedIds = rows.map((row) => row.id)
 
-    if (options.requireAll && foundIds.length !== uniqueIds.length) {
-      const foundSet = new Set(foundIds)
-      const missingId = uniqueIds.find((candidate) => !foundSet.has(candidate)) ?? uniqueIds[0]
+    if (options.requireAll && trashedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(trashedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
       throw DataApiErrorFactory.notFound('Topic', missingId)
     }
-    if (foundIds.length === 0) return []
+    if (trashedIds.length === 0) return []
 
-    // Pins must be purged: a surviving pin row makes listByCursor's JOIN silently
-    // hide the topic from both sections. Messages and tags are kept for restore.
-    pinService.purgeForEntitiesTx(tx, 'topic', foundIds)
-    tx.update(topicTable).set({ deletedAt: Date.now() }).where(inArray(topicTable.id, foundIds)).run()
+    const deletedAt = options.deletedAt ?? Date.now()
+    for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
+      tx.update(topicTable)
+        .set({ deletedAt })
+        .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+        .run()
+    }
+    tagService.purgeForEntitiesTx(tx, 'topic', trashedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', trashedIds)
 
-    return foundIds
+    return trashedIds
   }
 
-  /** Hard-purge a batch of (already soft-deleted) topic rows: messages, tags, pins, then the row itself. */
-  private hardPurgeManyByIdsTx(tx: DbOrTx, ids: string[]): void {
-    if (ids.length === 0) return
-    const messageService = getDataService('MessageService')
-    messageService.purgeByTopicIdsTx(tx, ids)
-    tagService.purgeForEntitiesTx(tx, 'topic', ids)
-    pinService.purgeForEntitiesTx(tx, 'topic', ids)
-    tx.delete(topicTable).where(inArray(topicTable.id, ids)).run()
-  }
+  private purgeManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): string[] {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
 
-  /** List all topics currently in the trash (soft-deleted, not yet purged). */
-  listTrashed(): TrashedTopic[] {
-    const db = application.get('DbService').getDb()
-    const rows = db
-      .select()
+    const rows = tx
+      .select({ id: topicTable.id })
       .from(topicTable)
-      .where(isNotNull(topicTable.deletedAt))
-      .orderBy(desc(topicTable.deletedAt), asc(topicTable.id))
+      .where(
+        and(
+          inArray(topicTable.id, uniqueIds),
+          options.targetState === 'active' ? isNull(topicTable.deletedAt) : isNotNull(topicTable.deletedAt)
+        )
+      )
       .all()
-    return rows.map(rowToTrashedTopic)
+    const deletedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(deletedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Topic', missingId)
+    }
+    if (deletedIds.length === 0) return []
+
+    const messageService = getDataService('MessageService')
+    messageService.purgeByTopicIdsTx(tx, deletedIds)
+    tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
+
+    return deletedIds
   }
 
-  /** Restore a soft-deleted topic back to the active list. */
   restore(id: string): Topic {
-    const dbService = application.get('DbService')
-    const topic = dbService.withWriteTx((tx) => {
-      const [existing] = tx
-        .select()
-        .from(topicTable)
-        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(topicTable)
+      .set({ deletedAt: null })
+      .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
-      const [updated] = tx.update(topicTable).set({ deletedAt: null }).where(eq(topicTable.id, id)).returning().all()
-      if (!updated) throw DataApiErrorFactory.notFound('Topic', id)
-      return rowToTopic(updated)
-    })
     this.notifyReadModelChange([id], 'membership')
-    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: [id] }])
-
-    logger.info('Restored topic from trash', { id })
-    return topic
+    logger.info('Restored topic', { id })
+    return rowToTopic(row)
   }
 
-  /** Permanently delete one trashed topic (hard-purge, bypasses the 30-day window). */
-  purgeTrashedById(id: string): void {
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => {
-      const [existing] = tx
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
-      this.hardPurgeManyByIdsTx(tx, [id])
-    })
-    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: [id] }])
-
-    logger.info('Permanently purged trashed topic', { id })
-  }
-
-  /** Permanently delete all trashed topics (hard-purge). */
-  emptyTrash(): EmptyTrashResult {
-    const dbService = application.get('DbService')
-    const purgedCount = dbService.withWriteTx((tx) => {
-      const rows = tx.select({ id: topicTable.id }).from(topicTable).where(isNotNull(topicTable.deletedAt)).all()
-      const ids = rows.map((r) => r.id)
-      if (ids.length === 0) return 0
-      this.hardPurgeManyByIdsTx(tx, ids)
-      return ids.length
-    })
-    if (purgedCount > 0) {
-      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership' }])
-    }
-
-    logger.info('Emptied topic trash', { purgedCount })
-    return { purgedCount }
-  }
-
-  /**
-   * Hard-purge topics whose `deletedAt` is older than `cutoffMs` (ms since epoch).
-   * Called periodically to enforce the 30-day retention window.
-   */
-  purgeOldTrashed(cutoffMs: number = Date.now() - 30 * 24 * 60 * 60 * 1000): number {
-    const dbService = application.get('DbService')
-    const purgedCount = dbService.withWriteTx((tx) => {
-      const rows = tx
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
-        .all()
-      const ids = rows.map((r) => r.id)
-      if (ids.length === 0) return 0
-      this.hardPurgeManyByIdsTx(tx, ids)
-      return ids.length
-    })
-    if (purgedCount > 0) {
-      logger.info('Auto-purged expired trashed topics', { purgedCount })
-      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership' }])
-    }
-    return purgedCount
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    return this.purgeManyByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
   }
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
@@ -704,10 +681,12 @@ export class TopicService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
+    const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
+    const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
-    if (cursor.section === 'pin') {
+    if (!inTrash && cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
         ? or(
             gt(pinTable.orderKey, cursor.orderKey),
@@ -718,7 +697,7 @@ export class TopicService {
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
+        .where(and(isNull(topicTable.deletedAt), idFilter, pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
         .all()
@@ -758,17 +737,32 @@ export class TopicService {
 
     let topicAfter: SQL | undefined
     if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      topicAfter = or(
-        gt(topicTable.orderKey, cursor.orderKey),
-        and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-      )
+      topicAfter = inTrash
+        ? or(
+            lt(topicTable.updatedAt, Number(cursor.orderKey)),
+            and(eq(topicTable.updatedAt, Number(cursor.orderKey)), gt(topicTable.id, cursor.id))
+          )
+        : or(
+            gt(topicTable.orderKey, cursor.orderKey),
+            and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
     }
 
     const topicRows = db
       .select()
       .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
+      .where(
+        and(
+          inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+          idFilter,
+          notInArray(topicTable.id, pinnedSubquery),
+          topicAfter,
+          search
+        )
+      )
+      .orderBy(
+        ...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : [asc(topicTable.orderKey), asc(topicTable.id)])
+      )
       .limit(remaining + 1)
       .all()
 
@@ -780,7 +774,7 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.orderKey, last.id)
+      nextCursor = encodeEntityCursor(inTrash ? String(last.updatedAt) : last.orderKey, last.id)
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
@@ -843,6 +837,28 @@ export class TopicService {
     })
   }
 
+  listIdsByAssistantTx(tx: DbOrTx, assistantId: string): string[] {
+    return tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(eq(topicTable.assistantId, assistantId))
+      .orderBy(asc(topicTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
+  listActiveIdsByAssistant(assistantId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .orderBy(asc(topicTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
@@ -854,7 +870,11 @@ export class TopicService {
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
+  deleteByAssistantIdTx(
+    tx: DbOrTx,
+    assistantId: string,
+    options: { validateAssistant?: boolean; deletedAt?: number; permanent?: boolean } = {}
+  ): string[] {
     if (options.validateAssistant ?? true) {
       assertActiveAssistantTx(tx, assistantId)
     }
@@ -862,12 +882,21 @@ export class TopicService {
     const rows = tx
       .select({ id: topicTable.id })
       .from(topicTable)
-      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .where(and(eq(topicTable.assistantId, assistantId), options.permanent ? undefined : isNull(topicTable.deletedAt)))
       .all()
 
-    return this.deleteManyByIdsTx(
+    if (options.permanent) {
+      const ids = rows.map((row) => row.id)
+      return [
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'active' }),
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'trashed' })
+      ]
+    }
+
+    return this.trashManyByIdsTx(
       tx,
-      rows.map((row) => row.id)
+      rows.map((row) => row.id),
+      { deletedAt: options.deletedAt }
     )
   }
 }

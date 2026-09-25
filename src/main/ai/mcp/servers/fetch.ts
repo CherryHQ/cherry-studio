@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
 
+import { applyTableRules } from '@main/utils/htmlToMarkdown'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 
 export const RequestPayloadSchema = z.object({
@@ -103,7 +104,7 @@ export class Fetcher {
     try {
       const html = await this._fetchText(requestPayload)
       const { default: TurndownService } = await import('turndown')
-      const turndownService = new TurndownService()
+      const turndownService = applyTableRules(new TurndownService())
       // Turndown keeps the *text* inside these, so a page's stylesheet and inline scripts land in
       // the markdown verbatim. That is pure cost: the caller asked for the page's prose, and on a
       // free tier a stylesheet's worth of tokens per fetched link is what ends the day's quota.

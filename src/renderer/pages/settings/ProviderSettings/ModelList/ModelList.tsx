@@ -12,16 +12,19 @@ import ProviderModelPullReconcile from './ProviderModelPullReconcile'
 import ProviderModelRemoveFailed from './ProviderModelRemoveFailed'
 
 interface ModelListProps {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   modelPullGuideVersion?: number
   onContinueApiSetup?: () => void
 }
 
 function ModelListContent({
+  scrollElement,
   providerId,
   modelPullGuideVersion = 0,
   onContinueApiSetup
 }: {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   modelPullGuideVersion?: number
   onContinueApiSetup?: () => void
@@ -32,6 +35,7 @@ function ModelListContent({
   return (
     <>
       <ProviderModelList
+        scrollElement={scrollElement}
         providerId={providerId}
         disabled={disabled}
         onContinueApiSetup={onContinueApiSetup}
@@ -56,11 +60,17 @@ function ModelListContent({
   )
 }
 
-const ModelList: React.FC<ModelListProps> = ({ providerId, modelPullGuideVersion = 0, onContinueApiSetup }) => {
+const ModelList: React.FC<ModelListProps> = ({
+  scrollElement,
+  providerId,
+  modelPullGuideVersion = 0,
+  onContinueApiSetup
+}) => {
   return (
     <div className={modelListClasses.cqRoot}>
       <section data-testid="provider-model-list" className={modelListClasses.section}>
         <ModelListContent
+          scrollElement={scrollElement}
           providerId={providerId}
           modelPullGuideVersion={modelPullGuideVersion}
           onContinueApiSetup={onContinueApiSetup}
