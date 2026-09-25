@@ -3617,6 +3617,62 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('does not re-send a completed turn when a later failure is retryable', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'turn-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete') break
+    }
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+
+    // The connection stays alive and an autonomous generation opens its own turn (an `assistant`
+    // message with no turn active), then fails before producing content. That failure has no host
+    // turn to re-open, so the finished prompt must not be replayed on a fallback model.
+    queryQueue.push({ type: 'assistant', uuid: 'a-1', message: { role: 'assistant', content: [] } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'turn-1',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    void (async () => {
+      while (true) {
+        const next = await events.next()
+        if (next.done) break
+        seen.push(next.value)
+      }
+    })()
+    // The failure surfaces on the primary model rather than restarting it on a fallback.
+    await vi.waitFor(() => expect(seen).toContainEqual(expect.objectContaining({ type: 'error' })))
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
   it('keeps the primary model and surfaces the error when the failed turn already produced content', async () => {
     mocks.getPreference.mockImplementation((key: string) => {
       if (key === 'chat.retry.enabled') return true

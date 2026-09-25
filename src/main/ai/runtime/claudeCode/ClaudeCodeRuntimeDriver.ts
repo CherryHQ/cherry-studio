@@ -777,6 +777,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           })
           const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
           this.lastMainAssistantUuid = undefined
+          this.clearReplayInput()
           this.eventQueue.push({ type: 'turn-complete', forkAnchor })
         }
       }
@@ -812,6 +813,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
+      if (salvaged) this.clearReplayInput()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfacedError })
     } finally {
       this.settlePendingInvocations()
@@ -831,6 +833,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async tryFallbackModel(error: unknown): Promise<boolean> {
     try {
       if (this.fallbackAttempted || this.abortController.signal.aborted) return false
+      // Only an in-flight host turn has a replay to re-open. A completed turn clears its input, so a
+      // failure arriving later — an autonomous generation, or one between turns — must not re-send a
+      // prompt the host already finished with.
+      const input = this.lastUserInput
+      const previousMessage = this.lastSdkUserMessage
+      if (!input || !previousMessage) return false
       const decision = resolveAgentSessionFallback({
         error,
         currentModelId: this.input.modelId,
@@ -857,7 +865,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (!request) return false
       // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
       // abandoned with no trace in the transcript and the original error surfaces.
-      const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId)
+      const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId, input, previousMessage)
       logger.warn('Agent session turn fell back to the next configured model', {
         sessionId: this.input.sessionId,
         from: this.input.modelId,
@@ -898,15 +906,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** The retained replay belongs to the in-flight host turn; drop it once that turn is over. */
+  private clearReplayInput(): void {
+    this.lastUserInput = undefined
+    this.lastSdkUserMessage = undefined
+  }
+
   /**
    * The message the fallback re-opens the turn with. Image parts were routed for the primary
    * model's capability, so a fallback that reads images differently must rebuild them.
    */
-  private async buildReplayUserMessage(fallbackModelId: UniqueModelId): Promise<SDKUserMessage | undefined> {
-    const input = this.lastUserInput
-    if (!input || !this.lastSdkUserMessage) return this.lastSdkUserMessage
+  private async buildReplayUserMessage(
+    fallbackModelId: UniqueModelId,
+    input: AgentRuntimeUserInput,
+    message: SDKUserMessage
+  ): Promise<SDKUserMessage> {
     const supportsImages = resolveModelImageSupport(fallbackModelId)
-    if (supportsImages === this.lastSdkUserMessageSupportsImages) return this.lastSdkUserMessage
+    if (supportsImages === this.lastSdkUserMessageSupportsImages) return message
     return toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages
@@ -938,6 +954,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             })
             return
           }
+          // An autonomous generation owns its own turn; the retained replay belonged to the host
+          // turn that just ended and must not be re-sent if this one fails (same rule as the
+          // Pi/DSH wrapper).
+          if (event.type === 'autonomous-turn-state' && event.state === 'started') this.clearReplayInput()
           this.eventQueue.push(event)
         }
       },
