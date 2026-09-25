@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+
+import { MCP_TOOL_INPUT_SCHEMA, MCP_TOOL_OUTPUT_SCHEMA } from '../McpCatalogService'
 
 const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), loggerWarn: vi.fn() }))
 const getById = vi.fn()
@@ -94,6 +96,43 @@ function sdkTool(name: string) {
     inputSchema: { type: 'object', properties: {} }
   }
 }
+
+describe('MCP_TOOL_SCHEMAS', () => {
+  it('accepts boolean property values in input schema properties', () => {
+    const result = MCP_TOOL_INPUT_SCHEMA.parse({
+      type: 'object',
+      properties: {
+        canonical_state: true,  // bare boolean schema (e.g. Go `any`, TS `unknown`)
+        name: { type: 'string' }
+      },
+      required: ['name']
+    })
+    expect(result.properties.canonical_state).toBe(true)
+    expect(result.properties.name).toEqual({ type: 'string' })
+  })
+
+  it('accepts boolean property values in output schema properties', () => {
+    const result = MCP_TOOL_OUTPUT_SCHEMA.parse({
+      type: 'object',
+      properties: {
+        canonical_state: true,
+        count: { type: 'number' }
+      }
+    })
+    expect(result.properties.canonical_state).toBe(true)
+    expect(result.properties.count).toEqual({ type: 'number' })
+  })
+
+  it('accepts false boolean property values', () => {
+    const result = MCP_TOOL_OUTPUT_SCHEMA.parse({
+      type: 'object',
+      properties: {
+        forbidden: false
+      }
+    })
+    expect(result.properties.forbidden).toBe(false)
+  })
+})
 
 describe('McpCatalogService', () => {
   beforeEach(() => {
