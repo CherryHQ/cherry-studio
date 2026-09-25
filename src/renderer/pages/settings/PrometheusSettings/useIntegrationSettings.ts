@@ -18,12 +18,13 @@ export function useIntegrationSettings() {
   const [workspace, setWorkspace] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [workspaceSaving, setWorkspaceSaving] = useState(false)
   const [startingAction, setStartingAction] = useState<IntegrationAction | null>(null)
   const dirty =
     snapshot !== null && (JSON.stringify(draft) !== JSON.stringify(snapshot.config) || Object.keys(secrets).length > 0)
   const running =
     snapshot?.operations.some((operation) => operation.status === 'queued' || operation.status === 'running') ?? false
-  const busy = saving || startingAction !== null || running
+  const busy = saving || workspaceSaving || startingAction !== null || running
 
   const load = useCallback(async () => {
     try {
@@ -117,6 +118,26 @@ export function useIntegrationSettings() {
     }
   }, [])
 
+  const setWorkspaceEnabled = useCallback(async (workspacePath: string, enabled: boolean) => {
+    setWorkspaceSaving(true)
+    setError(null)
+    try {
+      const next = await ipcApi.request('prometheus.integration.workspace_enabled', { workspacePath, enabled })
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              workspaces: current.workspaces.map((entry) => (entry.id === next.id ? next : entry))
+            }
+          : current
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setWorkspaceSaving(false)
+    }
+  }, [])
+
   const update = useCallback(
     <K extends keyof IntegrationConfig>(section: K, values: Partial<IntegrationConfig[K]>) =>
       setDraft((current) => ({ ...current, [section]: { ...current[section], ...values } })),
@@ -145,6 +166,7 @@ export function useIntegrationSettings() {
     workspace,
     error,
     saving,
+    workspaceSaving,
     startingAction,
     dirty,
     busy,
@@ -153,6 +175,7 @@ export function useIntegrationSettings() {
     save,
     start,
     cancel,
+    setWorkspaceEnabled,
     update,
     setSecret,
     setWorkspace

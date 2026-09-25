@@ -61,6 +61,8 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
       throw error
     }
   },
+  'prometheus.integration.workspace_enabled': async ({ workspacePath, enabled }) =>
+    application.get('PrometheusIntegrationService').setWorkspaceEnabled(workspacePath, enabled),
   'prometheus.integration.start': async ({ action, workspacePath }) =>
     application.get('PrometheusIntegrationService').start(action, workspacePath),
   'prometheus.integration.cancel': async ({ id }) => application.get('PrometheusIntegrationService').cancel(id),

@@ -753,13 +753,23 @@ export const uarProviderMutationSchema = z
   })
   .strict()
 export type UarProviderMutation = z.infer<typeof uarProviderMutationSchema>
+export type CompassFreshnessState = 'unknown' | 'checking' | 'current' | 'stale' | 'missing' | 'error'
+export type CompassFreshness = {
+  state: CompassFreshnessState
+  checkedAt?: number
+  detail?: string
+}
 export type WorkspaceIntegration = {
   path: string
   id: string
   graph: string
   backend: 'remote' | 'sqlite' | 'json'
   serverIds: string[]
+  enabled: boolean
   indexed: boolean
+  freshness: CompassFreshness
+  lastIndexedAt?: number
+  latestOperationId?: string
   error?: string
 }
 export type IntegrationService = 'surrealdb' | 'memory' | 'liter'

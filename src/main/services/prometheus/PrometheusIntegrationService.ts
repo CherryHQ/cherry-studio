@@ -42,6 +42,7 @@ import { writeMiniConfiguration } from './miniCommands'
 import { discoverServiceCandidates } from './serviceDiscovery'
 import { surrealSql } from './surrealConnection'
 import {
+  checkWorkspaceFreshness,
   describeWorkspace,
   indexWorkspace,
   installCompassProjectSkills,
@@ -248,10 +249,23 @@ export class PrometheusIntegrationService extends BaseService {
     const config = readIntegrationConfig()
     const workspace = await describeWorkspace(session.workspace.path, config)
     this.workspaces.set(workspace.id, workspace)
-    if (config.compass.enabled && !workspace.indexed && !workspace.error) {
+    if (config.compass.enabled && workspace.enabled && !workspace.error) {
       try {
-        await this.ensureIndex(workspace, config)
-        workspace.indexed = true
+        const { completion } = await this.runOperation(
+          'check-drift',
+          workspace.path,
+          async (signal, output, operation, controls) => {
+            controls.stage('checking')
+            workspace.freshness = { state: 'checking' }
+            workspace.latestOperationId = operation.id
+            await saveWorkspaceState(workspace)
+            workspace.freshness = await checkWorkspaceFreshness(workspace, config, signal, output)
+            workspace.indexed = workspace.freshness.state === 'current'
+            await saveWorkspaceState(workspace)
+          }
+        )
+        await completion
+        if (!workspace.indexed) await this.ensureIndex(workspace, config)
       } catch (error) {
         workspace.error = error instanceof Error ? error.message : String(error)
       }
@@ -270,13 +284,40 @@ export class PrometheusIntegrationService extends BaseService {
   private ensureIndex(workspace: WorkspaceIntegration, config: IntegrationConfig): Promise<void> {
     const existing = this.workspaceJobs.get(workspace.id)
     if (existing) return existing
-    const job = this.runOperation('index', workspace.path, async (signal, output) => {
-      await indexWorkspace(workspace, config, signal, output)
+    const job = this.runOperation('index', workspace.path, async (signal, output, operation, controls) => {
+      controls.stage('indexing')
+      workspace.freshness = { state: 'checking' }
+      workspace.latestOperationId = operation.id
+      await saveWorkspaceState(workspace)
+      workspace.freshness = await indexWorkspace(workspace, config, signal, output)
+      workspace.indexed = workspace.freshness.state === 'current'
+      workspace.lastIndexedAt = Date.now()
+      await saveWorkspaceState(workspace)
     })
       .then(({ completion }) => completion)
       .finally(() => this.workspaceJobs.delete(workspace.id))
     this.workspaceJobs.set(workspace.id, job)
     return job
+  }
+
+  async setWorkspaceEnabled(workspacePath: string, enabled: boolean): Promise<WorkspaceIntegration> {
+    await this.initialization
+    if (!path.isAbsolute(workspacePath) || !(await fs.stat(workspacePath)).isDirectory())
+      throw new Error('prometheus.error.workspaceDirectory')
+    const resolved = await fs.realpath(workspacePath)
+    const workspace = await describeWorkspace(resolved)
+    workspace.enabled = enabled
+    const servers = await registerWorkspaceServers(workspace, readIntegrationConfig())
+    workspace.serverIds = servers.map((server) => server.id)
+    await saveWorkspaceState(workspace)
+    this.workspaces.set(workspace.id, workspace)
+    if (!enabled) {
+      const compass = mcpServerService
+        .list({})
+        .items.find((server) => server.reference === `compass:${workspace.id}` && server.tags?.includes(MANAGED_TAG))
+      if (compass) await application.get('McpRuntimeService').stopServer(compass.id)
+    }
+    return workspace
   }
 
   async start(action: IntegrationAction, workspacePath?: string): Promise<IntegrationOperation> {
@@ -405,8 +446,20 @@ export class PrometheusIntegrationService extends BaseService {
             throw new Error('prometheus.error.toolOperation')
           return
         }
-        await indexWorkspace(workspace, config, signal, output)
-        workspace.indexed = true
+        workspace.latestOperationId = operation.id
+        workspace.freshness = { state: 'checking' }
+        await saveWorkspaceState(workspace)
+        if (action === 'check-drift') {
+          controls.stage('checking')
+          workspace.freshness = await checkWorkspaceFreshness(workspace, config, signal, output)
+          workspace.indexed = workspace.freshness.state === 'current'
+          await saveWorkspaceState(workspace)
+          return
+        }
+        controls.stage(action === 'refresh' ? 'refreshing' : 'indexing')
+        workspace.freshness = await indexWorkspace(workspace, config, signal, output)
+        workspace.indexed = workspace.freshness.state === 'current'
+        workspace.lastIndexedAt = Date.now()
         const servers = await registerWorkspaceServers(workspace, config)
         workspace.serverIds = servers.map((server) => server.id)
         await saveWorkspaceState(workspace)
@@ -450,7 +503,7 @@ export class PrometheusIntegrationService extends BaseService {
         ? ['compose:the-boss-prometheus']
         : ['uar-apply', 'uar-restart'].includes(action)
           ? ['uar:process']
-          : ['index', 'refresh'].includes(action) && workspaceId
+          : ['index', 'refresh', 'check-drift'].includes(action) && workspaceId
             ? [`compass:${workspaceId}`]
             : action === 'repair-path'
               ? ['prometheus:commands']

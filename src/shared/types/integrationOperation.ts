@@ -9,6 +9,7 @@ export const integrationActionSchema = z.enum([
   'logs',
   'index',
   'refresh',
+  'check-drift',
   'install-skills',
   'repair-path',
   'diagnose',

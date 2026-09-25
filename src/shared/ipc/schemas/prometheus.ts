@@ -24,7 +24,8 @@ import {
   type IntegrationOperationEventPage,
   type IntegrationOperationLogExport,
   type IntegrationOperationLogPage,
-  type IntegrationSnapshot
+  type IntegrationSnapshot,
+  type WorkspaceIntegration
 } from '@shared/types/prometheusIntegration'
 import {
   uarSettingsNamespaceSchema,
@@ -61,6 +62,10 @@ export const prometheusRequestSchemas = {
   'prometheus.integration.configure': defineRoute({
     input: z.object({ updates: z.array(integrationUpdateSchema).max(4), secrets: secretPatchSchema }).strict(),
     output: z.custom<IntegrationSnapshot>()
+  }),
+  'prometheus.integration.workspace_enabled': defineRoute({
+    input: z.object({ workspacePath: z.string().min(1), enabled: z.boolean() }).strict(),
+    output: z.custom<WorkspaceIntegration>()
   }),
   'prometheus.integration.start': defineRoute({
     input: z.object({ action: integrationActionSchema, workspacePath: z.string().optional() }).strict(),

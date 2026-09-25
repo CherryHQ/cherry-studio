@@ -7,7 +7,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { IntegrationConfig, WorkspaceIntegration } from '@shared/types/prometheusIntegration'
+import type { CompassFreshness, IntegrationConfig, WorkspaceIntegration } from '@shared/types/prometheusIntegration'
 
 import { detectFullPack } from './fullPackDetection'
 import { integrationDirectory, readIntegrationConfig, readSecrets } from './integrationConfig'
@@ -34,7 +34,13 @@ const exists = async (filename: string) =>
 
 function projectionProfile(config: IntegrationConfig, backend: WorkspaceIntegration['backend']): string {
   const { endpoint, namespace, username, authLevel } = config.compass
-  return JSON.stringify(backend === 'remote' ? { backend, endpoint, namespace, username, authLevel } : { backend })
+  const profile = {
+    schemaVersion: 1,
+    backend,
+    extraction: { codeOnly: true, visualization: false },
+    ...(backend === 'remote' ? { endpoint, namespace, username, authLevel } : {})
+  }
+  return JSON.stringify(profile)
 }
 
 async function matchesProjection(output: string, profile: string): Promise<boolean> {
@@ -72,11 +78,38 @@ export async function saveWorkspaceState(workspace: WorkspaceIntegration): Promi
 export async function loadWorkspaceState(workspace: string): Promise<WorkspaceIntegration> {
   const id = workspaceIdentity(workspace)
   try {
-    return JSON.parse(await fs.readFile(path.join(workspaceDirectory(id), 'workspace.json'), 'utf8'))
+    const saved = JSON.parse(
+      await fs.readFile(path.join(workspaceDirectory(id), 'workspace.json'), 'utf8')
+    ) as Partial<WorkspaceIntegration>
+    const indexed =
+      saved.indexed ?? (await exists(saved.graph ?? path.join(workspaceDirectory(id), 'local', 'graph.json')))
+    return {
+      path: workspace,
+      id,
+      graph: saved.graph ?? path.join(workspaceDirectory(id), 'local', 'graph.json'),
+      backend: saved.backend ?? 'sqlite',
+      serverIds: saved.serverIds ?? [],
+      enabled: saved.enabled ?? true,
+      indexed,
+      freshness: saved.freshness ?? { state: indexed ? 'unknown' : 'missing' },
+      ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+      ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId }),
+      ...(saved.error === undefined ? {} : { error: saved.error })
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     const graph = path.join(workspaceDirectory(id), 'local', 'graph.json')
-    return { path: workspace, id, graph, backend: 'sqlite', serverIds: [], indexed: await exists(graph) }
+    const indexed = await exists(graph)
+    return {
+      path: workspace,
+      id,
+      graph,
+      backend: 'sqlite',
+      serverIds: [],
+      enabled: true,
+      indexed,
+      freshness: { state: indexed ? 'unknown' : 'missing' }
+    }
   }
 }
 
@@ -85,6 +118,7 @@ export async function describeWorkspace(
   config = readIntegrationConfig()
 ): Promise<WorkspaceIntegration> {
   const id = workspaceIdentity(workspace)
+  const saved = await loadWorkspaceState(workspace)
   const remote =
     ['automatic', 'remote'].includes(config.compass.storage) &&
     (await compassRemoteReady(config, workspaceDatabase(id)))
@@ -95,16 +129,35 @@ export async function describeWorkspace(
       graph: path.join(workspaceDirectory(id), 'remote', 'graph.json'),
       backend: 'remote',
       serverIds: [],
+      enabled: saved.enabled,
       indexed: false,
+      freshness: { state: 'error', detail: 'prometheus.error.remoteUnavailable' },
+      ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+      ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId }),
       error: 'prometheus.error.remoteUnavailable'
     }
   }
   const backend = remote ? 'remote' : config.compass.storage === 'json' ? 'json' : 'sqlite'
   const graph = path.join(workspaceDirectory(id), remote ? 'remote' : 'local', 'graph.json')
-  const indexed =
-    (await matchesProjection(path.dirname(graph), projectionProfile(config, backend))) &&
-    (await hasProjection(graph, backend))
-  return { path: workspace, id, graph, backend, serverIds: [], indexed }
+  const projectionExists = await hasProjection(graph, backend)
+  const indexed = projectionExists && (await matchesProjection(path.dirname(graph), projectionProfile(config, backend)))
+  const freshness: CompassFreshness = !projectionExists
+    ? { state: 'missing' }
+    : indexed
+      ? saved.freshness
+      : { state: 'stale' }
+  return {
+    path: workspace,
+    id,
+    graph,
+    backend,
+    serverIds: saved.serverIds,
+    enabled: saved.enabled,
+    indexed,
+    freshness,
+    ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+    ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId })
+  }
 }
 
 function upsertManagedServer(key: string, definition: CreateMcpServerDto): McpServer {
@@ -125,9 +178,14 @@ export async function registerWorkspaceServers(
 ): Promise<McpServer[]> {
   const suffix = `${path.basename(workspace.path) || 'workspace'}-${workspace.id.slice(0, 8)}`
   const servers: McpServer[] = []
-  if (config.compass.enabled) {
+  const compassReference = `compass:${workspace.id}`
+  const existingCompass = mcpServerService
+    .list({})
+    .items.find((server) => server.tags?.includes(MANAGED_TAG) && server.reference === compassReference)
+  if (config.compass.enabled && workspace.enabled) {
     const command = await getBinaryPath('compass')
-    const server = upsertManagedServer(`compass:${workspace.id}`, {
+    const ready = !workspace.error && workspace.indexed && workspace.freshness.state === 'current'
+    const server = upsertManagedServer(compassReference, {
       name: `Compass · ${suffix}`,
       type: 'stdio',
       command,
@@ -139,12 +197,14 @@ export async function registerWorkspaceServers(
         '--engine',
         workspace.backend === 'remote' ? 'surreal' : workspace.backend === 'sqlite' ? 'store' : 'json'
       ],
-      isActive: !workspace.error,
+      isActive: ready,
       env: { BOSS_COMPASS_WORKSPACE: workspace.id },
-      shouldConfig: Boolean(workspace.error),
+      shouldConfig: !ready,
       description: workspace.error ?? workspace.path
     })
-    if (!workspace.error) servers.push(server)
+    if (ready) servers.push(server)
+  } else if (existingCompass?.isActive) {
+    mcpServerService.update(existingCompass.id, { isActive: false })
   }
   if (config.filesystem.enabled) {
     const roots = await Promise.all(
@@ -180,7 +240,7 @@ export async function indexWorkspace(
   config: IntegrationConfig,
   signal: AbortSignal,
   onOutput: (value: string) => void
-): Promise<void> {
+): Promise<CompassFreshness> {
   if (workspace.error) throw new Error(workspace.error)
   const local = path.join(workspaceDirectory(workspace.id), 'local')
   const remote = path.join(workspaceDirectory(workspace.id), 'remote')
@@ -209,6 +269,84 @@ export async function indexWorkspace(
       '--reuse-cache-on-force'
     ])
     await fs.writeFile(path.join(remote, 'boss-projection.json'), projectionProfile(config, 'remote'))
+  }
+  return checkWorkspaceFreshness(workspace, config, signal, onOutput)
+}
+
+type CompassDoctorReport = {
+  schema: 'compass.agent-doctor/1'
+  checks: Array<{ id: string; status: 'pass' | 'fail' | 'skip'; detail?: string }>
+}
+
+function parseDoctorReport(output: string): CompassFreshness {
+  const start = output.indexOf('{')
+  const end = output.lastIndexOf('}')
+  if (start < 0 || end < start) return { state: 'error', checkedAt: Date.now(), detail: output.trim() }
+  try {
+    const report = JSON.parse(output.slice(start, end + 1)) as CompassDoctorReport
+    if (report.schema !== 'compass.agent-doctor/1' || !Array.isArray(report.checks)) {
+      return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.invalidDoctorReport' }
+    }
+    const presence = report.checks.find((check) => check.id === 'graph_presence')
+    const freshness = report.checks.find((check) => check.id === 'graph_freshness')
+    if (presence?.status === 'fail') {
+      return { state: 'missing', checkedAt: Date.now(), ...(presence.detail ? { detail: presence.detail } : {}) }
+    }
+    if (presence?.status !== 'pass' || !freshness) {
+      return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.incompleteDoctorReport' }
+    }
+    if (freshness.status === 'pass') return { state: 'current', checkedAt: Date.now() }
+    if (freshness.status === 'fail' && freshness.detail?.toLowerCase().includes('stale')) {
+      return { state: 'stale', checkedAt: Date.now(), detail: freshness.detail }
+    }
+    return {
+      state: 'error',
+      checkedAt: Date.now(),
+      ...(freshness.detail ? { detail: freshness.detail } : {})
+    }
+  } catch {
+    return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.invalidDoctorReport' }
+  }
+}
+
+export async function checkWorkspaceFreshness(
+  workspace: WorkspaceIntegration,
+  config: IntegrationConfig,
+  signal: AbortSignal,
+  onOutput: (value: string) => void
+): Promise<CompassFreshness> {
+  const binary = await getBinaryPath('compass')
+  const secrets = await readSecrets()
+  try {
+    const output = await runIntegrationProcess(
+      binary,
+      ['agent', 'doctor', '--platform', 'agents', '--project-root', workspace.path, '--format', 'json'],
+      {
+        cwd: workspace.path,
+        signal,
+        env: { COMPASS_OUT: path.dirname(workspace.graph) },
+        onOutput,
+        secrets: Object.values(secrets)
+      }
+    )
+    const native = parseDoctorReport(output)
+    if (
+      native.state === 'current' &&
+      !(await matchesProjection(path.dirname(workspace.graph), projectionProfile(config, workspace.backend)))
+    ) {
+      return { state: 'stale', checkedAt: Date.now() }
+    }
+    return native
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error
+    const native = parseDoctorReport(error instanceof Error ? error.message : String(error))
+    if (
+      native.state === 'current' &&
+      !(await matchesProjection(path.dirname(workspace.graph), projectionProfile(config, workspace.backend)))
+    ) {
+      return { state: 'stale', checkedAt: Date.now() }
+    }
+    return native
   }
 }
 

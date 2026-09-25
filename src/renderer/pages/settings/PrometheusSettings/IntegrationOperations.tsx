@@ -85,6 +85,7 @@ function OperationRow({
       logs: t('settings.prometheus.integration.actions.logs'),
       index: t('settings.prometheus.integration.actions.index'),
       refresh: t('settings.prometheus.integration.actions.refresh'),
+      'check-drift': t('settings.prometheus.integration.actions.check-drift'),
       'install-skills': t('settings.prometheus.integration.actions.install-skills'),
       'repair-path': t('settings.prometheus.integration.actions.repair-path'),
       diagnose: t('settings.prometheus.integration.actions.diagnose'),

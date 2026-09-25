@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { OperationLogViewer } from '@renderer/components/operation'
 import {
   SettingDescription,
   SettingDivider,
@@ -9,11 +11,79 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useIntegrationOperation } from '@renderer/hooks/useIntegrationOperation'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
+import type { IntegrationOperation, IntegrationOperationLogPage } from '@shared/types/prometheusIntegration'
 
 import { IntegrationChoice, IntegrationField, IntegrationToggle } from './IntegrationFields'
 import { IntegrationActionButton, IntegrationPage, IntegrationSecretField, integrationText } from './IntegrationPage'
+
+const LOG_PAGE_SIZE = 64 * 1024
+
+function WorkspaceOperationLog({ operation }: { operation?: IntegrationOperation }) {
+  const { t } = useTranslation()
+  const [page, setPage] = useState<IntegrationOperationLogPage | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { readLog, exportLog } = useIntegrationOperation(operation?.id, operation)
+
+  const loadPage = useCallback(
+    async (offset = 0) => {
+      if (!operation?.id) return
+      setLoading(true)
+      try {
+        setPage(await readLog(offset, LOG_PAGE_SIZE))
+        setError(null)
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        setLoading(false)
+      }
+    },
+    [operation?.id, readLog]
+  )
+
+  useEffect(() => {
+    setPage(null)
+    if (operation) void loadPage()
+  }, [loadPage, operation?.id])
+
+  if (!operation) return null
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      {error && (
+        <p className="text-error text-sm" role="alert">
+          {t(error, { defaultValue: error })}
+        </p>
+      )}
+      <OperationLogViewer
+        page={page}
+        loading={loading}
+        title={integrationText(t, 'operation.fullLog')}
+        positionLabel={
+          page
+            ? t('settings.prometheus.integration.operation.logPosition', {
+                start: page.offset,
+                end: page.nextOffset,
+                total: page.totalBytes
+              })
+            : ''
+        }
+        labels={{
+          previous: t('common.previous'),
+          next: t('common.next'),
+          copy: t('common.copy'),
+          save: t('common.save'),
+          empty: integrationText(t, 'operation.emptyLog')
+        }}
+        onPrevious={() => void loadPage(Math.max(0, (page?.offset ?? 0) - LOG_PAGE_SIZE))}
+        onNext={() => void loadPage(page?.nextOffset ?? 0)}
+        onSave={() => void exportLog().catch((cause) => setError(String(cause)))}
+      />
+    </div>
+  )
+}
 
 export default function CompassSettings() {
   const { t } = useTranslation()
@@ -23,6 +93,10 @@ export default function CompassSettings() {
       {(controller) => {
         const snapshot = controller.snapshot!
         const selectedWorkspace = snapshot.workspaces.find((entry) => entry.path === controller.workspace)
+        const workspaceOperation = selectedWorkspace
+          ? (snapshot.operations.find((operation) => operation.id === selectedWorkspace.latestOperationId) ??
+            snapshot.operations.find((operation) => operation.workspacePath === selectedWorkspace.path))
+          : undefined
         const runtimeStatus = {
           connected: t('settings.mcp.runtimeStatus.connected'),
           connecting: t('settings.mcp.runtimeStatus.connecting'),
@@ -153,24 +227,41 @@ export default function CompassSettings() {
                   onChange={controller.setWorkspace}
                 />
                 <div className="flex flex-wrap gap-2">
-                  {(['index', 'refresh', 'install-skills', 'diagnose'] as const).map((action) => (
+                  {(['check-drift', 'index', 'refresh', 'install-skills', 'diagnose'] as const).map((action) => (
                     <IntegrationActionButton key={action} controller={controller} action={action} workspaceRequired />
                   ))}
                 </div>
                 <SettingHelpText>{integrationText(t, 'diagnosticsHelp')}</SettingHelpText>
                 {selectedWorkspace && (
-                  <div className="space-y-1 rounded-md border border-border p-3 text-sm">
-                    <p>
-                      {integrationText(t, 'effectiveBackend')}:{' '}
-                      {integrationText(t, `backends.${selectedWorkspace.backend}`)}
-                    </p>
-                    <p>{integrationText(t, selectedWorkspace.indexed ? 'indexed' : 'notIndexed')}</p>
-                    <p className="break-all text-xs text-foreground-secondary">{selectedWorkspace.graph}</p>
-                    {selectedWorkspace.error && (
-                      <p className="text-error" role="alert">
-                        {t(selectedWorkspace.error, { defaultValue: selectedWorkspace.error })}
+                  <div className="space-y-3">
+                    <div className="space-y-2 rounded-md border border-border p-3 text-sm">
+                      <IntegrationToggle
+                        label={integrationText(t, 'workspaceCompassEnabled')}
+                        checked={selectedWorkspace.enabled}
+                        onChange={(enabled) => void controller.setWorkspaceEnabled(selectedWorkspace.path, enabled)}
+                      />
+                      <p>
+                        {integrationText(t, 'effectiveBackend')}:{' '}
+                        {integrationText(t, `backends.${selectedWorkspace.backend}`)}
                       </p>
-                    )}
+                      <p aria-live="polite">
+                        {integrationText(t, 'freshnessLabel')}:{' '}
+                        {integrationText(t, `freshness.${selectedWorkspace.freshness.state}`)}
+                      </p>
+                      {selectedWorkspace.freshness.detail && (
+                        <p className="break-words text-xs text-foreground-secondary">
+                          {t(selectedWorkspace.freshness.detail, { defaultValue: selectedWorkspace.freshness.detail })}
+                        </p>
+                      )}
+                      <p>{integrationText(t, selectedWorkspace.indexed ? 'indexed' : 'notIndexed')}</p>
+                      <p className="break-all text-xs text-foreground-secondary">{selectedWorkspace.graph}</p>
+                      {selectedWorkspace.error && (
+                        <p className="text-error" role="alert">
+                          {t(selectedWorkspace.error, { defaultValue: selectedWorkspace.error })}
+                        </p>
+                      )}
+                    </div>
+                    <WorkspaceOperationLog operation={workspaceOperation} />
                   </div>
                 )}
                 <ul className="divide-y divide-border">
