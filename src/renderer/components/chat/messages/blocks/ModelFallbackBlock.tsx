@@ -1,11 +1,14 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ModelFallbackPartData } from '@shared/data/types/uiParts'
 
-/** Display id: the model half of a `providerId::modelId` UniqueModelId. */
+/** Display id: the model half of a `providerId::modelId` UniqueModelId. Splits on the FIRST
+ *  separator — a modelId may itself contain `::`, so the last segment is not the model half. */
 function toDisplayModelId(uniqueModelId: string): string {
-  return uniqueModelId.split('::').at(-1) ?? uniqueModelId
+  if (!isUniqueModelId(uniqueModelId)) return uniqueModelId
+  return parseUniqueModelId(uniqueModelId).modelId
 }
 
 /**
