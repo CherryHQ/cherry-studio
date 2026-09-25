@@ -46,6 +46,7 @@ const logger = loggerService.withContext('UarRuntimeConnection')
 
 const HISTORY_PAGE_SIZE = 200
 const HISTORY_LIMIT = 1_000
+const UAR_A2UI_PROFILE = 'uar.a2ui/1'
 
 type UarAgentArtifact = {
   version: string
@@ -196,6 +197,8 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
         working_directory: workspace,
         ...(bridge.servers.length > 0 ? { mcp_servers: bridge.servers } : {}),
         tool_admission: bridge.toolAdmission,
+        presentation_mode: 'auto',
+        client_rendering: { a2ui_profiles: [UAR_A2UI_PROFILE] },
         ...(this.mapReasoningEffort() ? { reasoning_effort: this.mapReasoningEffort() } : {}),
         ...(coldSession
           ? { history: { session_id: this.input.sessionId, messages: this.loadHistory(input.message.id) } }

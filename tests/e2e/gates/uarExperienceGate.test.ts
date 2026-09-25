@@ -376,7 +376,12 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     ])
 
     expect(run).toMatchObject({ status: 'done', agentRevision: target.catalogRevision })
-    expect(runDetail.run.presentationSelection).toMatchObject({ mode: 'selected', ids: [presentation!.id] })
+    expect(runDetail.run.effectivePolicy.presentations).toMatchObject({ mode: 'selected', ids: [presentation!.id] })
+    expect(runDetail.run.presentationSelection).toMatchObject({
+      requested_mode: 'auto',
+      effective_mode: 'auto',
+      fallback_reason: null
+    })
     const approvalLifecycle = operations.approvals.find((candidate) => candidate.rootRunId === run!.runId)
     expect(approvalLifecycle).toMatchObject({
       ownerSessionId: session.session.id,
