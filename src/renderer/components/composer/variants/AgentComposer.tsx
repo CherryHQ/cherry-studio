@@ -294,6 +294,7 @@ const createSkillQuickPanelItems = (
 type AgentComposerSessionSnapshot = {
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
+  modelId?: string | null
 }
 
 export interface AgentComposerSendBody {
@@ -477,6 +478,7 @@ const AgentComposerRoot = ({
         modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
+        sessionModelOverrideId={session?.modelId ?? null}
         initialDraft={initialDraft}
         draftCacheKey={draftCacheKey}
         draftPersistenceEnabled={draftPersistenceEnabled}
@@ -519,6 +521,7 @@ interface InnerProps {
   modelPending?: boolean
   agentId: string
   sessionId: string
+  sessionModelOverrideId?: string | null
   initialDraft: RestoredAgentComposerDraftCache
   draftCacheKey: AgentComposerDraftCacheKey
   draftPersistenceEnabled: boolean
@@ -738,6 +741,7 @@ const AgentComposerInner = ({
   modelPending,
   agentId,
   sessionId,
+  sessionModelOverrideId,
   initialDraft,
   draftCacheKey,
   draftPersistenceEnabled,
@@ -1262,7 +1266,10 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+      if (!agent || !canChangeModel || !nextModel) return
+      const clearingOverrideToDefault =
+        sessionModelOverrideId != null && nextModel.id === agent.model && nextModel.id === model?.id
+      if (nextModel.id === model?.id && !clearingOverrideToDefault) return
 
       // Session-scoped pick: persist the per-session override so sibling
       // sessions keep independent selections; the agent default is untouched.
@@ -1303,6 +1310,7 @@ const AgentComposerInner = ({
       model?.id,
       reasoningEffort,
       sessionId,
+      sessionModelOverrideId,
       updateSession
     ]
   )
