@@ -815,24 +815,41 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.agentId = session.agentId
       if (agent) entry.agentType = agent.type
     }
+    const liveTurn = this.liveTurn(entry)
+    const isAutonomousReceiveOnlyPlaceholder =
+      liveTurn &&
+      entry.runtimeState.execution.kind === 'autonomous-turn' &&
+      entry.runtimeState.execution.turn === liveTurn &&
+      entry.runtimeState.execution.stream === 'unopened'
+    if (
+      liveTurn &&
+      !isAutonomousReceiveOnlyPlaceholder &&
+      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, liveTurn) &&
+      this.isTurnLive(entry, liveTurn)
+    ) {
+      return
+    }
+
     const effectiveModel = session.modelId ?? agent?.model ?? null
     if (!effectiveModel) {
       this.invalidateModelClearedEntry(entry)
       return
     }
 
-    const turn = this.liveTurn(entry)
-    if (turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) && this.isTurnLive(entry, turn)) {
-      return
-    }
-
     entry.modelId = effectiveModel
     if (!agent) return
-    if (isAgentSessionRuntimeAutonomous(entry.runtimeState) || isAgentSessionRuntimeTransitioning(entry.runtimeState)) {
-      return
-    }
 
-    await this.reconcileEntryConnection(entry, agent)
+    const deferSessionModelReconnect =
+      entry.runtimeState.execution.kind === 'steer-transition' ||
+      (entry.runtimeState.execution.kind === 'turn' &&
+        entry.runtimeState.execution.stream === 'awaiting-persistence') ||
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
+      (entry.runtimeState.execution.kind === 'autonomous-turn' &&
+        entry.runtimeState.execution.origin.kind === 'goal-round')
+
+    if (!deferSessionModelReconnect) {
+      await this.reconcileEntryConnection(entry, agent)
+    }
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
