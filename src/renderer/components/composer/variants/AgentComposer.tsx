@@ -294,6 +294,7 @@ const createSkillQuickPanelItems = (
 type AgentComposerSessionSnapshot = {
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
+  modelId?: string | null
 }
 
 export interface AgentComposerSendBody {
@@ -477,6 +478,7 @@ const AgentComposerRoot = ({
         modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
+        sessionModelOverrideId={session?.modelId ?? null}
         initialDraft={initialDraft}
         draftCacheKey={draftCacheKey}
         draftPersistenceEnabled={draftPersistenceEnabled}
@@ -519,6 +521,7 @@ interface InnerProps {
   modelPending?: boolean
   agentId: string
   sessionId: string
+  sessionModelOverrideId?: string | null
   initialDraft: RestoredAgentComposerDraftCache
   draftCacheKey: AgentComposerDraftCacheKey
   draftPersistenceEnabled: boolean
@@ -738,6 +741,7 @@ const AgentComposerInner = ({
   modelPending,
   agentId,
   sessionId,
+  sessionModelOverrideId,
   initialDraft,
   draftCacheKey,
   draftPersistenceEnabled,
@@ -764,7 +768,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1262,12 +1266,14 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+      if (!agent || !canChangeModel || !nextModel) return
+      const clearingOverrideToDefault =
+        sessionModelOverrideId != null && nextModel.id === agent.model && nextModel.id === model?.id
+      if (nextModel.id === model?.id && !clearingOverrideToDefault) return
 
+      // Session-scoped pick: persist the per-session override so sibling
+      // sessions keep independent selections; the agent default is untouched.
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
-      const pendingReasoningEdit =
-        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1276,11 +1282,11 @@ const AgentComposerInner = ({
         version
       })
 
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+      const updatedSession = await updateSession(
+        { id: sessionId, modelId: nextModel.id === agent.model ? null : nextModel.id },
         { showSuccessToast: false }
       )
-      if (!updatedAgent) {
+      if (!updatedSession) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride) return null
@@ -1294,16 +1300,19 @@ const AgentComposerInner = ({
         })
         return
       }
-      if (
-        pendingReasoningEdit &&
-        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-      ) {
-        pendingReasoningEditRef.current = null
-      }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [
+      activeReasoningOverride,
+      agent,
+      canChangeModel,
+      canonicalReasoningEffort,
+      model?.id,
+      reasoningEffort,
+      sessionId,
+      sessionModelOverrideId,
+      updateSession
+    ]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1331,12 +1340,25 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
+  // Reasoning effort is stored on the agent default, so while a session
+  // override model is active the pick stays composer-local: persisting it
+  // would renormalize it against (and clobber) the unrelated default.
+  const isSessionModelOverride = model?.id != null && model.id !== agent?.model
   const handleReasoningEffortChange = useCallback(
     (option: ThinkingOption) => {
       if (!agent) return
 
-      const canonicalAtMutationStart = canonicalReasoningEffort
       const version = ++reasoningMutationVersionRef.current
+      if (isSessionModelOverride) {
+        setReasoningOverride({
+          agentId: agent.id,
+          value: option,
+          version
+        })
+        return
+      }
+
+      const canonicalAtMutationStart = canonicalReasoningEffort
       pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
       setReasoningOverride({
         agentId: agent.id,
@@ -1370,7 +1392,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, isSessionModelOverride, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {

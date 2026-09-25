@@ -202,9 +202,13 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
+export type ExpectedAgentOwner =
+  | string
+  | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+
 type SaveAgentSessionMessageOptions =
-  | { db: DbOrTx; publishDataChange?: never }
-  | { db?: undefined; publishDataChange?: boolean }
+  | { db: DbOrTx; publishDataChange?: never; expectedAgent?: ExpectedAgentOwner }
+  | { db?: undefined; publishDataChange?: boolean; expectedAgent?: ExpectedAgentOwner }
 
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
@@ -1160,10 +1164,16 @@ export class AgentSessionMessageService {
     params: SaveAgentSessionMessageParams,
     options: SaveAgentSessionMessageOptions = {}
   ): AgentSessionMessageEntity {
-    const { db, publishDataChange } = options
+    const { db, publishDataChange, expectedAgent } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (db) {
+      this.assertExpectedAgentTx(db, params.sessionId, expectedAgent)
+      return this.saveMessageTx(db, params, timestampMs).entity
+    }
+    const result = application.get('DbService').withWriteTx((tx) => {
+      this.assertExpectedAgentTx(tx, params.sessionId, expectedAgent)
+      return this.saveMessageTx(tx, params, timestampMs)
+    })
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -1184,10 +1194,7 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(
-    params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
-  ): AgentSessionMessageEntity[] {
+  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgent?: ExpectedAgentOwner): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
       .get('DbService')
       .withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
@@ -1205,7 +1212,7 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgentOwner
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
@@ -1213,7 +1220,7 @@ export class AgentSessionMessageService {
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgentOwner
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
@@ -1977,11 +1984,7 @@ export class AgentSessionMessageService {
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */
-  private assertExpectedAgentTx(
-    db: DbOrTx,
-    sessionId: string,
-    expectedAgent: string | { id: string; updatedAt: string; model: string; type: string } | undefined
-  ): void {
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgent?: ExpectedAgentOwner): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
     const [session] = db
@@ -1989,7 +1992,8 @@ export class AgentSessionMessageService {
         agentId: sessionTable.agentId,
         agentUpdatedAt: agentTable.updatedAt,
         agentModel: agentTable.model,
-        agentType: agentTable.type
+        agentType: agentTable.type,
+        sessionModelId: sessionTable.modelId
       })
       .from(sessionTable)
       .leftJoin(agentTable, eq(sessionTable.agentId, agentTable.id))
@@ -2007,6 +2011,14 @@ export class AgentSessionMessageService {
         (session.agentType === 'cherry-claw' ? 'claude-code' : session.agentType) !== expectedAgent.type)
     ) {
       throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
+    }
+    // The override can change (or be cleared by model deletion) while validation awaits.
+    if (
+      typeof expectedAgent !== 'string' &&
+      expectedAgent.sessionModelId !== undefined &&
+      session.sessionModelId !== expectedAgent.sessionModelId
+    ) {
+      throw DataApiErrorFactory.concurrentModification('Session', sessionId)
     }
   }
 

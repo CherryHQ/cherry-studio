@@ -869,6 +869,7 @@ describe('AgentComposer', () => {
       return { configuration: mocks.agentConfiguration }
     })
     mocks.updateSession.mockReset()
+    mocks.updateSession.mockResolvedValue({})
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -1407,7 +1408,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('updates the agent model from the inline model selector when model changes are allowed', () => {
+  it('writes the session model override from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1423,16 +1424,17 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
+    expect(mocks.updateSession).toHaveBeenCalledWith(
       {
-        agentId: 'agent-1',
+        id: 'session-1',
         modelId: 'anthropic::claude-opus-4'
       },
       { showSuccessToast: false }
     )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
-  it('carries a local reasoning edit into a model update only while that edit is pending', () => {
+  it('keeps a local reasoning edit on the agent while the model switch writes only the session', () => {
     mocks.updateAgent.mockImplementationOnce(() => new Promise(() => undefined))
 
     render(
@@ -1449,18 +1451,52 @@ describe('AgentComposer', () => {
     act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
+    expect(mocks.updateSession).toHaveBeenCalledWith(
       {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4',
-        reasoningEffort: 'high'
+        id: 'session-1',
+        modelId: 'anthropic::claude-opus-4'
       },
       { showSuccessToast: false }
     )
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' }
+      },
+      { showSuccessToast: false }
+    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
-  it('does not mistake an in-flight model update for a pending reasoning edit', () => {
-    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+  it('keeps a reasoning effort pick local while a session model override is active', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        resolvedModel={{
+          ...model,
+          id: 'anthropic::claude-opus-4',
+          apiModelId: 'claude-opus-4',
+          name: 'Claude Opus 4'
+        }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    // Persisting would renormalize the pick against the unrelated agent
+    // default and clobber shared config, so the pick stays composer-local.
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+  })
+
+  it('does not mistake an in-flight session update for a pending reasoning edit', () => {
+    mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
     render(
       <AgentComposer
@@ -1476,9 +1512,9 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
     fireEvent.click(screen.getByText('select reasoning model'))
 
-    expect(mocks.updateModel).toHaveBeenLastCalledWith(
+    expect(mocks.updateSession).toHaveBeenLastCalledWith(
       {
-        agentId: 'agent-1',
+        id: 'session-1',
         modelId: 'anthropic::claude-reasoning'
       },
       { showSuccessToast: false }
@@ -1513,7 +1549,7 @@ describe('AgentComposer', () => {
         selectableEfforts: ['low', 'high']
       }
     }
-    mocks.updateModel.mockResolvedValueOnce(undefined)
+    mocks.updateSession.mockResolvedValueOnce(undefined)
 
     render(
       <AgentComposer
@@ -1545,7 +1581,7 @@ describe('AgentComposer', () => {
       }
     }
     let finishModelUpdate!: (value: object) => void
-    mocks.updateModel.mockImplementationOnce(
+    mocks.updateSession.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finishModelUpdate = resolve
@@ -1628,7 +1664,7 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).not.toHaveBeenCalled()
+    expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
   it('shows the configured custom provider name in the inline model label', async () => {

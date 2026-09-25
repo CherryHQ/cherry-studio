@@ -72,11 +72,16 @@ export async function captureDshConnectionSnapshot(
 ): Promise<DshConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  if (!session?.agentId || session.agentId !== agentId || !agent) {
     throw new DshInvalidConnectionSnapshotError(`Invalid dsh session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
+  // A session override routes on its own model even when the agent default is
+  // cleared; validation already admitted this effective model.
+  const modelId = requestedModelId ?? session.modelId ?? agent.model
+  if (!modelId) {
+    throw new DshInvalidConnectionSnapshotError(`Invalid dsh session snapshot: ${sessionId}`)
+  }
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)

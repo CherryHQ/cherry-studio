@@ -17,6 +17,7 @@ import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/s
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
@@ -972,6 +973,7 @@ class ProviderService {
   delete(providerId: string): void {
     assertManagedCherryProviderMutationAllowed(providerId, `delete provider ${providerId}`)
 
+    const clearedSessionIds: string[] = []
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
@@ -1003,11 +1005,11 @@ class ProviderService {
         .where(eq(userModelTable.providerId, providerId))
         .all()
 
-      pinService.purgeForEntitiesTx(
-        tx,
-        'model',
-        models.map((model) => model.id)
-      )
+      const modelIds = models.map((model) => model.id)
+      pinService.purgeForEntitiesTx(tx, 'model', modelIds)
+      // The provider delete cascades its user_model rows; sessions pointing
+      // at them via override inherit their agent default again first.
+      clearedSessionIds.push(...agentSessionService.clearModelOverrideForModelsTx(tx, modelIds))
 
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
@@ -1028,6 +1030,7 @@ class ProviderService {
     })
 
     if (deletedModelCount > 0) pinService.notifyPurged()
+    if (clearedSessionIds.length > 0) agentSessionService.notifySessionModelOverridesCleared(clearedSessionIds)
 
     logger.info('Deleted provider', { providerId })
   }

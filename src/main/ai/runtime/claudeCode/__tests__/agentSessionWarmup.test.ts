@@ -354,6 +354,69 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('keeps a live turn on its captured model when the session override changes mid-turn', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-3'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
+    const current = await deriveConnectionConfig('session-1', 'provider-1::model-2')
+    const turnLess = await deriveConnectionConfig('session-1')
+
+    expect(request?.sdkModelId).toBe('model-2-api')
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'model-2-api' })
+    if (!current.ok || !turnLess.ok) throw new Error('expected current configs')
+    expect(current.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
+    expect(turnLess.config.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('routes a turn-less connection on the session override instead of the agent default', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-3'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(request?.sdkModelId).toBe('model-3-api')
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'model-3-api' })
+    if (!current.ok) throw new Error('expected current config')
+    expect(current.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
+  })
+
+  it('passes the effective connection model to session settings for an override-only agent', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-3'
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ connectionModelId: 'provider-1::model-3' }),
+      expect.anything()
+    )
+  })
+
   it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
     // The settings builder force-enables ToolSearch for every agent; the route must undo that for
     // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
@@ -553,6 +616,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_API_KEY: 'api-key'
     })
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
+  it('keeps the configured plan/small models for a stable session override', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    // The session runs on its own override, but nothing was edited mid-turn — the agent's
+    // configured sub-models still apply instead of being silently pinned to the override.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-2'
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::plan',
+      smallModel: 'provider-1::small'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'small-api'
+    })
   })
 
   it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
@@ -1513,6 +1605,35 @@ describe('deriveConnectionConfig', () => {
         (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
       )
     ).toEqual(['promptModelName'])
+  })
+
+  it('tracks the session override model name in the promptModelName rebuild fact', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Model One',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      name: modelId === 'model-2' ? 'Override Model Two' : 'Model One',
+      apiModelId: `${modelId}-api`
+    }))
+    const agentDefault = await deriveSignature()
+
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      modelId: 'provider-1::model-2'
+    })
+    const overrideModel = await deriveSignature()
+
+    expect(
+      Object.keys(agentDefault.rebuildFactFingerprints).filter(
+        (name) => agentDefault.rebuildFactFingerprints[name] !== overrideModel.rebuildFactFingerprints[name]
+      )
+    ).toContain('promptModelName')
   })
 
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {

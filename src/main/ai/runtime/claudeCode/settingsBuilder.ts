@@ -16,6 +16,7 @@ import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@an
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -31,7 +32,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, resolvePromptModelName } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
   assertAgentSessionWorkspaceDirectory,
@@ -59,6 +60,8 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -115,6 +118,8 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  /** Connection or session override when the agent default is unset. */
+  connectionModelId?: UniqueModelId
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
@@ -186,7 +191,7 @@ export async function buildClaudeCodeSessionSettings(
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
-    buildEnvironment(provider, agent),
+    buildEnvironment(provider, agent, options?.connectionModelId ?? session.modelId ?? undefined),
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
@@ -230,6 +235,17 @@ export async function buildClaudeCodeSessionSettings(
   // step 6 exposes the kb_* tools — a composer-only selection on an unbound agent still gets them, and
   // without the guidance the model would never emit the `[cite:id]` markers those results need.
   const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
+  const effectiveModelId = options?.connectionModelId ?? session.modelId ?? agent.model
+  const promptModelName = effectiveModelId
+    ? resolvePromptModelName(
+        effectiveModelId,
+        agent,
+        (() => {
+          const { providerId, modelId } = parseUniqueModelId(effectiveModelId)
+          return modelService.getByKey(providerId, modelId)
+        })()
+      )
+    : null
   const systemPrompt = await buildSystemPrompt(
     agent,
     cwd,
@@ -237,7 +253,8 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     agentsMdContext,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    promptModelName
   )
 
   // 6. MCP servers (session + built-in)
@@ -611,7 +628,9 @@ export async function buildSystemPrompt(
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
   agentsMdContext?: string,
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Display name for `{{model_name}}` interpolation; defaults to `agent.modelName`. */
+  promptModelName?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -634,7 +653,8 @@ export async function buildSystemPrompt(
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
     customBaseContext,
-    effectiveLanguage
+    effectiveLanguage,
+    promptModelName
   })
 
   // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.

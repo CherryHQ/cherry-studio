@@ -980,6 +980,36 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
+  it('uses the session override when the agent default model is unset', async () => {
+    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: null,
+      mcps: [],
+      allowedTools: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-override',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'claude-override-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-override-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-override-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-override-api'
+    })
+  })
+
   it('adds loopback bypass rules to the final Agent proxy environment', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getProxyEnvironment.mockReturnValue({
