@@ -8,6 +8,7 @@ import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
   findLatestAgentPreviewUrl,
+  isResumeReceiptCall,
   resolveFlowToolCallId
 } from '../agentRightPaneProjection'
 
@@ -1564,5 +1565,64 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([
       expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
+  })
+})
+
+// A DSH `send_message` is both the continuation edge and — after a cold resume — the root the child
+// streams under, so misclassifying it either strands the receipt or empties the flow.
+describe('isResumeReceiptCall', () => {
+  // dsh parts carry the `cherry` transport, which is what lets the runtime tool names map onto
+  // their canonical ones — without it `send_message` never reads as a continuation at all.
+  const dshPart = (toolCallId: string, toolName: string, output: unknown, parentToolCallId?: string) =>
+    ({
+      type: 'dynamic-tool',
+      toolCallId,
+      toolName,
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output,
+      callProviderMetadata: {
+        cherry: { transport: 'dsh-agent', ...(parentToolCallId ? { parentToolCallId } : {}) }
+      }
+    }) as CherryMessagePart
+
+  const dshSendMessage = (toolCallId: string) =>
+    dshPart(toolCallId, 'send_message', 'message delivered to agent dsh-child-1')
+
+  it('treats a dsh send_message receipt with no content under it as a continuation', () => {
+    const parts = [dshSendMessage('call-send')]
+    expect(isResumeReceiptCall('call-send', { m1: parts })).toBe(true)
+  })
+
+  it('keeps a cold-resumed dsh send_message a root once content hangs under it', () => {
+    // The child re-streams under its own send_message call, so that call is the flow's root even
+    // though its result reports the agent it woke.
+    const parts = [dshSendMessage('call-send'), dshPart('child', 'subagent', undefined, 'call-send')]
+    expect(isResumeReceiptCall('call-send', { m1: parts })).toBe(false)
+  })
+
+  it('does not read a dsh launch receipt as a continuation', () => {
+    // A launch reports a child id too; only the canonical tool name separates the two roles.
+    const parts = [
+      toolPart('call-launch', 'subagent', undefined, 'output-available', {}, 'started subagent dsh-child-1')
+    ]
+    expect(isResumeReceiptCall('call-launch', { m1: parts })).toBe(false)
+  })
+
+  it('reads a claude-code resume receipt as a continuation', () => {
+    const parts = [
+      toolPart(
+        'call-send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-77' },
+        {
+          success: true,
+          resumedAgentId: 'agent-77'
+        }
+      )
+    ]
+    expect(isResumeReceiptCall('call-send', { m1: parts })).toBe(true)
   })
 })

@@ -482,10 +482,10 @@ function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): b
   const record = part as { toolName?: unknown; output?: unknown; input?: unknown }
   const resumeToolName = record.toolName === AgentToolsType.SendMessage || record.toolName === 'send_message'
   if (!resumeToolName) return false
-  // The result names the woken child; dsh's send_message input carries it in subagent_id.
-  const input = record.input as { subagent_id?: unknown } | undefined
-  const target =
-    getResumedAgentId(record.output) ?? (typeof input?.subagent_id === 'string' ? input.subagent_id : undefined)
+  // The result names the woken child; dsh's send_message input carries it as agent_id.
+  const input = record.input as { agent_id?: unknown; subagent_id?: unknown } | undefined
+  const inputTarget = typeof input?.agent_id === 'string' ? input.agent_id : input?.subagent_id
+  const target = getResumedAgentId(record.output) ?? (typeof inputTarget === 'string' ? inputTarget : undefined)
   return target === launchedAgentId
 }
 
