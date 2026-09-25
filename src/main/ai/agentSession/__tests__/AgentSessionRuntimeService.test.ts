@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -218,6 +219,16 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
     }
   })
   return entry
+}
+
+/** A connected runtime target; the occupancy that rides on it lives in the entry's runtime state. */
+function warmConnection() {
+  return {
+    send: vi.fn(),
+    close: vi.fn(),
+    reconcile: vi.fn().mockResolvedValue('current'),
+    refreshTraceContext: vi.fn()
+  }
 }
 
 function markEntryTurnAdmitted(entry: any): void {
@@ -514,7 +525,8 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+          finalizeHeldTopicStream: mocks.finalizeHeldTopicStream
         }
       }
       if (name === 'CacheService')
@@ -772,11 +784,16 @@ describe('AgentSessionRuntimeService', () => {
         ...entry.runtimeState.execution,
         stream: 'open',
         admission: 'admitted'
-      } as any
+      }
       const send = vi.fn()
       entry.runtimeState.connection = {
         kind: 'connected',
-        connection: { send, close: vi.fn(), reconcile: vi.fn().mockResolvedValue('current'), refreshTraceContext: vi.fn() },
+        connection: {
+          send,
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current'),
+          refreshTraceContext: vi.fn()
+        },
         occupancy: {}
       } as any
       mocks.cacheGetShared.mockImplementation((key: string) =>
@@ -818,6 +835,67 @@ describe('AgentSessionRuntimeService', () => {
       expect(send).toHaveBeenCalledWith(
         expect.objectContaining({ systemReminder: true, backgroundTasksNote: expect.stringContaining('Long review') })
       )
+      void service.closeSession('session-1')
+    })
+
+    // The spawning turn chains the topic stream (`willAgentSessionRuntimeContinue` is true while
+    // background occupancy is held) so the receive-only wake can carry the renderer listeners. When
+    // the work drains without ever producing that wake — stopped/killed, or a headless responder —
+    // nothing is left to settle the stream, so the drain edge itself must.
+    it('settles the held topic stream when detached work drains with no wake left to settle it', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      // Idle again — no execution, no launch, no queue is left to settle the stream.
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(entry.runtimeState.connection.occupancy).toEqual({})
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
+    it('leaves the held topic stream to a still-settling turn instead of finalizing it early', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      expect(entry.runtimeState.execution.kind).toBe('turn')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The turn is still settling on the same connection; its own settle re-evaluates the hold with
+      // the occupancy already gone, so finalizing here would evict a stream it still writes through.
+      expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
+    // Background work never makes the session busy, but it still writes message rows — while it runs,
+    // the backup/restore pre-flight must keep seeing the session as active work.
+    it('reports a session holding detached background work as active work for the backup pre-flight', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.listActiveWork()).toEqual([
+        expect.objectContaining({ id: 'session-1', summary: expect.stringContaining('background=true') })
+      ])
+
+      // Once the work drains the session is genuinely quiet again.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(service.listActiveWork()).toEqual([])
       void service.closeSession('session-1')
     })
   })

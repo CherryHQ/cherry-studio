@@ -13,6 +13,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { renderBackgroundTasksNote } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -27,7 +28,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { renderBackgroundTasksNote } from '@main/ai/steerReminder'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -1422,12 +1422,16 @@ export class AgentSessionRuntimeService extends BaseService {
     const work: Array<{ id: string; summary: string }> = []
     const activeSessionIds = new Set<string>()
     for (const [sessionId, entry] of this.entries) {
-      if (!this.isSessionBusy(sessionId)) continue
+      const background = hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+      // Background work never makes the session busy, but it still writes message data
+      // (`finishBackgroundFlows` → `replaceMessageParts`), so a backup snapshot must not start on top
+      // of it — the race would fail the backup's own fingerprint check.
+      if (!background && !this.isSessionBusy(sessionId)) continue
       activeSessionIds.add(sessionId)
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
         id: sessionId,
-        summary: `turn=${turn} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${isAgentSessionRuntimeCompacting(entry.runtimeState)} launch=${entry.runtimeState.launch.kind}`
+        summary: `turn=${turn} background=${background} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${isAgentSessionRuntimeCompacting(entry.runtimeState)} launch=${entry.runtimeState.launch.kind}`
       })
     }
     for (const sessionId of this.closingSessions.keys()) {
@@ -2196,7 +2200,21 @@ export class AgentSessionRuntimeService extends BaseService {
     } else {
       void this.finishBackgroundFlows(entry)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
+      this.releaseDrainedTopicStream(entry)
     }
+  }
+
+  /**
+   * Settle the topic stream this session still holds once its background work has drained. The
+   * receive-only wake of a normally-finished task settles it itself; a stopped/killed task or a
+   * headless responder leaves no successor, and only this edge can release the hold.
+   */
+  private releaseDrainedTopicStream(entry: AgentSessionRuntimeEntry): void {
+    // An execution still in flight is its own successor: its settle re-evaluates the hold (with the
+    // occupancy already gone) and releases the stream through the normal terminal lifecycle.
+    if (isAgentSessionRuntimeBusy(entry.runtimeState)) return
+    if (willAgentSessionRuntimeContinue(entry.runtimeState)) return
+    application.get('AiStreamManager').finalizeHeldTopicStream(entry.topicId, entry.modelId)
   }
 
   private handleBackgroundFlowChunk(

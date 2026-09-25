@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -109,7 +110,8 @@ beforeEach(() => {
         pauseRuntimeTurn: mocks.pauseRuntimeTurn,
         broadcastTopicError: mocks.broadcastTopicError,
         resolveToolApproval: mocks.resolveToolApproval,
-        terminateHeldTopicStream: mocks.terminateHeldTopicStream
+        terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+        finalizeHeldTopicStream: mocks.finalizeHeldTopicStream
       }
     }
     if (name === 'CacheService') {

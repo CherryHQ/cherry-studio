@@ -476,10 +476,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter?.beginTurn()
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, input.backgroundTasksNote, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      input.message,
+      this.resumeToken,
+      input.systemReminder,
+      input.backgroundTasksNote,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     this.sdkInputQueue.push(sdkMessage)
   }
 

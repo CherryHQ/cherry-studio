@@ -525,9 +525,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Admission miss (unknown name) — dsh client semantics: the line stays ordinary prose.
       if (handled) return
     }
-    const content = input.systemReminder
-      ? wrapSteerReminder(rawContent, input.backgroundTasksNote)
-      : rawContent
+    const content = input.systemReminder ? wrapSteerReminder(rawContent, input.backgroundTasksNote) : rawContent
     this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
