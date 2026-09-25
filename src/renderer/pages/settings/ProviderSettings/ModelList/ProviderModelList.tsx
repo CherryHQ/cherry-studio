@@ -1,6 +1,10 @@
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 
+import { useReorder } from '@renderer/data/hooks/useReorder'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { UniqueModelId } from '@shared/data/types/model'
+
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
@@ -34,6 +38,23 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     providerMeta.provider?.authOptional !== true &&
     providerMeta.provider?.apiKeys.some((entry) => entry.isEnabled) === true
   const toolbarDisabled = disabled
+  // `GET /models` is cached per provider, and a `UniqueModelId` can contain
+  // `/`, so the reorder hook needs both the query and the greedy id param.
+  const { move: moveModel, isPending: isReorderingModels } = useReorder('/models', {
+    query: providerId ? { providerId } : undefined,
+    itemIdParam: 'uniqueModelId*'
+  })
+
+  const handleReorderModel = useCallback(
+    (uniqueModelId: UniqueModelId, anchor: OrderRequest) => {
+      if (disabled) return
+      void moveModel(uniqueModelId, anchor).catch(() => {
+        // `move` already rolls the optimistic overlay back and revalidates.
+      })
+    },
+    [disabled, moveModel]
+  )
+
   const toggleGroupsExpanded = useCallback(() => {
     setGroupExpansionCommand((current) => ({
       expanded: !current.expanded,
@@ -93,6 +114,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           bulkActionDisabled={toolbarDisabled}
           expansionCommand={groupExpansionCommand}
           onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
+          onReorderModel={disabled || isReorderingModels ? undefined : handleReorderModel}
         />
       </div>
       <EditModelDrawer
