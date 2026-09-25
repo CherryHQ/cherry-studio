@@ -7,24 +7,25 @@ import { Button, EmptyState } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('TopicTrashSettings')
 
+const TRASH_LIST_LIMIT = 200
+
 const TopicTrashSettings: React.FC = () => {
   const { t } = useTranslation()
 
-  const { data: trashedTopics, isLoading, mutate } = useQuery('/topics/trash')
+  const {
+    data: trashedTopics,
+    isLoading,
+    mutate
+  } = useQuery('/topics', { query: { inTrash: true, limit: TRASH_LIST_LIMIT } })
 
   const { trigger: restoreTrigger } = useMutation('POST', '/topics/:id/restore', {
-    refresh: ['/topics', '/topics/trash']
-  })
-  const { trigger: purgeTrigger } = useMutation('DELETE', '/topics/trash/:id', {
-    refresh: ['/topics/trash']
-  })
-  const { trigger: emptyTrashTrigger, isLoading: isEmptying } = useMutation('DELETE', '/topics/trash', {
-    refresh: ['/topics/trash']
+    refresh: ['/topics']
   })
 
   const handleRestore = useCallback(
@@ -49,14 +50,15 @@ const TopicTrashSettings: React.FC = () => {
       })
       if (!confirmed) return
       try {
-        await purgeTrigger({ params: { id } })
+        await ipcApi.request('trash.topic.delete_permanently', { topicIds: [id] })
         logger.info('Permanently purged topic', { id, name })
+        void mutate()
       } catch (err) {
         logger.error('Failed to purge topic', err as Error)
         toast.error(t('common.error'))
       }
     },
-    [purgeTrigger, t]
+    [mutate, t]
   )
 
   const handleEmptyTrash = useCallback(async () => {
@@ -66,16 +68,16 @@ const TopicTrashSettings: React.FC = () => {
     })
     if (!confirmed) return
     try {
-      const result = await emptyTrashTrigger({})
-      logger.info('Emptied trash', { purgedCount: result.purgedCount })
+      const result = await ipcApi.request('trash.purge_now')
+      logger.info('Emptied trash', { deletedCount: result.deletedCount })
       void mutate()
     } catch (err) {
       logger.error('Failed to empty trash', err as Error)
       toast.error(t('common.error'))
     }
-  }, [emptyTrashTrigger, mutate, t])
+  }, [mutate, t])
 
-  const topics = trashedTopics ?? []
+  const topics = trashedTopics?.items ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,7 +86,7 @@ const TopicTrashSettings: React.FC = () => {
         <div className="flex items-center justify-between">
           <SettingHelpText>{t('settings.data.topic_trash.retention_note')}</SettingHelpText>
           {topics.length > 0 && (
-            <Button variant="destructive" size="sm" onClick={() => void handleEmptyTrash()} disabled={isEmptying}>
+            <Button variant="destructive" size="sm" onClick={() => void handleEmptyTrash()}>
               <Trash2 size={14} className="mr-1" />
               {t('settings.data.topic_trash.empty_trash')}
             </Button>
@@ -103,7 +105,8 @@ const TopicTrashSettings: React.FC = () => {
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium">{topic.name || <em>{topic.id}</em>}</span>
                 <span className="text-xs text-[var(--foreground-tertiary)]">
-                  {t('settings.data.topic_trash.deleted_at')}: {dayjs(topic.deletedAt).format('YYYY-MM-DD HH:mm')}
+                  {t('settings.data.topic_trash.deleted_at')}:{' '}
+                  {topic.deletedAt ? dayjs(topic.deletedAt).format('YYYY-MM-DD HH:mm') : '—'}
                 </span>
               </div>
               <div className="ml-3 flex shrink-0 gap-2">

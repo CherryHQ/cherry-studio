@@ -34,9 +34,9 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
           }
         }
 
+        // providerSettings is an RFC 7396 merge patch — send only the changed key.
         await updateProvider({
-          settings: {
-            ...provider?.settings,
+          providerSettings: {
             proxy: newProxy
           }
         })
@@ -44,7 +44,7 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
         setIsCommitting(false)
       }
     },
-    [provider, updateProvider, currentProxy]
+    [updateProvider, currentProxy]
   )
 
   const handleCustomUrlChange = useCallback(
@@ -53,8 +53,7 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
       setIsCommitting(true)
       try {
         await updateProvider({
-          settings: {
-            ...provider?.settings,
+          providerSettings: {
             proxy: {
               mode: 'custom',
               url

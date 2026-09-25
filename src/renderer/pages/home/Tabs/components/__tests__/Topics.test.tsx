@@ -480,8 +480,6 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.prompt') return 'Prompt'
         if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
         if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
-        if (key === 'chat.topics.delete.confirm_tip')
-          return `Click again to permanently delete "${options?.name}" — this cannot be undone`
         return key
       }
     }
@@ -1997,23 +1995,8 @@ describe('Topics', () => {
     const { getByText } = renderTopicList()
 
     const topicRow = getByText('Gamma topic').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
-
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-    expect(deleteButton).toHaveAttribute('data-deleting', 'true')
-    // Arming the delete action must plainly warn it is permanent, not just change the icon.
-    expect(deleteButton).toHaveAttribute(
-      'aria-label',
-      'Click again to permanently delete "Gamma topic" — this cannot be undone'
-    )
-
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
+    const deleteButton = within(topicRow as HTMLElement).getByRole('button', { name: 'Archive' })
+    fireEvent.click(deleteButton)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

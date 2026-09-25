@@ -1,17 +1,6 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  FileArchive,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +41,6 @@ import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 
-import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 import { HealthOverview } from './HealthOverview'
 
 const AboutSettings: FC = () => {
@@ -63,7 +51,6 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
-  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
@@ -405,14 +392,6 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
-          id="setting-about-diagnostics"
-          icon={<FileArchive className="size-4.5" />}
-          title={t('settings.about.diagnostics.entry.title')}
-          actionLabel={t('settings.about.diagnostics.entry.button')}
-          onAction={() => setIsDiagnosticDialogOpen(true)}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
           id="setting-about-debug-tools"
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
@@ -420,11 +399,6 @@ const AboutSettings: FC = () => {
           onAction={debug}
         />
       </SettingGroup>
-      <DiagnosticBundleDialog
-        appVersion={version}
-        open={isDiagnosticDialogOpen}
-        onOpenChange={setIsDiagnosticDialogOpen}
-      />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )

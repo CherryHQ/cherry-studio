@@ -19,12 +19,6 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['health', 'status', 'sağlık', 'durum']
   },
   {
-    anchorId: 'diagnostics',
-    titleKey: 'settings.about.diagnostics.entry.title',
-    groupKey: 'settings.about.label',
-    aliases: ['diagnostics', '诊断']
-  },
-  {
     anchorId: 'debug-tools',
     titleKey: 'settings.about.debug.title',
     groupKey: 'settings.about.label'

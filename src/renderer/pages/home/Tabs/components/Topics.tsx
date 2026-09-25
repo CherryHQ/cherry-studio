@@ -1898,9 +1898,6 @@ const TopicRow = memo(function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'
   const canDeleteTopic = !topic.pinned
-  const deleteActionLabel = isConfirmingDeletion
-    ? t('chat.topics.delete.confirm_tip', { name: topicName })
-    : t('common.delete')
   const isArchiveBlocked = isTopicStreamPending || isTopicAwaitingApproval
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
@@ -1993,10 +1990,11 @@ const TopicRow = memo(function TopicRow({
           </Tooltip>
         )}
         {canDeleteTopic && (
-          <Tooltip title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : deleteActionLabel} delay={500}>
+          <Tooltip
+            title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.archive')}
+            delay={500}>
             <ResourceList.ItemAction
-              aria-label={deleteActionLabel}
-              data-deleting={isConfirmingDeletion}
+              aria-label={t('common.archive')}
               disabled={isArchiveBlocked}
               onClick={(event) => {
                 event.stopPropagation()
