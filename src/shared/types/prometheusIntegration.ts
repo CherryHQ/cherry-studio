@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 
-import type { IntegrationOperation } from './integrationOperation'
+import type { IntegrationDiagnostic, IntegrationOperation } from './integrationOperation'
 
 export {
   integrationActionSchema,
