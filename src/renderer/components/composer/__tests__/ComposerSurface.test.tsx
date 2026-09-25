@@ -4120,28 +4120,32 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    const pastedText = 'Product\tUnits\tRevenue\t42'
+    const pastedText = 'Product\tUnits\nRevenue\t42'
     const pastedHtml =
-      '<table><tbody><tr><td>Product</td><td>Units</td><td>Revenue</td><td>42</td></tr></tbody></table>'
-    const event = {
-      preventDefault: vi.fn(),
-      clipboardData: {
-        getData: vi.fn((type: string) => {
-          if (type === 'text/plain') return pastedText
-          if (type === 'text/html') return pastedHtml
-          return ''
-        }),
-        files: [new File(['png'], 'excel.png', { type: 'image/png' })]
-      }
+      '<table><tbody><tr><td>Product</td><td>Units</td></tr><tr><td>Revenue</td><td>42</td></tr></tbody></table>'
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({
+      extensions: createComposerEditorPreset(mocks.editorPresetOptions),
+      editorProps: { handlePaste: mocks.editorOptions.handlePaste }
+    })
+
+    try {
+      fireEvent.paste(editor.view.dom, {
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return pastedText
+            if (type === 'text/html') return pastedHtml
+            return ''
+          },
+          files: [new File(['png'], 'excel.png', { type: 'image/png' })]
+        }
+      })
+
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(pastedText)
+      expect(setFiles).not.toHaveBeenCalled()
+    } finally {
+      editor.destroy()
     }
-
-    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
-
-    expect(handled).toBe(true)
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
-    expect(mocks.pasteHandler).not.toHaveBeenCalled()
-    expect(setFiles).not.toHaveBeenCalled()
   })
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
