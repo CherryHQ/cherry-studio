@@ -2,16 +2,15 @@ import { isToolUIPart } from 'ai'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
-import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import {
-  createUniqueModelId,
   isUniqueModelId,
   type Model as SharedModel,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { resolveUniqueModelId, resolveUniqueModelIds } from '@shared/utils/model'
 
 import type { MessageListItem } from '../types'
 
@@ -40,8 +39,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     model = { id: modelId, name: modelId, provider: providerId }
   }
   const modelId =
-    metadata.modelId ??
-    (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)
+    metadata.modelId ?? (message.role === 'assistant' && model ? resolveUniqueModelId(undefined, model) : undefined)
 
   return {
     id: message.id,
@@ -53,6 +51,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
+    persistedModelId: metadata.modelId,
     model,
     messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
@@ -86,38 +85,44 @@ export function getMessageListItemModel(message: MessageListItem): Model | undef
 
 export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): Map<string, SharedModel[]> {
   const modelsByUserId = new Map<string, SharedModel[]>()
-  const seenModelIdsByUserId = new Map<string, Set<UniqueModelId>>()
+  const repliesByUserId = new Map<string, Array<{ message: MessageListItem; model: Model }>>()
 
   for (const message of messages) {
     if (message.role !== 'assistant' || !message.parentId) continue
 
     const model = getMessageListItemModel(message)
-    const uniqueModelId = model
-      ? resolveUniqueModelId(message.modelId, { provider: model.provider, id: model.id })
-      : undefined
-    if (!model || !uniqueModelId) continue
+    if (!model) continue
+    const replies = repliesByUserId.get(message.parentId) ?? []
+    replies.push({ message, model })
+    repliesByUserId.set(message.parentId, replies)
+  }
 
-    let seenModelIds = seenModelIdsByUserId.get(message.parentId)
-    if (!seenModelIds) {
-      seenModelIds = new Set()
-      seenModelIdsByUserId.set(message.parentId, seenModelIds)
+  for (const [userId, replies] of repliesByUserId) {
+    const modelIds = resolveUniqueModelIds(
+      replies.map(({ message, model }) => ({
+        modelId: message.persistedModelId === undefined ? message.modelId : message.persistedModelId,
+        modelSnapshot: { provider: model.provider, id: model.id }
+      }))
+    )
+    const seenModelIds = new Set<UniqueModelId>()
+    const userModels: SharedModel[] = []
+    for (const [index, { model }] of replies.entries()) {
+      const uniqueModelId = modelIds[index]
+      if (!uniqueModelId || seenModelIds.has(uniqueModelId)) continue
+      seenModelIds.add(uniqueModelId)
+      userModels.push({
+        id: uniqueModelId,
+        providerId: model.provider,
+        apiModelId: model.id,
+        name: model.name,
+        group: model.group || undefined,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      })
     }
-    if (seenModelIds.has(uniqueModelId)) continue
-
-    seenModelIds.add(uniqueModelId)
-    const userModels = modelsByUserId.get(message.parentId) ?? []
-    userModels.push({
-      id: uniqueModelId,
-      providerId: model.provider,
-      apiModelId: model.id,
-      name: model.name,
-      group: model.group || undefined,
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    })
-    modelsByUserId.set(message.parentId, userModels)
+    if (userModels.length > 0) modelsByUserId.set(userId, userModels)
   }
 
   return modelsByUserId

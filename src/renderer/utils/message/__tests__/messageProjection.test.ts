@@ -25,4 +25,24 @@ describe('sharedMessageToUIMessage', () => {
 
     expect(message.metadata?.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
   })
+
+  it('preserves an explicit null persisted model identity', () => {
+    const message = sharedMessageToUIMessage({
+      id: 'assistant-1',
+      topicId: 'topic-1',
+      parentId: 'user-1',
+      role: 'assistant',
+      data: { parts: [] },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 1,
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    expect(message.metadata).toHaveProperty('modelId', null)
+  })
 })

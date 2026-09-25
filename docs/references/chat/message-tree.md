@@ -19,15 +19,15 @@ canvas) rely on. Schema: `src/main/data/db/schemas/message.ts`. Service:
 ## Structure
 
 A topic's messages form a tree stored as an **adjacency list** — each row points at its
-parent via `parentId`. Multi-model responses (one user turn, N assistant replies) are
-**sibling groups**: rows that share a `parentId` and a non-zero `siblingsGroupId`.
+parent via `parentId`. Edit/resend branches and alternative responses are **sibling groups**:
+rows that share a `parentId` and a non-zero `siblingsGroupId`.
 
 | Column | Meaning |
 |---|---|
 | `parentId` | Parent message id. `NULL` **only** for the virtual root (see below). |
 | `topicId` | Owning topic (FK, `ON DELETE CASCADE`). |
 | `role` | `user` / `assistant` / `system` content, or `root` (virtual root sentinel). |
-| `siblingsGroupId` | `0` = normal single branch; `>0` = members of one multi-model group under the same parent. |
+| `siblingsGroupId` | `0` = normal single branch; non-zero = members of one edit/resend, multi-model, or regeneration cohort under the same parent. |
 | `topic.activeNodeId` | The currently-selected leaf — the "where we are" pointer that read paths walk up from. |
 
 ### Virtual root
@@ -101,7 +101,7 @@ papered over).
 | Target | Behavior |
 |---|---|
 | Virtual root | **Rejected** (`INVALID_OPERATION`), regardless of `cascade`. Deleting it would orphan first-turn children (unique-index violation) or leave a rootless topic. |
-| Content message, `cascade = false` | For a grouped assistant reply on the active path with the default parent strategy, transfer children to the next live reply in the same group (previous at the end), ordered by creation time then ID. Otherwise reparent children onto the deleted node's parent. Clear descendant context anchors when deleting a grouped context reply, including when no sibling remains. Preserve an active descendant; if the deleted node itself is active, descend from the successor — or from the parent — to the newest surviving leaf (the same rule branch navigation uses), so a surviving group or continuation stays on the path. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
+| Content message, `cascade = false` | For a grouped assistant reply on the active path with the default parent strategy, transfer children to the newest different-model sibling if the deleted reply itself is active. If an active descendant survives, transfer children to the next live reply in the group (previous at the end), ordered by creation time then ID. Without the respective successor, or outside this case, reparent children onto the deleted node's parent. Clear descendant context anchors when deleting a grouped context reply, including when no sibling remains. Preserve an active descendant; if the deleted node itself is active, descend from the successor — or from the parent — to the newest surviving leaf (the same rule branch navigation uses), so a surviving group or continuation stays on the path. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
 | Content message, `cascade = true` | Delete the message and its whole subtree. If the active node was inside it, descend from the parent to the newest surviving leaf, as above. |
 | "Clear all messages" | `clearTopicMessages(topicId)` (`DELETE /topics/:topicId/messages`) — deletes every non-root row of the topic in one statement and clears `activeNodeId`; the content-less virtual root stays. The structural replacement for the old "delete the root to clear the topic" (now rejected). |
 
