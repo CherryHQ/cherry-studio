@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
   "openclaw.errors.more_issues": "另有 {{count}} 個問題",
   "openclaw.errors.preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。",
+  "openclaw.errors.preflight_timeout": "OpenClaw 在 {{seconds}} 秒內未傳回設定 schema，Cherry Studio 已停止等待。磁碟較慢或系統負載較高時，OpenClaw 啟動可能需要更久，請重試。",
   "paintings.comfyui.image_download_timeout": "下載已完成影像逾時（{{seconds}} 秒）",
   "paintings.comfyui.image_fetch_failed": "ComfyUI 無法回傳已產生的影像",
   "paintings.comfyui.list_failed": "無法列出 ComfyUI 工作流程",

@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "and {{count}} more issue(s)",
   "openclaw.errors.preflight_failed": "Cherry Studio could not validate the OpenClaw configuration.",
+  "openclaw.errors.preflight_timeout": "OpenClaw did not return its configuration schema within {{seconds}} seconds. Cherry Studio stopped waiting. OpenClaw may start slowly on a slow disk or under high load. Try again.",
   "paintings.comfyui.image_download_timeout": "Downloading a finished image timed out after {{seconds}}s",
   "paintings.comfyui.image_fetch_failed": "ComfyUI could not return a finished image",
   "paintings.comfyui.list_failed": "Could not list ComfyUI workflows",

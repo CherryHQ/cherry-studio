@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw, Cherry Studio'nun yönettiği sağlayıcı bölümü dışındaki yapılandırmayı reddetti. Bu yapılandırmayı düzeltin veya OpenClaw'u yükseltin.{{details}}",
   "openclaw.errors.more_issues": "ve {{count}} sorun daha",
   "openclaw.errors.preflight_failed": "Cherry Studio, OpenClaw yapılandırmasını doğrulayamadı.",
+  "openclaw.errors.preflight_timeout": "OpenClaw yapılandırma şemasını {{seconds}} saniye içinde döndürmedi. Cherry Studio beklemeyi durdurdu. Yavaş bir diskte veya yüksek yük altında OpenClaw daha geç başlayabilir. Tekrar deneyin.",
   "paintings.comfyui.image_download_timeout": "Tamamlanan bir görüntünün indirilmesi {{seconds}} sn sonra zaman aşımına uğradı",
   "paintings.comfyui.image_fetch_failed": "ComfyUI tamamlanmış bir görüntüyü döndüremedi",
   "paintings.comfyui.list_failed": "ComfyUI iş akışları listelenemedi",

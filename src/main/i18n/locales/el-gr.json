@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "Το OpenClaw απέρριψε διαμόρφωση εκτός της ενότητας παρόχων που διαχειρίζεται το Cherry Studio. Διορθώστε αυτή τη διαμόρφωση ή αναβαθμίστε το OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "και {{count}} ακόμη ζητήματα",
   "openclaw.errors.preflight_failed": "Το Cherry Studio δεν μπόρεσε να επικυρώσει τη διαμόρφωση του OpenClaw.",
+  "openclaw.errors.preflight_timeout": "Το OpenClaw δεν επέστρεψε το σχήμα διαμόρφωσης μέσα σε {{seconds}} δευτερόλεπτα. Το Cherry Studio σταμάτησε να περιμένει. Σε αργό δίσκο ή με υψηλό φόρτο, η εκκίνηση του OpenClaw μπορεί να καθυστερήσει. Δοκιμάστε ξανά.",
   "paintings.comfyui.image_download_timeout": "Η λήψη μιας ολοκληρωμένης εικόνας έληξε μετά από {{seconds}}s",
   "paintings.comfyui.image_fetch_failed": "Το ComfyUI δεν μπόρεσε να επιστρέψει μια ολοκληρωμένη εικόνα",
   "paintings.comfyui.list_failed": "Δεν ήταν δυνατή η ανάγνωση της λίστας ροών εργασίας ComfyUI",
