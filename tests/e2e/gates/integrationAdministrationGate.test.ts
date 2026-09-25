@@ -223,6 +223,32 @@ async function createServiceLogVolume(
       })
     )
   }
+  const directory = mkdtempSync(join(tmpdir(), 'the-boss-gate-b-logs-'))
+  const source = join(directory, 'service.log')
+  try {
+    const container = execFileSync(
+      'docker',
+      [
+        'ps',
+        '--filter',
+        'label=com.docker.compose.project=the-boss-prometheus',
+        '--filter',
+        'label=com.docker.compose.service=surreal-memory',
+        '--format',
+        '{{.ID}}'
+      ],
+      { encoding: 'utf8' }
+    )
+      .trim()
+      .split(/\r?\n/)[0]
+    if (!container) throw new Error('managed surreal-memory container is not running')
+    const markers = Array.from({ length: 20_000 }, (_, index) => `gate-b-service-event-${index}`).join('\n')
+    writeFileSync(source, `${secrets.join('\n')}\n${markers}\n`)
+    execFileSync('docker', ['cp', source, `${container}:/tmp/the-boss-gate-b.log`])
+    execFileSync('docker', ['exec', container, 'sh', '-c', 'cat /tmp/the-boss-gate-b.log > /proc/1/fd/1'])
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 }
 
 test('Gate B: real services and isolated Compass workspaces retain observable operations', async () => {
