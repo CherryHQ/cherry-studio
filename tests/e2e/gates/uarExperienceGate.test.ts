@@ -441,7 +441,7 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     await ipc(page, 'navigation.open_route_in_main', {
       path: `/settings/uar?panel=agents&agentId=gate-v-agent`
     })
-    await expect(page.getByText('Gate V catalog agent', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: /Gate V catalog agent/ })).toBeVisible()
     await expect(page.getByText('Configure and run', { exact: true })).toBeVisible()
     await page.setViewportSize({ width: 1280, height: 900 })
     if (screenshotDirectory) {
