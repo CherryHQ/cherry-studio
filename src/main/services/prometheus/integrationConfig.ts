@@ -14,6 +14,10 @@ import {
   type IntegrationSecret,
   type IntegrationSecretPatch
 } from '@shared/types/prometheusIntegration'
+import {
+  literProviderConnectionIdentitySchema,
+  type LiterCredentialMutation
+} from '@shared/types/literGateway'
 
 const INTEGRATION_PREFERENCE = 'app.prometheus.integrations' as const
 type ManagedIntegrationSecret = IntegrationSecret | 'uarAdminKey' | 'uarCredentialEncryptionKey'
@@ -127,6 +131,46 @@ async function replaceSecrets(secrets: Partial<Record<ManagedIntegrationSecret, 
   const filename = path.join(integrationDirectory(), 'secrets.enc')
   await fs.writeFile(`${filename}.tmp`, safeStorage.encryptString(JSON.stringify(secrets)), { mode: 0o600 })
   await fs.rename(`${filename}.tmp`, filename)
+}
+
+function literConnectionSecretKey(providerConnectionId: string): string {
+  const identity = literProviderConnectionIdentitySchema.parse({ providerConnectionId })
+  return `literConnection:${identity.providerConnectionId}`
+}
+
+export async function readLiterConnectionCredentialPresence(): Promise<Set<string>> {
+  const secrets = (await readSecrets()) as Record<string, string | undefined>
+  const prefix = 'literConnection:'
+  return new Set(
+    Object.entries(secrets)
+      .filter(([key, value]) => key.startsWith(prefix) && Boolean(value))
+      .map(([key]) => key.slice(prefix.length))
+  )
+}
+
+/** Main-process only. Provider credentials never enter integration snapshots or renderer IPC. */
+export async function readLiterConnectionCredential(providerConnectionId: string): Promise<string | undefined> {
+  const secrets = (await readSecrets()) as Record<string, string | undefined>
+  return secrets[literConnectionSecretKey(providerConnectionId)]
+}
+
+export async function stageLiterConnectionCredential(
+  providerConnectionId: string,
+  mutation: LiterCredentialMutation
+): Promise<() => Promise<void>> {
+  const key = literConnectionSecretKey(providerConnectionId)
+  const secrets = (await readSecrets()) as Record<string, string | undefined>
+  const previous = secrets[key]
+  if (mutation.operation === 'set') secrets[key] = mutation.value
+  if (mutation.operation === 'clear') delete secrets[key]
+  if (mutation.operation !== 'unchanged') await replaceSecrets(secrets)
+  return async () => {
+    if (mutation.operation === 'unchanged') return
+    const current = (await readSecrets()) as Record<string, string | undefined>
+    if (previous === undefined) delete current[key]
+    else current[key] = previous
+    await replaceSecrets(current)
+  }
 }
 
 // Credentials cross the renderer/main boundary once. Ordinary preferences and responses

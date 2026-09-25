@@ -26,18 +26,30 @@ import {
   type IntegrationUpdate,
   type WorkspaceIntegration
 } from '@shared/types/prometheusIntegration'
+import type {
+  LiterAliasMutation,
+  LiterConnectionMutation,
+  LiterGatewayCatalogSnapshot,
+  LiterGatewaySelection
+} from '@shared/types/literGateway'
 
 import { commandPathInstalled, installCommandPath } from './commandPath'
 import {
   migrateIntegrationDocument,
   readIntegrationConfig,
   readIntegrationDocument,
+  stageLiterConnectionCredential,
   readSecrets,
   writeIntegrationDocument,
   writeSecrets
 } from './integrationConfig'
 import { StaleIntegrationRevisionError } from './integrationErrors'
 import { IntegrationOperationRunner, type IntegrationOperationControls } from './integrationOperationRunner'
+import {
+  fetchLiterLiveModels,
+  reconcileLiterCatalog,
+  type LiterLiveModel
+} from './literGatewayCatalog'
 import { runManagedServiceAction, serviceDirectory } from './managedServices'
 import { writeMiniConfiguration } from './miniCommands'
 import { discoverServiceCandidates } from './serviceDiscovery'
@@ -66,6 +78,8 @@ export class PrometheusIntegrationService extends BaseService {
   private configurationMutation: Promise<void> = Promise.resolve()
   private serviceDiscovery: ServiceDiscovery = { candidates: [], errors: [] }
   private lastUarApplyError?: string
+  private literLiveModels?: LiterLiveModel[]
+  private literLiveError?: string
 
   protected onAllReady(): void {
     void this.ensureInitialized().catch(() => undefined)
@@ -177,12 +191,215 @@ export class PrometheusIntegrationService extends BaseService {
 
   async configure(updates: IntegrationUpdate[], secretPatch: IntegrationSecretPatch): Promise<IntegrationSnapshot> {
     await this.ensureInitialized()
-    const result = this.configurationMutation.then(() => this.applyConfiguration(updates, secretPatch))
+    return this.serializeConfigurationMutation(() => this.applyConfiguration(updates, secretPatch))
+  }
+
+  private serializeConfigurationMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const result = this.configurationMutation.then(mutation)
     this.configurationMutation = result.then(
       () => undefined,
       () => undefined
     )
     return result
+  }
+
+  async readLiterCatalog(refresh = false): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    const document = readIntegrationDocument()
+    if (refresh || !this.literLiveModels) {
+      try {
+        this.literLiveModels = await fetchLiterLiveModels(document.config)
+        this.literLiveError = undefined
+      } catch (error) {
+        this.literLiveModels = []
+        this.literLiveError = error instanceof Error ? error.message : String(error)
+      }
+    }
+    return reconcileLiterCatalog(
+      document.config,
+      document.revisions.services,
+      this.serviceDiscovery,
+      this.literLiveModels,
+      this.literLiveError
+    )
+  }
+
+  async selectLiterGateway(selection: LiterGatewaySelection): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== selection.expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', selection.expectedRevision, document.revisions.services)
+      }
+      let profile: IntegrationConfig['services']['liter']
+      if (selection.kind === 'manual') {
+        profile = { ownership: 'external', source: 'manual', endpoint: selection.endpoint }
+      } else {
+        const candidate = this.serviceDiscovery.candidates.find(
+          (entry) =>
+            entry.id === selection.candidateId &&
+            entry.service === 'liter' &&
+            entry.provenance.some(
+              (provenance) =>
+                provenance.source === selection.source && provenance.ownership === selection.ownership
+            )
+        )
+        if (!candidate) throw new Error('prometheus.error.gatewayCandidateUnavailable')
+        profile = { ownership: selection.ownership, source: selection.source, endpoint: candidate.endpoint }
+      }
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, liter: profile }
+      })
+      await writeIntegrationDocument({
+        schemaVersion: 4,
+        revisions: { ...document.revisions, services: document.revisions.services + 1 },
+        config
+      })
+      await writeMiniConfiguration()
+      this.serviceDiscovery = await discoverServiceCandidates(config)
+      this.literLiveModels = undefined
+      this.literLiveError = undefined
+      return this.readLiterCatalog(true)
+    })
+  }
+
+  async saveLiterConnection(mutation: LiterConnectionMutation): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== mutation.expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', mutation.expectedRevision, document.revisions.services)
+      }
+      const connections = [...document.config.services.literConnections]
+      const index = connections.findIndex(
+        (connection) => connection.providerConnectionId === mutation.connection.providerConnectionId
+      )
+      if (mutation.mode === 'create' && index !== -1) throw new Error('prometheus.error.literConnectionExists')
+      if (mutation.mode === 'update' && index === -1) throw new Error('prometheus.error.literConnectionMissing')
+      if (index === -1) connections.push(mutation.connection)
+      else connections[index] = mutation.connection
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, literConnections: connections }
+      })
+      const rollbackCredential = await stageLiterConnectionCredential(
+        mutation.connection.providerConnectionId,
+        mutation.credential
+      )
+      try {
+        await writeIntegrationDocument({
+          schemaVersion: 4,
+          revisions: { ...document.revisions, services: document.revisions.services + 1 },
+          config
+        })
+      } catch (error) {
+        await rollbackCredential()
+        throw error
+      }
+      return this.readLiterCatalog(false)
+    })
+  }
+
+  async deleteLiterConnection(
+    providerConnectionId: string,
+    expectedRevision: number
+  ): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', expectedRevision, document.revisions.services)
+      }
+      if (
+        document.config.services.literAliases.some(
+          (alias) => alias.target.providerConnectionId === providerConnectionId
+        )
+      ) {
+        throw new Error('prometheus.error.literConnectionInUse')
+      }
+      const connections = document.config.services.literConnections.filter(
+        (connection) => connection.providerConnectionId !== providerConnectionId
+      )
+      if (connections.length === document.config.services.literConnections.length) {
+        throw new Error('prometheus.error.literConnectionMissing')
+      }
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, literConnections: connections }
+      })
+      const rollbackCredential = await stageLiterConnectionCredential(providerConnectionId, { operation: 'clear' })
+      try {
+        await writeIntegrationDocument({
+          schemaVersion: 4,
+          revisions: { ...document.revisions, services: document.revisions.services + 1 },
+          config
+        })
+      } catch (error) {
+        await rollbackCredential()
+        throw error
+      }
+      return this.readLiterCatalog(false)
+    })
+  }
+
+  async saveLiterAlias(mutation: LiterAliasMutation): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== mutation.expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', mutation.expectedRevision, document.revisions.services)
+      }
+      const aliases = [...document.config.services.literAliases]
+      const index = aliases.findIndex(
+        (alias) =>
+          alias.gatewayConnectionId === mutation.alias.gatewayConnectionId && alias.alias === mutation.alias.alias
+      )
+      if (mutation.mode === 'create' && index !== -1) throw new Error('prometheus.error.literAliasExists')
+      if (mutation.mode === 'update' && index === -1) throw new Error('prometheus.error.literAliasMissing')
+      if (index === -1) aliases.push(mutation.alias)
+      else aliases[index] = mutation.alias
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, literAliases: aliases }
+      })
+      await writeIntegrationDocument({
+        schemaVersion: 4,
+        revisions: { ...document.revisions, services: document.revisions.services + 1 },
+        config
+      })
+      return this.readLiterCatalog(false)
+    })
+  }
+
+  async deleteLiterAlias(
+    gatewayConnectionId: string,
+    alias: string,
+    expectedRevision: number
+  ): Promise<LiterGatewayCatalogSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', expectedRevision, document.revisions.services)
+      }
+      const aliases = document.config.services.literAliases.filter(
+        (entry) => entry.gatewayConnectionId !== gatewayConnectionId || entry.alias !== alias
+      )
+      if (aliases.length === document.config.services.literAliases.length) {
+        throw new Error('prometheus.error.literAliasMissing')
+      }
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, literAliases: aliases }
+      })
+      await writeIntegrationDocument({
+        schemaVersion: 4,
+        revisions: { ...document.revisions, services: document.revisions.services + 1 },
+        config
+      })
+      return this.readLiterCatalog(false)
+    })
   }
 
   private async applyConfiguration(

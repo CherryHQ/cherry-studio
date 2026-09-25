@@ -32,7 +32,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "c5c6caac617eb931cd5009146a70831422ec236c"
+      "revision": "6e962c7835ada20fcf5f5eac608623bbacaa650a"
     }
   },
   "tools": {

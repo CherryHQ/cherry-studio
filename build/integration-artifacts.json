@@ -35,7 +35,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "c5c6caac617eb931cd5009146a70831422ec236c"
+      "revision": "6e962c7835ada20fcf5f5eac608623bbacaa650a"
     }
   },
   "tools": [
@@ -362,6 +362,12 @@
     "surrealdb": "surrealdb/surrealdb:v3.2.4@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843",
     "surreal-memory": "ghcr.io/prometheus-ags/the-boss-surreal-memory@sha256:1e1095242e4df05efb010098888e828d915668f44577797549046acaaefac2be",
     "liter-llm": "ghcr.io/prometheus-ags/the-boss-liter-llm@sha256:2e03527e66378965e07b623df50d147b1d5961b231728199456a91f536a51bba"
+  },
+  "catalogs": {
+    "liter-llm": {
+      "providers": "568d741ee4e4771b7fd4191cde974d743c834fc1db7bbf27fcde45d0521b67b4",
+      "models": "5209cd4e3c539757d49613fdba31d9572f29b0abc54dc548975a96c5d78da68e"
+    }
   },
   "compassSkills": {
     "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-skills.tar.gz",

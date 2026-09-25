@@ -3,6 +3,7 @@ import * as z from 'zod'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 
 import type { IntegrationDiagnostic, IntegrationOperation } from './integrationOperation'
+import { literAliasConfigSchema, literConnectionConfigSchema } from './literGateway'
 
 export {
   integrationActionSchema,
@@ -90,17 +91,44 @@ export const uarStorageConfigSchema = z.object({
   authLevel: z.enum(['root', 'namespace', 'database']).default('namespace')
 })
 export type UarStorageConfig = z.infer<typeof uarStorageConfigSchema>
-const servicesConfigSchema = z.object({
-  surrealdb: serviceProfileSchema('http://127.0.0.1:28000').prefault({}),
-  memory: serviceProfileSchema('http://127.0.0.1:23001/mcp/sse').prefault({}),
-  liter: serviceProfileSchema('http://127.0.0.1:4000').prefault({}),
-  surrealPort: z.number().int().min(1).max(65535).default(28000),
-  memoryPort: z.number().int().min(1).max(65535).default(23001),
-  literPort: z.number().int().min(1).max(65535).default(4000),
-  memoryEnabled: z.boolean().default(false),
-  judge: model.prefault({}),
-  critic: model.prefault({})
-})
+const servicesConfigSchema = z
+  .object({
+    surrealdb: serviceProfileSchema('http://127.0.0.1:28000').prefault({}),
+    memory: serviceProfileSchema('http://127.0.0.1:23001/mcp/sse').prefault({}),
+    liter: serviceProfileSchema('http://127.0.0.1:4000').prefault({}),
+    surrealPort: z.number().int().min(1).max(65535).default(28000),
+    memoryPort: z.number().int().min(1).max(65535).default(23001),
+    literPort: z.number().int().min(1).max(65535).default(4000),
+    memoryEnabled: z.boolean().default(false),
+    literConnections: z.array(literConnectionConfigSchema).max(256).default([]),
+    literAliases: z.array(literAliasConfigSchema).max(2048).default([]),
+    judge: model.prefault({}),
+    critic: model.prefault({})
+  })
+  .superRefine((services, context) => {
+    const connections = new Map(
+      services.literConnections.map((connection) => [connection.providerConnectionId, connection])
+    )
+    if (connections.size !== services.literConnections.length) {
+      context.addIssue({ code: 'custom', path: ['literConnections'], message: 'Connection IDs must be unique' })
+    }
+    const aliases = new Set<string>()
+    for (const [index, alias] of services.literAliases.entries()) {
+      const aliasKey = JSON.stringify([alias.gatewayConnectionId, alias.alias])
+      if (aliases.has(aliasKey)) {
+        context.addIssue({ code: 'custom', path: ['literAliases', index, 'alias'], message: 'Aliases must be unique' })
+      }
+      aliases.add(aliasKey)
+      const connection = connections.get(alias.target.providerConnectionId)
+      if (!connection || connection.providerId !== alias.target.providerId) {
+        context.addIssue({
+          code: 'custom',
+          path: ['literAliases', index, 'target'],
+          message: 'Alias target must reference a matching provider connection'
+        })
+      }
+    }
+  })
 
 export const integrationConfigSchema = z.object({
   compass: compassConfigSchema.prefault({}),

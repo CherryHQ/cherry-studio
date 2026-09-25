@@ -28,6 +28,7 @@ export const PACK_ENTRIES = [
   'schemas',
   'assets',
   'config',
+  'catalogs',
   '.agents',
   'node_modules'
 ] as const
