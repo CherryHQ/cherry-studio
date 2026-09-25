@@ -33,7 +33,7 @@ export const DICTATION_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
     availableWithoutModel: true
   },
   label: (t) => t('chat.input.dictation.title'),
-  visibleInScopes: [TopicType.Chat, TopicType.Session, 'painting']
+  visibleInScopes: []
 }
 
 export const GENERATE_IMAGE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {

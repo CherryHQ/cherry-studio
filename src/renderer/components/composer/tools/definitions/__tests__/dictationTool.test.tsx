@@ -1,7 +1,14 @@
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerToolRuntimeProvider, useComposerToolDispatch } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
+import { type ComposerToolScope, TopicType } from '@renderer/components/composer/tools/types'
+import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(async () => {}),
@@ -45,23 +52,47 @@ vi.mock('react-i18next', () => ({
 
 import dictationTool from '../dictationTool'
 
-function renderRuntime() {
+const translate = (key: string, options?: { seconds?: number }) => `${key}${options?.seconds ?? ''}`
+
+function renderRuntime(scope: ComposerToolScope = TopicType.Chat) {
   const launchers: ComposerToolLauncher[][] = []
   const registerLaunchers = vi.fn((next: ComposerToolLauncher[]) => {
     launchers.push(next)
     return vi.fn()
   })
-  const Runtime = dictationTool.composer?.runtime
-  if (!Runtime) throw new Error('dictation runtime should be registered')
+  const Runtime = dictationTool.composer!.runtime!
+  function RuntimeWithButton() {
+    const { toolsRegistry } = useComposerToolDispatch()
+    const launcher = useMemo(
+      () => ({
+        registerLaunchers: (next: ComposerToolLauncher[]) => {
+          registerLaunchers(next)
+          return toolsRegistry.registerLaunchers('dictation', next)
+        }
+      }),
+      [toolsRegistry]
+    )
+    return (
+      <>
+        <Runtime
+          context={
+            {
+              scope,
+              launcher,
+              t: translate
+            } as any
+          }
+        />
+        <ComposerDictationButton />
+      </>
+    )
+  }
   render(
-    <Runtime
-      context={
-        {
-          launcher: { registerLaunchers },
-          t: (key: string, options?: { seconds?: number }) => `${key}${options?.seconds ?? ''}`
-        } as any
-      }
-    />
+    <QuickPanelProvider>
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <RuntimeWithButton />
+      </ComposerToolRuntimeProvider>
+    </QuickPanelProvider>
   )
   return { launchers, registerLaunchers }
 }
@@ -89,7 +120,7 @@ describe('dictationTool', () => {
     await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())
 
     expect(mocks.startScoped).not.toHaveBeenCalled()
-    latestLauncher(rendered)!.action?.({} as never)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'chat.input.dictation.action.start' }))
 
     expect(mocks.startScoped).toHaveBeenCalledOnce()
     expect(mocks.startScoped).toHaveBeenCalledWith()
@@ -108,7 +139,8 @@ describe('dictationTool', () => {
     expect(launcher).toMatchObject({ active: true, disabled: false })
     expect(launcher.description).toBe('settings.voice.dictation.phase.recording')
     expect(launcher.suffix).toBe('settings.voice.dictation.elapsed3')
-    launcher.action?.({} as never)
+    expect(screen.getByText('settings.voice.dictation.elapsed3')).toBeVisible()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'settings.voice.action.stop_recording' }))
     expect(mocks.stop).toHaveBeenCalledOnce()
 
     launcher.submenu?.find((item) => item.id === 'dictation:cancel')?.action?.({} as never)
@@ -154,7 +186,7 @@ describe('dictationTool', () => {
     const launcher = latestLauncher(rendered)!
     expect(launcher.disabled).toBe(false)
     expect(launcher.label).toBe('chat.input.dictation.action.cancel')
-    launcher.action?.({} as never)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'chat.input.dictation.action.cancel' }))
     expect(mocks.cancel).toHaveBeenCalledOnce()
   })
 
@@ -178,4 +210,16 @@ describe('dictationTool', () => {
     launcher.submenu?.find((item) => item.id === 'dictation:open-settings')?.action?.({} as never)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/voice')
   })
+
+  it.each([TopicType.Chat, TopicType.Session, 'painting'] as const)(
+    'keeps %s dictation in the menu without a duplicate toolbar entry',
+    (scope) => {
+      const rendered = renderRuntime(scope)
+
+      expect(latestLauncher(rendered)!.sources).toEqual(['root-panel'])
+      expect(getComposerToolbarManifestsForScope(scope, translate as never).map((tool) => tool.id)).not.toContain(
+        'dictation'
+      )
+    }
+  )
 })

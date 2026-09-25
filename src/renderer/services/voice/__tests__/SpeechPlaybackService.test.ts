@@ -318,8 +318,12 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     expect(voice.releaseOutput).not.toHaveBeenCalled()
     expect(revokeObjectURL).not.toHaveBeenCalled()
+    expect(service.canRetry(sessionId)).toBe(true)
+    expect(service.canRetry('another-session')).toBe(false)
     await service.retry()
 
+    expect(service.canRetry(sessionId)).toBe(false)
+    expect(service.getSnapshot().phase).toBe('playing')
     expect(audios[0].currentTime).toBe(7)
     expect(audios[0].play).toHaveBeenCalledTimes(2)
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
@@ -417,6 +421,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.releaseOutput).toHaveBeenCalledTimes(1)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:final')
     expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
+    expect(service.canRetry(sessionId)).toBe(false)
     await expect(service.retry()).rejects.toMatchObject({ reason: 'invalid_request' })
     expect(audios[0].play).toHaveBeenCalledTimes(1)
   })
@@ -428,6 +433,7 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     await expect(service.stop()).rejects.toMatchObject({ reason: 'operation_failed' })
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(service.canRetry(sessionId)).toBe(false)
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
     expect(revokeObjectURL).toHaveBeenCalledTimes(1)
 
