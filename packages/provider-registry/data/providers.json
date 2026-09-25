@@ -751,6 +751,31 @@
       "name": "TokenDance"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Y-API - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.y-api.bestvirtualgoods.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.y-api.bestvirtualgoods.com"
+        }
+      },
+      "id": "y-api",
+      "metadata": {
+        "website": {
+          "apiKey": "https://y-api.bestvirtualgoods.com/app/keys",
+          "docs": "https://y-api.bestvirtualgoods.com/docs",
+          "models": "https://y-api.bestvirtualgoods.com/models",
+          "official": "https://y-api.bestvirtualgoods.com"
+        }
+      },
+      "name": "Y-API"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2636,5 +2661,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2707d81b155c6c98"
+  "version": "cae16d12bd91b190"
 }
