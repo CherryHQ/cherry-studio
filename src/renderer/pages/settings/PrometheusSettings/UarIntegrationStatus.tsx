@@ -26,16 +26,29 @@ export function UarIntegrationStatus({
   start: (action: IntegrationAction) => void
   id?: string
 }) {
+  const describeStorage = (
+    backend: 'embedded' | 'remote',
+    details: { endpoint?: string; namespace?: string; database?: string }
+  ) => {
+    if (backend === 'embedded') return text('uarBackendLocal')
+    return [
+      text('backends.remote'),
+      details.endpoint,
+      details.namespace && details.database ? `${details.namespace}/${details.database}` : undefined
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }
   const rows = [
     [text('uarProcess'), text(`states.${snapshot.uar.state}`)],
     [text('uarRuntimeVersion'), snapshot.uar.runtimeVersion ?? text('uarUnavailable')],
     [
       text('uarRequestedBackend'),
-      snapshot.uar.requestedBackend === 'embedded' ? text('uarBackendLocal') : text('backends.remote')
+      describeStorage(snapshot.uar.requestedBackend, snapshot.config.uar)
     ],
     [
       text('uarEffectiveBackend'),
-      snapshot.uar.effectiveBackend === 'embedded' ? text('uarBackendLocal') : text('backends.remote')
+      describeStorage(snapshot.uar.effectiveBackend, snapshot.uar)
     ],
     [text('uarConfigurationState'), text(snapshot.uar.applyRequired ? 'uarApplyRequired' : 'uarApplied')],
     [text('uarSkills'), String(snapshot.inventory?.skills.length ?? 0)],

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -14,14 +15,24 @@ import { IntegrationChoice, IntegrationField } from './IntegrationFields'
 import { IntegrationPage, IntegrationSecretField, integrationText } from './IntegrationPage'
 import { UarAdministrationWorkspace } from './UarAdministrationWorkspace'
 import { UarIntegrationStatus } from './UarIntegrationStatus'
+import {
+  selectedUarStorage,
+  uarCandidateValue,
+  uarStorageUpdate,
+  uarSurrealDbCandidates,
+  type UarStorageSelection
+} from './uarStorageSelection'
 
 export default function UarSettings() {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const [selectedStorage, setSelectedStorage] = useState<UarStorageSelection>()
   return (
     <IntegrationPage>
       {(controller) => {
         const snapshot = controller.snapshot!
+        const candidates = uarSurrealDbCandidates(snapshot.serviceDiscovery)
+        const storageSelection = selectedStorage ?? selectedUarStorage(controller.draft.uar, candidates)
         return (
           <UarAdministrationWorkspace
             overview={
@@ -36,12 +47,30 @@ export default function UarSettings() {
                   <div className="space-y-4">
                     <IntegrationChoice
                       label={integrationText(t, 'uarBackend')}
-                      value={controller.draft.uar.backend}
-                      onChange={(backend) => controller.update('uar', { backend })}
-                      options={(['embedded', 'remote'] as const).map((value) => ({
-                        value,
-                        label: integrationText(t, value === 'embedded' ? 'uarBackendLocal' : 'backends.remote')
-                      }))}
+                      value={storageSelection}
+                      onChange={(selection) => {
+                        setSelectedStorage(selection)
+                        controller.update('uar', uarStorageUpdate(selection))
+                      }}
+                      options={[
+                        {
+                          value: 'embedded',
+                          label: integrationText(t, 'uarBackendLocal')
+                        },
+                        ...candidates.map((candidate) => ({
+                          value: uarCandidateValue(candidate),
+                          label: `${candidate.provenance
+                            .map(
+                              (provenance) =>
+                                `${provenance.label} · ${integrationText(t, `source.${provenance.source}`)}`
+                            )
+                            .join(' + ')} — ${candidate.endpoint}`
+                        })),
+                        {
+                          value: 'manual',
+                          label: `${integrationText(t, 'backends.remote')} · ${integrationText(t, 'source.manual')}`
+                        }
+                      ] satisfies { value: UarStorageSelection; label: string }[]}
                     />
                     {controller.draft.uar.backend === 'remote' && (
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -49,6 +78,7 @@ export default function UarSettings() {
                           label={integrationText(t, 'endpoint')}
                           value={controller.draft.uar.endpoint}
                           onChange={(endpoint) => controller.update('uar', { endpoint })}
+                          disabled={storageSelection !== 'manual'}
                         />
                         <IntegrationField
                           label={integrationText(t, 'namespace')}
