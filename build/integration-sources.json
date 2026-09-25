@@ -24,7 +24,7 @@
     },
     "uar": {
       "repository": "Prometheus-AGS/universal-agent-runtime",
-      "revision": "a5137d6c572e351ddeeb365713e5a69a65514df0"
+      "revision": "12b6b95fed9b8686b39bc23bac63e999eef329fd"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
@@ -62,7 +62,7 @@
       "source": "uar",
       "package": "universal-agent-runtime",
       "version": "1.0.0",
-      "features": "minimal,local-models,document-intelligence,wasm-runtime"
+      "features": "minimal,a2a-transport,local-models,document-intelligence,wasm-runtime"
     }
   },
   "parser": {
