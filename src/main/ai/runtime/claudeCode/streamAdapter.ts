@@ -1485,7 +1485,7 @@ export class ClaudeCodeStreamAdapter {
    * A failed API request is backing off. Turn-scoped by design: it renders inside the active turn's
    * message stream, and only a turn gives it a clear end (a chunk, turn-complete or error all clear
    * it). A turn-less connection's retry would have nothing to attach to and no such boundary, so it
-   * must not enter the retry state at all.
+   * must not enter the retry state at all — not even as session status.
    */
   private handleApiRetrySystemMessage(message: SDKAPIRetryMessage): void {
     if (!this.turnActive) return

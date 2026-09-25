@@ -66,6 +66,17 @@ export interface CompactPartData {
 /** Compaction anchor data — marks where a runtime context compaction completed. */
 export type CompactionAnchorPartData = CompactionAnchorData
 
+/** Latest provider retry observed during an agent turn. Persisted with the assistant message. */
+export interface AgentApiRetryPartData {
+  attempt: number
+  maxRetries: number
+  retryDelayMs: number
+  errorStatus: number | null
+  errorCategory: string
+  subagentType?: string
+  startedAt: string
+}
+
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
@@ -145,6 +156,8 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-api-retry': AgentApiRetryPartData
+  'agent-paused': Record<string, never>
   'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData

@@ -991,6 +991,42 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('updates a durable retry summary on the active assistant message', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      ;(service as any).currentTurn(entry).controller = { enqueue }
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-1',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
+
+    it('buffers a retry on an admitted turn until its stream controller opens', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      const enqueue = vi.fn()
+      turn.controller = { enqueue }
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'flush-transition' })
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-1',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
+
     it('clears the status once a content chunk resumes the stream', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -4044,7 +4080,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'paused',
-          data: { parts: [] },
+          data: { parts: [{ type: 'data-agent-paused', data: {} }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
@@ -5855,8 +5891,16 @@ describe('AgentSessionRuntimeService', () => {
         message: {
           id: 'assistant-1',
           role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
+          // An empty success is downgraded to a terminal error by the persistence backend.
+          status: 'error',
+          data: {
+            parts: [
+              {
+                type: 'data-error',
+                data: expect.objectContaining({ name: 'AgentRuntimeError', reason: 'empty-success-terminal' })
+              }
+            ]
+          },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
