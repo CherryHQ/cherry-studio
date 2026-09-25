@@ -340,23 +340,32 @@ export function UarAgentsPanel() {
         <SettingTitle>{tr('federationTitle')}</SettingTitle>
         <SettingDescription>{tr('federationDescription')}</SettingDescription>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <Input value={federatedId} onChange={(event) => setFederatedId(event.target.value)} placeholder="A2A ID" />
           <Input
+            aria-label="A2A ID"
+            value={federatedId}
+            onChange={(event) => setFederatedId(event.target.value)}
+            placeholder="A2A ID"
+          />
+          <Input
+            aria-label={tr('name')}
             value={federatedName}
             onChange={(event) => setFederatedName(event.target.value)}
             placeholder={tr('name')}
           />
           <Input
+            aria-label={tr('baseUrl')}
             value={federatedUrl}
             onChange={(event) => setFederatedUrl(event.target.value)}
             placeholder={tr('baseUrl')}
           />
           <Input
+            aria-label={tr('agentDescription')}
             value={federatedDescription}
             onChange={(event) => setFederatedDescription(event.target.value)}
             placeholder={tr('agentDescription')}
           />
           <Input
+            aria-label={tr('capabilities')}
             value={federatedCapabilities}
             onChange={(event) => setFederatedCapabilities(event.target.value)}
             placeholder={tr('capabilities')}

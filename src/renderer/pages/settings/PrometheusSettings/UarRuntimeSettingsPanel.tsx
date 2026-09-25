@@ -180,21 +180,34 @@ export function UarRuntimeSettingsPanel() {
         </div>
 
         {error && (
-          <div className="rounded-lg border border-error-border bg-error-subtle p-3 text-sm text-error">{error}</div>
+          <div className="rounded-lg border border-error-border bg-error-subtle p-3 text-sm text-error" role="alert">
+            {error}
+          </div>
         )}
         {status && (
-          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">{status}</div>
+          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success" role="status">
+            {status}
+          </div>
         )}
 
         <div className="divide-y divide-border-subtle overflow-hidden rounded-xl border border-border">
           {snapshot?.settings.map((setting) => {
             const masked = setting.saved === '***'
             const value = drafts[setting.field] ?? ''
+            const controlId = `uar-runtime-setting-${encodeURIComponent(setting.field)}`
+            const errorId = `${controlId}-error`
+            const describedBy = fieldErrors[setting.field] ? errorId : undefined
             return (
               <div key={setting.key} className="space-y-3 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium capitalize">{settingName(setting)}</div>
+                    {masked ? (
+                      <div className="text-sm font-medium capitalize">{settingName(setting)}</div>
+                    ) : (
+                      <label className="text-sm font-medium capitalize" htmlFor={controlId}>
+                        {settingName(setting)}
+                      </label>
+                    )}
                     <div className="mt-1 text-xs text-muted-foreground">
                       {setting.source} · {t(`settings.prometheus.integration.uarAdmin.apply.${setting.apply}`)}
                     </div>
@@ -211,12 +224,16 @@ export function UarRuntimeSettingsPanel() {
                   </div>
                 ) : typeof setting.saved === 'boolean' ? (
                   <Switch
+                    id={controlId}
+                    aria-describedby={describedBy}
                     checked={value === 'true'}
                     onCheckedChange={(checked) => changeDraft(setting.field, String(checked))}
                     disabled={busy}
                   />
                 ) : typeof setting.saved === 'object' ? (
                   <Textarea.Input
+                    id={controlId}
+                    aria-describedby={describedBy}
                     rows={5}
                     value={value}
                     onValueChange={(next) => changeDraft(setting.field, next)}
@@ -225,13 +242,19 @@ export function UarRuntimeSettingsPanel() {
                   />
                 ) : (
                   <Input
+                    id={controlId}
+                    aria-describedby={describedBy}
                     type={typeof setting.saved === 'number' ? 'number' : 'text'}
                     value={value}
                     onChange={(event) => changeDraft(setting.field, event.target.value)}
                     disabled={busy}
                   />
                 )}
-                {fieldErrors[setting.field] && <div className="text-xs text-error">{fieldErrors[setting.field]}</div>}
+                {fieldErrors[setting.field] && (
+                  <div id={errorId} className="text-xs text-error" role="alert">
+                    {fieldErrors[setting.field]}
+                  </div>
+                )}
                 <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                   <span>{tr('savedValue', { value: textValue(setting.saved) })}</span>
                   <span>{tr('effectiveValue', { value: textValue(setting.effective) })}</span>
