@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
@@ -47,6 +47,7 @@ export function flattenMcpPromptMessages(result: unknown): string {
 const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }) => {
   const { actions, assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
+  const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
   const [dataRequested, setDataRequested] = useState(false)
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false)
@@ -218,15 +219,15 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       label: t('chat.input.mcp_prompts.title'),
       description: t('chat.input.mcp_prompts.description'),
       icon: <McpLogo aria-hidden />,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: items,
+      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
         quickPanel.open({
           title: t('chat.input.mcp_prompts.title'),
           list: items,
           symbol: ComposerPanelSymbol.McpPrompts,
           parentPanel,
-          queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
         })
       }
     }),
@@ -239,6 +240,10 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     if (!isVisible || symbol !== ComposerPanelSymbol.McpPrompts) return
     updateList(items)
   }, [isVisible, items, symbol, updateList])
+
+  useEffect(() => {
+    if (rootPanelVisible) setDataRequested(true)
+  }, [rootPanelVisible])
 
   return (
     <McpPromptArgumentDialog

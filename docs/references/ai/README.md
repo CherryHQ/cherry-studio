@@ -22,6 +22,10 @@ renderer-side transport that connects to them.
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
 | [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
+| [Remote Agent API Design](./remote-agent-access.md) | Target network and package APIs: device-level authorization, complete incremental events, receipts, and weak-network recovery |
+| [Remote Agent Sequences and Modules](./remote-agent-sequences.md) | Target module map, connection states, and thirteen normal/failure sequence diagrams |
+| [Remote Protocol and Desktop Implementation Design](./remote-agent-implementation.md) | Proposed package/Desktop files, function contracts, atomic admission, recovery, and lifecycle ownership |
+| [Remote Agent Testing Specification](./remote-agent-testing.md) | Local WebSocket client acceptance, scenario matrix, crash injection, weak-network measurements, and test rules |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 | [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |

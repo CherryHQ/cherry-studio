@@ -40,12 +40,15 @@ type Props = {
   /** Load-all handle for the multi-select "select all" action. */
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
@@ -62,12 +65,15 @@ const AgentSessionMessages = ({
   loadOlder,
   selectAllPagination,
   onOpenCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
   openBrowserUrl,
   openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
@@ -136,6 +142,7 @@ const AgentSessionMessages = ({
     loadOlder,
     selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
+    isAgentToolFlowActive,
     openAgentToolFlow,
     openArtifactFile,
     openBrowserUrl,
@@ -143,6 +150,8 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,
+    startEditing,
+    editBusy,
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,

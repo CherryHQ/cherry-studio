@@ -39,6 +39,7 @@ export interface AgentToolFlowOpenInput {
 }
 
 export interface AgentToolFlowNode {
+  title?: string
   toolCallId: string
   toolName: string
   parentToolCallId?: string
@@ -518,7 +519,14 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
+      const input = getToolPartInput(part)
+      const title = isRecord(input)
+        ? [input.description, input.subject, input.title, input.name].find(
+            (value) => typeof value === 'string' && value.trim()
+          )
+        : undefined
       const node: AgentToolFlowNode = {
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,
@@ -565,6 +573,22 @@ export function buildAgentToolFlowProjection(
     if (promptMessage) {
       flowMessages.push(promptMessage)
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts
+    }
+
+    // A flow keeps only the task events of its own children: their linkage lives inside `data`
+    // (`taskId`/`toolUseId`), which the walk below cannot reach through tool-call metadata.
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
     }
 
     // Content is segmented by the resume requests that continued this agent: each SendMessage
@@ -646,6 +670,12 @@ export function buildAgentToolFlowProjection(
     }
     for (const { parts } of messageEntries) {
       for (const part of parts) {
+        // Task events carry no tool-call metadata, so they join the round they fall in and never
+        // reach the resume-marker walk below.
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) segments[segmentIndex].parts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
 
         // Runtime-tagged round boundary: the first marked part opens the new round. The matching

@@ -1,0 +1,55 @@
+{
+  "name": "@cherrystudio/remote-protocol",
+  "version": "0.1.0",
+  "description": "Cherry Studio remote access protocol schemas and Agent recovery contracts.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/remote-protocol"
+  },
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./failure": {
+      "types": "./dist/failure.d.ts",
+      "default": "./dist/failure.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration.d.ts",
+      "default": "./dist/configuration.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "json-canonicalize": "3.0.1"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1",
+    "zod": "4.3.4"
+  },
+  "peerDependencies": {
+    "zod": "^4.3.4"
+  }
+}
