@@ -295,8 +295,8 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
-          "docs": "https://platform.deepseek.com/api-docs/",
-          "models": "https://platform.deepseek.com/api-docs/",
+          "docs": "https://api-docs.deepseek.com/",
+          "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
         }
       },
@@ -508,7 +508,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -1008,6 +1009,37 @@
       "name": "Grok CLI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-responses",
+      "description": "oMLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
+      },
+      "id": "omlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/jundot/omlx",
+          "official": "https://omlx.ai"
+        }
+      },
+      "name": "oMLX"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
@@ -1414,7 +1446,8 @@
           "modelScope": "model-dependent",
           "vendors": ["gemini"]
         }
-      ]
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -1930,7 +1963,8 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -2602,5 +2636,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c1e12f94463bc3de"
+  "version": "2707d81b155c6c98"
 }

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "403d4c60-01be-44f9-878d-064e52d151a9",
-  "prevId": "5b0e85e5-5262-4227-8249-92f3f631941e",
+  "id": "893f0aa7-858f-4dff-aca3-2dc48f957bf8",
+  "prevId": "92e82a74-fbe1-4767-96a0-a57f01cff2f7",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1645,11 +1645,25 @@
           "notNull": true,
           "autoincrement": false
         },
-        "token_hash": {
-          "name": "token_hash",
+        "peer_identity": {
+          "name": "peer_identity",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "configuration_grant_id": {
+          "name": "configuration_grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "agent_grant_id": {
+          "name": "agent_grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -1668,10 +1682,10 @@
         }
       },
       "indexes": {
-        "api_gateway_paired_device_token_hash_unique_idx": {
-          "name": "api_gateway_paired_device_token_hash_unique_idx",
+        "api_gateway_paired_device_peer_identity_unique_idx": {
+          "name": "api_gateway_paired_device_peer_identity_unique_idx",
           "columns": [
-            "token_hash"
+            "peer_identity"
           ],
           "isUnique": true
         }
@@ -2408,483 +2422,6 @@
         "external_knowledge_connection_pending_identity_check": {
           "name": "external_knowledge_connection_pending_identity_check",
           "value": "\"external_knowledge_connection\".\"authorization_status\" != 'pending-authorization' OR (\n        \"external_knowledge_connection\".\"account_user_id\" IS NULL\n        AND \"external_knowledge_connection\".\"account_open_id\" IS NULL\n        AND \"external_knowledge_connection\".\"account_union_id\" IS NULL\n        AND \"external_knowledge_connection\".\"tenant_key\" IS NULL\n        AND \"external_knowledge_connection\".\"display_name\" IS NULL\n        AND \"external_knowledge_connection\".\"avatar_url\" IS NULL\n        AND \"external_knowledge_connection\".\"authorized_at\" IS NULL\n        AND \"external_knowledge_connection\".\"last_validated_at\" IS NULL\n        AND json_array_length(\"external_knowledge_connection\".\"granted_scopes\") = 0\n      )"
-        }
-      }
-    },
-    "external_knowledge_document": {
-      "name": "external_knowledge_document",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "remote_object_id": {
-          "name": "remote_object_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "canonical_node_id": {
-          "name": "canonical_node_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "parent_node_id": {
-          "name": "parent_node_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "relative_breadcrumb": {
-          "name": "relative_breadcrumb",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "original_url": {
-          "name": "original_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "remote_revision": {
-          "name": "remote_revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "availability": {
-          "name": "availability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "knowledge_item_id": {
-          "name": "knowledge_item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "current_warning": {
-          "name": "current_warning",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "external_knowledge_document_source_remote_object_uq": {
-          "name": "external_knowledge_document_source_remote_object_uq",
-          "columns": [
-            "source_id",
-            "remote_object_id"
-          ],
-          "isUnique": true
-        },
-        "external_knowledge_document_knowledge_item_uq": {
-          "name": "external_knowledge_document_knowledge_item_uq",
-          "columns": [
-            "knowledge_item_id"
-          ],
-          "isUnique": true
-        },
-        "external_knowledge_document_source_availability_idx": {
-          "name": "external_knowledge_document_source_availability_idx",
-          "columns": [
-            "source_id",
-            "availability"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "external_knowledge_document_source_id_external_knowledge_source_id_fk": {
-          "name": "external_knowledge_document_source_id_external_knowledge_source_id_fk",
-          "tableFrom": "external_knowledge_document",
-          "tableTo": "external_knowledge_source",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "external_knowledge_document_knowledge_item_id_knowledge_item_id_fk": {
-          "name": "external_knowledge_document_knowledge_item_id_knowledge_item_id_fk",
-          "tableFrom": "external_knowledge_document",
-          "tableTo": "knowledge_item",
-          "columnsFrom": [
-            "knowledge_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "external_knowledge_document_availability_check": {
-          "name": "external_knowledge_document_availability_check",
-          "value": "\"external_knowledge_document\".\"availability\" IN ('active', 'unavailable')"
-        },
-        "external_knowledge_document_ownership_check": {
-          "name": "external_knowledge_document_ownership_check",
-          "value": "(\"external_knowledge_document\".\"availability\" = 'active' AND \"external_knowledge_document\".\"knowledge_item_id\" IS NOT NULL)\n          OR (\"external_knowledge_document\".\"availability\" = 'unavailable' AND \"external_knowledge_document\".\"knowledge_item_id\" IS NULL)"
-        },
-        "external_knowledge_document_identity_nonempty_check": {
-          "name": "external_knowledge_document_identity_nonempty_check",
-          "value": "length(trim(\"external_knowledge_document\".\"remote_object_id\")) > 0\n          AND length(trim(\"external_knowledge_document\".\"canonical_node_id\")) > 0\n          AND (\"external_knowledge_document\".\"parent_node_id\" IS NULL OR length(trim(\"external_knowledge_document\".\"parent_node_id\")) > 0)\n          AND length(trim(\"external_knowledge_document\".\"title\")) > 0\n          AND length(trim(\"external_knowledge_document\".\"original_url\")) > 0\n          AND (\"external_knowledge_document\".\"remote_revision\" IS NULL OR length(trim(\"external_knowledge_document\".\"remote_revision\")) > 0)\n          AND (\"external_knowledge_document\".\"content_hash\" IS NULL OR length(trim(\"external_knowledge_document\".\"content_hash\")) > 0)\n          AND (\"external_knowledge_document\".\"current_warning\" IS NULL OR length(trim(\"external_knowledge_document\".\"current_warning\")) > 0)"
-        },
-        "external_knowledge_document_breadcrumb_check": {
-          "name": "external_knowledge_document_breadcrumb_check",
-          "value": "json_valid(\"external_knowledge_document\".\"relative_breadcrumb\") AND json_type(\"external_knowledge_document\".\"relative_breadcrumb\") = 'array'"
-        }
-      }
-    },
-    "external_knowledge_source": {
-      "name": "external_knowledge_source",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "base_id": {
-          "name": "base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "connection_id": {
-          "name": "connection_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "space_id": {
-          "name": "space_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "schedule_id": {
-          "name": "schedule_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "active_job_id": {
-          "name": "active_job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_trigger": {
-          "name": "last_trigger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_started_at": {
-          "name": "last_started_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_finished_at": {
-          "name": "last_finished_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_outcome": {
-          "name": "last_outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_scanned_count": {
-          "name": "last_scanned_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_indexed_count": {
-          "name": "last_indexed_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_unchanged_count": {
-          "name": "last_unchanged_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_skipped_count": {
-          "name": "last_skipped_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_warning_count": {
-          "name": "last_warning_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_error_summary": {
-          "name": "last_error_summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_successful_sync_at": {
-          "name": "last_successful_sync_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "external_knowledge_source_base_provider_tenant_space_uq": {
-          "name": "external_knowledge_source_base_provider_tenant_space_uq",
-          "columns": [
-            "base_id",
-            "provider",
-            "tenant_id",
-            "space_id"
-          ],
-          "isUnique": true
-        },
-        "external_knowledge_source_connection_idx": {
-          "name": "external_knowledge_source_connection_idx",
-          "columns": [
-            "connection_id"
-          ],
-          "isUnique": false
-        },
-        "external_knowledge_source_schedule_idx": {
-          "name": "external_knowledge_source_schedule_idx",
-          "columns": [
-            "schedule_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "external_knowledge_source_base_id_knowledge_base_id_fk": {
-          "name": "external_knowledge_source_base_id_knowledge_base_id_fk",
-          "tableFrom": "external_knowledge_source",
-          "tableTo": "knowledge_base",
-          "columnsFrom": [
-            "base_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "external_knowledge_source_connection_id_external_knowledge_connection_id_fk": {
-          "name": "external_knowledge_source_connection_id_external_knowledge_connection_id_fk",
-          "tableFrom": "external_knowledge_source",
-          "tableTo": "external_knowledge_connection",
-          "columnsFrom": [
-            "connection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "external_knowledge_source_schedule_id_job_schedule_id_fk": {
-          "name": "external_knowledge_source_schedule_id_job_schedule_id_fk",
-          "tableFrom": "external_knowledge_source",
-          "tableTo": "job_schedule",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "external_knowledge_source_provider_check": {
-          "name": "external_knowledge_source_provider_check",
-          "value": "\"external_knowledge_source\".\"provider\" = 'feishu'"
-        },
-        "external_knowledge_source_state_check": {
-          "name": "external_knowledge_source_state_check",
-          "value": "\"external_knowledge_source\".\"state\" IN ('active', 'paused')"
-        },
-        "external_knowledge_source_revision_check": {
-          "name": "external_knowledge_source_revision_check",
-          "value": "\"external_knowledge_source\".\"revision\" >= 0"
-        },
-        "external_knowledge_source_identity_nonempty_check": {
-          "name": "external_knowledge_source_identity_nonempty_check",
-          "value": "length(trim(\"external_knowledge_source\".\"tenant_id\")) > 0\n          AND length(trim(\"external_knowledge_source\".\"space_id\")) > 0\n          AND length(trim(\"external_knowledge_source\".\"name\")) > 0"
-        },
-        "external_knowledge_source_scope_check": {
-          "name": "external_knowledge_source_scope_check",
-          "value": "json_valid(\"external_knowledge_source\".\"scope\")\n          AND json_type(\"external_knowledge_source\".\"scope\") = 'object'\n          AND json_extract(\"external_knowledge_source\".\"scope\", '$.kind') IN ('space', 'node', 'document')\n          AND (\n            json_extract(\"external_knowledge_source\".\"scope\", '$.kind') = 'space'\n            OR coalesce(length(trim(json_extract(\"external_knowledge_source\".\"scope\", '$.nodeId'))), 0) > 0\n          )\n          AND (\n            json_extract(\"external_knowledge_source\".\"scope\", '$.kind') != 'document'\n            OR coalesce(length(trim(json_extract(\"external_knowledge_source\".\"scope\", '$.remoteObjectId'))), 0) > 0\n          )"
-        },
-        "external_knowledge_source_last_trigger_check": {
-          "name": "external_knowledge_source_last_trigger_check",
-          "value": "\"external_knowledge_source\".\"last_trigger\" IS NULL OR \"external_knowledge_source\".\"last_trigger\" IN ('initial', 'manual', 'scheduled', 'startup')"
-        },
-        "external_knowledge_source_last_outcome_check": {
-          "name": "external_knowledge_source_last_outcome_check",
-          "value": "\"external_knowledge_source\".\"last_outcome\" IS NULL OR \"external_knowledge_source\".\"last_outcome\" IN ('completed', 'completed-with-warnings', 'failed', 'cancelled')"
-        },
-        "external_knowledge_source_counts_check": {
-          "name": "external_knowledge_source_counts_check",
-          "value": "(\"external_knowledge_source\".\"last_scanned_count\" IS NULL OR \"external_knowledge_source\".\"last_scanned_count\" >= 0)\n          AND (\"external_knowledge_source\".\"last_indexed_count\" IS NULL OR \"external_knowledge_source\".\"last_indexed_count\" >= 0)\n          AND (\"external_knowledge_source\".\"last_unchanged_count\" IS NULL OR \"external_knowledge_source\".\"last_unchanged_count\" >= 0)\n          AND (\"external_knowledge_source\".\"last_skipped_count\" IS NULL OR \"external_knowledge_source\".\"last_skipped_count\" >= 0)\n          AND (\"external_knowledge_source\".\"last_warning_count\" IS NULL OR \"external_knowledge_source\".\"last_warning_count\" >= 0)"
-        },
-        "external_knowledge_source_error_nonempty_check": {
-          "name": "external_knowledge_source_error_nonempty_check",
-          "value": "\"external_knowledge_source\".\"last_error_summary\" IS NULL OR length(trim(\"external_knowledge_source\".\"last_error_summary\")) > 0"
         }
       }
     },
@@ -4589,7 +4126,7 @@
       "checkConstraints": {
         "knowledge_item_type_check": {
           "name": "knowledge_item_type_check",
-          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'directory', 'external')"
+          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'directory')"
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
@@ -4597,7 +4134,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'external') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",
@@ -5919,6 +5456,130 @@
           "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
         }
       }
+    },
+    "remote_command": {
+      "name": "remote_command",
+      "columns": {
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "command_id": {
+          "name": "command_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "identity_digest": {
+          "name": "identity_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "admitted_at": {
+          "name": "admitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "remote_command_device_id_api_gateway_paired_device_id_fk": {
+          "name": "remote_command_device_id_api_gateway_paired_device_id_fk",
+          "tableFrom": "remote_command",
+          "tableTo": "api_gateway_paired_device",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "remote_command_device_id_grant_id_command_id_pk": {
+          "columns": [
+            "device_id",
+            "grant_id",
+            "command_id"
+          ],
+          "name": "remote_command_device_id_grant_id_command_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "entity_tag": {
       "name": "entity_tag",

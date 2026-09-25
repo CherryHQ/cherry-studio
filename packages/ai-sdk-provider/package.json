@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-sdk-provider",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
   "keywords": [
     "ai-sdk",
@@ -51,7 +51,7 @@
   "devDependencies": {
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.1"
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "^3.0.71",

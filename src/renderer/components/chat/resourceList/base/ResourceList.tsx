@@ -595,7 +595,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
         'hover:bg-accent hover:text-accent-foreground!',
         'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
-        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100 aria-pressed:pointer-events-auto aria-pressed:opacity-100',
+        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100 aria-pressed:pointer-events-auto aria-pressed:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100',
         className
       )}
       {...props}
@@ -618,7 +618,7 @@ function ItemActions({ active, children, className, pinned, ref, ...props }: Ite
       data-resource-list-item-actions="true"
       className={cn(
         '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
-        'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100 data-[pinned=true]:pointer-events-auto data-[pinned=true]:grid-cols-[1fr] data-[pinned=true]:opacity-100',
+        'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100 data-[pinned=true]:pointer-events-auto data-[pinned=true]:grid-cols-[1fr] data-[pinned=true]:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100',
         className
       )}
       {...props}>

@@ -8,8 +8,10 @@ import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -20,6 +22,7 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -90,7 +93,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     authority: AgentSessionTurnAuthority = {}
   ): Promise<ValidatedAgentDispatch> {
-    if (req.trigger !== 'submit-message') {
+    if (req.trigger !== 'submit-message' && req.trigger !== 'edit-agent-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
 
@@ -301,9 +304,36 @@ export class AgentChatContextProvider implements ChatContextProvider {
     subscriber: StreamListener,
     req: MainDispatchRequest,
     authority: AgentSessionTurnAuthority,
-    ctx?: DispatchContext
+    ctx?: DispatchContext,
+    onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
   ): Promise<PreparedDispatch> {
     const validated = await this.validateDispatch(req, authority)
+    const runtime = application.get('AgentSessionRuntimeService')
+    runtime.assertSessionWritable(validated.sessionId)
+    if (req.trigger === 'edit-agent-message') {
+      if (ctx?.hasLiveStream) throw new AgentSessionEditError('busy')
+      runtime.assertSessionEditable(validated.sessionId)
+      await validateEditedInput(validated.userMessageParts)
+      validated.shouldAutoNameInitialTurn = false
+      const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
+        const result = this.persistDispatchTx(tx, validated, {
+          id: validated.agentId,
+          updatedAt: validated.agentUpdatedAt,
+          model: validated.uniqueModelId,
+          type: validated.agentType
+        })
+        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+        return result
+      })
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: validated.sessionId }
+        }
+      ])
+      return this.activateDispatch(persisted, subscriber)
+    }
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
@@ -338,9 +368,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const persisted = application
-      .get('DbService')
-      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
+    const persisted = application.get('DbService').withWriteTx((tx) => {
+      ctx?.beforePersist?.()
+      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
+      return reserved
+    })
     return this.activateDispatch(persisted, subscriber)
   }
 }
