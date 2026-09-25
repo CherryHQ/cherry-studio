@@ -226,7 +226,7 @@ export class ProxyService extends BaseService {
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
     await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
-      // Verbatim: the Node controller implements the `<-loopback>` escape hatch itself, so the
+      // Verbatim: the Node matcher evaluates `<-loopback>` as an ordered negation itself, so the
       // session and Node stacks derive their loopback policy from this one rule string.
       proxyBypassRules: config.proxyBypassRules
     })

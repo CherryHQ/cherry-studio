@@ -127,3 +127,50 @@ describe('ProxyBypassRuleMatcher', () => {
     expect(isByPass('http://dev.localdomain')).toBe(false)
   })
 })
+
+describe('ProxyBypassRuleMatcher — <-loopback> ordering', () => {
+  let matcher: ProxyBypassRuleMatcher
+  beforeEach(() => {
+    matcher = new ProxyBypassRuleMatcher()
+  })
+
+  const withRules = (rules: string[]) => matcher.updateByPassRules(rules)
+
+  it('negative-only sends the whole loopback scope through the proxy', () => {
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+    expect(matcher.isByPass('http://127.0.0.4:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(false)
+    expect(matcher.isByPass('http://[::1]:8001/')).toBe(false)
+    expect(matcher.isByPass('http://0.0.0.0:8001/')).toBe(false)
+    expect(matcher.isByPass('http://169.254.3.4:8001/')).toBe(false)
+    expect(matcher.isByPass('http://[fe80::1]:8001/')).toBe(false)
+    expect(matcher.isByPass('http://loopback:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost6:8001/')).toBe(false)
+  })
+
+  it('a positive rule before the negation keeps its own hosts bypassed', () => {
+    withRules(['localhost', '<-loopback>'])
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(true)
+    // the positive rule only names the literal hostname; other loopback forms fall to the negation
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+  })
+
+  it('a <local> rule before the negation keeps the whole loopback scope bypassed', () => {
+    withRules(['<local>', '<-loopback>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(true)
+    expect(matcher.isByPass('http://127.0.0.4:8001/')).toBe(true)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(true)
+  })
+
+  it('the negation before a positive rule sends loopback through the proxy', () => {
+    withRules(['<-loopback>', 'localhost', '127.0.0.1', '[::1]'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(false)
+  })
+
+  it('leaves non-loopback traffic on the proxy path', () => {
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://example.com:8001/')).toBe(false)
+  })
+})

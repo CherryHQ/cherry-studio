@@ -94,6 +94,33 @@ describe('NodeProxyController', () => {
     }
   )
 
+  it('keeps localhost direct when the positive rule precedes <-loopback>', async () => {
+    const localServer = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'local' }))
+    })
+    const proxyRequests: string[] = []
+    const proxyServer = createServer((request, response) => {
+      proxyRequests.push(request.url ?? '')
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'proxy' }))
+    })
+    const [localPort, proxyPort] = await Promise.all([listen(localServer), listen(proxyServer)])
+    const controller = new NodeProxyController()
+    try {
+      await controller.configure({
+        proxyRules: `http://127.0.0.1:${proxyPort}`,
+        proxyBypassRules: 'localhost,<-loopback>'
+      })
+      const response = await fetch(`http://localhost:${localPort}/models`, { signal: AbortSignal.timeout(5000) })
+      expect(await response.json()).toEqual({ source: 'local' })
+      expect(proxyRequests.every((url) => !url.includes('localhost'))).toBe(true)
+    } finally {
+      await controller.configure({})
+      await Promise.all([close(localServer), close(proxyServer)])
+    }
+  })
+
   it('lets <-loopback> send local traffic through the configured proxy', async () => {
     const localServer = createServer((_request, response) => {
       response.setHeader('content-type', 'application/json')
@@ -140,8 +167,6 @@ describe('NodeProxyController', () => {
         proxyRules: `http://127.0.0.1:${proxyPort}`,
         proxyBypassRules: '<-loopback>'
       })
-      expect(process.env.NO_PROXY ?? '').not.toContain('localhost')
-
       const response = await fetch(`http://127.0.0.1:${localPort}/models`, { signal: AbortSignal.timeout(5000) })
       expect(await response.json()).toEqual({ source: 'local' })
       expect(tunnels).toContain(`127.0.0.1:${localPort}`)

@@ -34,36 +34,39 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
-    // `<-loopback>` is the Chromium directive that cancels the implicit loopback bypass. The Node
-    // stack has no implicit bypass of its own — the loopback entries below ARE its scope — so the
-    // directive is consumed here: it is stripped and the defaults are skipped, leaving loopback
-    // traffic to follow the configured proxy exactly as the directive requests.
-    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
-    const scopedBypassRules = loopbackEscape
-      ? normalizedBypassRules.filter((hostname) => hostname !== '<-loopback>')
-      : normalizedBypassRules
-    // Keep local services reachable independently of the configured proxy.
-    if (proxyUrl && !loopbackEscape) {
+    // Keep local services reachable independently of the configured proxy. A `<-loopback>` entry
+    // in the rules is an ordered negation the matcher evaluates itself, so the defaults still go
+    // in — they simply lose to a negation that precedes them, matching Chromium's ordering.
+    if (proxyUrl) {
       for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
-        if (!scopedBypassRules.includes(hostname)) scopedBypassRules.push(hostname)
+        if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
-    const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: scopedBypassRules })
+    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
+    // EnvHttpProxyAgent consults NO_PROXY on its own, ahead of the matcher's ordered evaluation —
+    // with the escape hatch armed, loopback entries must stay out of the env or undici would
+    // bypass what the negation sends through the proxy.
+    const envBypassRules = loopbackEscape
+      ? normalizedBypassRules.filter(
+          (hostname) => hostname !== '<-loopback>' && !['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
+        )
+      : normalizedBypassRules
+    const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
     if (this.currentConfigKey === configKey) return
 
     const proxyEndpoint = normalizeProxyEndpoint(proxyUrl)
     if (proxyEndpoint) {
       await this.getBackend().then((backend) =>
-        backend.configure(proxyUrl, proxyEndpoint, scopedBypassRules, () =>
-          this.setEnvironment(proxyUrl, scopedBypassRules)
+        backend.configure(proxyUrl, proxyEndpoint, normalizedBypassRules, () =>
+          this.setEnvironment(proxyUrl, envBypassRules)
         )
       )
     } else if (this.backendPromise) {
       await this.backendPromise.then((backend) =>
-        backend.configure(undefined, null, scopedBypassRules, () => this.setEnvironment(undefined, scopedBypassRules))
+        backend.configure(undefined, null, normalizedBypassRules, () => this.setEnvironment(undefined, envBypassRules))
       )
     } else {
-      this.setEnvironment(undefined, scopedBypassRules)
+      this.setEnvironment(undefined, envBypassRules)
     }
 
     this.currentConfigKey = configKey

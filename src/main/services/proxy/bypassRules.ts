@@ -13,7 +13,7 @@ export type ProxyBypassMatcherFactory = typeof createProxyBypassMatcher
 
 type HostnameMatchType = 'exact' | 'wildcardSubdomain' | 'generalWildcard'
 
-type ProxyBypassRuleType = 'local' | 'cidr' | 'ip' | 'domain'
+type ProxyBypassRuleType = 'local' | 'cidr' | 'ip' | 'domain' | 'loopbackScope'
 
 interface ParsedProxyBypassRule {
   type: ProxyBypassRuleType
@@ -92,6 +92,18 @@ export function createProxyBypassMatcher(
         type: 'local',
         matchType: 'exact',
         rule: '<local>'
+      }
+    }
+
+    if (trimmedRule === '<-loopback>') {
+      // Ordered negation of the implicit loopback scope (see isImplicitLoopbackScope): rules are
+      // evaluated in order and the first match decides, so `localhost,<-loopback>` keeps loopback
+      // bypassed while `<-loopback>` alone sends it through the proxy — Chromium's subtractive
+      // directive, spelled as an exclude entry instead of a token to delete.
+      return {
+        type: 'loopbackScope',
+        matchType: 'exact',
+        rule: trimmedRule
       }
     }
 
@@ -220,6 +232,25 @@ export function createProxyBypassMatcher(
     return false
   }
 
+  // The implicit scope that `<-loopback>` negates: loopback hostnames (including the Windows-only
+  // `loopback` and the legacy `localhost6` aliases), the loopback and unspecified IPv4 ranges,
+  // and link-local addresses.
+  const isImplicitLoopbackScope = (hostname: string): boolean => {
+    if (isLocalHostname(hostname)) {
+      return true
+    }
+
+    const cleaned = hostname.replace(/^\[|\]$/g, '')
+    if (ipaddrModule.isValid(cleaned)) {
+      const range = ipaddrModule.parse(cleaned).range()
+      if (range === 'linkLocal' || range === 'unspecified') {
+        return true
+      }
+    }
+
+    return ['loopback', 'localhost6', 'localhost6.localdomain6'].includes(cleaned.toLowerCase())
+  }
+
   /**
    * Whether two host strings denote the same address. The URL host is WHATWG-normalized
    * (`[::1]`, lowercased), while a bypass rule keeps the text the user typed (`0:0:0:0:0:0:0:1`,
@@ -277,6 +308,13 @@ export function createProxyBypassMatcher(
             case 'local':
               if (isLocalHostname(hostname)) {
                 return true
+              }
+              break
+            case 'loopbackScope':
+              // First match wins: an earlier positive rule has already returned, so reaching this
+              // case means the URL is loopback-scope and must NOT bypass.
+              if (isImplicitLoopbackScope(hostname)) {
+                return false
               }
               break
             case 'ip':
