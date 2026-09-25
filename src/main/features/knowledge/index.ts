@@ -1,5 +1,6 @@
 // Runtime service API.
 export { KnowledgeService } from './KnowledgeService'
+export { ExternalKnowledgeAdmissionError } from './external/ExternalKnowledgeSyncAdmission'
 export { ExternalKnowledgeRuntimeError } from './external/ExternalKnowledgeRuntime'
 export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVectorStoreService'
 

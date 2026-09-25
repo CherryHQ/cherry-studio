@@ -14,6 +14,9 @@ export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>(FEISHU_REQUIRED_U
 
 const FEISHU_REQUEST_TIMEOUT_MS = 30_000
 
+export const FEISHU_KNOWLEDGE_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/
+const feishuKnowledgeTokenSchema = z.string().regex(FEISHU_KNOWLEDGE_TOKEN_PATTERN)
+
 export const FEISHU_READ_ENDPOINT_BUDGETS = {
   getWikiNode: { key: 'feishu.wiki.get-node', minimumIntervalMs: 600 },
   listWikiNodes: { key: 'feishu.wiki.list-nodes', minimumIntervalMs: 600 },
@@ -52,12 +55,12 @@ const userIdentitySchema = z.object({
 const wikiNodeSchema = z
   .object({
     space_id: z.string().trim().min(1),
-    node_token: z.string().trim().min(1),
+    node_token: feishuKnowledgeTokenSchema,
     obj_token: z.string().trim().min(1),
     obj_type: z.string().trim().min(1),
-    parent_node_token: z.string().trim().min(1).nullish(),
+    parent_node_token: feishuKnowledgeTokenSchema.nullish(),
     node_type: z.enum(['origin', 'shortcut']),
-    origin_node_token: z.string().trim().min(1).nullish(),
+    origin_node_token: feishuKnowledgeTokenSchema.nullish(),
     origin_space_id: z.string().trim().min(1).nullish(),
     title: z.string().trim().min(1),
     has_child: z.boolean(),
@@ -387,13 +390,13 @@ function normalizeWikiNode(node: z.infer<typeof wikiNodeSchema>): FeishuWikiNode
 export async function listWikiChildNodes(
   accessToken: string,
   spaceId: string,
-  parentNodeToken: string,
+  parentNodeToken?: string,
   pageToken?: string,
   signal?: AbortSignal
 ): Promise<FeishuWikiNodePage> {
   const url = new URL(`https://open.feishu.cn/open-apis/wiki/v2/spaces/${encodeURIComponent(spaceId)}/nodes`)
   url.searchParams.set('page_size', '50')
-  url.searchParams.set('parent_node_token', parentNodeToken)
+  if (parentNodeToken) url.searchParams.set('parent_node_token', parentNodeToken)
   if (pageToken) url.searchParams.set('page_token', pageToken)
   const parsed = wikiNodePageResponseSchema.safeParse(
     await request(url.toString(), {
