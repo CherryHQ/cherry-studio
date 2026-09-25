@@ -41,7 +41,7 @@ export function renderBackgroundTasksNote(descriptions: readonly string[]): stri
     `${total} background task${total === 1 ? '' : 's'} started by earlier turn${total === 1 ? '' : 's'} ${total === 1 ? 'is' : 'are'} still running:`,
     ...shown,
     ...(overflow > 0 ? [`- … and ${overflow} more`] : []),
-    'Their results will be delivered when they complete. Do not start duplicate work in the meantime; address the user\'s message now.'
+    "Their results will be delivered when they complete. Do not start duplicate work in the meantime; address the user's message now."
   ].join('\n')
 }
 

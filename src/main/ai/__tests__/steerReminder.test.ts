@@ -55,9 +55,13 @@ describe('renderBackgroundTasksNote', () => {
   })
 
   it('lists task descriptions with a singular/plural header', () => {
-    expect(renderBackgroundTasksNote(['Review the diff'])).toContain('1 background task started by earlier turn is still running')
+    expect(renderBackgroundTasksNote(['Review the diff'])).toContain(
+      '1 background task started by earlier turn is still running'
+    )
     expect(renderBackgroundTasksNote(['Review the diff'])).toContain('- Review the diff')
-    expect(renderBackgroundTasksNote(['A', 'B'])).toContain('2 background tasks started by earlier turns are still running')
+    expect(renderBackgroundTasksNote(['A', 'B'])).toContain(
+      '2 background tasks started by earlier turns are still running'
+    )
   })
 
   it('caps the listing and reports the overflow', () => {
