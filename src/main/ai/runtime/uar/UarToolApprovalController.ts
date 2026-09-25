@@ -1,20 +1,16 @@
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
-import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { resolveLinkedNotifyChannel } from '@main/ai/runtime/agentMcpServers'
-import { findBuiltinToolPolicy } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 import type { AgentRuntimeEvent } from '../types'
 import type { UarHostMcpBridge } from './UarHostMcpBridge'
-import { toUarToolName } from './uarToolNames'
 
 const logger = loggerService.withContext('UarToolApprovalController')
 
 type UarApprovalValue = {
   approvalId?: unknown
+  admissionId?: unknown
+  invocationId?: unknown
   toolCallId?: unknown
   name?: unknown
   arguments?: unknown
@@ -34,6 +30,8 @@ interface UarToolApprovalOptions {
 
 type PendingApproval = {
   rawApprovalId?: string
+  admissionId: string
+  invocationId?: string
   rawToolCallId: string
   toolCallId: string
   toolName: string
@@ -52,49 +50,35 @@ export class UarToolApprovalController {
     ensureToolInput: (rawToolCallId: string, toolName: string, input: Record<string, unknown>) => string
   ): Promise<void> {
     const value = rawValue as UarApprovalValue
-    if (typeof value.toolCallId !== 'string' || typeof value.name !== 'string') {
+    if (
+      typeof value.toolCallId !== 'string' ||
+      typeof value.name !== 'string' ||
+      typeof value.admissionId !== 'string'
+    ) {
       throw new Error('UAR emitted an invalid tool approval request')
     }
-    const input = parseToolInput(value.arguments)
+    const input = parseSafeActionDisplay(value.arguments)
     const pending: PendingApproval = {
       rawApprovalId: typeof value.approvalId === 'string' ? value.approvalId : undefined,
+      admissionId: value.admissionId,
+      invocationId: typeof value.invocationId === 'string' ? value.invocationId : undefined,
       rawToolCallId: value.toolCallId,
       toolCallId: ensureToolInput(value.toolCallId, value.name, input),
       toolName: value.name,
       input
     }
-    const disposition = this.disposition(pending.toolName)
-    if (disposition === 'deny') {
-      await this.resolve(pending.rawApprovalId, false)
-      return
-    }
-    if (disposition === 'approve') {
-      await this.approve(pending)
-      return
-    }
     await this.prompt(pending)
-  }
-
-  private async approve(input: PendingApproval): Promise<void> {
-    const identity = { toolCallId: input.rawToolCallId, toolName: input.toolName, input: input.input }
-    this.options.bridge.approveToolCall(identity)
-    try {
-      await this.resolve(input.rawApprovalId, true)
-    } catch (error) {
-      this.options.bridge.revokeToolCall(identity)
-      throw error
-    }
   }
 
   private async prompt(input: PendingApproval): Promise<void> {
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(this.options.sessionId)
     if (interactionState.userResponse === 'unavailable') {
-      await this.resolve(input.rawApprovalId, false)
+      await this.recordAndResolve(input, false)
       return
     }
     const approvalId = `uar:${this.options.runId}:${input.rawApprovalId ?? input.rawToolCallId}`
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
-    const pending = toolApprovalRegistry.register({
+    const registration = toolApprovalRegistry.registerOrReattach({
       approvalId,
       sessionId: this.options.sessionId,
       toolCallId: input.toolCallId,
@@ -104,7 +88,7 @@ export class UarToolApprovalController {
       signal: this.options.signal,
       resolve: (decision) => this.dispatch(input, decision)
     })
-    if (!pending) return
+    if (registration !== 'registered') return
     this.options.emit({
       type: 'tool-approval-request',
       request: {
@@ -118,52 +102,30 @@ export class UarToolApprovalController {
   }
 
   private dispatch(input: PendingApproval, decision: DispatchDecision): void {
-    if (
-      !decision.approved &&
-      (this.options.isClosed() || this.options.signal.aborted || decision.reason?.startsWith('UAR turn '))
-    ) {
+    const interrupted =
+      this.options.isClosed() || this.options.signal.aborted || decision.reason?.startsWith('UAR turn ')
+    if (interrupted) {
+      try {
+        this.options.bridge.cancelAdmission(input.admissionId, input.invocationId, 'cancelled')
+      } catch (error) {
+        logger.warn('Failed to persist cancelled UAR tool admission', { admissionId: input.admissionId, error })
+      }
       return
     }
     if (decision.approved && decision.updatedInput) {
       logger.warn('Editing tool input is not supported by the UAR runtime; rejecting', { toolName: input.toolName })
     }
     const approved = decision.approved && !decision.updatedInput
-    const identity = { toolCallId: input.rawToolCallId, toolName: input.toolName, input: input.input }
-    if (approved) this.options.bridge.approveToolCall(identity)
-    void this.resolve(input.rawApprovalId, approved).catch((error) => {
-      if (approved) this.options.bridge.revokeToolCall(identity)
+    void this.recordAndResolve(input, approved).catch((error) => {
       if (!this.options.signal.aborted && !this.options.isClosed()) this.options.emit({ type: 'error', error })
     })
   }
 
-  private disposition(toolName: string): 'approve' | 'deny' | 'prompt' {
-    const agent = agentService.getAgent(this.options.agentId)
-    if (!agent) return 'deny'
-    if ((agent.disabledTools ?? []).map(toUarToolName).includes(toolName)) return 'deny'
-    const mode = agent.configuration?.permission_mode ?? 'default'
-    if (mode === 'plan') return 'deny'
-
-    const linkedChannel = resolveLinkedNotifyChannel(this.options.sessionId, agent.id)
-    const mountedServers = resolveMountedMcpServers(agent, {
-      browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-      channelLinked: linkedChannel !== null
-    })
-    const builtin = findBuiltinToolPolicy(`mcp__${toolName}`, mountedServers)
-    if (builtin?.approval === 'auto') return 'approve'
-    if (builtin?.approval === 'required') {
-      return mode === 'bypassPermissions' && builtin.bypassApproval === 'lift' ? 'approve' : 'prompt'
+  private async recordAndResolve(input: PendingApproval, approved: boolean): Promise<void> {
+    if (!this.options.bridge.recordHumanDecision(input.admissionId, approved)) {
+      throw new Error('uar_approval_stale')
     }
-    if (mode === 'bypassPermissions' || mode === 'auto') return 'approve'
-    if (mode === 'acceptEdits' && this.isManagedFilesystemTool(toolName)) return 'approve'
-    return 'prompt'
-  }
-
-  private isManagedFilesystemTool(toolName: string): boolean {
-    return mcpServerService
-      .list({})
-      .items.some(
-        (server) => server.reference?.startsWith('filesystem:') && toolName.startsWith(toUarToolName(`${server.id}__`))
-      )
+    await this.resolve(input.rawApprovalId, approved)
   }
 
   private async resolve(approvalId: string | undefined, approved: boolean): Promise<void> {
@@ -185,15 +147,23 @@ export class UarToolApprovalController {
   }
 }
 
-function parseToolInput(value: unknown): Record<string, unknown> {
-  if (isRecord(value)) return value
-  if (typeof value !== 'string') return {}
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return isRecord(parsed) ? parsed : {}
-  } catch {
-    return {}
+function parseSafeActionDisplay(value: unknown): Record<string, unknown> {
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return {}
+    }
   }
+  if (!isRecord(parsed)) return {}
+  const safe: Record<string, unknown> = {}
+  for (const key of ['operation', 'server', 'target']) {
+    const entry = parsed[key]
+    if (typeof entry === 'string') safe[key] = entry.slice(0, 512)
+  }
+  if (typeof parsed.detailsAvailable === 'boolean') safe.detailsAvailable = parsed.detailsAvailable
+  return safe
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

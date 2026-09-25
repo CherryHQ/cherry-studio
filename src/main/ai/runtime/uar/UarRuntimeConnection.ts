@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import {
@@ -32,11 +34,15 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { UarAguiAdapter } from './UarAguiAdapter'
+import { uarApprovalLifecycleStore } from './UarApprovalLifecycleStore'
 import { buildUarHostHistory, type UarHistoryMessage } from './uarHostHistory'
 import { createUarHostMcpBridge, type UarHostMcpBridge } from './UarHostMcpBridge'
+import { resolveUarHostToolDisposition } from './uarHostToolPolicy'
 import { resolveUarModelAssignment, type ResolvedUarModelAssignment } from './uarModelAssignments'
 import { uarPrincipalForSession } from './uarPrincipal'
 import { toUarToolName } from './uarToolNames'
+
+const logger = loggerService.withContext('UarRuntimeConnection')
 
 const HISTORY_PAGE_SIZE = 200
 const HISTORY_LIMIT = 1_000
@@ -169,7 +175,11 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     }
     const { agent } = await application.get('PrometheusIntegrationService').resolveSession(session, storedAgent)
     const coldSession = this.attachedGeneration !== sidecar.generation
-    const [bridge, skillIds] = await Promise.all([this.createMcpBridge(session, agent), this.resolveSkillIds(agent.id)])
+    const workspace = realpathSync.native(session.workspace.path)
+    const [bridge, skillIds] = await Promise.all([
+      this.createMcpBridge(session, agent, workspace),
+      this.resolveSkillIds(agent.id)
+    ])
     try {
       const desiredAssignment = await resolveUarModelAssignment(
         storedAgent.configuration?.uar_model_assignment,
@@ -183,8 +193,9 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
         input: this.buildInput(input),
         session_id: this.input.sessionId,
         ...(assignment.credential ? { run_credentials: [assignment.credential] } : {}),
-        working_directory: session.workspace.path,
+        working_directory: workspace,
         ...(bridge.servers.length > 0 ? { mcp_servers: bridge.servers } : {}),
+        tool_admission: bridge.toolAdmission,
         ...(this.mapReasoningEffort() ? { reasoning_effort: this.mapReasoningEffort() } : {}),
         ...(coldSession
           ? { history: { session_id: this.input.sessionId, messages: this.loadHistory(input.message.id) } }
@@ -264,7 +275,11 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private async createMcpBridge(session: AgentSessionEntity, agent: AgentEntity): Promise<UarHostMcpBridge> {
+  private async createMcpBridge(
+    session: AgentSessionEntity,
+    agent: AgentEntity,
+    workspace: string
+  ): Promise<UarHostMcpBridge> {
     await warmMcpToolCatalogs(agent.mcps ?? [])
     const snapshots: McpServerSnapshotMap = new Map(
       (agent.mcps ?? []).map((idOrName) => [idOrName, mcpServerService.findByIdOrName(idOrName)] as const)
@@ -284,7 +299,15 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
         linkedChannel,
         agentDataPath,
         this.input.knowledgeBaseIds
-      )
+      ),
+      {
+        sessionId: session.id,
+        ownerId: this.principal,
+        workspace,
+        persistLifecycle: (snapshot) => uarApprovalLifecycleStore.persist(snapshot),
+        disposition: (toolName) => resolveUarHostToolDisposition(session.id, agent.id, toolName)
+      },
+      (error) => logger.warn('UAR host MCP request failed', { error })
     )
   }
 

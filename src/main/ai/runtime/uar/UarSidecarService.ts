@@ -23,6 +23,7 @@ const logger = loggerService.withContext('UarSidecarService')
 const START_TIMEOUT_MS = 30_000
 const STOP_TIMEOUT_MS = 5_000
 const REQUIRED_CAPABILITIES = [
+  'approval_lifecycle_v1',
   'host_history',
   'reasoning_effort',
   'run_scoped_credentials',

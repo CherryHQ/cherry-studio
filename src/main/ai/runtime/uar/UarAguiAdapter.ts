@@ -134,7 +134,7 @@ export class UarAguiAdapter {
         break
       case 'TOOL_CALL_END':
         if (typeof event.toolCallId === 'string' && typeof event.toolCallName === 'string') {
-          this.ensureToolInput(event.toolCallId, event.toolCallName, parseToolInput(event.arguments))
+          this.ensureToolInput(event.toolCallId, event.toolCallName)
         }
         break
       case 'TOOL_CALL_RESULT':
@@ -413,17 +413,6 @@ export class UarAguiAdapter {
 
   private completeSourceEvent(): void {
     if (this.currentSourceEventId) this.lastCompletedSourceEventId = this.currentSourceEventId
-  }
-}
-
-function parseToolInput(value: unknown): Record<string, unknown> {
-  if (isRecord(value)) return value
-  if (typeof value !== 'string') return {}
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return isRecord(parsed) ? parsed : {}
-  } catch {
-    return {}
   }
 }
 

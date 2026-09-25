@@ -185,7 +185,7 @@ const uarAdministrationSurfaceSchema = z.object({
   methods: z.array(uarAdministrationMethodSchema)
 })
 export const uarAdministrationCapabilitiesSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   scopes: z.tuple([z.literal('public'), z.literal('admin'), z.literal('owner'), z.literal('host')]),
   surfaces: z.array(uarAdministrationSurfaceSchema)
 })
@@ -264,6 +264,40 @@ export type UarMemoryInspection = {
   createdAt?: string
 }
 
+export type UarApprovalLifecycleInspection = {
+  admissionId: string
+  invocationId: string
+  eventId?: string
+  cursor?: number
+  rootRunId: string
+  executingRunId: string
+  ownerSessionId: string
+  workspace: string
+  toolName: string
+  state:
+    | 'prepared'
+    | 'awaiting-human'
+    | 'awaiting-ack'
+    | 'authorized'
+    | 'claimed'
+    | 'succeeded'
+    | 'failed'
+    | 'denied'
+    | 'cancelled'
+    | 'invalidated'
+    | 'interrupted'
+    | 'outcome-unknown'
+  hostDisposition: 'auto' | 'ask' | 'deny'
+  action: {
+    operation?: string
+    server?: string
+    target?: string
+    detailsAvailable: boolean
+    riskReason?: string
+  }
+  updatedAt: number
+}
+
 export type UarOperationalSnapshot = {
   schemaVersion: 1
   generation: number
@@ -271,6 +305,7 @@ export type UarOperationalSnapshot = {
   runs: UarRunInspection[]
   knowledgeBases: UarKnowledgeBaseInspection[]
   memory: { enabled: boolean; total: number; items: UarMemoryInspection[] }
+  approvals: UarApprovalLifecycleInspection[]
   tools: {
     total: number
     names: string[]

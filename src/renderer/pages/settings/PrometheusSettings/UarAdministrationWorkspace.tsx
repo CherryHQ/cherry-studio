@@ -19,6 +19,7 @@ import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
 
 import { UarAgentsPanel } from './UarAgentsPanel'
+import { UarApprovalLifecyclePanel } from './UarApprovalLifecyclePanel'
 import { UarCompilerPanel } from './UarCompilerPanel'
 import { UarOperationalPanel } from './UarOperationalPanel'
 import { UarPresentationsPanel } from './UarPresentationsPanel'
@@ -239,6 +240,8 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
             <UarSkillsPanel />
           ) : selectedId === 'presentations' ? (
             <UarPresentationsPanel />
+          ) : selectedId === 'approvals' ? (
+            <UarApprovalLifecyclePanel />
           ) : ['runs', 'knowledge', 'tools', 'security', 'protocols'].includes(selectedId) ? (
             <>
               <UarOperationalPanel surface={selectedId as 'runs' | 'knowledge' | 'tools' | 'security' | 'protocols'} />

@@ -29,6 +29,7 @@ type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | '
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
+export type ApprovalRegistrationResult = 'registered' | 'reattached' | 'rejected'
 
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending tool
@@ -68,6 +69,21 @@ class ToolApprovalRegistry {
 
     this.pending.set(approvalId, stored)
     return true
+  }
+
+  registerOrReattach(entry: PendingApprovalRegistration): ApprovalRegistrationResult {
+    const existing = this.pending.get(entry.approvalId)
+    if (!existing) return this.register(entry) ? 'registered' : 'rejected'
+    if (
+      existing.sessionId === entry.sessionId &&
+      existing.toolCallId === entry.toolCallId &&
+      existing.toolName === entry.toolName
+    ) {
+      return 'reattached'
+    }
+    logger.warn('Approval identity was reused for a different tool request', { approvalId: entry.approvalId })
+    entry.resolve({ approved: false, reason: 'Approval identity conflict' })
+    return 'rejected'
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */

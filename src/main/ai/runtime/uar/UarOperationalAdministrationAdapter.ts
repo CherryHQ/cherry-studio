@@ -4,6 +4,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type {
+  UarApprovalLifecycleInspection,
   UarAdministrationOwner,
   UarKnowledgeBaseInspection,
   UarOperationalSnapshot,
@@ -11,6 +12,15 @@ import type {
 } from '@shared/types/prometheusIntegration'
 
 import { uarPrincipalForSession } from './uarPrincipal'
+import { uarApprovalLifecycleStore } from './UarApprovalLifecycleStore'
+import {
+  latestApprovals,
+  projectHostApproval,
+  projectRuntimeEvidence,
+  projectRuntimePending,
+  rawAdmissionEvidence,
+  rawPendingApproval
+} from './uarApprovalLifecycle'
 
 export const rawRun = z.object({
   run_id: z.string(),
@@ -183,6 +193,7 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
   const endpoint = await sidecar.ensureReady()
   const availableOwners = owners()
   const failures: UarOperationalSnapshot['failures'] = []
+  const hostApprovals = uarApprovalLifecycleStore.snapshot().map(projectHostApproval)
 
   const perOwner = await Promise.all(
     availableOwners.map(async (current) => {
@@ -231,8 +242,9 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
         )
       ])
       const documents = new Map<string, z.infer<typeof rawDocument>[]>()
-      await Promise.all(
-        knowledge.map(async (kb) => {
+      const approvalRecords: UarApprovalLifecycleInspection[] = []
+      await Promise.all([
+        ...knowledge.map(async (kb) => {
           const items = await optional(
             'knowledge',
             failures,
@@ -253,9 +265,53 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
             []
           )
           documents.set(kb.id, items)
+        }),
+        ...runs.map(async (run) => {
+          const [pending, evidence] = await Promise.all([
+            optional(
+              'approvals',
+              failures,
+              async () =>
+                rawPendingApproval.parse(
+                  await body(
+                    await ownerRequest(
+                      current.sessionId,
+                      `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-approval/pending`,
+                      {},
+                      endpoint.generation
+                    ),
+                    'Pending approval snapshot'
+                  )
+                ),
+              undefined
+            ),
+            optional(
+              'approvals',
+              failures,
+              async () =>
+                rawAdmissionEvidence.parse(
+                  await body(
+                    await ownerRequest(
+                      current.sessionId,
+                      `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-admission-evidence`,
+                      {},
+                      endpoint.generation
+                    ),
+                    'Tool-admission evidence'
+                  )
+                ),
+              undefined
+            )
+          ])
+          if (evidence) {
+            approvalRecords.push(...evidence.records.map((record) => projectRuntimeEvidence(record, current.sessionId)))
+          }
+          if (pending?.pending) {
+            approvalRecords.push(projectRuntimePending(pending.pending, current.sessionId, run.run_id))
+          }
         })
-      )
-      return { owner: current, runs, knowledge, credentials, documents }
+      ])
+      return { owner: current, runs, knowledge, credentials, documents, approvalRecords }
     })
   )
 
@@ -382,6 +438,7 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
         ...(item.created_at ? { createdAt: item.created_at } : {})
       }))
     },
+    approvals: latestApprovals([...perOwner.flatMap((item) => item.approvalRecords), ...hostApprovals]),
     tools: {
       total: toolCatalog.tools.length + toolCatalog.built_in_tools.length,
       names: [
