@@ -162,9 +162,9 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       application.get('KnowledgeService').cancelFeishuUserAuthorization(authorizationSessionId)
     )
   },
-  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials }) =>
+  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials, includeSpaceDiscovery }) =>
     externalKnowledgeCommand(() =>
-      application.get('KnowledgeService').reconnectFeishuConnection(connectionId, credentials)
+      application.get('KnowledgeService').reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
     ),
   'knowledge.feishu.connection.validate': async ({ connectionId }) =>
     externalKnowledgeCommand(() => application.get('KnowledgeService').validateFeishuConnection(connectionId)),
@@ -182,6 +182,16 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     externalKnowledgeCommand(() => application.get('KnowledgeService').previewFeishuScope(connectionId, url), {
       code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
       message: 'Feishu scope preview failed'
+    }),
+  'knowledge.feishu.spaces.list': async ({ connectionId, pageToken }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').listFeishuSpaces(connectionId, pageToken), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu space list failed'
+    }),
+  'knowledge.feishu.space.preview': async ({ connectionId, spaceId }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').previewFeishuSpace(connectionId, spaceId), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu space preview failed'
     }),
   'knowledge.create_base': async ({ base }) => application.get('KnowledgeService').createBase(base),
   'knowledge.restore_base': async (dto) => application.get('KnowledgeService').restoreBase(dto),

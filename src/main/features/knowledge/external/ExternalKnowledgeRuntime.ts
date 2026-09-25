@@ -14,7 +14,8 @@ import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKno
 import type {
   ExternalKnowledgeDocumentRead,
   ExternalKnowledgeScopePreview,
-  ExternalKnowledgeScopeResolution
+  ExternalKnowledgeScopeResolution,
+  FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
 
 import {
@@ -31,11 +32,13 @@ import {
   FEISHU_AUTOMATIC_ALLOWED_SCOPES,
   FEISHU_READ_ENDPOINT_BUDGETS,
   FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   getDocxMarkdown,
   getUserIdentity,
   getWikiNode,
   listWikiChildNodes,
+  listWikiSpaces,
   missingKnowledgeScopes,
   refreshUserToken,
   revokeUserToken,
@@ -44,7 +47,9 @@ import {
   type FeishuUserIdentity,
   type FeishuUserTokenSet,
   type FeishuWikiNode,
-  type FeishuWikiNodePage
+  type FeishuWikiNodePage,
+  type FeishuWikiSpace,
+  type FeishuWikiSpacePage
 } from './feishuKnowledgeProvider'
 import {
   FeishuKnowledgeReadError,
@@ -97,7 +102,8 @@ type CredentialStore = {
 type Provider = {
   beginDeviceAuthorization(
     credentials: FeishuApplicationCredentials,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    includeSpaceDiscovery?: boolean
   ): Promise<FeishuDeviceAuthorization>
   exchangeDeviceAuthorization(
     credentials: FeishuApplicationCredentials,
@@ -123,6 +129,7 @@ type Provider = {
     pageToken?: string,
     signal?: AbortSignal
   ): Promise<FeishuWikiNodePage>
+  listWikiSpaces(accessToken: string, pageToken?: string, signal?: AbortSignal): Promise<FeishuWikiSpacePage>
   getDocxMarkdown(accessToken: string, documentToken: string, signal?: AbortSignal): Promise<string>
 }
 
@@ -167,6 +174,7 @@ type ResolvedApplicationCredentials = {
   source: ExternalKnowledgeConnection['appCredentialSource']
   credentials: FeishuApplicationCredentials
   applicationName?: string
+  includeSpaceDiscovery?: boolean
 }
 
 type AuthorizationSession = {
@@ -211,7 +219,13 @@ type AuthorizedReadContext = {
 
 export type BeginUserAuthorizationInput =
   | { kind: 'personal-agent'; registrationSessionId: string }
-  | { kind: 'custom-app'; appId: string; appSecret: string; applicationName?: string }
+  | {
+      kind: 'custom-app'
+      appId: string
+      appSecret: string
+      applicationName?: string
+      includeSpaceDiscovery?: boolean
+    }
 
 export type BeginAuthorizationResult = {
   authorizationSessionId: string
@@ -261,6 +275,7 @@ const defaultProvider: Provider = {
   revokeUserToken,
   getWikiNode,
   listWikiChildNodes,
+  listWikiSpaces,
   getDocxMarkdown
 }
 
@@ -354,7 +369,7 @@ export class ExternalKnowledgeRuntime {
           description: 'Read Feishu Wiki nodes and document content',
           addons: {
             preset: false,
-            userScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+            userScopes: [...FEISHU_REQUIRED_USER_SCOPES, FEISHU_SPACE_DISCOVERY_USER_SCOPE]
           }
         }
       })
@@ -403,6 +418,7 @@ export class ExternalKnowledgeRuntime {
         appCredentialSource: applicationCredentials.source,
         appCredentials: applicationCredentials.credentials,
         applicationName: applicationCredentials.applicationName,
+        includeSpaceDiscovery: applicationCredentials.includeSpaceDiscovery,
         initial: true
       })
     )
@@ -410,7 +426,8 @@ export class ExternalKnowledgeRuntime {
 
   async beginReconnect(
     connectionId: string,
-    replacement?: BeginUserAuthorizationInput
+    replacement?: BeginUserAuthorizationInput,
+    includeSpaceDiscovery = false
   ): Promise<BeginAuthorizationResult> {
     this.assertAccepting()
     let connection = this.requireConnection(connectionId)
@@ -432,6 +449,10 @@ export class ExternalKnowledgeRuntime {
         appCredentialSource: applicationCredentials.source,
         appCredentials: applicationCredentials.credentials,
         applicationName: applicationCredentials.applicationName,
+        includeSpaceDiscovery:
+          includeSpaceDiscovery ||
+          applicationCredentials.includeSpaceDiscovery ||
+          connection.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE),
         initial: false,
         connection,
         generation
@@ -583,6 +604,71 @@ export class ExternalKnowledgeRuntime {
       )
       return result.preview
     })
+  }
+
+  async listFeishuSpaces(connectionId: string, pageToken?: string): Promise<FeishuWikiSpacePage> {
+    return await this.runAuthorizedRead(connectionId, async (context) => this.requestWikiSpaces(context, pageToken))
+  }
+
+  async previewFeishuSpace(connectionId: string, spaceId: string): Promise<FeishuWikiSpacePreview> {
+    return await this.runAuthorizedRead(connectionId, async (context) => {
+      const space = await this.findWikiSpace(context, spaceId)
+      const scan = await scanFeishuKnowledgeSource(
+        { spaceId, scope: { kind: 'space' } },
+        this.feishuReadOperations(context),
+        context.signal
+      )
+      const supportedDocxCount = scan.canonicalReferences.length
+      return {
+        space,
+        visibleNodeCount: scan.visibleNodeCount,
+        supportedDocxCount,
+        unsupportedOrSkippedCount: scan.unsupportedOrSkippedCount,
+        embeddingCostExact: false,
+        warnings: supportedDocxCount === 0 ? ['no-supported-documents'] : []
+      }
+    })
+  }
+
+  async resolveFeishuSpace(connectionId: string, spaceId: string): Promise<{ tenantId: string; spaceId: string }> {
+    return await this.runAuthorizedRead(connectionId, async (context) => {
+      await this.findWikiSpace(context, spaceId)
+      if (!context.connection.tenantKey) throw new ExternalKnowledgeRuntimeError('identity-unverifiable')
+      return { tenantId: context.connection.tenantKey, spaceId }
+    })
+  }
+
+  private async requestWikiSpaces(context: AuthorizedReadContext, pageToken?: string): Promise<FeishuWikiSpacePage> {
+    const credential = await this.readCredential(context.connection)
+    if (!credential.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)) {
+      throw new ExternalKnowledgeRuntimeError('scope-missing')
+    }
+    try {
+      return await context.request(FEISHU_READ_ENDPOINT_BUDGETS.listWikiSpaces, () =>
+        this.provider.listWikiSpaces(context.accessToken, pageToken, context.signal)
+      )
+    } catch (error) {
+      if (error instanceof FeishuProviderError && error.code === 'app-scope-missing') {
+        throw new ExternalKnowledgeRuntimeError('scope-missing')
+      }
+      throw error
+    }
+  }
+
+  private async findWikiSpace(context: AuthorizedReadContext, spaceId: string): Promise<FeishuWikiSpace> {
+    let pageToken: string | undefined
+    const seenTokens = new Set<string>()
+    do {
+      const page = await this.requestWikiSpaces(context, pageToken)
+      const space = page.spaces.find((candidate) => candidate.spaceId === spaceId)
+      if (space) return space
+      pageToken = page.nextPageToken
+      if (pageToken && seenTokens.has(pageToken)) {
+        throw new ExternalKnowledgeRuntimeError('invalid-provider-response')
+      }
+      if (pageToken) seenTokens.add(pageToken)
+    } while (pageToken)
+    throw new ExternalKnowledgeRuntimeError('scope-not-found')
   }
 
   async readFeishuDocument(
@@ -813,6 +899,7 @@ export class ExternalKnowledgeRuntime {
     appCredentialSource: ExternalKnowledgeConnection['appCredentialSource']
     appCredentials: FeishuApplicationCredentials
     applicationName?: string
+    includeSpaceDiscovery?: boolean
     initial: boolean
     connection?: ExternalKnowledgeConnection
     generation?: number
@@ -830,7 +917,7 @@ export class ExternalKnowledgeRuntime {
 
     try {
       const device: FeishuDeviceAuthorization = await this.runCredentialRequest(state, generation, signal, () =>
-        this.provider.beginDeviceAuthorization(input.appCredentials, signal)
+        this.provider.beginDeviceAuthorization(input.appCredentials, signal, input.includeSpaceDiscovery)
       )
       this.assertCredentialGeneration(state, generation)
 
@@ -1171,7 +1258,8 @@ export class ExternalKnowledgeRuntime {
     return {
       source: connection.appCredentialSource,
       credentials: { appId: stored.appId, appSecret: stored.appSecret },
-      applicationName: connection.applicationName ?? undefined
+      applicationName: connection.applicationName ?? undefined,
+      includeSpaceDiscovery: connection.grantedScopes.includes(FEISHU_SPACE_DISCOVERY_USER_SCOPE)
     }
   }
 
@@ -1182,7 +1270,8 @@ export class ExternalKnowledgeRuntime {
       return {
         source: 'custom-app',
         credentials: { appId: input.appId, appSecret: input.appSecret },
-        applicationName: input.applicationName
+        applicationName: input.applicationName,
+        includeSpaceDiscovery: input.includeSpaceDiscovery
       }
     }
 
@@ -1193,7 +1282,8 @@ export class ExternalKnowledgeRuntime {
       return {
         source: 'personal-agent',
         credentials: await registration.poll,
-        applicationName: 'Cherry Studio Knowledge'
+        applicationName: 'Cherry Studio Knowledge',
+        includeSpaceDiscovery: true
       }
     } catch (error) {
       throw this.authorizationError(error)

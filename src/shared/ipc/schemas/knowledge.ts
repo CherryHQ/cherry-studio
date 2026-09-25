@@ -8,7 +8,9 @@ import {
 import { ExternalKnowledgeConnectionSchema } from '@shared/data/types/externalKnowledgeConnection'
 import {
   ExternalKnowledgeScopePreviewSchema,
-  ExternalKnowledgeScopeResolutionSchema
+  ExternalKnowledgeScopeResolutionSchema,
+  FeishuWikiSpacePageSchema,
+  FeishuWikiSpacePreviewSchema
 } from '@shared/data/types/externalKnowledgeRead'
 import {
   CreateKnowledgeBaseSchema,
@@ -54,7 +56,8 @@ const feishuApplicationCredentialsSchema = z.discriminatedUnion('kind', [
     kind: z.literal('custom-app'),
     appId: z.string().trim().min(1).max(256),
     appSecret: z.string().min(1).max(1024),
-    applicationName: z.string().trim().min(1).max(256).optional()
+    applicationName: z.string().trim().min(1).max(256).optional(),
+    includeSpaceDiscovery: z.boolean().optional()
   })
 ])
 const beginAuthorizationOutputSchema = z.strictObject({
@@ -73,12 +76,20 @@ const itemIdsInputSchema = z.strictObject({
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const knowledgeRequestSchemas = {
   'knowledge.external_source.create': defineRoute({
-    input: z.strictObject({
-      baseId: z.uuidv4(),
-      connectionId: connectionIdSchema,
-      url: z.url().max(4096),
-      name: z.string().trim().min(1).max(256)
-    }),
+    input: z.union([
+      z.strictObject({
+        baseId: z.uuidv4(),
+        connectionId: connectionIdSchema,
+        url: z.url().max(4096),
+        name: z.string().trim().min(1).max(256)
+      }),
+      z.strictObject({
+        baseId: z.uuidv4(),
+        connectionId: connectionIdSchema,
+        spaceId: z.string().trim().min(1).max(256),
+        name: z.string().trim().min(1).max(256)
+      })
+    ]),
     output: ExternalKnowledgeSourceSchema
   }),
   'knowledge.external_source.sync': defineRoute({
@@ -124,7 +135,8 @@ export const knowledgeRequestSchemas = {
   'knowledge.feishu.connection.reconnect': defineRoute({
     input: z.strictObject({
       connectionId: connectionIdSchema,
-      credentials: feishuApplicationCredentialsSchema.optional()
+      credentials: feishuApplicationCredentialsSchema.optional(),
+      includeSpaceDiscovery: z.boolean().optional()
     }),
     output: beginAuthorizationOutputSchema
   }),
@@ -143,6 +155,17 @@ export const knowledgeRequestSchemas = {
   'knowledge.feishu.scope.preview': defineRoute({
     input: feishuScopeInputSchema,
     output: ExternalKnowledgeScopePreviewSchema
+  }),
+  'knowledge.feishu.spaces.list': defineRoute({
+    input: z.strictObject({
+      connectionId: connectionIdSchema,
+      pageToken: z.string().trim().min(1).max(1024).optional()
+    }),
+    output: FeishuWikiSpacePageSchema
+  }),
+  'knowledge.feishu.space.preview': defineRoute({
+    input: z.strictObject({ connectionId: connectionIdSchema, spaceId: z.string().trim().min(1).max(256) }),
+    output: FeishuWikiSpacePreviewSchema
   }),
   'knowledge.create_base': defineRoute({
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),

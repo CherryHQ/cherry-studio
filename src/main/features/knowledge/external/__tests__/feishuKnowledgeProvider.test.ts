@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
   getDocxMarkdown,
   getWikiNode,
   listWikiChildNodes,
+  listWikiSpaces,
   getUserIdentity,
   refreshUserToken,
   revokeUserToken
@@ -55,6 +57,69 @@ describe('feishuKnowledgeProvider', () => {
     expect(init?.body?.toString()).toBe(
       new URLSearchParams({ client_id: 'cli_test', scope: FEISHU_REQUIRED_USER_SCOPES.join(' ') }).toString()
     )
+  })
+
+  it('requests space discovery only when selected for authorization', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        device_code: 'device-code',
+        user_code: 'ABCD-EFGH',
+        verification_uri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+        expires_in: 600
+      })
+    )
+
+    await beginDeviceAuthorization({ appId: 'cli_test', appSecret: 'secret-sentinel' }, undefined, true)
+
+    const [, init] = vi.mocked(net.fetch).mock.calls[0]
+    expect(new URLSearchParams(init?.body?.toString()).get('scope')?.split(' ')).toEqual([
+      ...FEISHU_REQUIRED_USER_SCOPES,
+      FEISHU_SPACE_DISCOVERY_USER_SCOPE
+    ])
+  })
+
+  it('lists a bounded page of Wiki spaces from the user token without exposing it in the result', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [{ space_id: 'space-1', name: 'Engineering', description: 'Team notes', secret: 'private' }],
+          has_more: true,
+          page_token: 'next-page'
+        }
+      })
+    )
+
+    await expect(listWikiSpaces('access-token-sentinel', 'previous-page')).resolves.toEqual({
+      spaces: [{ spaceId: 'space-1', name: 'Engineering', description: 'Team notes' }],
+      nextPageToken: 'next-page'
+    })
+    const [url, init] = vi.mocked(net.fetch).mock.calls[0]
+    expect(url).toBe('https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=50&page_token=previous-page')
+    expect(init?.headers).toEqual({ Authorization: 'Bearer access-token-sentinel' })
+  })
+
+  it('rejects a space page that claims another page without a cursor', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: true, page_token: '' } })
+    )
+
+    await expect(listWikiSpaces('access-token-sentinel')).rejects.toMatchObject({ code: 'invalid-response' })
+  })
+
+  it('classifies a Feishu list permission denial without exposing its response body', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 99991672, msg: 'private application details' }, { status: 403 })
+    )
+
+    const error = await listWikiSpaces('access-token-sentinel').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({
+      code: 'app-scope-missing',
+      terminal: true,
+      diagnostics: { httpStatus: 403, providerCode: 99991672 }
+    })
+    expect(JSON.stringify(error)).not.toContain('private application details')
   })
 
   it('uses the actual token response scopes and rotates both tokens', async () => {
