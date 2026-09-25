@@ -27,7 +27,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { mergeBinaryExecutionEnv, pickSystemEnvironment } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -467,6 +467,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         processCwd: path.dirname(dshBin),
         env: {
           ...binaryExecutionEnv,
+          // ...plus the platform's system baseline (SystemRoot, ComSpec, PATHEXT,
+          // TEMP, ...), so the scoped env still gives a Windows child the same
+          // footing Cherry's other subprocesses get (#19753).
+          ...pickSystemEnvironment(loginShellEnv),
           ...(loginShellEnv.HOME !== undefined
             ? { HOME: loginShellEnv.HOME }
             : process.env.HOME !== undefined
