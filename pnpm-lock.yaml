@@ -249,6 +249,9 @@ importers:
       '@prometheus-ags/a2ui-uar':
         specifier: workspace:*
         version: link:packages/a2ui-uar
+      '@rainbowatcher/toml-edit-js':
+        specifier: 0.6.5
+        version: 0.6.5
       '@sentry/electron':
         specifier: 7.18.0
         version: 7.18.0(@opentelemetry/core@2.0.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.200.0(@opentelemetry/api@1.9.0))(supports-color@8.1.1)
@@ -7251,6 +7254,9 @@ packages:
 
   '@radix-ui/rect@1.1.2':
     resolution: {integrity: sha512-xnXE7wG13PI+cxieVssYXlQJuYVRhH9NBoxt3KNwzghDIA69GMm7d4wXRouHIYjE+KvS6U/MsMO73NdS2MH9ZA==}
+
+  '@rainbowatcher/toml-edit-js@0.6.5':
+    resolution: {integrity: sha512-EdALJyTDcp2yOxeVw1OJevOF7NZrlWAbVEnOnQBV7YqycVCI0OcpDy6oLUa8vqSvv2F1RmXW7kz1kgYv2A5h/w==}
 
   '@rc-component/portal@1.1.2':
     resolution: {integrity: sha512-6f813C0IsasTZms08kfA8kPAGxbbkYToa8ALaiDIGGECU4i9hj8Plgbx0sNJDrey3EtHO30hmdaxtT0138xZcg==}
@@ -22287,6 +22293,8 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.7)
 
   '@radix-ui/rect@1.1.2': {}
+
+  '@rainbowatcher/toml-edit-js@0.6.5': {}
 
   '@rc-component/portal@1.1.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:

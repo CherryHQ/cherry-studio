@@ -1,12 +1,21 @@
 import * as z from 'zod'
 
-import type { PrometheusDoctorReport, PrometheusFixOutcome, PrometheusPushState } from '@shared/types/prometheus'
+import {
+  literConfigEditSchema,
+  literConfigSourceSchema,
+  type LiterConfigApplyResult,
+  type LiterConfigExportResult,
+  type LiterConfigPreview,
+  type LiterConfigSourceSelection,
+  type LiterConfigSnapshot
+} from '@shared/types/literConfig'
 import {
   literAliasMutationSchema,
   literConnectionMutationSchema,
   literGatewaySelectionSchema,
   type LiterGatewayCatalogSnapshot
 } from '@shared/types/literGateway'
+import type { PrometheusDoctorReport, PrometheusFixOutcome, PrometheusPushState } from '@shared/types/prometheus'
 import {
   integrationActionSchema,
   integrationUpdateSchema,
@@ -52,6 +61,11 @@ import {
 
 import { defineRoute } from '../define'
 
+const literRemoteEndpointSchema = z.url().refine((value) => {
+  const endpoint = new URL(value)
+  return /^https?:$/.test(endpoint.protocol) && !endpoint.username && !endpoint.password
+})
+
 /**
  * The Prometheus settings section's commands.
  *
@@ -61,6 +75,63 @@ import { defineRoute } from '../define'
  * process cannot report.
  */
 export const prometheusRequestSchemas = {
+  'prometheus.liter_config.select_local': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<LiterConfigSourceSelection>()
+  }),
+  'prometheus.liter_config.read': defineRoute({
+    input: z.object({ source: literConfigSourceSchema }).strict(),
+    output: z.custom<LiterConfigSnapshot>()
+  }),
+  'prometheus.liter_config.preview': defineRoute({
+    input: z
+      .object({
+        source: literConfigSourceSchema,
+        expectedRevision: z.string().length(64),
+        edits: z.array(literConfigEditSchema).max(4096)
+      })
+      .strict(),
+    output: z.custom<LiterConfigPreview>()
+  }),
+  'prometheus.liter_config.preview_saved': defineRoute({
+    input: z.object({ source: literConfigSourceSchema, expectedRevision: z.string().length(64) }).strict(),
+    output: z.custom<LiterConfigPreview>()
+  }),
+  'prometheus.liter_config.apply': defineRoute({
+    input: z
+      .object({
+        source: literConfigSourceSchema,
+        expectedRevision: z.string().length(64),
+        edits: z.array(literConfigEditSchema).max(4096)
+      })
+      .strict(),
+    output: z.custom<LiterConfigApplyResult>()
+  }),
+  'prometheus.liter_config.apply_saved': defineRoute({
+    input: z.object({ source: literConfigSourceSchema, expectedRevision: z.string().length(64) }).strict(),
+    output: z.custom<LiterConfigApplyResult>()
+  }),
+  'prometheus.liter_config.export': defineRoute({
+    input: z
+      .object({
+        source: literConfigSourceSchema,
+        expectedRevision: z.string().length(64),
+        edits: z.array(literConfigEditSchema).max(4096),
+        remoteEndpoint: literRemoteEndpointSchema.optional()
+      })
+      .strict(),
+    output: z.custom<LiterConfigExportResult>()
+  }),
+  'prometheus.liter_config.export_saved': defineRoute({
+    input: z
+      .object({
+        source: literConfigSourceSchema,
+        expectedRevision: z.string().length(64),
+        remoteEndpoint: literRemoteEndpointSchema.optional()
+      })
+      .strict(),
+    output: z.custom<LiterConfigExportResult>()
+  }),
   'prometheus.liter.catalog.read': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<LiterGatewayCatalogSnapshot>()

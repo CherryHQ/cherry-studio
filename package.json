@@ -136,6 +136,7 @@
     "@paymoapp/electron-shutdown-handler": "1.2.0",
     "@prometheus-ags/a2ui-core": "workspace:*",
     "@prometheus-ags/a2ui-uar": "workspace:*",
+    "@rainbowatcher/toml-edit-js": "0.6.5",
     "@sentry/electron": "7.18.0",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",

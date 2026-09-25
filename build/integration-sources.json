@@ -63,6 +63,11 @@
       "package": "universal-agent-runtime",
       "version": "1.0.0",
       "features": "minimal,a2a-transport,local-models,document-intelligence,wasm-runtime"
+    },
+    "liter-llm": {
+      "source": "liter-llm",
+      "package": "liter-llm-cli",
+      "version": "2.0.3"
     }
   },
   "parser": {

@@ -12,7 +12,9 @@ function loadIntegrationBinaries({ required = false } = {}) {
     return []
   }
   const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'))
-  for (const name of ['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', 'uar-sidecar']) {
+  const requiredTools = ['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', 'uar-sidecar']
+  if (required) requiredTools.push('liter-llm')
+  for (const name of requiredTools) {
     const tool = manifest.tools.find((entry) => entry.name === name)
     if (!tool) throw new Error(`Integration manifest is missing ${name}`)
     for (const platform of manifest.platforms || [

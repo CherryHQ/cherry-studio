@@ -111,6 +111,8 @@ extraResources:
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
+  - from: "node_modules/@rainbowatcher/toml-edit-js/index_bg.wasm"
+    to: "toml-edit-js/index_bg.wasm"
 win:
   executableName: The Boss
   artifactName: ${productName}-${version}-${arch}-setup.${ext}

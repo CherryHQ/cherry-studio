@@ -39,6 +39,16 @@ import {
   updateUarSettings
 } from '@main/ai/runtime/uar'
 import { StaleIntegrationRevisionError } from '@main/services/prometheus/integrationErrors'
+import {
+  applySavedLiterConfig,
+  applyLiterConfig,
+  exportSavedLiterConfig,
+  exportLiterConfig,
+  previewSavedLiterConfig,
+  previewLiterConfig,
+  readLiterConfig,
+  selectLocalLiterConfig
+} from '@main/services/prometheus/literConfig'
 import { applyPrometheusFix, runPrometheusDoctor } from '@main/services/prometheus/prometheusDoctor'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { prometheusErrorCodes } from '@shared/ipc/errors/prometheus'
@@ -61,6 +71,20 @@ async function withIntegrationRevision<T>(run: () => Promise<T>): Promise<T> {
 }
 
 export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas> = {
+  'prometheus.liter_config.select_local': async () => selectLocalLiterConfig(),
+  'prometheus.liter_config.read': async ({ source }) => readLiterConfig(source),
+  'prometheus.liter_config.preview': async ({ source, expectedRevision, edits }) =>
+    previewLiterConfig(source, expectedRevision, edits),
+  'prometheus.liter_config.preview_saved': async ({ source, expectedRevision }) =>
+    previewSavedLiterConfig(source, expectedRevision),
+  'prometheus.liter_config.apply': async ({ source, expectedRevision, edits }) =>
+    applyLiterConfig(source, expectedRevision, edits),
+  'prometheus.liter_config.apply_saved': async ({ source, expectedRevision }) =>
+    applySavedLiterConfig(source, expectedRevision),
+  'prometheus.liter_config.export': async ({ source, expectedRevision, edits, remoteEndpoint }) =>
+    exportLiterConfig(source, expectedRevision, edits, remoteEndpoint),
+  'prometheus.liter_config.export_saved': async ({ source, expectedRevision, remoteEndpoint }) =>
+    exportSavedLiterConfig(source, expectedRevision, remoteEndpoint),
   'prometheus.liter.catalog.read': async () => application.get('PrometheusIntegrationService').readLiterCatalog(),
   'prometheus.liter.catalog.refresh': async () =>
     application.get('PrometheusIntegrationService').readLiterCatalog(true),
@@ -70,17 +94,13 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
     withIntegrationRevision(() => application.get('PrometheusIntegrationService').saveLiterConnection(mutation)),
   'prometheus.liter.connections.delete': async ({ providerConnectionId, expectedRevision }) =>
     withIntegrationRevision(() =>
-      application
-        .get('PrometheusIntegrationService')
-        .deleteLiterConnection(providerConnectionId, expectedRevision)
+      application.get('PrometheusIntegrationService').deleteLiterConnection(providerConnectionId, expectedRevision)
     ),
   'prometheus.liter.aliases.save': async (mutation) =>
     withIntegrationRevision(() => application.get('PrometheusIntegrationService').saveLiterAlias(mutation)),
   'prometheus.liter.aliases.delete': async ({ gatewayConnectionId, alias, expectedRevision }) =>
     withIntegrationRevision(() =>
-      application
-        .get('PrometheusIntegrationService')
-        .deleteLiterAlias(gatewayConnectionId, alias, expectedRevision)
+      application.get('PrometheusIntegrationService').deleteLiterAlias(gatewayConnectionId, alias, expectedRevision)
     ),
   'prometheus.integration.snapshot': async () => application.get('PrometheusIntegrationService').snapshot(),
   'prometheus.integration.configure': async ({ updates, secrets }) =>

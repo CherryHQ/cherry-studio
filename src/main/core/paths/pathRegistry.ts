@@ -215,6 +215,9 @@ export function buildPathRegistry() {
     'feature.prometheus.pack.runtime': path.join(appUserDataData, 'PrometheusPack'),
     'feature.prometheus.state': path.join(appUserDataData, 'Prometheus'),
     'feature.prometheus.commands': path.join(appUserData, 'commands'),
+    'feature.prometheus.toml_editor_wasm': app.isPackaged
+      ? path.join(appExtraResources, 'toml-edit-js', 'index_bg.wasm')
+      : path.join(__dirname, '../../node_modules/@rainbowatcher/toml-edit-js/index_bg.wasm'),
     'feature.agents.assistant.manifest.file': path.join(
       appRootResources,
       'builtin-agents',
@@ -392,6 +395,7 @@ const NO_ENSURE = [
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
   'feature.prometheus.pack.builtin',
+  'feature.prometheus.toml_editor_wasm',
   'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

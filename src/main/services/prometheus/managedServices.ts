@@ -98,7 +98,13 @@ export async function prepareManagedServices(config: IntegrationConfig): Promise
   const proxy =
     '[server]\nhost = "0.0.0.0"\nport = 4000\n\n[general]\nmaster_key = "${LITER_LLM_MASTER_KEY}"\n\n[security]\noutbound_policy = "deny_private"\n' +
     models
-  await fs.writeFile(path.join(directory, 'liter-llm-proxy.toml'), proxy, { mode: 0o600 })
+  const proxyPath = path.join(directory, 'liter-llm-proxy.toml')
+  try {
+    await fs.access(proxyPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    await fs.writeFile(proxyPath, proxy, { mode: 0o600 })
+  }
 }
 
 export async function runManagedServiceAction(
