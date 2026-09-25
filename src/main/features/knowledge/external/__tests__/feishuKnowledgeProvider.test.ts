@@ -333,6 +333,14 @@ describe('feishuKnowledgeProvider', () => {
     await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
   })
 
+  it.each(['', null])('accepts a terminal Wiki page with an empty page token (%s)', async (pageToken) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: false, page_token: pageToken } })
+    )
+
+    await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
+  })
+
   it('reports invalid Wiki list fields without exposing response values', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
       response({
@@ -366,6 +374,16 @@ describe('feishuKnowledgeProvider', () => {
 
   it('rejects pagination responses that claim another page without a token', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
+
+    await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('rejects pagination responses that claim another page with an empty token', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: true, page_token: '' } })
+    )
 
     await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
       code: 'invalid-response'

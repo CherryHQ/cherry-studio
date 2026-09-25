@@ -87,7 +87,7 @@ const wikiNodePageResponseSchema = z
     data: z.object({
       items: z.array(wikiNodeSchema).max(50).default([]),
       has_more: z.boolean(),
-      page_token: z.string().trim().min(1).optional()
+      page_token: z.string().trim().nullish()
     })
   })
   .superRefine((response, context) => {
@@ -444,7 +444,7 @@ export async function listWikiChildNodes(
   }
   return {
     nodes: parsed.data.data.items.map(normalizeWikiNode),
-    ...(parsed.data.data.has_more ? { nextPageToken: parsed.data.data.page_token } : {})
+    ...(parsed.data.data.has_more && parsed.data.data.page_token ? { nextPageToken: parsed.data.data.page_token } : {})
   }
 }
 
