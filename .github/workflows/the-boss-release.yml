@@ -61,6 +61,10 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
     steps:
+      - name: Enable Windows long paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.longpaths true
       - uses: actions/checkout@v7
         with:
           submodules: true
