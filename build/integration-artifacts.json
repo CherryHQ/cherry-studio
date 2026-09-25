@@ -1,7 +1,8 @@
 {
   "schema": 1,
   "platforms": [
-    "win32-x64"
+    "win32-x64",
+    "darwin-arm64"
   ],
   "sources": {
     "compass": {
@@ -26,7 +27,7 @@
     },
     "uar": {
       "repository": "Prometheus-AGS/universal-agent-runtime",
-      "revision": "c29af47be3439c69e1a3c124fdcf09ce4cbb5cba"
+      "revision": "0f2ea3d4a8111bea3a425bfb6596acbc9fb09d26"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
@@ -318,9 +319,27 @@
       "name": "uar-sidecar",
       "version": "1.0.0",
       "packages": {
+        "darwin-arm64": {
+          "url": "https://github.com/Prometheus-AGS/universal-agent-runtime/releases/download/boss-sidecar-darwin-arm64-v1.0.0-p1.15/uar-sidecar-darwin-arm64.tar.gz",
+          "sha256": "aa75f5b231fbe532dc400b0c62e3290287bdd4073d74eb9dce54ad94464c770d",
+          "archive": "tar.gz",
+          "binaries": [
+            "libcrc_fast-c9544bfaf069c5bc.dylib",
+            "libsevenz_rust2-bcd9d32571c57b36.dylib",
+            "LICENSE",
+            "uar-models/bg-small-en-v1.5.onnx",
+            "uar-models/config.json",
+            "uar-models/MODEL-NOTICE.txt",
+            "uar-models/special_tokens_map.json",
+            "uar-models/tokenizer_config.json",
+            "uar-models/tokenizer.json",
+            "uar-sidecar",
+            "payload-manifest.json"
+          ]
+        },
         "win32-x64": {
-          "url": "https://github.com/Prometheus-AGS/universal-agent-runtime/releases/download/boss-sidecar-win32-x64-v1.0.0-p1.8/uar-sidecar-win32-x64.tar.gz",
-          "sha256": "849aacc54e4e9a695699420f6b042d1c0126905d4005c16447e535782f1917ea",
+          "url": "https://github.com/Prometheus-AGS/universal-agent-runtime/releases/download/boss-sidecar-win32-x64-v1.0.0-p1.15/uar-sidecar-win32-x64.tar.gz",
+          "sha256": "9defb5af33ca524d93b69828061e38cca60e35d0c8b39fc11ed1812080d6a4f0",
           "archive": "tar.gz",
           "binaries": [
             "crc_fast-c45996daf34d96b5.dll",
