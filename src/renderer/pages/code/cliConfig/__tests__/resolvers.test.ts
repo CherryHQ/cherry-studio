@@ -4,6 +4,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
 import {
+  resolveCommandCodeProviderInfo,
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
@@ -225,6 +226,52 @@ describe('resolveMinimaxProviderInfo', () => {
   it('strips the trailing API version from an Anthropic-compatible endpoint', () => {
     expect(
       resolveMinimaxProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
+        ['anthropic-messages']
+      )
+    ).toEqual({
+      api: 'anthropic-messages',
+      baseUrl: 'https://anthropic.example',
+      endpointType: 'anthropic-messages'
+    })
+  })
+})
+
+describe('resolveCommandCodeProviderInfo', () => {
+  it('prefers a model-supported endpoint and maps it to Command Code wire names', () => {
+    expect(
+      resolveCommandCodeProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('maps a chat-completions endpoint to the default openai-completions wire', () => {
+    expect(
+      resolveCommandCodeProviderInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example/v1' } } })
+      )
+    ).toEqual({
+      api: 'openai-completions',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+
+  it('strips the API version from an Anthropic root (the CLI adds /v1 on the wire)', () => {
+    expect(
+      resolveCommandCodeProviderInfo(
         provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
         ['anthropic-messages']
       )

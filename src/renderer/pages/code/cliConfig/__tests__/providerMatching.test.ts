@@ -97,6 +97,25 @@ describe('cliConfigConnectionMatchesProvider', () => {
     ).toBe(true)
   })
 
+  it('matches Command Code with the env-reference key the files carry', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.COMMAND_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: undefined },
+        openAIChatProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.COMMAND_CODE,
+        { baseUrl: 'https://api.anthropic.com', apiKey: undefined },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
   it('matches Codex and OpenCode against formatted /v1 endpoints', () => {
     expect(
       cliConfigConnectionMatchesProvider(

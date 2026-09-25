@@ -46,6 +46,7 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Pi: injects any endpoint supported by Pi's custom-provider schema.
  * - Hermes: injects Anthropic or OpenAI-compatible endpoints into its custom runtime.
  * - MiniMax Code: injects Anthropic or OpenAI-compatible endpoints into `custom_provider`.
+ * - Command Code: injects Anthropic or OpenAI-compatible endpoints into `providers.json`.
  * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli, (providers: Provider[]) => Provider[]> = {
@@ -69,5 +70,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli, (providers: Provider[]) => P
   [CodeCli.GITHUB_COPILOT_CLI]: () => [],
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   [CodeCli.HERMES]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
+  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.COMMAND_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
 }
