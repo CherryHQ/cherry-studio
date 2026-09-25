@@ -344,7 +344,7 @@ test('Gate B: real services and isolated Compass workspaces retain observable op
     await expect
       .poll(async () => {
         const operation = (await snapshot(page!)).operations.find((candidate) => candidate.id === cancelling.id)
-        return operation?.status === 'running' && operation.stage === 'indexing'
+        return operation?.status === 'running' && operation.stage === 'refreshing'
       })
       .toBe(true)
     await ipc(page, 'prometheus.integration.cancel', { id: cancelling.id })
