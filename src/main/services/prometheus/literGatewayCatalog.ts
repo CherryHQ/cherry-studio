@@ -41,7 +41,7 @@ const providerSchema = z
       .object({ type: z.string().min(1), env_var: z.string().min(1).optional() })
       .passthrough()
       .optional(),
-    endpoints: z.array(z.string()),
+    endpoints: z.array(z.string()).default([]),
     capabilities: capabilitiesSchema
   })
   .passthrough()
