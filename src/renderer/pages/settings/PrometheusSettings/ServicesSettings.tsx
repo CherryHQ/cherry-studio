@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Badge, Button } from '@cherrystudio/ui'
+import { OperationProgress } from '@renderer/components/operation'
 import {
   SettingDescription,
   SettingDivider,
@@ -9,13 +11,133 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useIntegrationOperation } from '@renderer/hooks/useIntegrationOperation'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
+import type {
+  IntegrationAction,
+  IntegrationOperation,
+  IntegrationOperationStage,
+  IntegrationOperationStatus
+} from '@shared/types/prometheusIntegration'
 
 import { IntegrationChoice, IntegrationField, IntegrationToggle } from './IntegrationFields'
 import { IntegrationActionButton, IntegrationPage, IntegrationSecretField, integrationText } from './IntegrationPage'
+import type { IntegrationSettingsController } from './useIntegrationSettings'
 
 const services = ['surrealdb', 'memory', 'liter'] as const
+const serviceActions: IntegrationAction[] = ['discover-services', 'pull', 'start', 'stop', 'restart', 'status', 'logs']
+
+const statusKey: Record<IntegrationOperationStatus, string> = {
+  queued: 'running',
+  running: 'running',
+  succeeded: 'done',
+  failed: 'failed',
+  cancelled: 'cancelled',
+  interrupted: 'failed'
+}
+
+const stageKey: Record<IntegrationOperationStage, string> = {
+  queued: 'operationInProgress',
+  detecting: 'actions.status',
+  preparing: 'operationInProgress',
+  pulling: 'actions.pull',
+  starting: 'actions.start',
+  authenticating: 'states.authenticated',
+  running: 'states.running',
+  stopping: 'actions.stop',
+  restarting: 'actions.restart',
+  checking: 'actions.status',
+  indexing: 'operationInProgress',
+  publishing: 'operationInProgress',
+  refreshing: 'operationInProgress',
+  finalizing: 'operationInProgress',
+  completed: 'states.done'
+}
+
+function elapsedKey(milliseconds: number): { key: string; values: Record<string, number> } {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000))
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  if (days)
+    return {
+      key: 'message.tools.placeholder.elapsed.days',
+      values: { days, hours: hours % 24, minutes: minutes % 60, seconds: seconds % 60 }
+    }
+  if (hours)
+    return {
+      key: 'message.tools.placeholder.elapsed.hours',
+      values: { hours, minutes: minutes % 60, seconds: seconds % 60 }
+    }
+  if (minutes) return { key: 'message.tools.placeholder.elapsed.minutes', values: { minutes, seconds: seconds % 60 } }
+  return { key: 'message.tools.placeholder.elapsed.seconds', values: { seconds } }
+}
+
+function ServicesOperationStatus({
+  controller,
+  initialOperation
+}: {
+  controller: IntegrationSettingsController
+  initialOperation: IntegrationOperation
+}) {
+  const { t } = useTranslation()
+  const { operation, error, cancel } = useIntegrationOperation(initialOperation.id, initialOperation)
+  const active = operation?.status === 'queued' || operation?.status === 'running'
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (!active) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [active])
+
+  if (!operation) return null
+  const elapsed = elapsedKey((operation.completedAt ?? now) - operation.startedAt)
+  return (
+    <div className="space-y-3">
+      <OperationProgress
+        operation={operation}
+        title={integrationText(t, `actions.${operation.action}`)}
+        statusLabel={integrationText(t, `states.${statusKey[operation.status]}`)}
+        stageLabel={integrationText(t, stageKey[operation.stage])}
+        progressLabel={integrationText(t, 'operationInProgress')}
+        progressText={operation.progress ? `${operation.progress.current}/${operation.progress.total}` : undefined}
+        elapsedLabel={t(elapsed.key, elapsed.values)}
+        errorText={operation.error ? t(operation.error, { defaultValue: operation.error }) : error}
+        resultText={operation.status === 'succeeded' ? integrationText(t, 'states.done') : undefined}
+        recoveryText={operation.recoveryAction ? integrationText(t, 'actions.retry') : undefined}
+        labels={{
+          cancel: t('common.cancel'),
+          retry: integrationText(t, 'actions.retry'),
+          viewLog: integrationText(t, 'output'),
+          tail: integrationText(t, 'liveOutput')
+        }}
+        onCancel={active ? () => void cancel() : undefined}
+        onRetry={
+          operation.status === 'failed' || operation.status === 'interrupted'
+            ? () => void controller.start(operation.action, operation.workspacePath)
+            : undefined
+        }
+      />
+      {operation.diagnostics?.length ? (
+        <dl className="grid gap-2 sm:grid-cols-2" aria-live="polite">
+          {operation.diagnostics.map((diagnostic) => (
+            <div key={diagnostic.id} className="flex min-w-0 items-start justify-between gap-3 rounded-md border p-3">
+              <div className="min-w-0">
+                <dt className="break-words text-sm font-medium">{diagnostic.id}</dt>
+                {diagnostic.detail && (
+                  <dd className="break-words text-xs text-foreground-secondary">{diagnostic.detail}</dd>
+                )}
+              </div>
+              <Badge variant="outline">{integrationText(t, `states.${diagnostic.state}`)}</Badge>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
+  )
+}
 
 export default function ServicesSettings() {
   const { t } = useTranslation()
@@ -24,6 +146,10 @@ export default function ServicesSettings() {
     <IntegrationPage>
       {(controller) => {
         const snapshot = controller.snapshot!
+        const latestServiceOperation = snapshot.operations.find((operation) =>
+          serviceActions.includes(operation.action)
+        )
+        const hasManagedService = services.some((service) => controller.draft.services[service].ownership === 'managed')
         return (
           <>
             <SettingGroup
@@ -71,6 +197,9 @@ export default function ServicesSettings() {
                           />
                         )}
                       </div>
+                      {profile.ownership === 'managed' && (
+                        <SettingHelpText className="break-all">{profile.endpoint}</SettingHelpText>
+                      )}
                     </fieldset>
                   )
                 })}
@@ -92,10 +221,16 @@ export default function ServicesSettings() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <IntegrationActionButton controller={controller} action="discover-services" />
-                  {(['pull', 'start', 'stop', 'restart', 'status', 'logs'] as const).map((action) => (
-                    <IntegrationActionButton key={action} controller={controller} action={action} />
-                  ))}
+                  {hasManagedService &&
+                    (['pull', 'start', 'stop', 'restart'] as const).map((action) => (
+                      <IntegrationActionButton key={action} controller={controller} action={action} />
+                    ))}
+                  <IntegrationActionButton controller={controller} action="status" />
+                  {hasManagedService && <IntegrationActionButton controller={controller} action="logs" />}
                 </div>
+                {latestServiceOperation && (
+                  <ServicesOperationStatus controller={controller} initialOperation={latestServiceOperation} />
+                )}
                 <SettingHelpText className="break-all">
                   {integrationText(t, 'persistentStorage')}: {snapshot.serviceDirectory}
                 </SettingHelpText>

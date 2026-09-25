@@ -364,13 +364,16 @@ export class PrometheusIntegrationService extends BaseService {
           return
         }
         if (['pull', 'start', 'stop', 'restart', 'status', 'logs'].includes(action)) {
-          const result = await runManagedServiceAction(action as 'start', config, signal, output)
+          const result = await runManagedServiceAction(action as 'start', config, signal, output, (stage, progress) => {
+            controls.stage(stage)
+            if (progress) controls.progress(progress)
+          })
           if (action === 'status') {
             const status = JSON.parse(result) as {
               docker: { state: string; compose: boolean; detail?: string }
               endpoints: Record<string, { reached: boolean; status?: number; detail?: string }>
             }
-            operation.diagnostics = [
+            controls.diagnostics([
               { id: 'Docker CLI', state: status.docker.state === 'absent' ? 'failed' : 'operational' },
               {
                 id: 'Docker daemon',
@@ -383,7 +386,7 @@ export class PrometheusIntegrationService extends BaseService {
                 state: endpoint.reached ? ('listening' as const) : ('failed' as const),
                 detail: endpoint.detail
               }))
-            ]
+            ])
           }
           return
         }
