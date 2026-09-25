@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
+const { verifyAndProbePackagedUarPayload } = require('./uar-payload-integrity.cjs')
 
 function verifyPackagedUarSidecar(context, platform) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
@@ -12,20 +13,11 @@ function verifyPackagedUarSidecar(context, platform) {
   const platformKey = `${platformPrefix}-${arch}`
   if (!['darwin-arm64', 'win32-x64'].includes(platformKey)) return
 
-  const manifest = require('../build/integration-artifacts.json')
-  const sidecar = manifest.tools.find((tool) => tool.name === 'uar-sidecar')
-  const payload = sidecar?.packages[platformKey]
-  if (!payload) throw new Error(`Integration artifact manifest is missing uar-sidecar ${platformKey}`)
-
   const resourcesDir =
     platform === 'mac'
       ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources')
       : path.join(context.appOutDir, 'resources')
-  const payloadDir = path.join(resourcesDir, 'app.asar.unpacked', 'resources', 'binaries', platformKey)
-  const missing = payload.binaries.filter((filename) => !fs.existsSync(path.join(payloadDir, filename)))
-  if (missing.length > 0) {
-    throw new Error(`Packaged UAR sidecar payload is incomplete for ${platformKey}: ${missing.join(', ')}`)
-  }
+  verifyAndProbePackagedUarPayload(resourcesDir, platformKey)
 }
 
 exports.default = async function (context) {
