@@ -302,6 +302,64 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
+  describe('dragCapabilities gating', () => {
+    const SAME_GROUP_ONLY = {
+      groups: false,
+      items: true,
+      itemSameGroup: true,
+      itemCrossGroup: false
+    }
+
+    it('still emits a same-group drop when cross-group is disabled', () => {
+      const onDragEnd = renderList(vi.fn(), { dragCapabilities: SAME_GROUP_ONLY })
+
+      dndMocks.onDragEnd?.({
+        active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
+        over: { data: dataFor('sortable', 'item:b'), id: 'item:b' }
+      })
+
+      expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ activeId: 'a', overId: 'b', type: 'item' }))
+    })
+
+    it('emits nothing for a cross-group drop when cross-group is disabled', () => {
+      const onDragEnd = renderList(vi.fn(), { dragCapabilities: SAME_GROUP_ONLY })
+
+      dndMocks.onDragEnd?.({
+        active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
+        over: { data: dataFor('sortable', 'item:c'), id: 'item:c' }
+      })
+
+      expect(onDragEnd).not.toHaveBeenCalled()
+    })
+
+    it('emits nothing for a cross-group drop onto a group header when cross-group is disabled', () => {
+      const onDragEnd = renderList(vi.fn(), { dragCapabilities: SAME_GROUP_ONLY })
+
+      dndMocks.onDragEnd?.({
+        active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
+        over: { data: dataFor('droppable', 'group:second'), id: 'group:second' }
+      })
+
+      expect(onDragEnd).not.toHaveBeenCalled()
+    })
+
+    it('registers items as enabled sortables when item dragging is on', () => {
+      renderList(vi.fn(), { dragCapabilities: SAME_GROUP_ONLY })
+
+      // A row that is not draggable cannot be picked up at all, so the items
+      // must reach `useSortable` with `draggable: false` (i.e. not disabled).
+      for (const id of ['item:a', 'item:b', 'item:c']) {
+        expect(dndMocks.sortableDisabled.get(id)?.draggable).toBe(false)
+      }
+    })
+
+    it('registers items as disabled sortables when item dragging is off', () => {
+      renderList(vi.fn(), { dragCapabilities: { items: false } })
+
+      expect(dndMocks.sortableDisabled.get('item:a')?.draggable).toBe(true)
+    })
+  })
+
   it('emits cross-group item drops against a group header', () => {
     const onDragEnd = renderList()
 
