@@ -3,20 +3,22 @@ import * as path from 'node:path'
 
 import { net } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { executeCommand } from '@main/utils/processRunner'
+import { CommandOutputLimitError, executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
   assertSkillDirectoryWithinLimits,
   extractZip,
-  MAX_EXTRACTED_SIZE,
-  MAX_FILES_COUNT,
+  MAX_SKILL_FILES,
+  MAX_SKILL_SIZE,
   resolveSkillDirectory,
   validateRepositorySkillDirectory
 } from './skillArchive'
@@ -34,7 +36,10 @@ const logger = loggerService.withContext('SkillRemoteSource')
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
-const MAX_GIT_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
+// chromium/chromium lists ~2.4 MiB of refs; the cap only stops output that a hostile repository can
+// grow without end.
+const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+const MAX_CLAWHUB_DETAIL_BYTES = 1024 * 1024
 
 type GithubRef = {
   name: string
@@ -43,6 +48,16 @@ type GithubRef = {
 }
 
 type GithubSkillTarget = { kind: 'root' } | { kind: 'directory'; path: string }
+
+type SkillDescriptorFileName = 'SKILL.md' | 'skill.md'
+
+const SKILL_DESCRIPTOR_FILE_NAMES: readonly SkillDescriptorFileName[] = ['SKILL.md', 'skill.md']
+
+type FetchedGithubCommit = {
+  gitDir: string
+  tempDir: string
+  git: (args: string[]) => Promise<string>
+}
 
 type GithubRefResolution =
   | { kind: 'resolved'; ref: GithubRef; target: GithubSkillTarget }
@@ -143,10 +158,17 @@ async function fetchFromClaudePlugins(
 
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir)
+  const { contentDir, skillDir: targetDir } = await materializeGithubTarget(
+    commit,
+    { kind: 'directory', path: directoryPath },
+    SKILL_DESCRIPTOR_FILE_NAMES
+  )
+  const skillDir = await validateRepositorySkillDirectory(contentDir, targetDir)
+  await assertSkillDirectoryWithinLimits(skillDir)
 
   return {
-    skillDir: await resolveSkillDirectory(tempDir, skillName, directoryPath),
+    skillDir,
     sourceUrl: `${repoUrl}/tree/main/${directoryPath}`,
     onInstalled: () => {
       reportInstall(owner, repo, skillName).catch((err) => {
@@ -176,16 +198,18 @@ async function fetchFromGithub(
 
   const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
   const repoUrl = `https://github.com/${owner}/${repo}`
-  const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
+  const transportRepoUrl = getGithubTransportUrl(repoUrl)
+  const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-    : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+    : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
   const tempDir = await openTempDir()
-  const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
+  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
+  const { contentDir, skillDir } = await materializeGithubTarget(commit, target, [descriptorFileName])
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
@@ -197,7 +221,11 @@ async function fetchFromSkillsSh(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
-  if (parts.length !== 3 || parts.some((part) => !part)) {
+  if (
+    parts.length !== 3 ||
+    !parts.every((part) => /^[a-zA-Z0-9_.-]+$/.test(part)) ||
+    parts.some((part) => part === '.' || part === '..')
+  ) {
     throw new Error(`Invalid skills.sh identifier: ${identifier}`)
   }
   logger.info('Installing from skills.sh', { identifier })
@@ -205,9 +233,40 @@ async function fetchFromSkillsSh(
   const [owner, repo, skillName] = parts
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir)
+  // skills.sh names the skill, not its directory: check out only the descriptors to find it.
+  const descriptorDir = path.join(tempDir, 'descriptors')
+  await checkoutSparse(commit, descriptorDir, SKILL_DESCRIPTOR_FILE_NAMES)
+  const matchedDir = await resolveSkillDirectory(descriptorDir, skillName, null)
+  const matchedPath = path.relative(await fs.promises.realpath(descriptorDir), matchedDir)
+  const { contentDir, skillDir: targetDir } = await materializeGithubTarget(
+    commit,
+    matchedPath ? { kind: 'directory', path: matchedPath.split(path.sep).join('/') } : { kind: 'root' },
+    SKILL_DESCRIPTOR_FILE_NAMES
+  )
+  const skillDir = await validateRepositorySkillDirectory(contentDir, targetDir)
+  await assertSkillDirectoryWithinLimits(skillDir)
+  return {
+    skillDir,
+    sourceUrl: `https://skills.sh/${identifier}`
+  }
+}
 
-  return { skillDir: await resolveSkillDirectory(tempDir, skillName, null), sourceUrl: repoUrl }
+function getGithubTransportUrl(repoUrl: string): string {
+  const value = application.get('PreferenceService').get(BINARY_INSTALL_PREFERENCE_KEY).githubMirror.trim()
+  if (!value) return repoUrl
+
+  let mirror: URL
+  try {
+    mirror = new URL(value)
+    if (mirror.protocol !== 'http:' && mirror.protocol !== 'https:') throw new Error()
+  } catch {
+    throw new Error('GitHub mirror must be a valid HTTP(S) URL')
+  }
+  if (mirror.username || mirror.password) {
+    throw new Error('GitHub mirror must not contain embedded credentials')
+  }
+  return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
 async function fetchFromClawhub(
@@ -230,7 +289,18 @@ async function fetchFromClawhub(
     throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
   }
 
-  const detailResult = ClawhubSkillDetailSchema.safeParse(await detailResp.json())
+  const detailChunks: Uint8Array[] = []
+  let detailBytes = 0
+  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+    detailBytes += chunk.byteLength
+    if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
+      throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
+    }
+    detailChunks.push(chunk)
+  }
+  const detailResult = ClawhubSkillDetailSchema.safeParse(
+    JSON.parse(new TextDecoder().decode(Buffer.concat(detailChunks)))
+  )
   if (!detailResult.success) {
     throw new Error('clawhub detail returned invalid metadata')
   }
@@ -252,10 +322,30 @@ async function fetchFromClawhub(
     throw new Error(`clawhub download failed: HTTP ${downloadResp.status}`)
   }
 
+  const advertisedSize = Number(downloadResp.headers.get('content-length') ?? NaN)
+  if (Number.isFinite(advertisedSize) && advertisedSize > MAX_SKILL_SIZE) {
+    await downloadResp.body?.cancel()
+    throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
+  }
+
   const tempDir = await openTempDir()
   const zipPath = path.join(tempDir, 'skill.zip')
-  const buffer = Buffer.from(await downloadResp.arrayBuffer())
-  await fs.promises.writeFile(zipPath, buffer)
+  // Content-Length is server-controlled; the running count is what enforces the cap.
+  const handle = await fs.promises.open(zipPath, 'w')
+  try {
+    let received = 0
+    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+      received += chunk.byteLength
+      if (received > MAX_SKILL_SIZE) {
+        throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
+      }
+      for (let offset = 0; offset < chunk.byteLength;) {
+        offset += (await handle.write(chunk, offset)).bytesWritten
+      }
+    }
+  } finally {
+    await handle.close()
+  }
   const extractDir = path.join(tempDir, sanitizeFolderName(slug))
   await fs.promises.mkdir(extractDir, { recursive: true })
   await extractZip(zipPath, extractDir)
@@ -266,6 +356,7 @@ async function fetchFromClawhub(
     throw new Error(`No SKILL.md found at the clawhub archive root: ${identifier}`)
   }
   const skillDir = await validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
+  await assertSkillDirectoryWithinLimits(skillDir)
   const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
   if ((metadata.slug ?? metadata.name).toLowerCase() !== slug.toLowerCase()) {
     throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
@@ -284,8 +375,13 @@ async function resolveGithubCommit(
   refAndPath: string[],
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
+  const gitCommand = await resolveGitCommand()
+  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
+    if (!(error instanceof CommandOutputLimitError)) throw error
+    throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
+      cause: error
+    })
+  })
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
     // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
@@ -319,41 +415,41 @@ async function resolveGithubCommit(
 }
 
 /**
- * Fetch one commit into a bare repository and check out only installable content into a separate
- * work tree. Keeping the two roots separate prevents a repository-root skill from copying `.git`.
+ * Fetch one commit's trees into a bare repository. File contents stay on the remote until a sparse
+ * checkout asks for them, so a small skill in a large repository never downloads the rest.
+ */
+async function fetchGithubCommit(repoUrl: string, revision: string, tempDir: string): Promise<FetchedGithubCommit> {
+  const gitCommand = await resolveGitCommand()
+  const gitDir = path.join(tempDir, 'repo.git')
+  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
+
+  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
+  await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, revision])
+  return { gitDir, tempDir, git }
+}
+
+/**
+ * Check out only installable content into a work tree separate from the git dir, which keeps a
+ * repository-root skill from copying `.git`.
  */
 async function materializeGithubTarget(
-  repoUrl: string,
-  oid: string,
+  commit: FetchedGithubCommit,
   target: GithubSkillTarget,
-  descriptorFileName: 'SKILL.md' | 'skill.md',
-  tempDir: string
+  descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-  const gitDir = path.join(tempDir, 'repo.git')
-  const contentDir = path.join(tempDir, 'content')
-  const git = (args: string[], options?: { maxOutputBytes?: number }) =>
-    runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
-
-  await fs.promises.mkdir(contentDir, { recursive: true })
-  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
-  await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, oid])
-  const pathspec = target.kind === 'root' ? '.' : `:(top,literal)${target.path}`
-  const sizedTree = await git(
-    ['ls-tree', '-lr', '-z', '--full-tree', 'FETCH_HEAD', ...(target.kind === 'root' ? [] : ['--', pathspec])],
-    { maxOutputBytes: MAX_GIT_TREE_OUTPUT_BYTES }
-  )
-  assertGithubTargetTree(sizedTree, target, descriptorFileName)
-
-  await runGit(gitCommand, [
-    `--git-dir=${gitDir}`,
-    `--work-tree=${contentDir}`,
-    'checkout',
-    '--quiet',
+  const contentDir = path.join(commit.tempDir, 'content')
+  // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
+  // round trip at a time, long enough for a 60-file skill to hit the git timeout.
+  const tree = await commit.git([
+    'ls-tree',
+    '-r',
+    '-z',
+    '--full-tree',
     'FETCH_HEAD',
-    '--',
-    pathspec
+    ...(target.kind === 'root' ? [] : ['--', `:(top,literal)${target.path}`])
   ])
+  assertGithubTargetTree(tree, target, descriptorFileNames)
+  await checkoutSparse(commit, contentDir, [toSparsePattern(target)])
 
   return {
     contentDir,
@@ -361,28 +457,55 @@ async function materializeGithubTarget(
   }
 }
 
+/**
+ * `read-tree` under sparse patterns fetches every missing blob in one batch; a pathspec `checkout`
+ * against a partial clone fetches them one round trip per file.
+ */
+async function checkoutSparse(
+  commit: FetchedGithubCommit,
+  workTree: string,
+  patterns: readonly string[]
+): Promise<void> {
+  await fs.promises.mkdir(workTree, { recursive: true })
+  await fs.promises.mkdir(path.join(commit.gitDir, 'info'), { recursive: true })
+  await fs.promises.writeFile(
+    path.join(commit.gitDir, 'info', 'sparse-checkout'),
+    patterns.map((pattern) => `${pattern}\n`).join('')
+  )
+  await fs.promises.rm(path.join(commit.gitDir, 'index'), { force: true })
+  await commit.git([`--work-tree=${workTree}`, '-c', 'core.sparseCheckout=true', 'read-tree', '-mu', 'FETCH_HEAD'])
+}
+
+function toSparsePattern(target: GithubSkillTarget): string {
+  if (target.kind === 'root') return '/*'
+  // One pattern per line: a decoded `%0A` in the path would otherwise add patterns of its own.
+  if (/[\r\n]/.test(target.path)) {
+    throw new Error(`Skill directory path contains a line break: ${JSON.stringify(target.path)}`)
+  }
+  return `/${target.path.replace(/[\\*?[\]!# ]/g, '\\$&')}/`
+}
+
 function assertGithubTargetTree(
-  sizedTree: string,
+  tree: string,
   target: GithubSkillTarget,
-  descriptorFileName: 'SKILL.md' | 'skill.md'
+  descriptorFileNames: readonly SkillDescriptorFileName[]
 ): void {
   const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
   const targetParts = target.kind === 'root' ? [] : target.path.split('/')
 
-  const sizedEntries = sizedTree.split('\0').flatMap((record) => {
+  const entryPaths = tree.split('\0').flatMap((record) => {
     if (!record) return []
     const tab = record.indexOf('\t')
     if (tab === -1) return []
-    const [, type, , rawSize] = record.slice(0, tab).trim().split(/\s+/)
-    if (type !== 'blob' || !/^\d+$/.test(rawSize)) return []
+    const [, type] = record.slice(0, tab).trim().split(/\s+/)
+    if (type !== 'blob') return []
     const entryPath = record.slice(tab + 1)
-    const relativePath = target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')
-    return [{ path: relativePath, size: Number(rawSize) }]
+    return [target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')]
   })
 
   const seenPaths = new Map<string, string>()
-  for (const entry of sizedEntries) {
-    const parts = entry.path.split('/')
+  for (const entryPath of entryPaths) {
+    const parts = entryPath.split('/')
     for (let length = 1; length <= parts.length; length++) {
       const prefix = parts.slice(0, length).join('/')
       const key = parts.slice(0, length).map(foldKey).join('/')
@@ -396,16 +519,13 @@ function assertGithubTargetTree(
     }
   }
 
-  if (!sizedEntries.some((entry) => entry.path === descriptorFileName)) {
-    const location = target.kind === 'root' ? descriptorFileName : `${target.path}/${descriptorFileName}`
-    throw new Error(`No ${descriptorFileName} found at the selected GitHub location: ${location}`)
+  if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
+    const descriptor = descriptorFileNames.join(' or ')
+    const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
+    throw new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
   }
-  if (sizedEntries.length > MAX_FILES_COUNT) {
-    throw new Error(`Skill directory has too many files: exceeds ${MAX_FILES_COUNT}`)
-  }
-  const totalSize = sizedEntries.reduce((sum, entry) => sum + entry.size, 0)
-  if (totalSize > MAX_EXTRACTED_SIZE) {
-    throw new Error(`Skill directory too large: exceeds ${MAX_EXTRACTED_SIZE} bytes`)
+  if (entryPaths.length > MAX_SKILL_FILES) {
+    throw new Error(`Skill holds ${entryPaths.length} files, over the ${MAX_SKILL_FILES}-file limit`)
   }
 }
 
@@ -413,11 +533,11 @@ function assertGithubTargetTree(
  * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
  * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
  */
-async function runGit(gitCommand: string, args: string[], options?: { maxOutputBytes?: number }): Promise<string> {
+async function runGit(gitCommand: string, args: string[]): Promise<string> {
   const env = await getShellEnv()
   return executeCommand(gitCommand, args, {
     capture: true,
-    maxOutputBytes: options?.maxOutputBytes,
+    maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
     timeout: GIT_COMMAND_TIMEOUT_MS,
     env: {
       ...env,
@@ -430,13 +550,15 @@ async function runGit(gitCommand: string, args: string[], options?: { maxOutputB
   })
 }
 
-/**
- * One shallow clone of whatever the remote calls its default branch — which is what a bare
- * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
- */
-async function cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-  await runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+async function resolveGitCommand(): Promise<string> {
+  try {
+    return (await findExecutableInEnv('git')) ?? 'git'
+  } catch (err) {
+    logger.warn('git lookup failed, falling back to bare git', {
+      error: err instanceof Error ? err.message : String(err)
+    })
+    return 'git'
+  }
 }
 
 async function reportInstall(owner: string, repo: string, skillName: string): Promise<void> {

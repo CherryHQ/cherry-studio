@@ -26,6 +26,7 @@ import {
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
@@ -103,7 +104,7 @@ const ApiGatewaySettings: FC = () => {
     if (apiGatewayRunning) {
       // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
       // (the Express `/api-docs` path was removed in the gateway migration).
-      window.open(`${serverUrl}/openapi`, '_blank')
+      void openExternalWebsite(`${serverUrl}/openapi`)
     }
   }
 
