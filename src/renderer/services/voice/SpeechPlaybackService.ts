@@ -262,9 +262,14 @@ export class SpeechPlaybackService {
     await this.voice.controlPlayback({ sessionId: target, command })
   }
 
+  canRetry(sessionId: string): boolean {
+    const run = this.runs.get(sessionId)
+    return Boolean(run && !run.stopped && run.phase === 'failed' && run.audio && run.fileEntryId && run.objectUrl)
+  }
+
   retry(sessionId?: string): Promise<void> {
     const run = this.resolveRun(sessionId)
-    if (!run || run.phase !== 'failed' || !run.audio || !run.fileEntryId || !run.objectUrl) {
+    if (!run || !this.canRetry(run.sessionId)) {
       return Promise.reject(new VoiceDomainError('invalid_request'))
     }
     if (run.retryAttempt) return run.retryAttempt
