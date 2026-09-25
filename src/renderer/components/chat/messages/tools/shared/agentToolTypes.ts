@@ -288,7 +288,9 @@ export function getResumedAgentId(output: unknown): string | undefined {
     return (
       /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
       /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
-      /"subagent_id"\s*:\s*"([^"]+)"/.exec(output)?.[1]
+      /"subagent_id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
+      // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
+      /^message delivered to agent[ \t]+(\S+)$/m.exec(output.trim())?.[1]
     )
   }
   if (output && typeof output === 'object') {
@@ -311,6 +313,10 @@ export function getResumedAgentId(output: unknown): string | undefined {
 /** The launched agent id a launch receipt reports — the text trailer or a structured field. */
 export function extractLaunchReceiptId(output: unknown): string | undefined {
   if (typeof output === 'string') {
+    // dsh acknowledges a continuable launch with exactly `started subagent <childId>` and no other
+    // prose; the whole line must match so a child's own answer cannot pass for a receipt.
+    const dshLaunch = /^started subagent[ \t]+(\S+)$/m.exec(output.trim())?.[1]
+    if (dshLaunch) return dshLaunch
     // The trailer marker alone is spoofable by prose; require the launch receipt's structural
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
     // send-back instruction that follows the id on every real receipt.
@@ -321,8 +327,8 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
   }
   if (isRecord(output)) {
     // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools);
-    // dsh names its children subagent_id.
-    const agentId = output.agentId ?? output.agent_id ?? output.subagent_id ?? output.taskId
+    // dsh names its children subagentId or subagent_id.
+    const agentId = output.agentId ?? output.agent_id ?? output.subagentId ?? output.subagent_id ?? output.taskId
     return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined
   }
   return undefined
