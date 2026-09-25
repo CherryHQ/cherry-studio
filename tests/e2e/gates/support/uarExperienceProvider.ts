@@ -49,7 +49,7 @@ export function sendGateVCompletion(
   const tools = Array.isArray(body.tools) ? body.tools : []
   const toolMessages = messages.filter((message: any) => message?.role === 'tool')
   const afterTool = toolMessages.length > 0
-  const writeTool = tools.find((tool: any) => tool?.function?.name?.endsWith('__write'))?.function?.name
+  const writeTool = tools.find((tool: any) => tool?.function?.name?.endsWith('__write_file'))?.function?.name
 
   if (afterTool) {
     const failedResult = toolMessages.find((message: any) => reportsToolError(message?.content))
@@ -76,7 +76,7 @@ export function sendGateVCompletion(
               function: {
                 name: writeTool,
                 arguments: JSON.stringify({
-                  file_path: OUTPUT_NAME,
+                  path: OUTPUT_NAME,
                   content: `${OUTPUT_MARKER}\n`
                 })
               }
