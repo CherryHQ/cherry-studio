@@ -4,6 +4,7 @@ import { delay } from 'es-toolkit'
 
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 
 import {
@@ -43,6 +44,8 @@ type ConnectionStore = Pick<
   | 'markReauthorizationRequired'
   | 'commitReauthorization'
   | 'remove'
+  | 'assertUnreferenced'
+  | 'removeUnreferenced'
 >
 
 type CredentialStore = {
@@ -157,6 +160,7 @@ export type BeginAppRegistrationResult = {
 export type ExternalKnowledgeRuntimeErrorCode =
   | 'stopped'
   | 'not-found'
+  | 'connection-in-use'
   | 'session-not-found'
   | 'credential-unavailable'
   | 'scope-missing'
@@ -481,6 +485,14 @@ export class ExternalKnowledgeRuntime {
 
   private async removeConnection(connectionId: string): Promise<void> {
     const connection = this.requireConnection(connectionId)
+    try {
+      this.connections.assertUnreferenced(connectionId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+        throw new ExternalKnowledgeRuntimeError('connection-in-use')
+      }
+      throw error
+    }
     const state = this.getCredentialState(connection.credentialReference)
     state.phase = 'removing'
     state.generation++
@@ -501,27 +513,16 @@ export class ExternalKnowledgeRuntime {
       ...(pendingRefresh ? [pendingRefresh] : [])
     ])
     try {
-      const stored = await this.credentials.read(connection.credentialReference)
-      if (stored.status === 'ok' && stored.credential.refreshToken) {
-        try {
-          await this.track(
-            this.provider.revokeUserToken(
-              { appId: stored.credential.appId, appSecret: stored.credential.appSecret },
-              stored.credential.refreshToken,
-              this.lifetime.signal
-            )
-          )
-        } catch (error) {
-          if (error instanceof Error && error.name === 'AbortError') throw error
-        }
-      }
-      await this.credentials.remove(connection.credentialReference)
-      this.connections.remove(connectionId)
+      this.connections.removeUnreferenced(connectionId)
       this.credentialStates.delete(connection.credentialReference)
+      await this.retireCredential(connection.credentialReference, this.lifetime.signal)
     } catch (error) {
       if (this.connections.getById(connectionId)) {
         state.phase = 'active'
         this.advanceCredentialGeneration(connection.credentialReference, state)
+      }
+      if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+        throw new ExternalKnowledgeRuntimeError('connection-in-use')
       }
       throw error
     }

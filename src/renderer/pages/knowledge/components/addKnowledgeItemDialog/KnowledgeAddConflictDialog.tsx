@@ -10,11 +10,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import type { KnowledgeAddItemConflict, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { KnowledgeAddItemConflict } from '@shared/data/types/knowledge'
 
 type ConflictResolution = 'rename' | 'replace'
 
-const CONFLICT_TYPE_ICON: Record<KnowledgeItemType, LucideIcon> = {
+const CONFLICT_TYPE_ICON: Record<KnowledgeAddItemConflict['type'], LucideIcon> = {
   file: FileText,
   note: StickyNote,
   directory: Folder,

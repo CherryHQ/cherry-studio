@@ -1303,7 +1303,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds External Knowledge connections without changing populated business data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0026_reflective_wolfpack'))
     sqlite
       .prepare(
         `INSERT INTO preference (scope, key, value, created_at, updated_at)
@@ -1357,6 +1357,66 @@ describe('applyMigrations over a populated database', () => {
         )
         .run()
     ).toThrow(/NOT NULL|constraint/i)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
+  })
+
+  it('adds External Knowledge ownership while preserving populated knowledge items', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    sqlite
+      .prepare(
+        `INSERT INTO knowledge_base
+          (id, name, dimensions, embedding_model_id, status, error, chunk_size, chunk_overlap,
+           chunk_strategy, chunk_separator, created_at, updated_at)
+         VALUES ('11111111-1111-4111-8111-111111111111', 'Existing base', NULL, NULL,
+           'completed', NULL, 1024, 200, 'structured', '\\n\\n', 100, 200)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO knowledge_item
+          (id, base_id, group_id, type, data, status, error, created_at, updated_at)
+         VALUES ('0198f3f2-7d1a-7abc-8def-123456789abc',
+           '11111111-1111-4111-8111-111111111111', NULL, 'note',
+           '{"source":"Existing note","content":"kept"}', 'completed', NULL, 300, 400)`
+      )
+      .run()
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT type, data, status, created_at, updated_at FROM knowledge_item`).get()).toEqual({
+      type: 'note',
+      data: '{"source":"Existing note","content":"kept"}',
+      status: 'completed',
+      created_at: 300,
+      updated_at: 400
+    })
+    expect(() =>
+      sqlite
+        .prepare(
+          `INSERT INTO knowledge_item
+            (id, base_id, group_id, type, data, status, error, created_at, updated_at)
+           VALUES ('0198f3f2-7d1a-7abc-8def-123456789abd',
+             '11111111-1111-4111-8111-111111111111', NULL, 'external',
+             '{"source":"Feishu Wiki","title":"Architecture","relativePath":"external/architecture.md"}',
+             'completed', NULL, 500, 500)`
+        )
+        .run()
+    ).not.toThrow()
+    expect(
+      sqlite
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+        .get('external_knowledge_source')
+    ).toEqual({
+      name: 'external_knowledge_source'
+    })
+    expect(
+      sqlite
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+        .get('external_knowledge_document')
+    ).toEqual({
+      name: 'external_knowledge_document'
+    })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })

@@ -7,7 +7,9 @@ import {
   type ExternalKnowledgeConnectionRow,
   externalKnowledgeConnectionTable
 } from '@data/db/schemas/externalKnowledgeConnection'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
@@ -235,6 +237,43 @@ export class ExternalKnowledgeConnectionService {
       logger.info('External Knowledge connection removed', { connectionId: id })
     }
     return removed
+  }
+
+  assertUnreferenced(id: string): void {
+    this.assertUnreferencedTx(this.db, id)
+  }
+
+  removeUnreferenced(id: string): boolean {
+    const removed = application.get('DbService').withWriteTx((tx) => {
+      this.assertUnreferencedTx(tx, id)
+      return (
+        tx.delete(externalKnowledgeConnectionTable).where(eq(externalKnowledgeConnectionTable.id, id)).returning().all()
+          .length > 0
+      )
+    })
+    if (removed) {
+      notifyDataApiDataChange([
+        { endpoint: '/external-knowledge-connections', kind: 'membership', entityIds: [id] },
+        { endpoint: '/external-knowledge-connections/:id', routeParams: { id }, entityIds: [id] }
+      ])
+      logger.info('External Knowledge connection removed', { connectionId: id })
+    }
+    return removed
+  }
+
+  private assertUnreferencedTx(tx: Pick<DbType, 'select'>, id: string): void {
+    const reference = tx
+      .select({ id: externalKnowledgeSourceTable.id })
+      .from(externalKnowledgeSourceTable)
+      .where(eq(externalKnowledgeSourceTable.connectionId, id))
+      .limit(1)
+      .get()
+    if (reference) {
+      throw DataApiErrorFactory.invalidOperation(
+        'remove external knowledge connection',
+        'connection is referenced by an external knowledge source'
+      )
+    }
   }
 
   private notifyProjectionChange(id: string): void {

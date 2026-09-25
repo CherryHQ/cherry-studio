@@ -14,6 +14,8 @@ function mapExternalKnowledgeError(error: unknown, fallback: { code: string; mes
           knowledgeErrorCodes.EXTERNAL_CONNECTION_NOT_FOUND,
           'External Knowledge connection not found'
         )
+      case 'connection-in-use':
+        return new IpcError(knowledgeErrorCodes.EXTERNAL_CONNECTION_IN_USE, 'External Knowledge connection is in use')
       case 'scope-missing':
         return new IpcError(knowledgeErrorCodes.FEISHU_SCOPE_MISSING, 'Required Feishu permissions were not granted')
       case 'automatic-scope-mismatch':
