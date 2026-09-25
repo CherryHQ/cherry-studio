@@ -35,6 +35,9 @@
       "type": "string",
       "description": "Resolved model that produced this review (provider/model-id or class name)"
     },
+    "judge_identity": {
+      "$ref": "#/definitions/resolvedModelIdentity"
+    },
     "isolation_mode": {
       "type": "string",
       "pattern": "^(rest-gateway(:.*)?|harness-native)$",
@@ -43,6 +46,9 @@
     "producer_model": {
       "type": "string",
       "description": "The model whose work was reviewed, for the judge!=producer comparison. 'unknown' means the check could not be enforced."
+    },
+    "producer_identity": {
+      "$ref": "#/definitions/resolvedModelIdentity"
     },
     "cross_model_check": {
       "type": "string",
@@ -123,6 +129,22 @@
         "minLength": 1
       },
       "description": "At least one item cutting AGAINST the conclusion. Explainable AI increased trust while promoting over-reliance ('False Confirmation'): visible reasoning may 'provide false assurance that errors have been checked for and ruled out'. Surfacing disconfirming evidence is the counterweight."
+    }
+  },
+  "definitions": {
+    "resolvedModelIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerConnectionId",
+        "providerId",
+        "modelId"
+      ],
+      "properties": {
+        "providerConnectionId": { "type": "string", "minLength": 1 },
+        "providerId": { "type": "string", "minLength": 1 },
+        "modelId": { "type": "string", "minLength": 1 }
+      }
     }
   },
   "allOf": [

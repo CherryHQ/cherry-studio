@@ -29,8 +29,9 @@ the calling process's conversation state.
    `unknown` makes the comparison below pass **trivially**, so
    `build-review-packet.mjs` warns `PRODUCER_UNKNOWN` and the findings record
    `cross_model_check: unverified-producer-unknown`.
-2. Resolve the `judge` role through `lib/review/model-resolution.mjs`'s
-   `resolveRole`. Precedence, highest first:
+2. Resolve `critic`, `judge`, and `backup` aliases and canonical
+   provider-connection/provider/model identities through
+   `lib/review/model-resolution.mjs`. Precedence, highest first:
 
    ```
    explicit arg > PROMETHEUS_KBD_<ROLE>_MODEL > ~/.prometheus/kbd/models.toml
@@ -45,13 +46,12 @@ the calling process's conversation state.
    the built-in default. The mini has no adversarial-review-specific field in
    that file and no observed caller needing it, so this layer is not ported —
    `resolveRole` goes straight from `models.toml` to the built-in default.
-3. If the judge equals the producer (`sameModel`, a loose basename comparison
-   that ignores a `provider/` prefix), fall back to the `critic` role. A
-   different-model critic beats a same-model self-grade — tier purity is
-   sacrificed for independence, never the reverse.
-4. If that also matches → `JUDGE_MODEL_COLLISION` warning to stderr and proceed
-   same-model, recorded as `cross_model_check: same-model-collision`. Never silent,
-   never fatal.
+3. Compare canonical identities. Served aliases are transport names and never
+   evidence that two roles are distinct. If the judge collides with the critic
+   or current producer, is unavailable, or lacks a canonical identity, use the
+   configured backup only when its canonical identity is distinct and available.
+4. If no distinct backup exists, exit 4 and leave review pending. The dispatcher
+   never proceeds with a known same-model self-grade.
 
 Phase classes (declared in SKILL.md frontmatter `model_routing`):
 
@@ -91,9 +91,9 @@ breaks the isolation contract.
   "status": "ok | degraded | needs_configure | config_broken | no_gateway | no_providers | unavailable",
   "gateway": "http://localhost:4000/v1",
   "roles": {
-    "judge":     { "model": "kbd-judge",    "source": "/Users/you/.prometheus/kbd/models.toml" },
-    "critic":    { "model": "kbd-critic",   "source": "/Users/you/.prometheus/kbd/models.toml" },
-    "generator": { "model": "kbd-frontier", "source": "/Users/you/.prometheus/kbd/models.toml" }
+    "judge":     { "alias": "kbd-judge",  "identity": { "providerConnectionId": "local-proxy", "providerId": "openai", "modelId": "gpt-5.6-sol" }, "source": "models.toml" },
+    "critic":    { "alias": "kbd-critic", "identity": { "providerConnectionId": "local-proxy", "providerId": "openai", "modelId": "gpt-5.5" }, "source": "models.toml" },
+    "backup":    { "alias": "kbd-backup", "identity": { "providerConnectionId": "local-proxy", "providerId": "openai", "modelId": "gpt-5.4" }, "source": "models.toml" }
   },
   "providers_detected": ["openai", "groq"],
   "classes_available": ["small", "medium", "frontier"],
@@ -125,5 +125,5 @@ Status handling by the calling skill:
   until a second provider is configured.
 - `ok` → proceed.
 
-Cache invalidation: `--force`, `liter-llm-proxy.toml` newer than the cache, or
-age > 24 h (`lib/review/preflight.mjs`'s `isCacheFresh`).
+Cache invalidation: `--force`, `liter-llm-proxy.toml` or `models.toml` newer
+than the cache, or age > 24 h (`lib/review/preflight.mjs`'s `isCacheFresh`).
