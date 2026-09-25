@@ -334,13 +334,9 @@ describe('useProviderModelPullReconcile', () => {
     expect(createModelsMock).toHaveBeenCalledTimes(2)
     expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_partial_failure')
     expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
-    // The batches that landed are still a usable provider: enable it for them.
-    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
-      { id: 'openai', isEnabled: false },
-      enableProviderMock,
-      501,
-      'model_manage_add'
-    )
+    // The provider is enabled for the model set the user asked for, not for part
+    // of it: the retry that completes the library enables it.
+    expect(enableProviderWhenModelsAvailableMock).not.toHaveBeenCalled()
   })
 
   it('does not enable the provider when every batch fails', async () => {

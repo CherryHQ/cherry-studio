@@ -343,7 +343,10 @@ export function useProviderModelPullReconcile(providerId: string) {
         return
       }
       if (failedCount > 0) {
+        // The provider is turned on for the model set the user asked for, not for
+        // part of it: a half-added library stays off until a retry completes it.
         toast.warning(t('settings.models.manage.add_partial_failure', { added: addedCount, failed: failedCount }))
+        return
       }
 
       try {
