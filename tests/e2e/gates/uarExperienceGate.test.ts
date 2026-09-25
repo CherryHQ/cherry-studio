@@ -471,7 +471,7 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     await page.keyboard.press('Tab')
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY')
     await page.setViewportSize({ width: 640, height: 900 })
-    await expect(page.getByRole('combobox', { name: 'Administration destination' })).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'UAR administration section' })).toBeVisible()
     const overflow = await page.locator('[data-ui="settings.view"]').evaluate((element) => ({
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth
