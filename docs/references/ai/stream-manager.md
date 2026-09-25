@@ -846,7 +846,7 @@ origin off main's line, not off theirs.
 | Channel | Payload | Notes |
 |---|---|---|
 | `ai.stream.chunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
-| `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
+| `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs a stream stopped before finishing, for any abort origin or a Main-side reason; **only sent to attached windows** |
 | `ai.stream.error` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
 
 Topic-level status transitions are NOT a bespoke IPC — they live in the

@@ -43,7 +43,8 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
 
 /**
  * Namespaced prefix every translate stream uses for its `streamId` /
- * `topicId`. Defensive: ensures `ai.stream.abort({ topicId })` cannot collide
+ * `topicId`. Defensive: ensures
+ * `ai.stream.abort({ topicId, origin: 'translate-cancel' })` cannot collide
  * with a real chat topic id, and lets a future debugger filter logs by
  * "translate streams" without inspecting payloads. Kept in sync with the
  * renderer-side literal in `translateText.ts`.
