@@ -414,7 +414,10 @@ test('Gate B: real services and isolated Compass workspaces retain observable op
     await expect(page.getByRole('combobox', { name: 'Recent workspaces' })).toBeVisible()
     await page.getByRole('combobox', { name: 'Recent workspaces' }).click()
     await page.getByRole('option', { name: workspaceB }).click()
-    await expect(page.getByRole('checkbox', { name: 'Enable Compass for this workspace' })).not.toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Enable Compass for this workspace' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
     await expect(page.getByText('Full operation log', { exact: true })).toBeVisible()
 
     expect((await runOperation(page, 'restart')).status).toBe('succeeded')
