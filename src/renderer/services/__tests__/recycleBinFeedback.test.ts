@@ -56,7 +56,7 @@ describe('recycleBinFeedback', () => {
     expect(getInitialToastConfig()).toMatchObject({
       action: { label: 'Undo' },
       timeout: 5000,
-      title: 'Draft moved to Recycle Bin'
+      title: 'Draft moved to Archive'
     })
 
     await getUndoAction().onClick()
@@ -69,7 +69,7 @@ describe('recycleBinFeedback', () => {
 
     await getUndoAction().onClick()
 
-    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
+    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Archive')
   })
 
   it('keeps resource status readable with an archive title and a working undo action', async () => {
@@ -93,7 +93,7 @@ describe('recycleBinFeedback', () => {
     await getUndoAction().onClick()
 
     expect(onUndo).toHaveBeenCalledOnce()
-    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
+    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Archive')
   })
 
   it('logs and reports a rejected single-item restore without leaking the rejection', async () => {
@@ -105,7 +105,7 @@ describe('recycleBinFeedback', () => {
     await expect(getUndoAction().onClick()).resolves.toBeUndefined()
 
     expect(loggerError).toHaveBeenCalledWith('Recycle Bin undo failed', error)
-    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Recycle Bin')
+    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Archive')
   })
 
   it('reports the restored and failed counts for a fully successful batch', async () => {
@@ -116,7 +116,7 @@ describe('recycleBinFeedback', () => {
     expect(getInitialToastConfig()).toMatchObject({
       action: { label: 'Undo' },
       timeout: 5000,
-      title: 'Moved to Recycle Bin: 2'
+      title: 'Moved to Archive: 2'
     })
 
     await getUndoAction().onClick()
@@ -131,7 +131,7 @@ describe('recycleBinFeedback', () => {
 
     const title = getInitialToastConfig().title
 
-    expect(title).toBe('Moved to Recycle Bin: 1')
+    expect(title).toBe('Moved to Archive: 1')
     expect(title).not.toContain('1 items')
   })
 
@@ -159,7 +159,7 @@ describe('recycleBinFeedback', () => {
 
     expect(onUndo).toHaveBeenCalledOnce()
     expect(loggerError).toHaveBeenCalledWith('Recycle Bin batch undo failed', error)
-    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Recycle Bin')
+    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Archive')
   })
 
   it('counts a concurrent restore as complete only when the active endpoint finds the item', async () => {

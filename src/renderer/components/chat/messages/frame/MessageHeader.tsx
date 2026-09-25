@@ -201,7 +201,7 @@ const MessageHeader: FC<Props> = memo(
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&
@@ -215,7 +215,7 @@ const MessageHeader: FC<Props> = memo(
             </div>
             {actionsSlot && (
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
+                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
                 {actionsSlot}
               </div>
             )}

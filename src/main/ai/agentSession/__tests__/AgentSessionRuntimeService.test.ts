@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
@@ -45,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
+  getConversationById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -83,6 +85,7 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
+    getConversationById: mocks.getConversationById,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -99,6 +102,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
@@ -473,8 +477,10 @@ describe('AgentSessionRuntimeService', () => {
     vi.clearAllMocks()
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
-      id: message.id ?? 'generated-message-id'
+      id: message.id ?? 'generated-message-id',
+      updatedAt: '2026-01-01T00:00:00.000Z'
     }))
+    mocks.getConversationById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
@@ -522,6 +528,19 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('blocks edits only on the source session until its fork settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    forkRecoveryMocks.read.mockReturnValueOnce({
+      messages: [{ role: 'assistant', status: 'success', data: {} }]
+    })
+    const fork = service.forkSession('session-1', 'assistant-1')
+    const settled = expect(fork).rejects.toMatchObject({ reason: 'legacy_history' })
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+    expect(() => service.assertSessionEditable('session-2')).not.toThrow()
+    await settled
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
   describe('respondToolApproval', () => {
@@ -2251,8 +2270,9 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     service.markTurnTerminal('session-1', 'success')
+    const closed = createDeferred<void>()
     const connection = {
-      close: vi.fn(),
+      close: vi.fn(() => closed.promise),
       send: vi.fn(),
       events: [],
       reconcile: vi.fn().mockResolvedValue('rebuild')
@@ -2265,6 +2285,9 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).toHaveBeenCalledOnce()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
     expect(getEntry(service).connection).toBeUndefined()
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+    closed.resolve()
+    await vi.waitFor(() => expect(() => service.assertSessionEditable('session-1')).not.toThrow())
   })
 
   it('defers the rebuild while a turn is live and leaves the connection streaming', async () => {
@@ -3895,6 +3918,30 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ sessionId: 'session-1', error: closeError })
       )
     )
+    expect(service.isSessionBusy('session-1')).toBe(true)
+    expect(service.hasBusySessions()).toBe(true)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
+    expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+  })
+
+  it('blocks writes after the close deadline and recovers when native teardown eventually completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const teardown = createDeferred<void>()
+      getEntry(service).connection = { close: () => teardown.promise, send: vi.fn(), events: [] }
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_001)
+      await closing
+      expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+      teardown.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(() => service.beginTurn(baseTurnInput)).not.toThrow()
+      await service.closeSession('session-1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('persists assistant turns with the latest resume token', async () => {
@@ -3906,10 +3953,20 @@ describe('AgentSessionRuntimeService', () => {
     })
     getEntry(service).lastResumeToken = 'resume-1'
 
-    await persistenceListener(handle).onDone({
+    const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
+    }
+    await persistenceListener(handle).onDone(result)
+
+    expect(result.persistence).toEqual({
+      status: 'saved',
+      message: {
+        messageId: 'assistant-1',
+        messageRevision: '1767225600000',
+        historyRevision: '1767225601000'
+      }
     })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
@@ -3938,10 +3995,20 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
 
-    await persistenceListener(handle).onDone({
+    const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
+    }
+    await persistenceListener(handle).onDone(result)
+
+    expect(result.persistence).toEqual({
+      status: 'saved',
+      message: {
+        messageId: 'assistant-1',
+        messageRevision: '1767225600000',
+        historyRevision: '1767225601000'
+      }
     })
 
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
@@ -3952,10 +4019,20 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     getEntry(service).lastResumeToken = 'resume-1'
 
-    await persistenceListener(handle).onPaused({
+    const result: StreamPausedResult = {
       status: 'paused',
       isTopicDone: true,
       finalMessage: undefined
+    }
+    await persistenceListener(handle).onPaused(result)
+
+    expect(result.persistence).toEqual({
+      status: 'saved',
+      message: {
+        messageId: 'assistant-1',
+        messageRevision: '1767225600000',
+        historyRevision: '1767225601000'
+      }
     })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
@@ -5699,13 +5776,28 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     getEntry(service).lastResumeToken = 'resume-init'
 
-    await persistenceListener(handle).onError({
+    const result: StreamErrorResult = {
       status: 'error',
       isTopicDone: true,
-      error: { name: 'Error', message: 'boom' },
+      error: { name: 'Error', message: 'boom', stack: 'Error: boom' },
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    }
+    await persistenceListener(handle).onError(result)
+
+    expect(result.persistence).toEqual({
+      status: 'saved',
+      message: {
+        messageId: 'assistant-1',
+        messageRevision: '1767225600000',
+        historyRevision: '1767225601000'
+      }
     })
 
+    expect(result.failure).toEqual({
+      message: 'boom',
+      retryable: false,
+      failure: { version: 1, reasonCode: 'unknown', source: { layer: 'runtime' }, context: {} }
+    })
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
         runtimeAnchor: undefined,
@@ -5715,7 +5807,14 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'error',
-          data: { parts: [{ type: 'data-error', data: { name: 'Error', message: 'boom' } }] },
+          data: {
+            parts: [
+              {
+                type: 'data-error',
+                data: { name: 'Error', message: 'boom', stack: 'Error: boom', executionFailure: result.failure }
+              }
+            ]
+          },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
@@ -5733,10 +5832,20 @@ describe('AgentSessionRuntimeService', () => {
       { id: 'agent-1', model: switchedModelId }
     )
 
-    await persistenceListener(handle).onDone({
+    const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
       finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    }
+    await persistenceListener(handle).onDone(result)
+
+    expect(result.persistence).toEqual({
+      status: 'saved',
+      message: {
+        messageId: 'assistant-1',
+        messageRevision: '1767225600000',
+        historyRevision: '1767225601000'
+      }
     })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(

@@ -3,11 +3,16 @@
  *
  * Uses Strategy Registry pattern: first matching fetcher wins.
  * All HTTP calls use @ai-sdk/provider-utils for consistent error handling.
+ *
+ * Every request runs through {@link modelListFetch} — the same Chromium network stack
+ * chat uses — so TLS trust and proxy settings cannot diverge between listing models
+ * and talking to them.
  */
 
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
+  type FetchFunction,
   getFromApi as aiSdkGetFromApi,
   postJsonToApi,
   zodSchema
@@ -23,6 +28,7 @@ import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
+  MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -37,6 +43,7 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
@@ -55,6 +62,7 @@ import {
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
+  OmlxModelStatusResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
@@ -65,6 +73,22 @@ import {
 import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
+
+/**
+ * Provider `fetch` for model listing: Electron `net.fetch` (Chromium) rather than Node's
+ * global fetch.
+ *
+ * Node only trusts its own bundled CA store, while Chromium trusts the OS one and honors
+ * the session proxy — so an intercepting corporate root CA that is installed system-wide
+ * (and therefore fine for chat, which already goes through `customFetch`) made *listing*
+ * fail with a certificate error. Sharing the stack keeps both paths agreeing on trust,
+ * proxy and error vocabulary (Chromium `net::ERR_CERT_*`, which `classifyErrorCategory`
+ * maps to the proxy/SSL diagnosis).
+ *
+ * `cache: 'no-store'` because Chromium's HTTP cache would otherwise serve a stale
+ * `/models` response on a second pull, resurrecting deleted models.
+ */
+const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...init, cache: 'no-store' })
 
 // ── Types ──
 
@@ -95,6 +119,16 @@ function recoverOptionalModelListFailure<T>(error: unknown, context: Record<stri
     errorType: getErrorType(error)
   })
   return { data: [] }
+}
+
+function warnSkippedOpenAIModelEntries(
+  providerId: string,
+  ...responses: Array<{ data: unknown[]; skippedModelCount?: number }>
+): void {
+  const skippedModelCount = responses.reduce((total, response) => total + (response.skippedModelCount ?? 0), 0)
+  if (skippedModelCount > 0) {
+    logger.warn('Skipped malformed OpenAI-compatible model entries', { providerId, skippedModelCount })
+  }
 }
 
 // ── API Layer ──
@@ -131,7 +165,8 @@ async function getFromApi<T>({
       errorSchema: zodSchema(ApiErrorSchema),
       errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
     }),
-    abortSignal
+    abortSignal,
+    fetch: modelListFetch
   })
 
   return value
@@ -212,7 +247,8 @@ async function fetchOllamaContextWindow(
         errorSchema: zodSchema(ApiErrorSchema),
         errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
       }),
-      abortSignal: signal
+      abortSignal: signal,
+      fetch: modelListFetch
     })
     return readOllamaContextLength(value.model_info)
   } catch (error) {
@@ -603,6 +639,7 @@ const openRouterFetcher: ModelFetcher = {
         })
       )
     ])
+    warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => {
@@ -656,6 +693,7 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
+    warnSkippedOpenAIModelEntries(provider.id, chat, embed, reranker)
     const modelsById = new Map<string, Partial<Model>>()
     const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
       const id = model.id?.trim()
@@ -768,6 +806,7 @@ const jinaFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    warnSkippedOpenAIModelEntries(provider.id, response)
     return dedup(response.data, (m) => m.id).map((m) => {
       const apiModelId = m.id.replace(/^jina-ai\//, '')
       return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
@@ -785,6 +824,7 @@ const openAIFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    warnSkippedOpenAIModelEntries(provider.id, response)
     return dedup(response.data, (m) => m.id)
       .filter((m) => isSupportedOpenAIModel(m.id))
       .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
@@ -802,6 +842,7 @@ async function listOpenAICompatibleModels(
     responseSchema: OpenAIModelsResponseSchema,
     abortSignal: signal
   })
+  warnSkippedOpenAIModelEntries(provider.id, response)
   return dedup(response.data, (m) => m.id).map((m) =>
     toModel(m.id, provider, {
       name: m.name || m.id,
@@ -813,6 +854,91 @@ async function listOpenAICompatibleModels(
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+}
+
+const omlxFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.omlx),
+  fetch: async (provider, signal) => {
+    // `/v1/models` carries no type information, so every entry would present
+    // as a chat model — including block-diffusion canvas models, which the
+    // server only serves through its diffusion lane. `/v1/models/status`
+    // reports the model type: keep the models that chat ('llm'/'vlm') and
+    // drop the diffusion families. The status endpoint hangs off the server
+    // root, and a configured host may already carry an API version other than
+    // v1, so strip any trailing version segment rather than only /v1.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
+    const response = await getFromApi({
+      url: `${root}/v1/models/status`,
+      headers: defaultHeaders(provider),
+      responseSchema: OmlxModelStatusResponseSchema,
+      abortSignal: signal
+    })
+    return (
+      dedup(
+        // The markitdown virtual model rides the same chat completions endpoint,
+        // so the server's own model_type list of chat-servable kinds.
+        response.models.filter(
+          (m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'
+        ),
+        (m) => m.id
+      )
+        .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
+        // The server hides models on purpose (operator-managed); keep them out.
+        .filter((m) => m.is_hidden !== true)
+        .map((m) => {
+          // `resolveEffectiveEndpoint` reads `endpointTypes[0]` before
+          // `provider.defaultChatEndpoint`, so listing chat-completions first
+          // silently overrode the registry's declared default (Responses, oMLX's
+          // native chat surface) and routed every discovered model to the legacy
+          // dialect. Derive the first entry from the provider's declaration so
+          // discovery inherits it — including a user who changes the default.
+          //
+          // The Anthropic endpoint stays declared for the Claude Agent SDK, which
+          // speaks only Messages and asks for it explicitly.
+          //
+          // MarkItDown is the exception: the server special-cases that virtual
+          // model only on the chat-completions route, so it must not advertise
+          // Responses or Anthropic — either would send a dialect the server does
+          // not implement for it. The registry's other declared endpoints stay
+          // listed behind the default: callers that prefer one (the pi runtime
+          // asks for Anthropic when both chat dialects are present) must still
+          // find it.
+          const endpointTypes: EndpointType[] =
+            m.model_type === 'markitdown'
+              ? [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+              : [
+                  ...new Set([
+                    provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+                  ])
+                ]
+
+          return toModel(m.id, provider, {
+            ownedBy: 'omlx',
+            // An alias renames the model in the UI only: the server still keys
+            // the request on the physical id, so `id`/`apiModelId` stay `m.id`.
+            // Spread conditionally — `toModel` applies `extra` last, so a
+            // present-but-undefined `name` would overwrite the id fallback.
+            ...(m.model_alias ? { name: m.model_alias } : {}),
+            endpointTypes,
+            // The server reports the window it serves and its output cap; a
+            // discovered model would otherwise carry no limits at all.
+            ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
+            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
+            // A VLM takes text and images; the image modality has to be stated
+            // explicitly, or exported configurations read it as text-only even
+            // though the capability says otherwise.
+            ...(m.model_type === 'vlm'
+              ? {
+                  capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+                  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+                }
+              : {})
+          })
+        })
+    )
+  }
 }
 
 // Native v1 lists downloaded models even when JIT loading is disabled.
@@ -896,6 +1022,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   lmStudioFetcher,
+  omlxFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,
