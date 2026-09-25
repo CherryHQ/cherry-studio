@@ -1,5 +1,7 @@
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
+import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
+
 import { agentTable } from './agent'
 
 /** Durable index for detached task status and GUI control. Logs and completion sentinels stay on disk. */
@@ -11,7 +13,7 @@ export const agentBackgroundTaskTable = sqliteTable(
       .notNull()
       .references(() => agentTable.id, { onDelete: 'cascade' }),
     status: text().notNull(),
-    record: text({ mode: 'json' }).$type<unknown>().notNull(),
+    record: text({ mode: 'json' }).$type<BackgroundTaskRecord>().notNull(),
     startedAt: text().notNull(),
     finishedAt: text()
   },
