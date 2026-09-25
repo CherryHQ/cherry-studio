@@ -222,9 +222,9 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
 }
 
 /** A connected runtime target; the occupancy that rides on it lives in the entry's runtime state. */
-function warmConnection() {
+function warmConnection(send = vi.fn()) {
   return {
-    send: vi.fn(),
+    send,
     close: vi.fn(),
     reconcile: vi.fn().mockResolvedValue('current'),
     refreshTraceContext: vi.fn()
@@ -874,6 +874,37 @@ describe('AgentSessionRuntimeService', () => {
       // The turn is still settling on the same connection; its own settle re-evaluates the hold with
       // the occupancy already gone, so finalizing here would evict a stream it still writes through.
       expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
+    // A follow-up that lands after the spawning turn settled is not queued — it reuses the entry
+    // directly, skipping `startNextTurn`. It still owes the model the same "work is already running"
+    // reminder, or the model re-launches what the previous turn started.
+    it('reminds a fresh follow-up turn about the detached work the previous turn left running', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const send = vi.fn()
+      entry.connection = warmConnection(send)
+      mocks.cacheGetShared.mockImplementation((key: string) =>
+        String(key).includes('background_tasks')
+          ? [{ id: 'child-1', type: 'subagent', description: 'Long review' }]
+          : undefined
+      )
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+
+      const followUp = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUp.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ backgroundTasksNote: expect.stringContaining('Long review') })
+      )
       void service.closeSession('session-1')
     })
 
