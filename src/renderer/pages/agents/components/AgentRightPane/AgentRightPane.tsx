@@ -1727,8 +1727,13 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
 
 function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: boolean }) {
   const { t } = useTranslation()
-  const [tasks, setTasks] = useState<BackgroundTaskRecord[]>([])
+  // Carries its own identity: on an agent switch the previous agent's rows must not stay on screen
+  // (their Stop/Kill would be sent under the new agent id) while the refetch is still in flight.
+  const [loaded, setLoaded] = useState<{ agentId?: string; tasks: BackgroundTaskRecord[] }>({ tasks: [] })
+  const tasks = loaded.agentId === agentId ? loaded.tasks : []
   const [busyId, setBusyId] = useState<string | null>(null)
+  const setTasks = (update: (current: BackgroundTaskRecord[]) => BackgroundTaskRecord[]) =>
+    setLoaded((current) => (current.agentId === agentId ? { ...current, tasks: update(current.tasks) } : current))
 
   useEffect(() => {
     if (!agentId) return
@@ -1736,7 +1741,7 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
     const refresh = () => {
       void ipcApi.request('ai.agent.background_task.list', { agentId }).then(
         (records) => {
-          if (active && Array.isArray(records)) setTasks(records)
+          if (active && Array.isArray(records)) setLoaded({ agentId, tasks: records })
         },
         (error) => logger.warn('Failed to list detached background tasks', { agentId, error })
       )
