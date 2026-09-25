@@ -1,15 +1,18 @@
-import { Pause, Play, Square } from 'lucide-react'
+import { Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
-import { speechPlaybackService, voiceService } from '@renderer/services/voice'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import { speechPlaybackService, VoiceDomainError, voiceService } from '@renderer/services/voice'
 import type { VoiceSessionPhase } from '@shared/ipc/schemas/voice'
 
 export interface VoicePlaybackBarProps {
   readonly phase: Exclude<VoiceSessionPhase, 'idle'>
   readonly source: 'playback'
   readonly failed: boolean
+  readonly onRetry?: () => void
+  readonly retrying?: boolean
   readonly onPause: () => void
   readonly onResume: () => void
   readonly onStop: () => void
@@ -26,10 +29,19 @@ interface ControlFailure extends FailureVersion {
   readonly generation: number
 }
 
-export function VoicePlaybackBar({ phase, failed, onPause, onResume, onStop }: VoicePlaybackBarProps) {
+export function VoicePlaybackBar({
+  phase,
+  failed,
+  onRetry,
+  retrying = false,
+  onPause,
+  onResume,
+  onStop
+}: VoicePlaybackBarProps) {
   const { t } = useTranslation()
   const canPause = phase === 'playing' || phase === 'ready'
   const canResume = phase === 'paused'
+  const playbackFailed = phase === 'failed'
 
   return (
     <div
@@ -39,39 +51,73 @@ export function VoicePlaybackBar({ phase, failed, onPause, onResume, onStop }: V
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{t('settings.voice.playback.source')}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {t(failed ? 'settings.voice.status.operation_failed' : `settings.voice.playback.state.${phase}`)}
+          {t(
+            playbackFailed
+              ? 'settings.voice.playback.state.failed'
+              : failed
+                ? 'settings.voice.status.operation_failed'
+                : `settings.voice.playback.state.${phase}`
+          )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {canResume ? (
-          <Button variant="ghost" size="icon-sm" aria-label={t('settings.voice.action.resume')} onClick={onResume}>
-            <Play className="size-4" />
-          </Button>
+        {playbackFailed ? (
+          <>
+            {onRetry && (
+              <Tooltip content={t('common.retry')}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.retry')}
+                  loading={retrying}
+                  onClick={onRetry}>
+                  {!retrying && <RotateCcw className="size-4" />}
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip content={t('common.close')}>
+              <Button variant="ghost" size="icon-sm" aria-label={t('common.close')} onClick={onStop}>
+                <X className="size-4" />
+              </Button>
+            </Tooltip>
+          </>
         ) : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('settings.voice.action.pause')}
-            disabled={!canPause}
-            onClick={onPause}>
-            <Pause className="size-4" />
-          </Button>
+          <>
+            <Tooltip content={t(canResume ? 'settings.voice.action.resume' : 'settings.voice.action.pause')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t(canResume ? 'settings.voice.action.resume' : 'settings.voice.action.pause')}
+                disabled={!canPause && !canResume}
+                onClick={canResume ? onResume : onPause}>
+                {canResume ? <Play className="size-4" /> : <Pause className="size-4" />}
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('common.stop')}>
+              <Button variant="ghost" size="icon-sm" aria-label={t('common.stop')} onClick={onStop}>
+                <Square className="size-4" />
+              </Button>
+            </Tooltip>
+          </>
         )}
-        <Button variant="ghost" size="icon-sm" aria-label={t('common.stop')} onClick={onStop}>
-          <Square className="size-4" />
-        </Button>
       </div>
     </div>
   )
 }
 
 export function VoicePlaybackHost(): React.ReactElement | null {
+  const { t } = useTranslation()
   const state = useSyncExternalStore(voiceService.subscribe, voiceService.getSnapshot, voiceService.getSnapshot)
   const sessionId = state.phase === 'idle' || state.source !== 'playback' ? undefined : state.sessionId
+  const retryAvailable = useSyncExternalStore(speechPlaybackService.subscribe, () =>
+    Boolean(sessionId && speechPlaybackService.canRetry(sessionId))
+  )
   const currentStateRef = useRef<FailureVersion>({ sessionId, revision: state.revision })
   const controlGenerationRef = useRef(0)
   const [initializationFailure, setInitializationFailure] = useState<FailureVersion>()
   const [controlFailure, setControlFailure] = useState<ControlFailure>()
+  const [dismissedFailure, setDismissedFailure] = useState<FailureVersion>()
+  const [retrying, setRetrying] = useState<FailureVersion>()
 
   currentStateRef.current = { sessionId, revision: state.revision }
 
@@ -110,8 +156,19 @@ export function VoicePlaybackHost(): React.ReactElement | null {
   }, [])
 
   if (!sessionId || state.phase === 'idle' || state.source !== 'playback') return null
+  if (
+    state.phase === 'failed' &&
+    dismissedFailure?.sessionId === sessionId &&
+    dismissedFailure.revision === state.revision
+  )
+    return null
 
-  const control = (operationSessionId: string, operationRevision: number, operation: () => Promise<void>) => {
+  const control = (
+    operationSessionId: string,
+    operationRevision: number,
+    operation: () => Promise<void>,
+    notifyFailure = false
+  ) => {
     const generation = ++controlGenerationRef.current
     setControlFailure(undefined)
     void operation().catch(() => {
@@ -121,6 +178,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
         controlGenerationRef.current === generation
       ) {
         setControlFailure({ sessionId: operationSessionId, revision: operationRevision, generation })
+        if (notifyFailure) toast.error(t('settings.voice.status.operation_failed'))
       }
     })
   }
@@ -134,9 +192,49 @@ export function VoicePlaybackHost(): React.ReactElement | null {
       phase={state.phase}
       source="playback"
       failed={initializationFailed || controlFailed || state.phase === 'failed'}
+      retrying={retrying?.sessionId === sessionId}
+      onRetry={
+        retryAvailable
+          ? () => {
+              const attempt = { sessionId, revision: state.revision }
+              setRetrying(attempt)
+              control(
+                sessionId,
+                state.revision,
+                async () => {
+                  try {
+                    await speechPlaybackService.retry(sessionId)
+                  } finally {
+                    setRetrying((current) => (current === attempt ? undefined : current))
+                  }
+                },
+                true
+              )
+            }
+          : undefined
+      }
       onPause={() => control(sessionId, state.revision, () => speechPlaybackService.pause(sessionId))}
       onResume={() => control(sessionId, state.revision, () => speechPlaybackService.resume(sessionId))}
-      onStop={() => control(sessionId, state.revision, () => speechPlaybackService.stop(sessionId))}
+      onStop={() =>
+        control(
+          sessionId,
+          state.revision,
+          async () => {
+            try {
+              await speechPlaybackService.stop(sessionId)
+            } catch (error) {
+              if (
+                state.phase !== 'failed' ||
+                !(error instanceof VoiceDomainError) ||
+                error.reason !== 'invalid_request'
+              )
+                throw error
+            }
+            if (state.phase === 'failed') setDismissedFailure({ sessionId, revision: state.revision })
+          },
+          state.phase === 'failed'
+        )
+      }
     />
   )
 }
