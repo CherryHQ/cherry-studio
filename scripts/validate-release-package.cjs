@@ -70,8 +70,12 @@ function verifyApplicationBundle(app) {
   if (!executableStat?.isFile() || executableStat.size === 0 || (executableStat.mode & 0o111) === 0) {
     throw new Error('Mounted DMG contains no usable application executable')
   }
-  const signature = path.join(app, 'Contents', '_CodeSignature')
-  if (fs.existsSync(signature)) execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' })
+  const sealedResources = path.join(app, 'Contents', '_CodeSignature', 'CodeResources')
+  const sealedResourcesStat = fs.statSync(sealedResources, { throwIfNoEntry: false })
+  if (!sealedResourcesStat?.isFile() || sealedResourcesStat.size === 0) {
+    throw new Error('Mounted DMG application is missing its sealed code resources')
+  }
+  execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=4', app], { stdio: 'inherit' })
   verifyPackagedApplication(path.join(app, 'Contents', 'Resources'))
 }
 
