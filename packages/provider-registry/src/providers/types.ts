@@ -102,6 +102,7 @@ export function openaiCompatible(
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
+    supplementModelsFromRegistry?: ProviderConfig['supplementModelsFromRegistry']
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
@@ -122,6 +123,9 @@ export function openaiCompatible(
     metadata: { website: p.website },
     availableInEditions: p.availableInEditions,
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
+    ...(p.supplementModelsFromRegistry !== undefined
+      ? { supplementModelsFromRegistry: p.supplementModelsFromRegistry }
+      : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),

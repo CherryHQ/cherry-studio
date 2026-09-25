@@ -387,6 +387,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
+      ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
       ...(traceEnv
         ? {
             env: {
@@ -655,6 +656,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this.closePromise
   }
 
+  async closeForEdit(): Promise<void> {
+    const closing = this.close()
+    const exited = this.processDiagnostics?.exited
+    if (this.query && !exited) throw new Error('Claude Code process exit cannot be confirmed')
+    await Promise.all([closing, exited])
+  }
+
   private async closeQuery(): Promise<void> {
     const query = this.query
     this.settlePendingInvocations()
@@ -663,17 +671,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.steerBoundaryPending = undefined
     this.teardownSession()
     this.eventQueue.close()
-    if (!query) return
+    const exited = this.processDiagnostics?.exited
+    if (!query && !exited) return
     try {
-      query.close()
+      query?.close()
     } catch (error) {
       logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
     }
-    try {
-      await query.return(undefined)
-    } catch (error) {
+    // The runtime owner bounds its wait; retain completion so a late teardown can unblock the session.
+    await query?.return(undefined).catch((error) => {
       logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
-    }
+    })
   }
 
   private async runQueryLoop(): Promise<void> {

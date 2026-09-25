@@ -7,6 +7,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -121,7 +122,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const openManualForm = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+      await openExternalWebsite(DIAGNOSTIC_FEEDBACK_FORM_URL)
     } catch (error) {
       logger.error('Failed to open the diagnostic feedback form', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.open_form_failed'))
