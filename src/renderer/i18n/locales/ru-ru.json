@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Поддерживаются только ZIP-файлы и каталоги",
   "settings.skills.launchDraft": "Используй навык {{name}}, чтобы помочь мне с этой задачей.",
   "settings.skills.launchFailed": "Не удалось попробовать {{name}}",
+  "settings.skills.mirrorToggle": "Синхронизировать навык {{name}} в каталог agents",
+  "settings.skills.mirrorToggleFailed": "Не удалось синхронизировать навык {{name}}",
   "settings.skills.notFound": "Навык не найден",
   "settings.skills.readOnly": "Только чтение",
   "settings.skills.remote.applyFailed": "Не удалось обновить Skill",

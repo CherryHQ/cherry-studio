@@ -170,6 +170,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceTags: ['writing'],
     contentHash: 'hash',
     isGlobalEnabled: true,
+    mirrorEnabled: true,
     isEnabled: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
