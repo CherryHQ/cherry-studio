@@ -1211,7 +1211,13 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
-        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+        const abortedPendingTurn = application
+          .get('AgentSessionRuntimeService')
+          .abortPendingTurn(extractAgentSessionId(topicId), reason)
+        // A turn aborted before its stream exists never reaches the line below, so a Stop
+        // pressed on an agent session that has not started streaming would otherwise take
+        // effect without anything naming who asked for it.
+        if (abortedPendingTurn) logger.info('Aborting pending agent turn', { topicId, reason })
       }
       return
     }
@@ -1254,7 +1260,8 @@ export class AiStreamManager extends BaseService {
             if (replacementLoops.length === 0) return
 
             replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
-            this.abort(topicId, reason)
+            // Nobody asked to stop this stream; it only appeared inside someone else's teardown.
+            this.abort(topicId, `drain-replacement:${reason}`)
             await Promise.allSettled(replacementLoops)
           }
         }

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ActiveExecution, AiStreamAbortOrigin } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useTopicDbRefreshOnAwaitingApproval } from './useTopicStreamStatus'
@@ -20,7 +20,9 @@ const EMPTY_EXECUTIONS: readonly ActiveExecution[] = Object.freeze([])
 export interface UseChatWithHistoryResult {
   sendMessage: (message?: { text: string; files?: FileUIPart[] }, options?: ChatRequestOptions) => Promise<void>
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
-  stop: () => Promise<void>
+  /** `origin` must come from the boundary that decided to stop — the hook cannot tell a
+   *  user's Stop from a programmatic one, and guessing is what made the log untrustworthy. */
+  stop: (origin: AiStreamAbortOrigin) => Promise<void>
   error: Error | undefined
   status: ReturnType<typeof useChat<CherryUIMessage>>['status']
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
@@ -67,12 +69,20 @@ export function useChatWithHistory(
     experimental_throttle: 100
   })
 
-  const stop = useCallback(async () => {
-    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
-    const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
-    if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
-    if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
-  }, [enabled, sdkStop, topicId])
+  const stop = useCallback(
+    async (origin: AiStreamAbortOrigin) => {
+      const stopBoth = async () => {
+        const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId, origin }) : Promise.resolve()
+        const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
+        if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
+        if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
+      }
+      // sdkStop() aborts the transport's signal too; that abort is this one, and a second request
+      // from the transport would race `origin` to main.
+      await (enabled ? ipcChatTransport.withAttributedStop(topicId, stopBoth) : stopBoth())
+    },
+    [enabled, sdkStop, topicId]
+  )
 
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh

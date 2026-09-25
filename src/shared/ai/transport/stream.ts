@@ -60,7 +60,7 @@ export type TopicStreamStatus =
   | 'pending' // ActiveStream created; no chunk has arrived yet from any execution
   | 'streaming' // at least one chunk has arrived; content is flowing
   | 'done' // all executions completed successfully
-  | 'aborted' // user stopped; partial content may exist
+  | 'aborted' // stopped before finishing, for any AiStreamAbortOrigin or a Main-side reason; partial content may exist
   | 'awaiting-approval' // paused waiting for the user to approve/deny a tool call (cross-window via shared cache)
   | 'error' // at least one execution errored with isTopicDone
 
@@ -255,9 +255,19 @@ export interface AiStreamDetachRequest {
   topicId: string
 }
 
+/**
+ * Who asked Main to abort a topic. Main stamps it into the stream's abort reason,
+ * so `Aborting stream` names the caller instead of always reading `user-requested`.
+ */
+export const aiStreamAbortOrigins = ['user-stop', 'transport-abort-signal', 'translate-cancel'] as const
+
+export type AiStreamAbortOrigin = (typeof aiStreamAbortOrigins)[number]
+
 /** Abort the active generation on a topic. */
 export interface AiStreamAbortRequest {
   topicId: string
+  /** Omitted by a caller that cannot name itself; Main falls back to its own reason. */
+  origin?: AiStreamAbortOrigin
 }
 
 /** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */

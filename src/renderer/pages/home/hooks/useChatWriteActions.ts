@@ -27,6 +27,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import type { AiStreamAbortOrigin } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -85,7 +86,7 @@ interface Params {
   activeNodeId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
-  stop: () => Promise<void>
+  stop: (origin: AiStreamAbortOrigin) => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
@@ -520,7 +521,7 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handlePause = useCallback<ChatWriteActions['pause']>(() => {
-    void stop().catch((error) => {
+    void stop('user-stop').catch((error) => {
       logger.error('Failed to pause chat stream', { topicId: topic.id, error })
     })
   }, [stop, topic.id])

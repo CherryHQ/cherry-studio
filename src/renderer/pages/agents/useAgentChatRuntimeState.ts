@@ -35,7 +35,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
-import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AiStreamAbortOrigin, AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -125,7 +125,7 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
-  stop: () => Promise<void>
+  stop: (origin: AiStreamAbortOrigin) => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
