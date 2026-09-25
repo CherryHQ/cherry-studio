@@ -2057,5 +2057,55 @@ describe('CherryAutonomyTools', () => {
       expect(onDisk.command).toBe(record.command)
       expect(onDisk.startedAt).toBe(record.startedAt)
     })
+
+    // Indexing the task for the panel is the last step of `start`, after the process is spawned and
+    // its disk record written. Reporting a failure there would be a lie that invites a retry, and the
+    // retry would run the command a second time.
+    it('reports a start whose only failure was indexing the task', async () => {
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        const server = createServer('agent_test', workspaceDir)
+        const result = await callTool(
+          server,
+          { action: 'start', command: `${nodeBin} -e "setTimeout(() => process.exit(0), 1500)"` },
+          'background_task'
+        )
+
+        expect(result.isError).toBeFalsy()
+        const record = JSON.parse(result.content[0].text)
+        expect(record.status).toBe('running')
+        expect(record.pid).toBeGreaterThan(0)
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    // Same seam at the other end: a finished task's channel notification must not be suppressed by
+    // the panel index write that happens alongside it.
+    it('still notifies configured channels when indexing a finished task fails', async () => {
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        const server = createServer('agent_test', workspaceDir)
+        await callTool(server, { action: 'start', command: `${nodeBin} -e "process.exit(0)"` }, 'background_task')
+
+        await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
   })
 })

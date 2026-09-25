@@ -24,6 +24,7 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import {
+  type BackgroundTaskRecord,
   type CompletedBackgroundTask,
   getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
@@ -1041,14 +1042,11 @@ export class CherryAutonomyTools {
       cwd: this.workspacePath,
       name: typeof args.name === 'string' ? args.name : undefined,
       onExit: (task) => {
-        saveBackgroundTaskRecord(this.agentId, task.record)
+        this.indexBackgroundTask(task.record)
         this.notifyBackgroundTaskCompletion(task)
       }
     })
-    saveBackgroundTaskRecord(
-      this.agentId,
-      (await getDetachedBackgroundTask(this.backgroundTaskStorageDir, record.id)) ?? record
-    )
+    this.indexBackgroundTask((await getDetachedBackgroundTask(this.backgroundTaskStorageDir, record.id)) ?? record)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
     }
@@ -1059,7 +1057,7 @@ export class CherryAutonomyTools {
     if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for status")
     const record = await getDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId)
     if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" not found`)
-    saveBackgroundTaskRecord(this.agentId, record)
+    this.indexBackgroundTask(record)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
     }
@@ -1067,7 +1065,7 @@ export class CherryAutonomyTools {
 
   private async listBackgroundTasks() {
     const tasks = await listDetachedBackgroundTasks(this.backgroundTaskStorageDir)
-    for (const task of tasks) saveBackgroundTaskRecord(this.agentId, task)
+    for (const task of tasks) this.indexBackgroundTask(task)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ tasks }, null, 2) }]
     }
@@ -1078,8 +1076,21 @@ export class CherryAutonomyTools {
     if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for stop/kill")
     const record = await stopDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId, force)
     if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" is not running or cannot be verified`)
-    saveBackgroundTaskRecord(this.agentId, record)
+    this.indexBackgroundTask(record)
     return { content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }] }
+  }
+
+  /**
+   * Index a task for the panel. Best-effort by design: the disk record is the source of truth and
+   * the side effect has already happened, so a DB failure must not be reported as a tool failure —
+   * for `start` that invites a retry and duplicates work that is in fact running.
+   */
+  private indexBackgroundTask(record: BackgroundTaskRecord): void {
+    try {
+      saveBackgroundTaskRecord(this.agentId, record)
+    } catch (error) {
+      logger.error('Failed to index detached background task', { taskId: record.id, error })
+    }
   }
 
   /**
