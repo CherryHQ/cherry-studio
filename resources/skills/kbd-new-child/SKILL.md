@@ -42,7 +42,7 @@ Completed kbd-new-child — <parent>/<child> ready for /kbd-assess
 ## How to invoke
 
 ```bash
-node scripts/kbd-new-child.mjs <child-name> [goal-1] [goal-2] …
+boss-mini kbd-new-child.mjs <child-name> [goal-1] [goal-2] …
 ```
 
 ## Examples

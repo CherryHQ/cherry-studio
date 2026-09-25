@@ -51,7 +51,7 @@ Parse for:
 Dispatch to the orchestration script:
 
 ```bash
-node scripts/convert-htmx-pdf.mjs \
+boss-mini convert-htmx-pdf.mjs \
   --source "${SOURCE}" \
   --output "${OUTPUT}" \
   --format "${FORMAT:-Letter}" \

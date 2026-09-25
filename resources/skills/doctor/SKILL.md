@@ -10,7 +10,7 @@ Run the checks, read the JSON lines, and apply a fix **only when the check offer
 ## Running it
 
 ```bash
-node scripts/doctor.mjs
+boss-mini doctor.mjs
 ```
 
 One JSON object per line, one per check, then a summary line. Exit `0` when nothing failed,
@@ -21,7 +21,7 @@ One JSON object per line, one per check, then a summary line. Exit `0` when noth
 {"summary":true,"pass":4,"warn":3,"fail":1,"skip":3}
 ```
 
-For a human reader, `node scripts/doctor.mjs --human` renders a table instead.
+For a human reader, `boss-mini doctor.mjs --human` renders a table instead.
 
 ## Reading the result
 
@@ -40,7 +40,7 @@ report a `skip` as "fine".
 Only `mini-skill-copies` offers one:
 
 ```bash
-node scripts/doctor.mjs --fix copy-skills
+boss-mini doctor.mjs --fix copy-skills
 ```
 
 It copies each missing or differing skill into `<home>/.agents/skills/` and

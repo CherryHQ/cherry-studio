@@ -1,0 +1,4 @@
+interface:
+  display_name: "Compass"
+  short_description: "Graph navigation and continuous GROUNDED enrichment"
+  default_prompt: "Use $compass to initialize this coding session, map the relevant code, and answer with cited graph and source evidence. Keep graph enhancement read-only unless I explicitly ask you to preserve GROUNDED agent knowledge; when I enable continuous enrichment, pin revisions and flush only verified milestones."

@@ -77,7 +77,10 @@ integration. MiniMax means its own `mcode` CLI.
 Export never overwrites an existing output directory or native configuration.
 Inspect `team-export.json`, diagnostics, native files and the source/version
 receipt. Preservation of arbitrary options is not semantic validation. Validate
-with the installed harness when available, or report source-only support.
+with the installed harness when available, or report source-only support. Confirm
+what a probe enumerates: CLI availability, running sessions, custom-role discovery
+and actual invocation are different evidence. For Claude, read the
+[validation caveat](references/native-harnesses.md#claude-code-validation).
 
 ## Install and operate within the requested scope
 

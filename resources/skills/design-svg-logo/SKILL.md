@@ -45,7 +45,7 @@ Parse for:
 Dispatch to the orchestration script:
 
 ```bash
-node scripts/design-svg-logo.mjs \
+boss-mini design-svg-logo.mjs \
   --brand-name "${BRAND_NAME}" \
   --brief "${BRIEF}" \
   --primary-color "${PRIMARY_COLOR}" \

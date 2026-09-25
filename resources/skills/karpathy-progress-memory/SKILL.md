@@ -59,7 +59,7 @@ later KBD revisions therefore replay as the same event. `observedAt` is receipt
 metadata and is not part of semantic collision detection:
 
 ```sh
-node scripts/record-progress.mjs \
+boss-mini record-progress.mjs \
   --project-root "$PWD" \
   --from-hook \
   --boundary task
@@ -95,7 +95,7 @@ For a manually assembled evidence boundary, validate an event matching
 `references/schemas/progress-event.schema.json`:
 
 ```sh
-node scripts/record-progress.mjs \
+boss-mini record-progress.mjs \
   --project-root /path/to/project \
   --input /path/to/progress-event.json
 ```
@@ -128,7 +128,7 @@ Do not change generated KBD files to make such an event pass.
 ## Flushing degraded receipts
 
 ```sh
-node scripts/record-progress.mjs --project-root "$PWD" --flush-degraded
+boss-mini record-progress.mjs --project-root "$PWD" --flush-degraded
 ```
 
 Retries delivery for every receipt that is incomplete or degraded, oldest

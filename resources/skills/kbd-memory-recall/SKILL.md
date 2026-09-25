@@ -37,7 +37,7 @@ Completed kbd-memory-recall — <phase> wrote prior-context.md
 ## How to invoke
 
 ```bash
-node scripts/kbd-memory-recall.mjs [<phase>]
+boss-mini kbd-memory-recall.mjs [<phase>]
 ```
 
 ## Examples

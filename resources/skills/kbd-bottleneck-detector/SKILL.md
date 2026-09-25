@@ -25,9 +25,9 @@ review result completes the detector operation without completing the boundary.
 Run it directly:
 
 ```bash
-node scripts/kbd-bottleneck-detector.mjs status
-node scripts/kbd-bottleneck-detector.mjs evaluate task before <task-id>
-node scripts/kbd-bottleneck-detector.mjs repair phase after <phase-id>
+boss-mini kbd-bottleneck-detector.mjs status
+boss-mini kbd-bottleneck-detector.mjs evaluate task before <task-id>
+boss-mini kbd-bottleneck-detector.mjs repair phase after <phase-id>
 ```
 
 `evaluate` does not repair projections. `repair` may rewrite only derived KBD

@@ -31,7 +31,7 @@ Parse for:
 Dispatch to the orchestration script:
 
 ```bash
-node scripts/convert-md-to-htmx.mjs \
+boss-mini convert-md-to-htmx.mjs \
   --source "${SOURCE}" \
   --brand "${BRAND}" \
   --output "${OUTPUT}" \

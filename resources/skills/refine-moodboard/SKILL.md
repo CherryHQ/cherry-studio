@@ -37,7 +37,7 @@ Parse for:
 Dispatch to the orchestration script:
 
 ```bash
-node scripts/refine-moodboard.mjs \
+boss-mini refine-moodboard.mjs \
   --use-case "${USE_CASE}" \
   --audience "${AUDIENCE}" \
   --aesthetic "${AESTHETIC}" \

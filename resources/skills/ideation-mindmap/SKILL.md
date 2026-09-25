@@ -34,7 +34,7 @@ User has a raw idea and wants to see structured branches before committing to a 
 Requires the `surreal-memory` MCP server to be running. Verify with:
 
 ```bash
-node scripts/doctor.mjs
+boss-mini doctor.mjs
 ```
 
 `surreal-memory` is one of this pack's two resident services (`.claude/rules/docker-services.md`). If it
@@ -60,8 +60,8 @@ generate_ideation_mindmap(topic: "<the one-line concept from $ARGUMENTS>", branc
 After each call, record it before moving to the next:
 
 ```bash
-node scripts/record-dispatch.mjs --session "$SESSION" --set 1 --topic "<concept>"
-node scripts/record-dispatch.mjs --session "$SESSION" --set 1 --topic "<concept>" --output <call-1-output-file>
+boss-mini record-dispatch.mjs --session "$SESSION" --set 1 --topic "<concept>"
+boss-mini record-dispatch.mjs --session "$SESSION" --set 1 --topic "<concept>" --output <call-1-output-file>
 ```
 
 Only **after** all sets exist do you pool them (Step 2).
@@ -137,7 +137,7 @@ branches to a separate scorer.
 ```bash
 # 1. Independence is a property of what each dispatch RECEIVED, so assert it
 #    against the recorded inputs — never by re-reading Step 1's instructions.
-node scripts/assert-independent-dispatch.mjs --session "$SESSION" || exit 2
+boss-mini assert-independent-dispatch.mjs --session "$SESSION" || exit 2
 ```
 
 ```
@@ -232,7 +232,7 @@ Which branches resonate with your vision? ...
 Every user-facing question goes through `scripts/emit-ui-intent.mjs`:
 
 ```bash
-node scripts/emit-ui-intent.mjs \
+boss-mini emit-ui-intent.mjs \
   --title "Which idea to build?" \
   --body  "Three survived scoring." \
   --option "Standup generator" --option "PR summariser"

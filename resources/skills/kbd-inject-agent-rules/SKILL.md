@@ -46,7 +46,7 @@ Completed kbd-inject-agent-rules — <count> file(s) updated, <count> unchanged
 ## How to invoke
 
 ```bash
-node scripts/kbd-inject-agent-rules.mjs \
+boss-mini kbd-inject-agent-rules.mjs \
   [--target CLAUDE.md|AGENTS.md|both] \
   [--path <project-root>] \
   [--pack agent-rules|uiux-routing] \

@@ -29,7 +29,7 @@ same schema the AG-UI web host uses.
 ## Validate
 
 ```bash
-node scripts/normalize-mcp-ui.mjs --input <resource.json>
+boss-mini normalize-mcp-ui.mjs --input <resource.json>
 ```
 
 Violations, in precedence order: `uri_scheme` · `unsupported_mime` ·

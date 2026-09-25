@@ -26,6 +26,25 @@ JSON flow syntax is used as YAML 1.2 for frontmatter and Cordis patch files. Thi
 | OpenCode | `.opencode/agents/<name>.md`, optional `opencode.json` | Deployed singular `agent`, `permission`, `prompt` schema. Colliding config/Markdown agent names fail. Plugins are a separate JS/TS/npm facility. [Agents](https://opencode.ai/docs/agents/), [plugins](https://opencode.ai/docs/plugins/). |
 | DeepSeek Harness | `.dsh/profiles/<team>-<role>/cordis.patch.yml`; separate `<team>-team` composition profile | Cordis `insert` entries configure persona roles. Separate composition enables durable session storage and both experimental team packages; it does not declare or create members. Team options configure `dsh-experimental-agent-team`. No per-member model, remote worker or worktree isolation is promised. [Cordis publishing](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), [persona](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/preset/persona/README.md), [experimental team source](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/experimental/agent-team/README.md). |
 
+## Claude Code validation
+
+Observed with Claude Code 2.1.282 on 2026-09-24: `claude agents` refuses
+non-interactive stdout; its suggested `claude agents --json` succeeds but lists
+running sessions (PID, working directory and status), not definitions in
+`.claude/agents/`. Neither a session listing nor `--version` validates exported
+custom roles. Do not treat an absent role in that listing as an exporter failure.
+
+Use the installed version's documented custom-subagent discovery surface and
+confirm the expected project role/source appears. If no suitable discovery probe
+is available, check frontmatter and source contracts and report source/syntax-only
+support; do not invent a CLI subcommand or start inference merely to list roles.
+Current [subagent documentation](https://code.claude.com/docs/en/sub-agents)
+describes file watching, with a restart needed for the first file in a newly
+created agents directory, added-directory changes, or disabled slash commands.
+The [agent view](https://code.claude.com/docs/en/agent-view) is a separate session
+monitoring surface. Record the tested version and distinguish discovery from
+successful invocation.
+
 ## Service registration artifacts
 
 UAR 1.0.0 source commit `ba12845138104d3c8c3b8bca8bc7c5be24004e91`: `src/uar/domain/artifact.rs`, `api/discovery.rs`, `api/routes.rs`, `api/compiler.rs`, `security/middleware.rs`. Each `uar/agents/<role>.json` is a complete `AgentArtifact` for `POST /api/agents`. `runtime.entry=default`; policy provider defaults can inherit through empty strings. `policy.skills.prefer` is a preference, not a deny policy. UAR role overrides apply after team defaults. Explicit tool allowlists and bundles start empty; select required native tool permissions through overrides before registration. No persistent native team API is asserted. Execution uses a separate `POST /api/uar/runs` with full `artifact` and `input`; it is not attempted by export.

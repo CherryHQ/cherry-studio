@@ -37,7 +37,7 @@ to work around by reintroducing a shell-out to a script that does not exist here
 ## Calling it
 
 ```bash
-node scripts/emit-ui-intent.mjs \
+boss-mini emit-ui-intent.mjs \
   --title "Which idea to build?" \
   --body  "Three survived scoring." \
   --option "Standup generator" \

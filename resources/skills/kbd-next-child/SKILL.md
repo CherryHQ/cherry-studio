@@ -36,7 +36,7 @@ Where `<from>` is `(none)` when no child was previously active.
 ## How to invoke
 
 ```bash
-node scripts/kbd-next-child.mjs [<child-name>]
+boss-mini kbd-next-child.mjs [<child-name>]
 ```
 
 ## Examples

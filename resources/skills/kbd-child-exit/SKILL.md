@@ -51,8 +51,8 @@ Use the canonical chain from `path[]`. Emit to plain response text.
 ## How to invoke
 
 ```bash
-node scripts/kbd-child-exit.mjs          # exit
-node scripts/kbd-child-exit.mjs --enter  # descend
+boss-mini kbd-child-exit.mjs          # exit
+boss-mini kbd-child-exit.mjs --enter  # descend
 ```
 
 Prerequisites: the waypoint `path[]` must have depth > 1 to exit; a

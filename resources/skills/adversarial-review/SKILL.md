@@ -127,8 +127,8 @@ three files travel as separate fields (`research_report`,
 recorded. A package missing any of the three files is refused with exit 2.
 
 ```bash
-node scripts/adversarial-review/build-review-packet.mjs --mode artifact --target research --package ~/.prometheus/research/<package_id> --out review/packet.json
-node scripts/adversarial-review/dispatch-judge.mjs       --mode artifact --packet review/packet.json --out review/findings.json
+boss-mini adversarial-review/build-review-packet.mjs --mode artifact --target research --package ~/.prometheus/research/<package_id> --out review/packet.json
+boss-mini adversarial-review/dispatch-judge.mjs       --mode artifact --packet review/packet.json --out review/findings.json
 ```
 
 ### `--mode skill` / `--mode agent` — generated artifacts (creation gate)
@@ -163,8 +163,8 @@ without spending a judge call. It also carries `prior_decisions` (via `pk
 search`), so a decision that contradicts an earlier one is visible to the judge.
 
 ```bash
-node scripts/adversarial-review/build-review-packet.mjs --mode decision --target decision.md --intent intent.md --out packet.json
-node scripts/adversarial-review/dispatch-judge.mjs       --mode decision --packet packet.json --out findings.json
+boss-mini adversarial-review/build-review-packet.mjs --mode decision --target decision.md --intent intent.md --out packet.json
+boss-mini adversarial-review/dispatch-judge.mjs       --mode decision --packet packet.json --out findings.json
 ```
 
 Decision-mode findings additionally require `confidence` (0–100),
@@ -184,8 +184,8 @@ Decisions and their outcomes persist via `decision-log.mjs` (`record` /
 happened.
 
 ```bash
-node scripts/adversarial-review/build-review-packet.mjs --mode skill --target dist/my-skill --intent spec.md --out packet.json
-node scripts/adversarial-review/build-review-packet.mjs --mode agent --target ./my-agent   --intent spec.md --out packet.json
+boss-mini adversarial-review/build-review-packet.mjs --mode skill --target dist/my-skill --intent spec.md --out packet.json
+boss-mini adversarial-review/build-review-packet.mjs --mode agent --target ./my-agent   --intent spec.md --out packet.json
 ```
 
 Both are **manifest-level**: they record what each file *is* and does, never its
@@ -232,21 +232,21 @@ export KBD_PRODUCER_MODEL="claude-opus-5"   # ← the model running THIS session
 
 # 1. Preflight (cached 24h at .kbd-orchestrator/model-preflight.json)
 #    Reports the gateway, the model per role, and WHICH config layer supplied it.
-node scripts/adversarial-review/preflight-models.mjs
+boss-mini adversarial-review/preflight-models.mjs
 
 # 2. Build the packet
-node scripts/adversarial-review/build-review-packet.mjs \
+boss-mini adversarial-review/build-review-packet.mjs \
   --mode diff --phase "$PHASE" --target "$CHANGE_ID" \
   --out ".kbd-orchestrator/phases/$PHASE/review/$CHANGE_ID/packet.json"
 
 # 3. Dispatch the judge
-node scripts/adversarial-review/dispatch-judge.mjs \
+boss-mini adversarial-review/dispatch-judge.mjs \
   --mode diff \
   --packet ".kbd-orchestrator/phases/$PHASE/review/$CHANGE_ID/packet.json" \
   --out    ".kbd-orchestrator/phases/$PHASE/review/$CHANGE_ID/findings.json"
 
 # 4. Anti-theater gate (exit 2 = rejected: re-dispatch once with feedback)
-node scripts/adversarial-review/check-findings-sycophancy.mjs \
+boss-mini adversarial-review/check-findings-sycophancy.mjs \
   --findings ".kbd-orchestrator/phases/$PHASE/review/$CHANGE_ID/findings.json" \
   --counter-key "adv-review-$CHANGE_ID"
 ```
@@ -325,7 +325,7 @@ warning) — it never blocks the chain.
 The cap defaults to **2** and is overridable via `PROMETHEUS_ADV_REJECT_CAP`:
 
 ```bash
-PROMETHEUS_ADV_REJECT_CAP=4 node scripts/adversarial-review/check-findings-sycophancy.mjs --findings f.json
+PROMETHEUS_ADV_REJECT_CAP=4 boss-mini adversarial-review/check-findings-sycophancy.mjs --findings f.json
 ```
 
 | Value | Effect |
@@ -395,8 +395,8 @@ script-bearing skill in `skills/` a mobile execution verdict (E0/E1/E2/R),
 derived from what its scripts actually invoke, not hand-typed:
 
 ```bash
-node scripts/adversarial-review/classify-mobile-execution.mjs --out .kbd-orchestrator/phases/mobile-skill-portability/mobile-classification.json
-node scripts/adversarial-review/classify-mobile-execution.mjs --check
+boss-mini adversarial-review/classify-mobile-execution.mjs --out .kbd-orchestrator/phases/mobile-skill-portability/mobile-classification.json
+boss-mini adversarial-review/classify-mobile-execution.mjs --check
 ```
 
 ## Escalation — Party Mode is not built here

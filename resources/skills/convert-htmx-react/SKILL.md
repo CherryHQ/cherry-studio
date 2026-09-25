@@ -32,7 +32,7 @@ Parse the arguments for:
 Dispatch to the orchestration script:
 
 ```bash
-node scripts/convert-htmx-react.mjs \
+boss-mini convert-htmx-react.mjs \
   --source "${SOURCE}" \
   --feature-name "${FEATURE}" \
   --output "${OUTPUT}"

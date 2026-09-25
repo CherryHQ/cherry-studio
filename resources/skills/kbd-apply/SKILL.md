@@ -23,7 +23,7 @@ task.
 ## The per-task loop (what the model does each turn)
 
 ```bash
-APPLY="node scripts/kbd-apply.mjs"
+APPLY="boss-mini kbd-apply.mjs"
 # Select the change from DERIVED state — see "Which change" below. Never from
 # the waypoint's `exactNextCommand`.
 CHANGE="<see 'Which change am I on' below>"
