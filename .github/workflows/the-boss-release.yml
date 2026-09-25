@@ -64,7 +64,9 @@ jobs:
       - name: Enable Windows long paths
         if: runner.os == 'Windows'
         shell: pwsh
-        run: git config --global core.longpaths true
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
           submodules: recursive
