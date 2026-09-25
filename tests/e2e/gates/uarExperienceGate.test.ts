@@ -38,7 +38,12 @@ type OperationSnapshot = {
     name: string
     documents: Array<{ id: string; filename: string; status: string; chunkCount: number }>
   }>
-  protocols: { a2a: string; acp: string }
+  protocols: {
+    a2a: string
+    acp: string
+    federatedAgents: Array<{ id: string; name: string; baseUrl: string; capabilities: string[] }>
+    federatedSkills: number
+  }
   failures: Array<{ surface: string; message: string }>
 }
 type AdministrationSnapshot = {
@@ -419,7 +424,9 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     expect(search.some((result) => result.content.includes('sapphire integration'))).toBe(true)
 
     operations = await ipc<OperationSnapshot>(page, 'prometheus.uar.operations.read', {})
-    expect(operations.protocols).toEqual({ a2a: 'available', acp: 'available' })
+    expect(operations.protocols).toMatchObject({ a2a: 'available', acp: 'available' })
+    expect(operations.protocols.federatedAgents).toEqual([])
+    expect(operations.protocols.federatedSkills).toBe(0)
     expect(operations.failures).toEqual([])
     const administration = await ipc<AdministrationSnapshot>(page, 'prometheus.uar.admin.snapshot', {})
     expect(administration.surfaces.length).toBeGreaterThan(10)
