@@ -24,6 +24,7 @@ import {
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEY,
@@ -212,11 +213,13 @@ const BUNDLED_TOOLS: Array<{
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
-  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', 'uar-sidecar', 'liter-llm'].map((name) => ({
-    name,
-    binaries: [name],
-    versionFile: `.${name}-version`
-  }))
+  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', ...(isUarEnabled() ? ['uar-sidecar'] : [])].map(
+    (name) => ({
+      name,
+      binaries: [name],
+      versionFile: `.${name}-version`
+    })
+  )
 ]
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'

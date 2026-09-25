@@ -56,6 +56,7 @@ import {
   selectLocalLiterRoleDocument
 } from '@main/services/prometheus/literRoleAssignments'
 import { applyPrometheusFix, runPrometheusDoctor } from '@main/services/prometheus/prometheusDoctor'
+import { assertUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { prometheusErrorCodes } from '@shared/ipc/errors/prometheus'
 import type { prometheusRequestSchemas } from '@shared/ipc/schemas/prometheus'
@@ -76,7 +77,7 @@ async function withIntegrationRevision<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas> = {
+const prometheusHandlerImplementations: IpcHandlersFor<typeof prometheusRequestSchemas> = {
   'prometheus.liter_config.select_local': async () => selectLocalLiterConfig(),
   'prometheus.liter_config.read': async ({ source }) => readLiterConfig(source),
   'prometheus.liter_config.preview': async ({ source, expectedRevision, edits }) =>
@@ -181,3 +182,17 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.skills.push': async () => application.get('PrometheusSkillPushService').push(),
   'prometheus.skills.push_state': async () => application.get('PrometheusSkillPushService').getState()
 }
+
+type UntypedIpcHandler = (...args: unknown[]) => unknown
+
+export const prometheusHandlers = Object.fromEntries(
+  Object.entries(prometheusHandlerImplementations).map(([route, handler]) => [
+    route,
+    route.startsWith('prometheus.uar.')
+      ? (...args: unknown[]) => {
+          assertUarEnabled()
+          return (handler as unknown as UntypedIpcHandler)(...args)
+        }
+      : handler
+  ])
+) as IpcHandlersFor<typeof prometheusRequestSchemas>

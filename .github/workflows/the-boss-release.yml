@@ -22,6 +22,7 @@ concurrency:
   cancel-in-progress: false
 env:
   NODE_OPTIONS: --max-old-space-size=8192
+  THE_BOSS_UAR_ENABLED: "0"
 permissions:
   contents: read
 jobs:
@@ -30,6 +31,7 @@ jobs:
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
       platforms: ${{ steps.select.outputs.platforms }}
+      profile: ${{ steps.select.outputs.profile }}
     steps:
       - uses: actions/checkout@v7
       - id: select

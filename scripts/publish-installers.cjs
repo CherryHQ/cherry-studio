@@ -2,10 +2,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { execFileSync, spawnSync } = require('node:child_process')
+const { resolveReleaseProfile } = require('./release-profile.cjs')
 
 async function main() {
   const root = path.resolve(__dirname, '..')
   const version = require('../package.json').version
+  const profile = resolveReleaseProfile()
   const platform = process.platform
   const arch = process.arch
   const extensions =
@@ -51,22 +53,34 @@ async function main() {
         { env: { ...process.env, BOSS_INSTALLER: filename }, encoding: 'utf8' }
       ).trim()
       signing = output === 'Valid' ? 'signed' : `Authenticode: ${output}`
-    } else if (platform === 'darwin' && process.env.HAS_SIGNING === 'true') {
+    } else if (platform === 'darwin') {
       const app = path.join(directory, arch === 'arm64' ? 'mac-arm64' : 'mac', 'The Boss.app')
       try {
         execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' })
         const detail = spawnSync('codesign', ['-d', '--verbose=4', app], { encoding: 'utf8' })
         signing = detail.stderr.includes('Authority=') ? 'signed (not notarized)' : 'ad-hoc (not notarized)'
       } catch {
-        signing = 'unsigned or signature invalid'
+        signing = process.env.HAS_SIGNING === 'true' ? 'signature invalid' : 'unsigned (not notarized)'
       }
     }
-    artifacts.push({ name, size, sha256: digest.digest('hex'), url, signing })
+    artifacts.push({ name, size, sha256: digest.digest('hex'), url, signing, profile: profile.id })
     console.log(`Published ${name}: ${url}`)
   }
   fs.writeFileSync(
     path.join(root, `installers-${platform}-${arch}.json`),
-    JSON.stringify({ platform, arch, version, source: process.env.GITHUB_SHA, artifacts }, null, 2) + '\n'
+    JSON.stringify(
+      {
+        platform,
+        arch,
+        version,
+        profile: profile.id,
+        features: { uar: profile.uarEnabled },
+        source: process.env.GITHUB_SHA,
+        artifacts
+      },
+      null,
+      2
+    ) + '\n'
   )
 }
 main().catch((error) => {

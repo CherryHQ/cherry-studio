@@ -15,6 +15,7 @@ import { ensureManagedSecrets } from '@main/services/prometheus/integrationConfi
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
+import { assertUarEnabled, isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
 
 import { uarPrincipalForSession } from './uarPrincipal'
@@ -71,6 +72,7 @@ export class UarSidecarService extends BaseService {
   }
 
   async ensureReady(): Promise<UarSidecarEndpoint> {
+    assertUarEnabled()
     const running = await this.ensureRunning()
     return {
       baseUrl: running.baseUrl,
@@ -83,6 +85,7 @@ export class UarSidecarService extends BaseService {
   }
 
   status(): UarSidecarStatus | undefined {
+    if (!isUarEnabled()) return undefined
     const running = this.running
     if (!running || !this.isAlive(running.child)) return undefined
     return {
@@ -97,6 +100,7 @@ export class UarSidecarService extends BaseService {
   }
 
   async restart(): Promise<UarSidecarEndpoint> {
+    assertUarEnabled()
     const running = await this.operation.runExclusive(async () => {
       await this.stopOwnedProcess()
       const next = await this.startOwnedProcess(await readAppliedUarStorage())
@@ -114,6 +118,7 @@ export class UarSidecarService extends BaseService {
   }
 
   async applyStorage(candidate: AppliedUarStorage): Promise<UarSidecarEndpoint> {
+    assertUarEnabled()
     const running = await this.operation.runExclusive(async () => {
       const previous = this.running?.storage ?? (await readAppliedUarStorage())
       await this.stopOwnedProcess()
@@ -150,6 +155,7 @@ export class UarSidecarService extends BaseService {
     init: RequestInit = {},
     expectedGeneration?: number
   ): Promise<Response> {
+    assertUarEnabled()
     const running = await this.ensureRunning()
     if (expectedGeneration !== undefined && running.generation !== expectedGeneration) {
       throw new Error('UAR sidecar restarted before the request was admitted')
@@ -163,6 +169,7 @@ export class UarSidecarService extends BaseService {
     init: RequestInit = {},
     expectedGeneration?: number
   ): Promise<Response> | undefined {
+    if (!isUarEnabled()) return undefined
     const running = this.running
     if (!running || !this.isAlive(running.child)) return undefined
     if (expectedGeneration !== undefined && running.generation !== expectedGeneration) return undefined
@@ -172,6 +179,7 @@ export class UarSidecarService extends BaseService {
   /** Main-process-only administration request. The protected authority never
    * crosses IPC or appears in endpoint/status snapshots. */
   async adminRequest(pathname: string, init: RequestInit = {}, expectedGeneration?: number): Promise<Response> {
+    assertUarEnabled()
     const running = await this.ensureRunning()
     if (expectedGeneration !== undefined && running.generation !== expectedGeneration) {
       throw new Error('UAR sidecar restarted before the administration request was admitted')
@@ -200,6 +208,7 @@ export class UarSidecarService extends BaseService {
   }
 
   private ensureRunning(): Promise<RunningSidecar> {
+    assertUarEnabled()
     if (this.stopping) return Promise.reject(new Error('UAR sidecar is shutting down'))
     if (this.running && this.isAlive(this.running.child)) return Promise.resolve(this.running)
     this.startPromise ??= this.operation.runExclusive(async () => {
@@ -215,6 +224,7 @@ export class UarSidecarService extends BaseService {
   }
 
   private async startOwnedProcess(storage: AppliedUarStorage): Promise<RunningSidecar> {
+    assertUarEnabled()
     const executable = await this.resolveExecutable()
     const launchToken = randomBytes(32).toString('hex')
     const managedSecrets = await ensureManagedSecrets()
@@ -353,6 +363,7 @@ export class UarSidecarService extends BaseService {
   }
 
   private async resolveExecutable(): Promise<string> {
+    assertUarEnabled()
     const override = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
     if (override) return override
     const bundled = toAsarUnpackedPath(

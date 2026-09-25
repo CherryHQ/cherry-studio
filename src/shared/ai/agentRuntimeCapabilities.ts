@@ -13,6 +13,17 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type { SlashCommand } from './slashCommands'
 
+export const UAR_FEATURE_DISABLED_ERROR = 'Universal Agent Runtime is disabled in this release'
+
+/** Build-time release capability. Keeping the default enabled supports unbundled development tools. */
+export function isUarEnabled(): boolean {
+  return typeof __UAR_ENABLED__ === 'undefined' ? true : __UAR_ENABLED__
+}
+
+export function assertUarEnabled(): void {
+  if (!isUarEnabled()) throw new Error(UAR_FEATURE_DISABLED_ERROR)
+}
+
 export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
   labelKey: string

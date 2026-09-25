@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { readAppliedUarStorage, readUarModelSources, type UarSidecarEndpoint } from '@main/ai/runtime/uar'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { installPrometheusPack } from '@main/utils/prometheusPack'
+import { assertUarEnabled, isUarEnabled, UAR_FEATURE_DISABLED_ERROR } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -127,35 +128,15 @@ export class PrometheusIntegrationService extends BaseService {
       const id = workspaceIdentity(workspace.path)
       if (!this.workspaces.has(id)) this.workspaces.set(id, await loadWorkspaceState(workspace.path))
     }
-    const uarBinary = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
-    const runningUar = application.get('UarSidecarService').status()
-    const uarBinaryOverride = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
-    const uarBinaryPath =
-      uarBinaryOverride || (uarBinary.availability.source === 'none' ? undefined : uarBinary.availability.path)
-    const appliedUar = runningUar?.storage ?? (await readAppliedUarStorage())
-    return {
-      config: document.config,
-      schemaVersion: document.schemaVersion,
-      revisions: document.revisions,
-      secrets: Object.fromEntries(secretNames.map((key) => [key, Boolean(secrets[key])])),
-      operations: this.operationRunner.list().slice(0, 20),
-      workspaces: [...this.workspaces.values()],
-      commandDirectory: application.getPath('feature.prometheus.commands'),
-      serviceDirectory: serviceDirectory(),
-      servers: mcpServerService
-        .list({})
-        .items.filter((server) => server.tags?.includes(MANAGED_TAG))
-        .map((server) => ({
-          id: server.id,
-          name: server.name,
-          workspace: server.cwd,
-          binary: server.command,
-          status: application.get('CacheService').getShared(`mcp.status.${server.id}`)?.state ?? 'disabled'
-        })),
-      pathInstalled: await commandPathInstalled(),
-      inventory,
-      serviceDiscovery: this.serviceDiscovery,
-      uar: {
+    let uar: IntegrationSnapshot['uar']
+    if (isUarEnabled()) {
+      const uarBinary = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
+      const runningUar = application.get('UarSidecarService').status()
+      const uarBinaryOverride = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
+      const uarBinaryPath =
+        uarBinaryOverride || (uarBinary.availability.source === 'none' ? undefined : uarBinary.availability.path)
+      const appliedUar = runningUar?.storage ?? (await readAppliedUarStorage())
+      uar = {
         state: runningUar ? 'running' : uarBinaryPath ? 'stopped' : 'unavailable',
         ...(!uarBinaryPath
           ? {}
@@ -183,10 +164,57 @@ export class PrometheusIntegrationService extends BaseService {
           : {}),
         ...(this.lastUarApplyError ? { lastApplyError: this.lastUarApplyError } : {})
       }
+    } else {
+      uar = {
+        state: 'unavailable',
+        capabilities: [],
+        requestedBackend: document.config.uar.backend,
+        effectiveBackend: document.config.uar.backend,
+        requestedRevision: document.revisions.uar,
+        effectiveRevision: document.revisions.uar,
+        applyRequired: false,
+        lastApplyError: UAR_FEATURE_DISABLED_ERROR
+      }
+    }
+    return {
+      config: document.config,
+      schemaVersion: document.schemaVersion,
+      revisions: document.revisions,
+      secrets: Object.fromEntries(
+        secretNames.filter((key) => key !== 'uarPassword' || isUarEnabled()).map((key) => [key, Boolean(secrets[key])])
+      ),
+      operations: this.operationRunner
+        .list()
+        .filter((operation) => isUarEnabled() || !operation.action.startsWith('uar-'))
+        .slice(0, 20),
+      workspaces: [...this.workspaces.values()],
+      commandDirectory: application.getPath('feature.prometheus.commands'),
+      serviceDirectory: serviceDirectory(),
+      servers: mcpServerService
+        .list({})
+        .items.filter((server) => server.tags?.includes(MANAGED_TAG))
+        .map((server) => ({
+          id: server.id,
+          name: server.name,
+          workspace: server.cwd,
+          binary: server.command,
+          status: application.get('CacheService').getShared(`mcp.status.${server.id}`)?.state ?? 'disabled'
+        })),
+      pathInstalled: await commandPathInstalled(),
+      inventory,
+      serviceDiscovery: this.serviceDiscovery,
+      uar
     }
   }
 
   async configure(updates: IntegrationUpdate[], secretPatch: IntegrationSecretPatch): Promise<IntegrationSnapshot> {
+    if (
+      !isUarEnabled() &&
+      (updates.some((update) => update.feature === 'uar') ||
+        (secretPatch.uarPassword && secretPatch.uarPassword.operation !== 'unchanged'))
+    ) {
+      assertUarEnabled()
+    }
     await this.ensureInitialized()
     return this.serializeConfigurationMutation(() => this.applyConfiguration(updates, secretPatch))
   }
@@ -247,7 +275,7 @@ export class PrometheusIntegrationService extends BaseService {
         config
       })
       await writeMiniConfiguration()
-      await readUarModelSources()
+      if (isUarEnabled()) await readUarModelSources()
       return { revision: document.revisions.services + 1, assignments: mutation.assignments }
     })
   }
@@ -459,7 +487,7 @@ export class PrometheusIntegrationService extends BaseService {
     if (config.services.surrealdb.ownership === 'managed') {
       config.services.surrealdb.endpoint = `http://127.0.0.1:${config.services.surrealPort}`
       config.compass.authLevel = 'namespace'
-      if (config.uar.backend === 'remote') {
+      if (isUarEnabled() && config.uar.backend === 'remote') {
         config.uar.endpoint = config.services.surrealdb.endpoint
         config.uar.authLevel = 'namespace'
       }
@@ -470,11 +498,15 @@ export class PrometheusIntegrationService extends BaseService {
       config.services.liter.endpoint = `http://127.0.0.1:${config.services.literPort}`
     config.compass.endpoint = config.services.surrealdb.endpoint
     const changedFeatures = (['compass', 'filesystem', 'uar', 'services'] as const).filter(
-      (feature) => JSON.stringify(document.config[feature]) !== JSON.stringify(config[feature])
+      (feature) =>
+        (feature !== 'uar' || isUarEnabled()) &&
+        JSON.stringify(document.config[feature]) !== JSON.stringify(config[feature])
     )
     const secretChanged = Object.values(secretPatch).some((mutation) => mutation.operation !== 'unchanged')
     const uarSecretChanged =
-      secretPatch.uarPassword?.operation !== undefined && secretPatch.uarPassword.operation !== 'unchanged'
+      isUarEnabled() &&
+      secretPatch.uarPassword?.operation !== undefined &&
+      secretPatch.uarPassword.operation !== 'unchanged'
     if (uarSecretChanged && !changedFeatures.includes('uar')) changedFeatures.push('uar')
     if (changedFeatures.length) {
       const revisions = { ...document.revisions }
@@ -574,6 +606,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   async start(action: IntegrationAction, workspacePath?: string): Promise<IntegrationOperation> {
+    if (!isUarEnabled() && action.startsWith('uar-')) assertUarEnabled()
     await this.ensureInitialized()
     const { operation } = await this.runOperation(
       action,

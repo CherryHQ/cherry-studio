@@ -3,15 +3,21 @@ const os = require('node:os')
 const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 
-const { verifyAndProbePackagedUarPayload } = require('./uar-payload-integrity.cjs')
+const { RETAINED_NATIVE_TOOLS, resolveReleaseProfile } = require('./release-profile.cjs')
+const {
+  assertPackagedUarPayloadAbsent,
+  getPackagedBinaryDirectory,
+  verifyAndProbePackagedUarPayload
+} = require('./uar-payload-integrity.cjs')
 
 const root = path.resolve(__dirname, '..')
 const platformKey = process.argv[2]
 const nativePlatformKey = `${process.platform}-${process.arch}`
 const version = require('../package.json').version
+const profile = resolveReleaseProfile()
 
-if (!['darwin-arm64', 'win32-x64'].includes(platformKey)) {
-  throw new Error('usage: node scripts/validate-release-package.cjs <darwin-arm64|win32-x64>')
+if (!profile.supportedPlatforms.includes(platformKey)) {
+  throw new Error(`usage: node scripts/validate-release-package.cjs <${profile.supportedPlatforms.join('|')}>`)
 }
 if (platformKey !== nativePlatformKey) {
   throw new Error(`Release package ${platformKey} must be validated on its native ${nativePlatformKey} runner`)
@@ -23,6 +29,34 @@ function findArtifact(suffix) {
     .filter((name) => name.includes(version) && name.toLowerCase().endsWith(suffix.toLowerCase()))
   if (matches.length !== 1) throw new Error(`Expected one ${platformKey} ${suffix} artifact, found ${matches.length}`)
   return path.join(root, 'dist', matches[0])
+}
+
+function verifyPackagedApplication(resourcesDir) {
+  const appAsar = path.join(resourcesDir, 'app.asar')
+  const appAsarStat = fs.statSync(appAsar, { throwIfNoEntry: false })
+  if (!appAsarStat?.isFile() || appAsarStat.size === 0) {
+    throw new Error('Packaged application is missing its app.asar payload')
+  }
+
+  const integration = require('../build/integration-artifacts.json')
+  const binaryDirectory = getPackagedBinaryDirectory(resourcesDir, platformKey)
+  for (const name of RETAINED_NATIVE_TOOLS) {
+    const tool = integration.tools.find((candidate) => candidate.name === name)
+    const artifact = tool?.packages?.[platformKey]
+    if (!tool || !artifact) throw new Error(`Release manifest is missing ${name} for ${platformKey}`)
+    for (const filename of artifact.binaries) {
+      const packaged = path.join(binaryDirectory, ...filename.split('/'))
+      const stat = fs.statSync(packaged, { throwIfNoEntry: false })
+      if (!stat?.isFile() || stat.size === 0) throw new Error(`Packaged ${name} payload is missing: ${filename}`)
+    }
+    const marker = path.join(binaryDirectory, `.${name}-version`)
+    if (fs.readFileSync(marker, 'utf8').trim() !== tool.version) {
+      throw new Error(`Packaged ${name} version marker does not match ${tool.version}`)
+    }
+  }
+
+  if (profile.uarEnabled) verifyAndProbePackagedUarPayload(resourcesDir, platformKey)
+  else assertPackagedUarPayloadAbsent(resourcesDir, platformKey)
 }
 
 function verifyApplicationBundle(app) {
@@ -38,11 +72,11 @@ function verifyApplicationBundle(app) {
   }
   const signature = path.join(app, 'Contents', '_CodeSignature')
   if (fs.existsSync(signature)) execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' })
-  verifyAndProbePackagedUarPayload(path.join(app, 'Contents', 'Resources'), platformKey)
+  verifyPackagedApplication(path.join(app, 'Contents', 'Resources'))
 }
 
 function validateDmg() {
-  const artifact = findArtifact('-arm64.dmg')
+  const artifact = findArtifact(`-${process.arch}.dmg`)
   execFileSync('hdiutil', ['verify', artifact], { stdio: 'inherit', timeout: 120_000 })
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'the-boss-dmg-'))
   const mount = path.join(temporary, 'mounted')
@@ -71,7 +105,7 @@ function validateDmg() {
 }
 
 function validateWindowsInstaller() {
-  const artifact = findArtifact('-x64-setup.exe')
+  const artifact = findArtifact(`-${process.arch}-setup.exe`)
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'the-boss-installer-'))
   const installation = path.join(temporary, 'The Boss')
   try {
@@ -81,13 +115,13 @@ function validateWindowsInstaller() {
     if (!executableStat?.isFile() || executableStat.size === 0) {
       throw new Error('NSIS installer contains no usable application executable')
     }
-    verifyAndProbePackagedUarPayload(path.join(installation, 'resources'), platformKey)
+    verifyPackagedApplication(path.join(installation, 'resources'))
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true })
   }
 }
 
-if (platformKey === 'darwin-arm64') validateDmg()
+if (platformKey.startsWith('darwin-')) validateDmg()
 else validateWindowsInstaller()
 
-process.stdout.write(`Validated ${platformKey} installer, application image, and UAR sidecar payload\n`)
+process.stdout.write(`Validated ${platformKey} installer and ${profile.id} application image\n`)

@@ -4,6 +4,30 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const PROJECT_ROOT = path.resolve(__dirname, '..')
+const UAR_VERSION_MARKER = '.uar-sidecar-version'
+
+function loadUarArtifactManifest() {
+  const integration = require(path.join(PROJECT_ROOT, 'build', 'integration-artifacts.json'))
+  const sidecar = integration.tools.find((tool) => tool.name === 'uar-sidecar')
+  if (!sidecar) throw new Error('Integration artifact manifest is missing uar-sidecar')
+  return { integration, sidecar }
+}
+
+function getUarPayloadInventory(platformKey) {
+  const { sidecar } = loadUarArtifactManifest()
+  const platformFamily = platformKey.split('-')[0]
+  const exact = sidecar.packages?.[platformKey]
+  const packages = exact
+    ? [exact]
+    : Object.entries(sidecar.packages || {})
+        .filter(([candidate]) => candidate.startsWith(`${platformFamily}-`))
+        .map(([, artifact]) => artifact)
+  return [...new Set([...packages.flatMap((artifact) => artifact.binaries || []), UAR_VERSION_MARKER])].sort()
+}
+
+function getPackagedBinaryDirectory(resourcesDir, platformKey) {
+  return path.join(resourcesDir, 'app.asar.unpacked', 'resources', 'binaries', platformKey)
+}
 
 function sha256(filename) {
   return crypto.createHash('sha256').update(fs.readFileSync(filename)).digest('hex')
@@ -16,12 +40,11 @@ function isSafeRelativePath(filename) {
 }
 
 function verifyPackagedUarPayload(resourcesDir, platformKey) {
-  const integration = require(path.join(PROJECT_ROOT, 'build', 'integration-artifacts.json'))
-  const sidecar = integration.tools.find((tool) => tool.name === 'uar-sidecar')
+  const { integration, sidecar } = loadUarArtifactManifest()
   const expected = sidecar?.packages?.[platformKey]
   if (!expected) throw new Error(`Integration artifact manifest is missing uar-sidecar ${platformKey}`)
 
-  const payloadDir = path.join(resourcesDir, 'app.asar.unpacked', 'resources', 'binaries', platformKey)
+  const payloadDir = getPackagedBinaryDirectory(resourcesDir, platformKey)
   const manifestFile = path.join(payloadDir, 'payload-manifest.json')
   const manifestStat = fs.statSync(manifestFile, { throwIfNoEntry: false })
   if (!manifestStat?.isFile() || manifestStat.size === 0) {
@@ -74,6 +97,16 @@ function verifyPackagedUarPayload(resourcesDir, platformKey) {
   return { executable, payloadDir }
 }
 
+function assertPackagedUarPayloadAbsent(resourcesDir, platformKey) {
+  const payloadDir = getPackagedBinaryDirectory(resourcesDir, platformKey)
+  const present = getUarPayloadInventory(platformKey).filter((filename) =>
+    fs.existsSync(path.join(payloadDir, ...filename.split('/')))
+  )
+  if (present.length > 0) {
+    throw new Error(`Disabled-UAR package contains UAR payload for ${platformKey}: ${present.join(', ')}`)
+  }
+}
+
 function probePackagedUarSidecar(executable, payloadDir, platformKey) {
   const result = spawnSync(executable, [], {
     cwd: payloadDir,
@@ -97,4 +130,10 @@ function verifyAndProbePackagedUarPayload(resourcesDir, platformKey) {
   return payload
 }
 
-module.exports = { verifyAndProbePackagedUarPayload, verifyPackagedUarPayload }
+module.exports = {
+  assertPackagedUarPayloadAbsent,
+  getPackagedBinaryDirectory,
+  getUarPayloadInventory,
+  verifyAndProbePackagedUarPayload,
+  verifyPackagedUarPayload
+}

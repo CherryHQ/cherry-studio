@@ -1,8 +1,10 @@
 const { spawnSync } = require('node:child_process')
 
 const version = require('../package.json').version
+const { resolveReleaseProfile } = require('./release-profile.cjs')
 const tag = `v${version}`
 const repository = process.env.GITHUB_REPOSITORY
+const profile = resolveReleaseProfile()
 
 const existing = spawnSync('gh', ['release', 'view', tag, '--repo', repository], { encoding: 'utf8' })
 if (existing.status === 0) {
@@ -11,9 +13,10 @@ if (existing.status === 0) {
 }
 
 const notes = [
-  `The Boss ${version} — supervised Universal Agent Runtime, workspace-bound tools, and the complete Prometheus skill payload.`,
+  `The Boss ${version} — workspace-bound tools, managed services, and the complete Prometheus skill payload.`,
   '',
-  'Installers are published incrementally by platform. See RELEASES.md for checksums and signing status.'
+  `Feature profile: ${profile.id}. UAR is unavailable in this release while its sidecar packaging is corrected.`,
+  'Installers are published for Windows x64, Windows ARM64, Apple Silicon, and Intel macOS. See RELEASES.md for checksums and signing status.'
 ].join('\n')
 const created = spawnSync(
   'gh',

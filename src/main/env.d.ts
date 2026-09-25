@@ -2,6 +2,7 @@ import type { AppEdition } from '@shared/types/appEdition'
 
 declare global {
   const __APP_EDITION__: AppEdition
+  const __UAR_ENABLED__: boolean
 
   interface ImportMetaEnv {
     readonly MAIN_VITE_CHERRYAI_CLIENT_SECRET: string

@@ -5,6 +5,7 @@ import { parse, stringify } from 'yaml'
 
 import { application } from '@application'
 import { getBinaryPath } from '@main/utils/binaryResolver'
+import { isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import type {
   IntegrationConfig,
   IntegrationOperationProgress,
@@ -206,9 +207,12 @@ export async function runManagedServiceAction(
   if (config.services.surrealdb.ownership === 'managed' || config.services.memory.ownership === 'managed') {
     onStage('authenticating')
     const managedSecrets = await readSecrets()
+    const uarProvisioning = isUarEnabled()
+      ? ` DEFINE NAMESPACE IF NOT EXISTS ${config.uar.namespace}; USE NS ${config.uar.namespace}; DEFINE USER OVERWRITE ${config.uar.username} ON NAMESPACE PASSWORD ${surrealString(managedSecrets.uarPassword!)} ROLES OWNER; DEFINE DATABASE IF NOT EXISTS ${config.uar.database};`
+      : ''
     await surrealSql(
       config.services.surrealdb.endpoint,
-      `DEFINE NAMESPACE IF NOT EXISTS memory; USE NS memory; DEFINE USER OVERWRITE memory ON NAMESPACE PASSWORD ${surrealString(managedSecrets.memoryPassword!)} ROLES OWNER; DEFINE DATABASE IF NOT EXISTS main_local_384; DEFINE NAMESPACE IF NOT EXISTS ${config.compass.namespace}; USE NS ${config.compass.namespace}; DEFINE USER OVERWRITE ${config.compass.username} ON NAMESPACE PASSWORD ${surrealString(managedSecrets.compassPassword!)} ROLES OWNER; DEFINE NAMESPACE IF NOT EXISTS ${config.uar.namespace}; USE NS ${config.uar.namespace}; DEFINE USER OVERWRITE ${config.uar.username} ON NAMESPACE PASSWORD ${surrealString(managedSecrets.uarPassword!)} ROLES OWNER; DEFINE DATABASE IF NOT EXISTS ${config.uar.database};`,
+      `DEFINE NAMESPACE IF NOT EXISTS memory; USE NS memory; DEFINE USER OVERWRITE memory ON NAMESPACE PASSWORD ${surrealString(managedSecrets.memoryPassword!)} ROLES OWNER; DEFINE DATABASE IF NOT EXISTS main_local_384; DEFINE NAMESPACE IF NOT EXISTS ${config.compass.namespace}; USE NS ${config.compass.namespace}; DEFINE USER OVERWRITE ${config.compass.username} ON NAMESPACE PASSWORD ${surrealString(managedSecrets.compassPassword!)} ROLES OWNER;${uarProvisioning}`,
       { username: 'root', password: managedSecrets.rootPassword!, authLevel: 'root' },
       signal
     )

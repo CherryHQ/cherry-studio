@@ -2,7 +2,9 @@
   "schema": 1,
   "platforms": [
     "win32-x64",
-    "darwin-arm64"
+    "win32-arm64",
+    "darwin-arm64",
+    "darwin-x64"
   ],
   "sources": {
     "compass": {

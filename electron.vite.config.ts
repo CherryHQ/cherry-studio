@@ -16,6 +16,7 @@ import { parse } from 'yaml'
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { resolveReleaseProfile } from './scripts/release-profile.cjs'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
@@ -67,6 +68,7 @@ export function resolveRendererEdition(value: string | undefined): AppEdition {
 }
 
 const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
+export const { uarEnabled } = resolveReleaseProfile(process.env)
 const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
@@ -152,7 +154,10 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
-    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
+    define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
+      __UAR_ENABLED__: JSON.stringify(uarEnabled)
+    },
     plugins: [
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),
@@ -189,6 +194,7 @@ export default defineConfig({
     }
   },
   preload: {
+    define: { __UAR_ENABLED__: JSON.stringify(uarEnabled) },
     plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
@@ -219,7 +225,8 @@ export default defineConfig({
       __APP_EDITION__: JSON.stringify(rendererEdition),
       __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
-      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version),
+      __UAR_ENABLED__: JSON.stringify(uarEnabled)
     },
     plugins: [
       uiContractPlugin(),

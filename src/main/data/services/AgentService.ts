@@ -22,6 +22,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { assertUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -299,6 +300,7 @@ export class AgentService {
    * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+    if (req.type === 'uar') assertUarEnabled()
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(

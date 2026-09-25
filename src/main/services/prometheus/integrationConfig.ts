@@ -5,6 +5,8 @@ import path from 'node:path'
 import { safeStorage } from 'electron'
 
 import { application } from '@application'
+import { isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
+import { literProviderConnectionIdentitySchema, type LiterCredentialMutation } from '@shared/types/literGateway'
 import {
   integrationConfigSchema,
   integrationDocumentSchema,
@@ -14,10 +16,6 @@ import {
   type IntegrationSecret,
   type IntegrationSecretPatch
 } from '@shared/types/prometheusIntegration'
-import {
-  literProviderConnectionIdentitySchema,
-  type LiterCredentialMutation
-} from '@shared/types/literGateway'
 
 const INTEGRATION_PREFERENCE = 'app.prometheus.integrations' as const
 type ManagedIntegrationSecret = IntegrationSecret | 'uarAdminKey' | 'uarCredentialEncryptionKey'
@@ -194,15 +192,14 @@ export async function writeSecrets(patch: IntegrationSecretPatch): Promise<void>
 
 export async function ensureManagedSecrets(): Promise<Partial<Record<ManagedIntegrationSecret, string>>> {
   const secrets = await readSecrets()
-  for (const key of [
+  const managedSecretNames: ManagedIntegrationSecret[] = [
     'rootPassword',
     'memoryPassword',
     'compassPassword',
-    'uarPassword',
-    'literKey',
-    'uarAdminKey',
-    'uarCredentialEncryptionKey'
-  ] as const) {
+    'literKey'
+  ]
+  if (isUarEnabled()) managedSecretNames.push('uarPassword', 'uarAdminKey', 'uarCredentialEncryptionKey')
+  for (const key of managedSecretNames) {
     if (!secrets[key]) secrets[key] = randomBytes(32).toString('hex')
   }
   await replaceSecrets(secrets)

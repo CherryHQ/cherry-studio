@@ -3,7 +3,8 @@ const fs = require('fs')
 const path = require('path')
 
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
-const { verifyAndProbePackagedUarPayload } = require('./uar-payload-integrity.cjs')
+const { resolveReleaseProfile } = require('./release-profile.cjs')
+const { assertPackagedUarPayloadAbsent, verifyAndProbePackagedUarPayload } = require('./uar-payload-integrity.cjs')
 
 function verifyPackagedUarSidecar(context, platform) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
@@ -11,13 +12,16 @@ function verifyPackagedUarSidecar(context, platform) {
   if (!arch || !platformPrefix) return
 
   const platformKey = `${platformPrefix}-${arch}`
-  if (!['darwin-arm64', 'win32-x64'].includes(platformKey)) return
 
   const resourcesDir =
     platform === 'mac'
       ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources')
       : path.join(context.appOutDir, 'resources')
-  verifyAndProbePackagedUarPayload(resourcesDir, platformKey)
+  if (resolveReleaseProfile().uarEnabled) {
+    verifyAndProbePackagedUarPayload(resourcesDir, platformKey)
+  } else {
+    assertPackagedUarPayloadAbsent(resourcesDir, platformKey)
+  }
 }
 
 exports.default = async function (context) {
