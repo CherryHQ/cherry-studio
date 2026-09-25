@@ -6,15 +6,14 @@
   the stale prose for manual cleanup; do not follow both policies.
 - Restore KBD position and read `versions.toml`, `.prometheus/decisions.md`, and
   relevant `.prometheus/gotchas.md` before dependency or architecture changes.
-- Finish every planned production change in the phase before testing. During
+- Finish a coherent set of production functionality before testing. During
   implementation, use static inspection and reasoning; use a narrow compiler or
-  type check only when an observed compiler error blocks progress.
-- At the final phase boundary, run one integration flow through the real production
-  entry point and collaborators. If the harness provides an agent team, keep reviewer,
-  auditor, verifier, and integration-checker roles dormant until that boundary. Unit,
-  mock-only, filtered-function, snapshot, and per-edit tests are not evidence.
-- Run cross-platform and release gates at the final applicable boundary. Report only
-  commands and results actually observed.
+  type check only when it is required to unblock progress.
+- At a completed change or phase boundary, run the smallest integration flow that
+  exercises the real production entry point and collaborators. Unit, mock-only,
+  filtered-function, snapshot, and per-edit tests are not completion evidence.
+- Run broad integration, cross-platform, and release gates once at the final
+  applicable boundary. Report only commands and results actually observed.
 - For Rust work, load `prometheus-rust-workspace`. It routes
   `rust-best-practices`, `rust-async-patterns`, and
   `rust-mcp-server-generator` when relevant. Project pins and protocols win.

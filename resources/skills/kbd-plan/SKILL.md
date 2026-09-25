@@ -93,7 +93,7 @@ Use the canonical phase name from the argument or `current-waypoint.json`. Emit 
    findings → carry into the stage handoff summary. Vet **before** emitting
    change structures, so a corrected plan never leaves stale changes behind.
 8. **Emit change structures** via OpenSpec or native KBD
-9. **Record plan state** through typed KBD stage/change/task commands; the runtime regenerates progress and waypoint projections
+9. **Refresh waypoint** files (`current-waypoint.md` and `current-waypoint.json`)
 
 ## Examples
 
@@ -141,8 +141,6 @@ stageHandoffWrite(
 );
 ```
 
-A missing `handoffs/` directory does not bypass required predecessors.
-A missing required handoff fails with remediation: complete the predecessor
-stage, or record an explicit skip with its reason under project policy.
-A deliberate stage skip is recorded with
+Phases without a `handoffs/` directory are legacy: `stageGate` warns and still
+passes. A deliberate stage skip is recorded with
 `stageHandoffSkip('plan', '<reason>', { cwd })`.

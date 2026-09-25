@@ -7,11 +7,8 @@ description: Use once per project, before any other KBD command — auto-discove
 
 Initialize the KBD orchestrator for the **current project**.
 
-> `/kbd-init` owns full project configuration discovery. Phase creation and
-> advancement helpers own `project.json.activePhase`, preserve unrelated keys,
-> and remove the legacy `active_phase` alias. If metadata is missing, those
-> helpers may bootstrap minimal identity and active-phase metadata; this does
-> not replace `/kbd-init` for full stack, policy, and constraint discovery.
+> This is the ONLY KBD command that creates project-specific configuration.
+> All other skills read from `project.json` — they never write it.
 
 ## What this does
 

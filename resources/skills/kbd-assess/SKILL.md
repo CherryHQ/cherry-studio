@@ -66,9 +66,8 @@ Use the canonical phase name from the argument or `current-waypoint.json`. Emit 
    the written assessment. CRITICAL findings → revise `assessment.md` and re-vet
    (max 2 rounds, then accept with an "Unresolved review findings" section
    appended). WARNING findings → carry into the stage handoff summary.
-8. **Enter/complete the assessment stage** through typed `prometheus kbd stage`
-   commands and separately record the handoff (see below); never hand-edit
-   generated progress or waypoint files.
+8. **Enter/complete the assessment stage** by recording the stage handoff (see
+   below); never hand-edit `progress.json` directly.
 
 ## Examples
 
@@ -106,9 +105,8 @@ event taxonomy, override semantics, and `KBD_HOOK_*` payload — all of which
 
 ## Stage gate & handoff
 
-Assess has no predecessor, but its gate still requires a resolvable phase
-and agreement between canonical phase views. Stop on any nonzero result.
-After writing `assessment.md`, record the handoff that the next
+Assess is the first stage, so its gate always passes — call it anyway for
+uniformity. After writing `assessment.md`, record the handoff that the next
 stage (analyze, or plan when analyze is skipped) reads first.
 
 `lib/kbd/stage-gate.mjs` exports `stageGate(stage, ctx)`,
@@ -131,8 +129,6 @@ stageHandoffWrite(
 );
 ```
 
-A missing `handoffs/` directory does not bypass required predecessors.
-A missing required handoff fails with remediation: complete the predecessor
-stage, or record an explicit skip with its reason under project policy.
-A deliberate stage skip is recorded with
+Phases without a `handoffs/` directory are legacy: `stageGate` warns (via its
+returned `stderr`) and still passes. A deliberate stage skip is recorded with
 `stageHandoffSkip('assess', '<reason>', { cwd })`.
