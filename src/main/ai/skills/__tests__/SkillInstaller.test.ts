@@ -240,4 +240,39 @@ describe('SkillInstaller', () => {
     expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.first.cleanup')
     expect(mockFsRename).not.toHaveBeenCalled()
   })
+
+  it('aborts recovery when an uncommitted migration replacement survives cleanup', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.old.migrating-to.new.bak', isDirectory: () => true },
+      { name: 'new', isDirectory: () => true }
+    ])
+    mockPathExists.mockResolvedValue(true)
+    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+    // Failing loud keeps reconcile from adopting the survivor and pruning the original row; the
+    // intact marker lets the next boot retry this recovery.
+    await expect(installer.recoverInterruptedInstalls('/global-skills', () => false)).rejects.toThrow(
+      'survived cleanup'
+    )
+    expect(mockFsRename).not.toHaveBeenCalled()
+  })
+
+  it('removes only the migration markers naming the uninstalled folder', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.content.migrating-to.my-skill.bak', isDirectory: () => true },
+      { name: '.my-skill.migrating-to.other.bak', isDirectory: () => true },
+      { name: '.my-skill.bak', isDirectory: () => true },
+      { name: '.other.migrating-to.some.bak', isDirectory: () => true },
+      { name: 'my-skill', isDirectory: () => true }
+    ])
+    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+    await installer.removeMigrationMarkers('/global-skills', 'my-skill')
+
+    const removed = mockDeleteDirectoryRecursive.mock.calls.map((call) => call[0])
+    expect(removed).toHaveLength(3)
+    expect(removed).toContain(path.join('/global-skills', '.content.migrating-to.my-skill.bak'))
+    expect(removed).toContain(path.join('/global-skills', '.my-skill.migrating-to.other.bak'))
+    expect(removed).toContain(path.join('/global-skills', '.my-skill.bak'))
+  })
 })

@@ -32,6 +32,10 @@ import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillP
 
 const logger = loggerService.withContext('SkillRemoteSource')
 
+// Staging dirname a repository-root skill checks out into. It is never a valid catalog
+// folder name: root installs are renamed before the installer derives one from the basename.
+export const GITHUB_ROOT_STAGING_DIRNAME = 'content'
+
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
@@ -93,6 +97,11 @@ export interface FetchedSkill {
   tempDir: string
   skillDir: string
   sourceUrl: string
+  /**
+   * True for a repository-root GitHub skill. Only such installs may migrate an existing row to a
+   * new folder; same-URL siblings from other origins are unrelated skills, never renames.
+   */
+  isGithubRoot?: boolean
   /** Fire-and-forget notification to run once the install has committed. */
   onInstalled?: () => void
 }
@@ -213,6 +222,9 @@ async function fetchFromGithub(
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
+  if (target.kind === 'root') {
+    return { skillDir: await renameGithubRootDir(tempDir, skillDir, repo), sourceUrl, isGithubRoot: true }
+  }
   return { skillDir, sourceUrl }
 }
 
@@ -437,7 +449,7 @@ async function materializeGithubTarget(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const contentDir = path.join(commit.tempDir, 'content')
+  const contentDir = path.join(commit.tempDir, GITHUB_ROOT_STAGING_DIRNAME)
   // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
   // round trip at a time, long enough for a 60-file skill to hit the git timeout.
   const tree = await commit.git([
@@ -483,6 +495,21 @@ function toSparsePattern(target: GithubSkillTarget): string {
     throw new Error(`Skill directory path contains a line break: ${JSON.stringify(target.path)}`)
   }
   return `/${target.path.replace(/[\\*?[\]!# ]/g, '\\$&')}/`
+}
+
+// A repository-root skill checks out directly into the staging `content/` directory, so its
+// basename would become the catalog folder name. Rename it to the skill name instead.
+async function renameGithubRootDir(tempDir: string, skillDir: string, repo: string): Promise<string> {
+  const stagingName = path.basename(skillDir)
+  const metadata = await parseSkillMetadata(skillDir, repo, 'skills', { calculateSize: false })
+  const claimed = metadata.name?.trim() && metadata.name !== stagingName ? metadata.name.trim() : repo
+  let sanitized = sanitizeFolderName(claimed)
+  if (!sanitized || sanitized === stagingName) sanitized = sanitizeFolderName(repo)
+  if (!sanitized) throw new Error(`Cannot derive a folder name for GitHub skill: ${repo}`)
+  if (sanitized === stagingName) sanitized = `${stagingName}-skill`
+  const dest = path.join(tempDir, sanitized)
+  if (dest !== skillDir) await fs.promises.rename(skillDir, dest)
+  return dest
 }
 
 function assertGithubTargetTree(
