@@ -6,7 +6,6 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
-  Input,
   InputNumber,
   Select,
   SelectContent,
@@ -67,6 +66,10 @@ const RECOGNITION_PREFERENCE_KEYS = {
   modelId: 'feature.voice.recognition.model_id',
   language: 'feature.voice.recognition.language'
 } as const
+const SPEECH_PREFERENCE_KEYS = {
+  voiceId: 'feature.voice.speech.voice_id',
+  language: 'feature.voice.speech.language'
+} as const
 const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
@@ -117,10 +120,6 @@ function languageValue(value: string | null | undefined): string | undefined {
   return language?.toLowerCase() === 'auto' ? undefined : language
 }
 
-function storedLanguage(value: string): string {
-  return value.trim().toLowerCase() === 'auto' ? '' : value
-}
-
 function transcriptionModelId(value: string | null | undefined): LocalTranscriptionModelId | undefined {
   return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
 }
@@ -147,8 +146,8 @@ function VoiceSettings() {
   const [recognitionPreferences, setRecognitionPreferences] = useMultiplePreferences(RECOGNITION_PREFERENCE_KEYS)
   const { language: recognitionLanguage, modelId: recognitionModel } = recognitionPreferences
   const [speechModel, setSpeechModel] = usePreference('feature.voice.speech.model_id')
-  const [speechVoice, setSpeechVoice] = usePreference('feature.voice.speech.voice_id')
-  const [speechLanguage, setSpeechLanguage] = usePreference('feature.voice.speech.language')
+  const [speechPreferences, setSpeechPreferences] = useMultiplePreferences(SPEECH_PREFERENCE_KEYS)
+  const { voiceId: speechVoice, language: speechLanguage } = speechPreferences
   const [speechSpeed, setSpeechSpeed] = usePreference('feature.voice.speech.speed')
   const [autoRead, setAutoRead] = usePreference('feature.voice.auto_read.enabled')
   const [disclosureConfirmed, setDisclosureConfirmed] = usePreference('feature.voice.auto_read.disclosure_confirmed')
@@ -216,6 +215,41 @@ function VoiceSettings() {
   const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
   const funAsrSelected = effectiveRecognitionModel === FUNASR_MODEL_ID
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? DEFAULT_APPLE_ASR_LOCALE
+  const selectedVoice = voices.find((voice) => voice.id === speechVoice)
+  const effectiveSpeechLanguage = selectedVoice?.language ?? languageValue(speechLanguage) ?? ''
+  const speechLanguageOptions = useMemo<ComboboxOption[]>(() => {
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' })
+    const languages = new Set(voices.map((voice) => voice.language))
+    if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
+    return [
+      { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
+      ...Array.from(languages)
+        .map((language) => {
+          let label = language
+          try {
+            label = displayNames.of(language) ?? language
+          } catch {
+            // Keep a previously entered locale visible even when it is invalid.
+          }
+          return { value: language, label, disabled: !voices.some((voice) => voice.language === language) }
+        })
+        .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+    ]
+  }, [effectiveSpeechLanguage, i18n.language, t, voices])
+  const speechVoiceOptions: ComboboxOption[] = [
+    { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
+    ...voices
+      .filter((voice) => voice.language === effectiveSpeechLanguage)
+      .map((voice) => ({ value: voice.id, label: voice.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+  ]
+  if (speechVoice && !selectedVoice) {
+    speechVoiceOptions.push({
+      value: speechVoice,
+      label: t('settings.voice.status.voice_unavailable'),
+      disabled: true
+    })
+  }
   const recognitionLanguageOptions = useMemo<ComboboxOption[]>(() => {
     if (!asrLocales) return []
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' })
@@ -707,33 +741,50 @@ function VoiceSettings() {
           </Select>
         </SettingRow>
         <SettingDivider />
-        <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
-          <Select
-            value={speechVoice || EMPTY_VALUE}
-            onValueChange={(value) => savePreference(() => setSpeechVoice(value === EMPTY_VALUE ? '' : value))}>
-            <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.voice')}>
-              <SelectValue placeholder={t('settings.voice.unconfigured')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={EMPTY_VALUE}>{t('settings.voice.unconfigured')}</SelectItem>
-              {voices.map((voice) => (
-                <SelectItem key={voice.id} value={voice.id}>
-                  {voice.name} ({voice.language})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingRow>
-        <SettingDivider />
         <SettingRow id="setting-voice-speech-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Input
+          <Combobox
             className="w-64"
             aria-label={t('settings.voice.speech.language')}
-            placeholder={t('settings.voice.language.placeholder')}
-            value={languageValue(speechLanguage) ?? ''}
-            onChange={(event) => savePreference(() => setSpeechLanguage(storedLanguage(event.target.value)))}
+            options={speechLanguageOptions}
+            value={effectiveSpeechLanguage || EMPTY_VALUE}
+            onChange={(value) => {
+              if (typeof value !== 'string') return
+              const language = value === EMPTY_VALUE ? '' : value
+              savePreference(() =>
+                setSpeechPreferences({
+                  language,
+                  voiceId: selectedVoice?.language === language ? selectedVoice.id : ''
+                })
+              )
+            }}
+            placeholder={t('common.select')}
+            searchPlaceholder={t('common.search')}
+            emptyText={t('common.no_results')}
+            searchPlacement="trigger"
+            popoverClassName="w-(--radix-popover-trigger-width)"
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
+          <Combobox
+            className="w-64"
+            aria-label={t('settings.voice.speech.voice')}
+            options={speechVoiceOptions}
+            value={speechVoice || EMPTY_VALUE}
+            disabled={!effectiveSpeechLanguage}
+            onChange={(value) => {
+              if (typeof value !== 'string') return
+              savePreference(() =>
+                setSpeechPreferences({ voiceId: value === EMPTY_VALUE ? '' : value, language: effectiveSpeechLanguage })
+              )
+            }}
+            placeholder={t('common.select')}
+            searchPlaceholder={t('common.search')}
+            emptyText={t('common.no_results')}
+            searchPlacement="trigger"
+            popoverClassName="w-(--radix-popover-trigger-width)"
           />
         </SettingRow>
         <SettingDivider />

@@ -1,5 +1,5 @@
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -140,7 +140,7 @@ describe('VoiceSettings', () => {
 
     expect(await screen.findByRole('heading', { name: /voice/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
-    expect(screen.getByLabelText(/speech voice/i)).toHaveValue('')
+    expect(screen.getByLabelText(/speech voice/i)).toHaveValue('__unconfigured__')
     expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
   })
@@ -222,6 +222,76 @@ describe('VoiceSettings', () => {
     expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
     expect(MockUsePreferenceUtils.getAllPreferenceValues()).not.toHaveProperty('feature.voice.recognition.model_id')
     expect(voice.install).not.toHaveBeenCalled()
+  })
+
+  it('requires a language before offering only its voices without repeating locale information', async () => {
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.english', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' },
+      { id: 'voice.chinese.premium', name: 'Tingting (Premium)', language: 'zh-CN' }
+    ])
+    const user = userEvent.setup()
+    const { rerender } = render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: /speech language/i })
+    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
+    await within(language).findByRole('option', { name: 'Chinese (China)' })
+    expect(within(language).getAllByRole('option', { name: 'Chinese (China)' })).toHaveLength(1)
+    expect(voiceInput).toBeDisabled()
+
+    await user.selectOptions(language, 'zh-CN')
+    rerender(<VoiceSettings />)
+    expect(voiceInput).toBeEnabled()
+    expect(within(voiceInput).getByRole('option', { name: 'Tingting' })).toBeInTheDocument()
+    expect(within(voiceInput).getByRole('option', { name: 'Tingting (Premium)' })).toBeInTheDocument()
+    expect(within(voiceInput).queryByRole('option', { name: /Samantha|zh-CN/ })).not.toBeInTheDocument()
+
+    await user.selectOptions(voiceInput, 'voice.chinese.premium')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.chinese.premium')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+  })
+
+  it('clears an incompatible voice when the user changes language without selecting a replacement', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.language': 'en-US',
+      'feature.voice.speech.voice_id': 'voice.exact'
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.exact', name: 'Exact Voice', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' }
+    ])
+    const { rerender } = render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: /speech language/i })
+    await within(language).findByRole('option', { name: 'Chinese (China)' })
+    await userEvent.setup().selectOptions(language, 'zh-CN')
+    rerender(<VoiceSettings />)
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveValue('__unconfigured__')
+    expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
+  })
+
+  it('derives the language from an existing voice without rewriting saved settings', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', 'voice.exact')
+    render(<VoiceSettings />)
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /speech language/i })).toHaveValue('en-US'))
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveValue('voice.exact')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBeNull()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.exact')
+  })
+
+  it('keeps an unavailable saved voice visible without silently substituting another voice', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.language': 'en-US',
+      'feature.voice.speech.voice_id': 'voice.removed'
+    })
+    render(<VoiceSettings />)
+
+    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
+    expect(await within(voiceInput).findByRole('option', { name: /voice.*unavailable/i })).toBeDisabled()
+    expect(voiceInput).toHaveValue('voice.removed')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.removed')
   })
 
   it('queries TTS status with the exact selected voice and language', async () => {
