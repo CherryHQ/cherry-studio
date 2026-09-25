@@ -45,6 +45,7 @@ import { PersistenceListener } from '@main/ai/streamManager/listeners/Persistenc
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
@@ -988,7 +989,7 @@ describe('remote agent access', () => {
         agentType: agentRow.type === 'cherry-claw' ? 'claude-code' : agentRow.type,
         agentName: 'Agent',
         uniqueModelId: 'reservation-provider::model',
-        agentModel: agentRow.model ?? null,
+        agentModel: (agentRow.model ?? null) as UniqueModelId | null,
         sessionModelId: null,
         reasoningEffort: 'default',
         serviceTier: 'standard',
