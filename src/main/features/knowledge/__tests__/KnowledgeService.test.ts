@@ -62,7 +62,18 @@ const {
   externalKnowledgeRuntimeStartMock,
   externalKnowledgeRuntimeStopMock,
   externalKnowledgeRuntimeResolveScopeMock,
-  externalKnowledgeRuntimePreviewScopeMock
+  externalKnowledgeRuntimePreviewScopeMock,
+  externalKnowledgeRuntimeOptionsMock,
+  externalKnowledgeSourceLifecycleUpdateScheduleMock,
+  externalKnowledgeSourceLifecyclePauseReauthorizationMock,
+  externalKnowledgeSourceLifecycleReconcilePersistedMock,
+  externalKnowledgeSourceLifecycleReconcileAllMock,
+  externalKnowledgeSourceLifecycleReconcileSourceMock,
+  externalKnowledgeSourceLifecycleDispatchMock,
+  externalKnowledgeSourceLifecycleCommitReauthorizationMock,
+  externalKnowledgeDisconnectMock,
+  externalKnowledgePrepareBaseDeletionMock,
+  externalKnowledgeNotifyBaseDeletionMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -109,7 +120,18 @@ const {
   externalKnowledgeRuntimeStartMock: vi.fn(),
   externalKnowledgeRuntimeStopMock: vi.fn(),
   externalKnowledgeRuntimeResolveScopeMock: vi.fn(),
-  externalKnowledgeRuntimePreviewScopeMock: vi.fn()
+  externalKnowledgeRuntimePreviewScopeMock: vi.fn(),
+  externalKnowledgeRuntimeOptionsMock: vi.fn(),
+  externalKnowledgeSourceLifecycleUpdateScheduleMock: vi.fn(),
+  externalKnowledgeSourceLifecyclePauseReauthorizationMock: vi.fn(),
+  externalKnowledgeSourceLifecycleReconcilePersistedMock: vi.fn(),
+  externalKnowledgeSourceLifecycleReconcileAllMock: vi.fn(),
+  externalKnowledgeSourceLifecycleReconcileSourceMock: vi.fn(),
+  externalKnowledgeSourceLifecycleDispatchMock: vi.fn(),
+  externalKnowledgeSourceLifecycleCommitReauthorizationMock: vi.fn(),
+  externalKnowledgeDisconnectMock: vi.fn(),
+  externalKnowledgePrepareBaseDeletionMock: vi.fn(),
+  externalKnowledgeNotifyBaseDeletionMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -220,6 +242,9 @@ vi.mock('../external/ExternalKnowledgeRuntime', async (importOriginal) => {
   return {
     ...actual,
     ExternalKnowledgeRuntime: class {
+      constructor(options?: unknown) {
+        externalKnowledgeRuntimeOptionsMock(options)
+      }
       start = externalKnowledgeRuntimeStartMock
       stop = externalKnowledgeRuntimeStopMock
       resolveFeishuScope = externalKnowledgeRuntimeResolveScopeMock
@@ -227,6 +252,26 @@ vi.mock('../external/ExternalKnowledgeRuntime', async (importOriginal) => {
     }
   }
 })
+
+vi.mock('../external/ExternalKnowledgeSourceLifecycle', () => ({
+  ExternalKnowledgeSourceLifecycle: class {
+    commitReauthorization = externalKnowledgeSourceLifecycleCommitReauthorizationMock
+    updateSchedulePolicy = externalKnowledgeSourceLifecycleUpdateScheduleMock
+    pauseForReauthorization = externalKnowledgeSourceLifecyclePauseReauthorizationMock
+    reconcilePersistedReauthorization = externalKnowledgeSourceLifecycleReconcilePersistedMock
+    reconcileAllActiveJobs = externalKnowledgeSourceLifecycleReconcileAllMock
+    reconcileSourceActiveJob = externalKnowledgeSourceLifecycleReconcileSourceMock
+    dispatchScheduledEnvelope = externalKnowledgeSourceLifecycleDispatchMock
+  }
+}))
+
+vi.mock('../external/ExternalKnowledgeDisconnect', () => ({
+  ExternalKnowledgeDisconnect: class {
+    disconnect = externalKnowledgeDisconnectMock
+    prepareExternalSourcesForBaseDeletion = externalKnowledgePrepareBaseDeletionMock
+    notifyExternalSourcesDeleted = externalKnowledgeNotifyBaseDeletionMock
+  }
+}))
 
 const { KnowledgeService } = await import('../KnowledgeService')
 const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
@@ -460,6 +505,13 @@ describe('KnowledgeService', () => {
     externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
     externalKnowledgeRuntimeResolveScopeMock.mockResolvedValue({ provider: 'feishu' })
     externalKnowledgeRuntimePreviewScopeMock.mockResolvedValue({ supportedDocxCount: 1 })
+    externalKnowledgeSourceLifecycleReconcilePersistedMock.mockReturnValue([])
+    externalKnowledgeSourceLifecycleReconcileAllMock.mockResolvedValue(undefined)
+    externalKnowledgeSourceLifecycleReconcileSourceMock.mockResolvedValue('ready')
+    externalKnowledgeSourceLifecycleDispatchMock.mockResolvedValue(undefined)
+    externalKnowledgeSourceLifecycleUpdateScheduleMock.mockResolvedValue({ id: 'source-1' })
+    externalKnowledgeDisconnectMock.mockResolvedValue(undefined)
+    externalKnowledgePrepareBaseDeletionMock.mockResolvedValue(undefined)
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -516,7 +568,7 @@ describe('KnowledgeService', () => {
     expect(order.at(-1)).toBe('runtime-stop')
   })
 
-  it('opens admission only after runtime start succeeds and closes it before shutdown waits', async () => {
+  it('opens admission only after runtime start and active-job reconciliation, then closes it before shutdown waits', async () => {
     const service = new KnowledgeService()
     const createInput = {
       baseId: 'kb-1',
@@ -530,6 +582,11 @@ describe('KnowledgeService', () => {
     expect(externalKnowledgeRuntimeResolveScopeMock).not.toHaveBeenCalled()
 
     await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    await expect(service.createExternalKnowledgeSource(createInput)).rejects.toMatchObject({ code: 'stopped' })
+    expect(externalKnowledgeRuntimeResolveScopeMock).not.toHaveBeenCalled()
+
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
     externalKnowledgeRuntimeResolveScopeMock.mockRejectedValueOnce(resolutionFailure)
     await expect(service.createExternalKnowledgeSource(createInput)).rejects.toBe(resolutionFailure)
 
@@ -547,6 +604,129 @@ describe('KnowledgeService', () => {
 
     expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
     expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+  })
+
+  it('wires runtime reauthorization failure propagation and atomic success commit without requesting a sync', () => {
+    new KnowledgeService()
+    const options = externalKnowledgeRuntimeOptionsMock.mock.calls.at(-1)?.[0] as {
+      commitReauthorization(connectionId: string, input: unknown): unknown
+      hooks: {
+        onReauthorizationRequired(connectionId: string): void
+      }
+    }
+    const commit = { connection: { id: 'connection-1' }, afterCommit: vi.fn() }
+    externalKnowledgeSourceLifecycleCommitReauthorizationMock.mockReturnValueOnce(commit)
+
+    options.hooks.onReauthorizationRequired('connection-1')
+    expect(options.commitReauthorization('connection-1', { candidateCredentialReference: 'candidate' })).toBe(commit)
+
+    expect(externalKnowledgeSourceLifecyclePauseReauthorizationMock).toHaveBeenCalledWith('connection-1')
+    expect(externalKnowledgeSourceLifecycleCommitReauthorizationMock).toHaveBeenCalledWith('connection-1', {
+      candidateCredentialReference: 'candidate'
+    })
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('reconciles persisted reauthorization after runtime startup', async () => {
+    const service = new KnowledgeService()
+
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+
+    expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeSourceLifecycleReconcilePersistedMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeRuntimeStartMock.mock.invocationCallOrder[0]).toBeLessThan(
+      externalKnowledgeSourceLifecycleReconcilePersistedMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('stops a started runtime when persisted reauthorization reconciliation fails', async () => {
+    const service = new KnowledgeService()
+    const reconciliationFailure = new Error('reauthorization reconciliation failed')
+    externalKnowledgeSourceLifecycleReconcilePersistedMock.mockImplementationOnce(() => {
+      throw reconciliationFailure
+    })
+
+    await expect((service as unknown as { onReady: () => Promise<void> }).onReady()).rejects.toBe(reconciliationFailure)
+
+    expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+  })
+
+  it('aborts and joins active-job startup reconciliation before stopping the runtime', async () => {
+    let reconciliationSignal: AbortSignal | undefined
+    externalKnowledgeSourceLifecycleReconcileAllMock.mockImplementationOnce(
+      (signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          reconciliationSignal = signal
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const service = new KnowledgeService()
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+
+    expect(reconciliationSignal?.aborted).toBe(true)
+    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+  })
+
+  it('restarts an aborted initial reconciliation when the same service instance starts again', async () => {
+    externalKnowledgeSourceLifecycleReconcileAllMock
+      .mockImplementationOnce(
+        (signal: AbortSignal) =>
+          new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const service = new KnowledgeService()
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledTimes(2))
+  })
+
+  it('reconciles manual sync correlation before delegating to canonical admission', async () => {
+    const service = new KnowledgeService()
+    const requestSync = vi.fn().mockResolvedValue({ id: 'source-1' })
+    ;(
+      service as unknown as {
+        externalKnowledgeSyncAdmission: { requestSync: typeof requestSync }
+      }
+    ).externalKnowledgeSyncAdmission.requestSync = requestSync
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
+
+    await service.requestExternalKnowledgeSourceSync({ sourceId: 'source-1' })
+
+    expect(externalKnowledgeSourceLifecycleReconcileSourceMock).toHaveBeenCalledWith('source-1')
+    expect(requestSync).toHaveBeenCalledWith({ sourceId: 'source-1' })
+    expect(externalKnowledgeSourceLifecycleReconcileSourceMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requestSync.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('delegates schedule updates and disconnect commands to lifecycle owners', async () => {
+    const service = new KnowledgeService()
+    const scheduleInput = {
+      sourceId: 'source-1',
+      policy: { kind: 'daily' as const, time: '09:05', timezone: 'Asia/Shanghai' }
+    }
+    const disconnectInput = { sourceId: 'source-1', mode: 'keep-local' as const }
+
+    await service.updateExternalKnowledgeSourceSchedule(scheduleInput)
+    await service.disconnectExternalKnowledgeSource(disconnectInput)
+
+    expect(externalKnowledgeSourceLifecycleUpdateScheduleMock).toHaveBeenCalledWith(scheduleInput)
+    expect(externalKnowledgeDisconnectMock).toHaveBeenCalledWith(disconnectInput)
   })
 
   it('keeps admission closed when runtime start fails', async () => {
@@ -628,6 +808,9 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     const connectionId = '0198f3f2-7d1a-7abc-8def-123456789ab2'
     const url = 'https://acme.feishu.cn/wiki/root'
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
 
     await expect(service.resolveFeishuScope(connectionId, url)).resolves.toEqual({ provider: 'feishu' })
     await expect(service.previewFeishuScope(connectionId, url)).resolves.toEqual({ supportedDocxCount: 1 })
@@ -732,7 +915,7 @@ describe('KnowledgeService', () => {
         finished: Promise.resolve({})
       })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    expect(() => (service as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
 
     expect(enqueueTxMock).toHaveBeenCalledTimes(2)
   })
@@ -743,7 +926,7 @@ describe('KnowledgeService', () => {
       throw new Error('scan failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    expect(() => (service as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
 
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
@@ -763,7 +946,7 @@ describe('KnowledgeService', () => {
       throw new Error('mark failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    expect(() => (service as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
 
     expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })
@@ -856,12 +1039,43 @@ describe('KnowledgeService', () => {
       ],
       limit: 5000
     })
+    expect(externalKnowledgePrepareBaseDeletionMock).toHaveBeenCalledWith('kb-1')
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(listMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
+    expect(externalKnowledgePrepareBaseDeletionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteStoreMock.mock.invocationCallOrder[0]
+    )
     expect(deleteStoreMock.mock.invocationCallOrder[0]).toBeLessThan(
       knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
     )
+  })
+
+  it('blocks new external provider admission throughout base deletion', async () => {
+    const releaseExternalCleanup = createDeferred()
+    externalKnowledgePrepareBaseDeletionMock.mockImplementationOnce(async () => {
+      await releaseExternalCleanup.promise
+    })
+    const service = new KnowledgeService()
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    ;(service as unknown as { onAllReady: () => void }).onAllReady()
+    await vi.waitFor(() => expect(externalKnowledgeSourceLifecycleReconcileAllMock).toHaveBeenCalledOnce())
+
+    const deletion = service.deleteBase('kb-1')
+    await vi.waitFor(() => expect(externalKnowledgePrepareBaseDeletionMock).toHaveBeenCalledWith('kb-1'))
+
+    await expect(
+      service.createExternalKnowledgeSource({
+        baseId: 'kb-1',
+        connectionId: 'connection-1',
+        url: 'https://acme.feishu.cn/wiki/root',
+        name: 'Engineering Wiki'
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(externalKnowledgeRuntimeResolveScopeMock).not.toHaveBeenCalled()
+
+    releaseExternalCleanup.resolve()
+    await deletion
   })
 
   it('cancels file-processing jobs linked by active knowledge checks before deleting a base', async () => {
