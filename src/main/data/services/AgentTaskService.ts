@@ -55,6 +55,11 @@ type AgentTaskJobInputTemplate = {
   workspace: AgentSessionWorkspaceSource
 }
 
+type TaskOwnerStateChange = {
+  scheduleIds: string[]
+  deletedSchedules: JobScheduleSnapshot[]
+}
+
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
 
@@ -215,15 +220,23 @@ export class AgentTaskService {
     return true
   }
 
-  setOwnerStateTx(tx: DbOrTx, agentId: string, state: 'active' | 'trashed' | 'missing', now: number): string[] {
+  setOwnerStateTx(
+    tx: DbOrTx,
+    agentId: string,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): TaskOwnerStateChange {
     const schedules = jobScheduleService
       .listAllTx(tx, { type: AGENT_TASK_TYPE })
       .filter((schedule) => isPlainRecord(schedule.jobInputTemplate) && schedule.jobInputTemplate.agentId === agentId)
     for (const schedule of schedules) this.transitionOwnerTx(tx, schedule, state, now)
-    return schedules.map((schedule) => schedule.id)
+    return {
+      scheduleIds: schedules.map((schedule) => schedule.id),
+      deletedSchedules: state === 'missing' ? schedules : []
+    }
   }
 
-  reconcileOwnerStatesTx(tx: DbOrTx, now: number): string[] {
+  reconcileOwnerStatesTx(tx: DbOrTx, now: number): TaskOwnerStateChange {
     const schedules = jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })
     const missedJobs = schedules.flatMap((schedule) => {
       const missed = schedule.metadata.missed
@@ -247,7 +260,7 @@ export class AgentTaskService {
         })
       )
     ]
-    if (ids.length === 0) return []
+    if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
     const owners = new Map(
       tx
         .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
@@ -257,12 +270,14 @@ export class AgentTaskService {
         .map((row) => [row.id, row])
     )
     const changedIds: string[] = []
+    const orphanedSchedules: JobScheduleSnapshot[] = []
     for (const schedule of schedules) {
       const template = schedule.jobInputTemplate
       if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
       const owner = owners.get(template.agentId)
       const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
       if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
+      if (state === 'missing') orphanedSchedules.push(schedule)
       const missed = schedule.metadata.missed
       const job = isPlainRecord(missed) && typeof missed.jobId === 'string' ? completed.get(missed.jobId) : undefined
       if (
@@ -273,7 +288,7 @@ export class AgentTaskService {
         changedIds.push(schedule.id)
       }
     }
-    return changedIds
+    return { scheduleIds: changedIds, deletedSchedules: orphanedSchedules }
   }
 
   private transitionOwnerTx(
@@ -310,7 +325,10 @@ export class AgentTaskService {
   notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
-    notifyDataApiDataChange(taskReadModelEffects(entityIds, kind))
+    notifyDataApiDataChange([
+      ...taskReadModelEffects(entityIds, kind),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
   }
 
   /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */

@@ -1,0 +1,47 @@
+{
+  "name": "@cherrystudio/remote-transport",
+  "version": "0.1.0",
+  "description": "Cherry Studio encrypted remote access transport using Noise XX and JSON-RPC.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/remote-transport"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cherrystudio/remote-protocol": "workspace:*",
+    "@libp2p/crypto": "5.1.23",
+    "@libp2p/interface": "3.3.0",
+    "@libp2p/noise": "17.0.2",
+    "@libp2p/peer-id": "6.0.15",
+    "@libp2p/utils": "7.4.1",
+    "json-rpc-2.0": "1.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "@types/ws": "^8.18.1",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1",
+    "ws": "^8.18.3"
+  }
+}

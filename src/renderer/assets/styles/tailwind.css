@@ -12,6 +12,7 @@
 @source '../../../../node_modules/@streamdown/math/dist/*.js';
 @source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
 @custom-variant dark (&:is(.dark *));
+@custom-variant no-hover (@media (hover: none));
 
 /*
  * Application-side Tailwind bridge for @cherrystudio/ui.

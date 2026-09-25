@@ -561,6 +561,31 @@ describe('findKeybindingConflicts', () => {
     ).toEqual([])
   })
 
+  it('treats the fixed window-close accelerator as taken on darwin only', () => {
+    // The native close role consumes the keys before the renderer sees them, so
+    // remapping a command onto it must warn where the app menu exists.
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'Shift', 'W'], enabled: true },
+        platform: 'darwin'
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.window.close'
+      })
+    ])
+
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'Shift', 'W'], enabled: true },
+        platform: 'win32'
+      })
+    ).toEqual([])
+  })
+
   it('ignores different commands with mutually exclusive when clauses', () => {
     expect(
       findKeybindingConflicts({
