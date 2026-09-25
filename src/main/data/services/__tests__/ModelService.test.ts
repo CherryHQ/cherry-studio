@@ -2733,3 +2733,162 @@ describe('ModelService.reconcileForProvider', () => {
     warnSpy.mockRestore()
   })
 })
+
+describe('ModelService.reorder', () => {
+  const dbh = setupTestDatabase()
+
+  /**
+   * Three models under one provider, seeded with ascending order keys so the
+   * list read order is `a, b, c` before any move.
+   */
+  async function seedProviderModels() {
+    const [openaiKey, anthropicKey] = generateOrderKeySequence(2)
+    await dbh.db
+      .insert(userProviderTable)
+      .values([providerRow('openai', 'OpenAI', openaiKey), providerRow('anthropic', 'Anthropic', anthropicKey)])
+
+    const [aKey, bKey, cKey] = generateOrderKeySequence(3)
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'a', { orderKey: aKey }),
+        modelRow('openai', 'b', { orderKey: bKey }),
+        modelRow('openai', 'c', { orderKey: cKey }),
+        modelRow('anthropic', 'other', { orderKey: generateOrderKeyBetween(null, null) })
+      ])
+  }
+
+  const openaiIds = () => modelService.list({ providerId: 'openai' }).map((model) => model.id)
+  const id = (modelId: string) => createUniqueModelId('openai', modelId)
+
+  const orderKeysById = async () => {
+    const rows = await dbh.db.select().from(userModelTable)
+    return Object.fromEntries(rows.map((row) => [row.id, row.orderKey]))
+  }
+
+  it('moves a model to the front of its provider and persists a new order key', async () => {
+    await seedProviderModels()
+    const before = await orderKeysById()
+
+    modelService.reorder(id('c'), { position: 'first' })
+
+    expect(openaiIds()).toEqual([id('c'), id('a'), id('b')])
+    const after = await orderKeysById()
+    // The move is a real write, not a read-time sort.
+    expect(after[id('c')]).not.toBe(before[id('c')])
+    // Untouched rows keep their keys.
+    expect(after[id('a')]).toBe(before[id('a')])
+    expect(after[id('b')]).toBe(before[id('b')])
+  })
+
+  it('supports a relative anchor inside the same provider', async () => {
+    await seedProviderModels()
+
+    modelService.reorder(id('a'), { after: id('c') })
+
+    expect(openaiIds()).toEqual([id('b'), id('c'), id('a')])
+  })
+
+  it('reorders a model whose modelId contains a slash', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('qwen', 'Qwen'))
+    const [first, second] = generateOrderKeySequence(2)
+    const composite = createUniqueModelId('qwen', 'qwen/qwen3-vl')
+    await dbh.db
+      .insert(userModelTable)
+      .values([modelRow('qwen', 'qwen/qwen3-vl', { orderKey: first }), modelRow('qwen', 'plain', { orderKey: second })])
+
+    modelService.reorder(composite, { position: 'last' })
+
+    expect(modelService.list({ providerId: 'qwen' }).map((model) => model.id)).toEqual(['qwen::plain', composite])
+  })
+
+  it('leaves other providers untouched', async () => {
+    await seedProviderModels()
+    const anthropicBefore = (await orderKeysById())[createUniqueModelId('anthropic', 'other')]
+
+    modelService.reorder(id('c'), { position: 'first' })
+
+    expect((await orderKeysById())[createUniqueModelId('anthropic', 'other')]).toBe(anthropicBefore)
+  })
+
+  it('reports an anchor from another provider as not found', async () => {
+    await seedProviderModels()
+    const before = await orderKeysById()
+
+    // Anchor lookups are scope-bound, so a cross-provider anchor is simply
+    // absent from the partition — NOT_FOUND, not a scope-validation error.
+    await expect(async () =>
+      modelService.reorder(id('c'), { after: createUniqueModelId('anthropic', 'other') })
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    expect(await orderKeysById()).toEqual(before)
+  })
+
+  it('reports an unknown model id as not found', async () => {
+    await seedProviderModels()
+
+    await expect(async () => modelService.reorder(id('ghost'), { position: 'first' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('is a no-op for an empty batch', async () => {
+    await seedProviderModels()
+    const before = await orderKeysById()
+
+    modelService.reorderBatch([])
+
+    expect(await orderKeysById()).toEqual(before)
+  })
+})
+
+describe('ModelService.reorderBatch', () => {
+  const dbh = setupTestDatabase()
+
+  async function seedTwoProviders() {
+    const [openaiKey, anthropicKey] = generateOrderKeySequence(2)
+    await dbh.db
+      .insert(userProviderTable)
+      .values([providerRow('openai', 'OpenAI', openaiKey), providerRow('anthropic', 'Anthropic', anthropicKey)])
+
+    const [aKey, bKey, cKey] = generateOrderKeySequence(3)
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'a', { orderKey: aKey }),
+        modelRow('openai', 'b', { orderKey: bKey }),
+        modelRow('openai', 'c', { orderKey: cKey }),
+        modelRow('anthropic', 'other', { orderKey: generateOrderKeyBetween(null, null) })
+      ])
+  }
+
+  const openaiIds = () => modelService.list({ providerId: 'openai' }).map((model) => model.id)
+  const id = (modelId: string) => createUniqueModelId('openai', modelId)
+
+  it('applies sequential moves in one transaction', async () => {
+    await seedTwoProviders()
+
+    modelService.reorderBatch([
+      { id: id('c'), anchor: { position: 'first' } },
+      { id: id('a'), anchor: { position: 'last' } }
+    ])
+
+    expect(openaiIds()).toEqual([id('c'), id('b'), id('a')])
+  })
+
+  it('rejects a batch that spans two providers and rolls the whole batch back', async () => {
+    await seedTwoProviders()
+    const rowsBefore = await dbh.db.select().from(userModelTable)
+    const keysBefore = Object.fromEntries(rowsBefore.map((row) => [row.id, row.orderKey]))
+
+    await expect(async () =>
+      modelService.reorderBatch([
+        { id: createUniqueModelId('openai', 'c'), anchor: { position: 'first' } },
+        { id: createUniqueModelId('anthropic', 'other'), anchor: { position: 'first' } }
+      ])
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+    const rowsAfter = await dbh.db.select().from(userModelTable)
+    expect(Object.fromEntries(rowsAfter.map((row) => [row.id, row.orderKey]))).toEqual(keysBefore)
+  })
+})

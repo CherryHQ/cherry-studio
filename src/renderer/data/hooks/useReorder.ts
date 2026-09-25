@@ -77,6 +77,24 @@ export interface UseReorderOptions {
    */
   revalidateOnSuccess?: boolean
   /**
+   * Query the collection is read under, when the collection is query-scoped.
+   *
+   * `GET /models?providerId=…` caches under `[path, query]`, so a path-only
+   * lookup misses the entry and the hook degrades to a silent no-op. Pass the
+   * same query object the sibling `useQuery` call uses and the optimistic
+   * overlay lands on the right key.
+   */
+  query?: Record<string, unknown>
+  /**
+   * Param token used for the single-item order path, e.g. `'uniqueModelId*'`.
+   *
+   * Defaults to `'id'`, which yields the canonical `/{res}/:id/order`. Resources
+   * whose item id can contain `/` (a `UniqueModelId` is `providerId::modelId`)
+   * must declare a greedy tail so the server can route the id back as one
+   * value — the matcher splits on path segments and never decodes.
+   */
+  itemIdParam?: string
+  /**
    * Name of the item field used as identity. Defaults to `'id'`.
    *
    * Pass `'appId'` (or any other field name) when the collection's primary key
@@ -179,8 +197,9 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  *
  * Known bounded tech debt: the single-item and batch endpoints are typed via
  * `as TemplateApiPaths` / `as ConcreteApiPaths` casts. Each consumer resource
- * must register `/{res}/:id/order` and `/{res}/order:batch` in `ApiSchemas`
- * to eventually remove the casts; the cast surface is confined to this hook.
+ * must register `/{res}/:id/order` (or `/{res}/:{itemIdParam}/order`) and
+ * `/{res}/order:batch` in `ApiSchemas` to eventually remove the casts; the
+ * cast surface is confined to this hook.
  *
  * @example Flat-array collection
  * const { data } = useQuery('/pins')
@@ -199,6 +218,14 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  *     const c = cache as GroupedView
  *     return { ...c, groups: [{ ...c.groups[0], items }, ...c.groups.slice(1)] }
  *   }
+ * })
+ *
+ * @example Query-scoped collection whose item id can contain `/`
+ * // `GET /models?providerId=…` caches under `[path, query]`, and a
+ * // `UniqueModelId` (`providerId::modelId`) may contain slashes.
+ * const { applyReorderedList } = useReorder('/models', {
+ *   query: { providerId },
+ *   itemIdParam: 'uniqueModelId*'
  * })
  */
 export function useReorder<TCollection extends TemplateApiPaths>(
@@ -236,19 +263,24 @@ export function useReorder(
   const revalidate = options?.revalidateOnSuccess !== false
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
+  const cacheQuery = options?.query
+  // `:name*` is the greedy-tail token; the request param itself is `name`.
+  const itemIdParam = options?.itemIdParam ?? 'id'
+  const itemParamName = itemIdParam.endsWith('*') ? itemIdParam.slice(0, -1) : itemIdParam
   const mutationParams = options?.params as Record<string, string | number> | undefined
   if (mutationParams && Object.hasOwn(mutationParams, 'id')) {
     throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
   }
   const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
 
-  // Template path `${collectionUrl}/:id/order` is not yet registered in
-  // ApiSchemas for arbitrary resources, so we widen via `TemplateApiPaths`.
-  // The cast is confined to this hook — callers receive the strict
-  // `OrderRequest` / `OrderBatchRequest` types from the public surface.
+  // Template path `${collectionUrl}/:${itemIdParam}/order` is not necessarily
+  // registered in ApiSchemas for arbitrary resources, so we widen via
+  // `TemplateApiPaths`. The cast is confined to this hook — callers receive
+  // the strict `OrderRequest` / `OrderBatchRequest` types from the public
+  // surface.
   const { trigger: patchOrder } = useMutation(
     'PATCH',
-    `${collectionUrl}/:id/order` as TemplateApiPaths,
+    `${collectionUrl}/:${itemIdParam}/order` as TemplateApiPaths,
     revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
@@ -264,8 +296,8 @@ export function useReorder(
    * caller distinguishes this from an unrecognized shape.
    */
   const readCurrent = useCallback(
-    (): unknown => readCache<unknown>(resolvedCollectionUrl),
-    [readCache, resolvedCollectionUrl]
+    (): unknown => readCache<unknown>(resolvedCollectionUrl, cacheQuery),
+    [readCache, resolvedCollectionUrl, cacheQuery]
   )
 
   const warnUnrecognizedShape = useCallback(
@@ -296,9 +328,12 @@ export function useReorder(
 
       try {
         if (optimistic !== undefined) {
-          await writeCache(resolvedCollectionUrl, optimistic)
+          await writeCache(resolvedCollectionUrl, optimistic, cacheQuery)
         }
-        await patchOrder({ params: { ...mutationParams, id }, body: anchor })
+        await patchOrder({
+          params: { ...mutationParams, [itemParamName]: id },
+          body: anchor
+        } as Parameters<typeof patchOrder>[0])
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic
@@ -319,6 +354,8 @@ export function useReorder(
       invalidateCache,
       collectionUrl,
       mutationParams,
+      itemParamName,
+      cacheQuery,
       patchOrder,
       resolvedCollectionUrl,
       warnUnrecognizedShape
@@ -337,7 +374,7 @@ export function useReorder(
       const optimistic = updateItems(current, next)
 
       try {
-        await writeCache(resolvedCollectionUrl, optimistic)
+        await writeCache(resolvedCollectionUrl, optimistic, cacheQuery)
         await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
@@ -355,6 +392,7 @@ export function useReorder(
       invalidateCache,
       collectionUrl,
       mutationParams,
+      cacheQuery,
       patchBatch,
       resolvedCollectionUrl
     ]

@@ -76,6 +76,13 @@ export type OrderBatchRequest = z.infer<typeof OrderBatchRequestSchema>
  *     '/mini-apps/:id': { ... }
  *   } & OrderEndpoints<'/mini-apps'>
  *
+ * Resources whose item id can contain `/` pass a greedy token as the second
+ * argument, mirroring their existing row-level route:
+ *
+ *   } & OrderEndpoints<'/models', 'uniqueModelId*'>
+ *   // the single-item route gains a greedy tail and keeps `uniqueModelId` as
+ *   // the request param name
+ *
  * Why a type-only helper (no runtime factory):
  * - ApiSchemas is a pure compile-time map whose literal keys (e.g.
  *   `/mini-apps/:id/order`) drive `TemplateApiPaths` / `ConcreteApiPaths`.
@@ -86,10 +93,13 @@ export type OrderBatchRequest = z.infer<typeof OrderBatchRequestSchema>
  *   above; handlers call `OrderRequestSchema.parse(body)` or
  *   `OrderBatchRequestSchema.parse(body)` exactly as before.
  */
-export type OrderEndpoints<TRes extends string> = {
-  [P in `${TRes}/:id/order`]: {
+/** Strip the greedy `*` suffix to get the request-param name (`a*` -> `a`). */
+type OrderIdParamName<TParam extends string> = TParam extends `${infer TName}*` ? TName : TParam
+
+export type OrderEndpoints<TRes extends string, TIdParam extends string = 'id'> = {
+  [P in `${TRes}/:${TIdParam}/order`]: {
     PATCH: {
-      params: { id: string }
+      params: Record<OrderIdParamName<TIdParam>, string>
       body: OrderRequest
       response: void
     }

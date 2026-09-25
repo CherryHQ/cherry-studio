@@ -31,9 +31,10 @@ import {
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
-import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
+import { applyScopedMoves, insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
@@ -1286,6 +1287,55 @@ class ModelService {
     logger.info('Bulk deleted models', {
       count: ids.length,
       providers: [...new Set([...uniqueItems.values()].map((item) => item.providerId))]
+    })
+  }
+
+  /**
+   * Move a single model relative to an anchor, inside its own provider.
+   *
+   * `user_model.order_key` is partitioned by `provider_id`, so the scope is
+   * inferred from the target row — callers pass only the `UniqueModelId` and
+   * never name the provider. Reordering touches no model content, so the
+   * managed-default and default-in-use guards that gate `create` / `update` /
+   * `delete` deliberately do not apply here.
+   */
+  reorder(uniqueModelId: string, anchor: OrderRequest): void {
+    withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          applyScopedMoves(tx, userModelTable, [{ id: uniqueModelId, anchor }], {
+            pkColumn: userModelTable.id,
+            scopeColumn: userModelTable.providerId
+          })
+        }),
+      defaultHandlersFor('Model', uniqueModelId)
+    )
+
+    logger.info('Reordered model', { uniqueModelId })
+  }
+
+  /**
+   * Apply a batch of moves atomically. `applyScopedMoves` rejects a batch
+   * spanning more than one provider with a VALIDATION_ERROR, and reports a
+   * missing id as NOT_FOUND before the scope check.
+   */
+  reorderBatch(moves: OrderBatchRequest['moves']): void {
+    if (moves.length === 0) return
+
+    withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          applyScopedMoves(tx, userModelTable, moves, {
+            pkColumn: userModelTable.id,
+            scopeColumn: userModelTable.providerId
+          })
+        }),
+      defaultHandlersFor('Model', `batch(${moves.length} items)`)
+    )
+
+    logger.info('Reordered models', {
+      count: moves.length,
+      ids: moves.map((move) => move.id)
     })
   }
 }

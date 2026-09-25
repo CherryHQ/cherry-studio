@@ -154,6 +154,26 @@ describe('ApiServer.extractPathParams', () => {
     })
   })
 
+  describe('composite UniqueModelId on the order sub-resource', () => {
+    it('cannot route a slash-bearing UniqueModelId through a plain `:id` order path', () => {
+      const { extract } = createServer()
+      // A `UniqueModelId` is `providerId::modelId`, and `modelId` may contain
+      // `/`. Matching happens on raw path segments with no decoding, so the
+      // canonical single-segment form cannot carry such an id.
+      expect(extract('/models/:id/order', '/models/qwen::qwen/qwen3-vl/order')).toBeNull()
+    })
+
+    it('routes it through the greedy tail anchored by the /order suffix', () => {
+      const { extract } = createServer()
+      expect(extract('/models/:uniqueModelId*/order', '/models/qwen::qwen/qwen3-vl/order')).toEqual({
+        uniqueModelId: 'qwen::qwen/qwen3-vl'
+      })
+      expect(extract('/models/:uniqueModelId*/order', '/models/openai::gpt-5/order')).toEqual({
+        uniqueModelId: 'openai::gpt-5'
+      })
+    })
+  })
+
   describe('greedy syntax edge cases', () => {
     it('does not treat a bare `:*` as greedy (length <= 2)', () => {
       const { extract } = createServer()

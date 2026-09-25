@@ -10,6 +10,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
@@ -23,7 +24,7 @@ import {
 } from '@shared/data/api/schemas/models'
 import type { HandlersFor } from '@shared/data/api/types'
 import { SuccessStatus } from '@shared/data/api/types'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
 
@@ -37,14 +38,16 @@ const logger = loggerService.withContext('DataApi:ModelHandlers')
  * tests so callers that legitimately need that shape (delete-by-prefix
  * probes, etc.) keep working.
  */
-const parseOrValidationError = (uniqueModelId: string) => {
+const assertUniqueModelId = (uniqueModelId: string): UniqueModelId => {
   if (!isUniqueModelId(uniqueModelId)) {
     throw DataApiErrorFactory.validation({
       uniqueModelId: [`Expected "providerId::modelId", got "${uniqueModelId}"`]
     })
   }
-  return parseUniqueModelId(uniqueModelId)
+  return uniqueModelId
 }
+
+const parseOrValidationError = (uniqueModelId: string) => parseUniqueModelId(assertUniqueModelId(uniqueModelId))
 
 async function enrichCreateItems(dtos: CreateModelDto[]) {
   return await Promise.all(
@@ -134,6 +137,26 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       modelService.delete(providerId, modelId)
+      return undefined
+    }
+  },
+
+  // Greedy tail: a `UniqueModelId` is `providerId::modelId` and `modelId` may
+  // contain `/`, so a single-segment `:id` could not be routed back intact.
+  '/models/:uniqueModelId*/order': {
+    PATCH: async ({ params, body }) => {
+      const uniqueModelId = assertUniqueModelId(params.uniqueModelId)
+      const anchor = OrderRequestSchema.parse(body)
+      modelService.reorder(uniqueModelId, anchor)
+      return undefined
+    }
+  },
+
+  // Ids travel in the body here, so this route needs no greedy tail.
+  '/models/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      modelService.reorderBatch(parsed.moves)
       return undefined
     }
   },

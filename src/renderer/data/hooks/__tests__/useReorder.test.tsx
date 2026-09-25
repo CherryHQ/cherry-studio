@@ -659,3 +659,101 @@ describe('useReorder - custom accessors', () => {
     }
   })
 })
+
+/**
+ * `GET /models` is fetched per provider (`/models?providerId=…`), and a
+ * `UniqueModelId` is `providerId::modelId` where `modelId` may itself contain
+ * `/` (e.g. `qwen::qwen/qwen3-vl`). Two consequences pin this block:
+ *
+ * 1. The collection lives under a query-scoped cache key, so the optimistic
+ *    overlay has to read/write that key — a path-only lookup misses it and the
+ *    hook degrades to a silent no-op without ever firing the PATCH.
+ * 2. The item id cannot travel in a single-segment path param. The plain
+ *    `/:id/order` template cannot be routed by the server for such ids, so the
+ *    item path has to be declared with a greedy tail (`:uniqueModelId*`).
+ */
+describe('useReorder - query-scoped collection with a composite item id', () => {
+  const MODELS = '/models' as const
+  const MODELS_QUERY = { providerId: 'openai' }
+  const MODELS_KEY = unstable_serialize([MODELS, MODELS_QUERY])
+  const COMPOSITE_ID = 'qwen::qwen/qwen3-vl'
+
+  function renderModelsReorder(
+    opts: Parameters<typeof useReorder>[1],
+    initial: Item[] = [{ id: 'openai::gpt-5' }, { id: COMPOSITE_ID }]
+  ) {
+    const { Wrapper, cache } = createSWRTestWrapper([[[MODELS, MODELS_QUERY], initial]])
+
+    const rendered = renderHook(
+      () => {
+        useSWR([MODELS, MODELS_QUERY], ([path, query]) => getMock(path as string, { query }) as Promise<Item[]>, {
+          revalidateOnMount: false,
+          revalidateIfStale: false,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: false
+        })
+        return useReorder(MODELS, opts)
+      },
+      { wrapper: Wrapper }
+    )
+
+    return { ...rendered, cache }
+  }
+
+  it('reorders the query-scoped collection and routes a slash-bearing id through the greedy item path', async () => {
+    patchMock.mockResolvedValue({})
+
+    const { result, cache } = renderModelsReorder({
+      query: MODELS_QUERY,
+      itemIdParam: 'uniqueModelId*',
+      revalidateOnSuccess: false
+    })
+
+    await act(async () => {
+      await result.current.move(COMPOSITE_ID, { position: 'first' })
+    })
+
+    // The id stays verbatim inside a greedy tail — no percent-encoding, because
+    // the server matches path segments before any decoding.
+    expect(patchMock).toHaveBeenCalledWith(`/models/${COMPOSITE_ID}/order`, {
+      body: { position: 'first' },
+      query: undefined
+    })
+
+    // Optimistic overlay landed on the query-scoped key, not the bare path key.
+    const cached = cache.get(MODELS_KEY)?.data as Item[]
+    expect(cached.map((item) => item.id)).toEqual([COMPOSITE_ID, 'openai::gpt-5'])
+    expect(cache.get(unstable_serialize([MODELS]))?.data).toBeUndefined()
+  })
+
+  it('applies a multi-item drag against the query-scoped baseline', async () => {
+    patchMock.mockResolvedValue({})
+
+    // Fully reversing three items has no increasing subsequence longer than one,
+    // so it cannot be expressed as a single anchored move.
+    const initial: Item[] = [{ id: 'openai::gpt-5' }, { id: 'openai::o3' }, { id: COMPOSITE_ID }]
+    const { result, cache } = renderModelsReorder(
+      {
+        query: MODELS_QUERY,
+        itemIdParam: 'uniqueModelId*',
+        revalidateOnSuccess: false
+      },
+      initial
+    )
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: COMPOSITE_ID }, { id: 'openai::o3' }, { id: 'openai::gpt-5' }])
+    })
+
+    // Ids travel in the request body here, so the greedy path is not involved.
+    const batchCall = patchMock.mock.calls.find(([p]) => p === `${MODELS}/order:batch`)
+    expect(batchCall).toBeDefined()
+    const moves = (batchCall?.[1] as { body: { moves: Array<{ id: string }> } } | undefined)?.body.moves ?? []
+    expect(moves).toHaveLength(2)
+    // `openai::gpt-5` is the element left in place; the other two are moved.
+    expect(moves.map((m) => m.id).sort()).toEqual([COMPOSITE_ID, 'openai::o3'].sort())
+
+    const cached = cache.get(MODELS_KEY)?.data as Item[]
+    expect(cached.map((item) => item.id)).toEqual([COMPOSITE_ID, 'openai::o3', 'openai::gpt-5'])
+  })
+})
