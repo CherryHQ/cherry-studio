@@ -34,10 +34,14 @@ type OperationSnapshot = {
     action: { operation?: string; target?: string }
   }>
   knowledgeBases: Array<{
+    ownerSessionId: string
     id: string
     name: string
     documents: Array<{ id: string; filename: string; status: string; chunkCount: number }>
   }>
+  security: {
+    credentialProvidersBySession: Record<string, string[]>
+  }
   protocols: {
     a2a: string
     acp: string
@@ -122,6 +126,7 @@ async function data<T>(page: Page, method: 'GET' | 'POST' | 'PATCH', path: strin
 test('Gate V: a configured catalog agent runs through Boss with A2UI, approval reconnect and knowledge', async () => {
   const profile = `Gate-V-${Date.now()}`
   const workspace = mkdtempSync(join(tmpdir(), 'the-boss-gate-v-'))
+  const secondaryWorkspace = mkdtempSync(join(tmpdir(), 'the-boss-gate-v-secondary-'))
   const documentPath = join(workspace, 'gate-v-knowledge.txt')
   writeFileSync(documentPath, 'The Gate V acceptance phrase is sapphire integration.\n')
   const providerRequests: Array<{ hasTools: boolean; afterTool: boolean; bodyKeys: string[]; toolNames: string[] }> = []
@@ -182,6 +187,9 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       secrets: {}
     })
     const workspaceEntity = await data<{ id: string }>(page, 'POST', '/agent-workspaces', { path: workspace })
+    const secondaryWorkspaceEntity = await data<{ id: string }>(page, 'POST', '/agent-workspaces', {
+      path: secondaryWorkspace
+    })
     await closeApp(app)
 
     launched = await launch(profile)
@@ -315,6 +323,11 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       agentId: target.bossAgentId,
       workspace: { type: 'user', workspaceId: workspaceEntity.id }
     })
+    const secondarySession = await ipc<{ session: { id: string } }>(page, 'ai.agent.session.reuse_or_create', {
+      agentId: target.bossAgentId,
+      workspace: { type: 'user', workspaceId: secondaryWorkspaceEntity.id }
+    })
+    expect(secondarySession.session.id).not.toBe(session.session.id)
     const topicId = `agent-session:${session.session.id}`
 
     await page.evaluate(
@@ -388,13 +401,17 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     ])
 
     expect(run).toMatchObject({ status: 'done', agentRevision: target.catalogRevision })
+    expect(operations.runs.filter((candidate) => candidate.runId === run!.runId)).toEqual([run])
+    expect(operations.runs.some((candidate) => candidate.ownerSessionId === secondarySession.session.id)).toBe(false)
     expect(runDetail.run.effectivePolicy.presentations).toMatchObject({ mode: 'selected', ids: [presentation!.id] })
     expect(runDetail.run.presentationSelection).toMatchObject({
       requested_mode: 'auto',
       effective_mode: 'auto',
       fallback_reason: null
     })
-    const approvalLifecycle = operations.approvals.find((candidate) => candidate.rootRunId === run!.runId)
+    const runApprovals = operations.approvals.filter((candidate) => candidate.rootRunId === run!.runId)
+    expect(runApprovals).toHaveLength(1)
+    const approvalLifecycle = runApprovals[0]
     expect(approvalLifecycle).toMatchObject({
       ownerSessionId: session.session.id,
       state: 'succeeded'
@@ -430,6 +447,18 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     expect(search.some((result) => result.content.includes('sapphire integration'))).toBe(true)
 
     operations = await ipc<OperationSnapshot>(page, 'prometheus.uar.operations.read', {})
+    expect(operations.knowledgeBases.filter((candidate) => candidate.id === knowledge!.id)).toEqual([
+      expect.objectContaining({ id: knowledge!.id, ownerSessionId: '__unattributed__' })
+    ])
+    const credentialScopes = Object.entries(operations.security.credentialProvidersBySession).filter(([, providers]) =>
+      providers.includes('gate-v-uar')
+    )
+    expect(credentialScopes).toEqual([['__unattributed__', expect.arrayContaining(['gate-v-uar'])]])
+    expect(
+      Object.values(operations.security.credentialProvidersBySession)
+        .flat()
+        .filter((providerId) => providerId === 'gate-v-uar')
+    ).toHaveLength(1)
     expect(operations.protocols).toMatchObject({ a2a: 'available', acp: 'available' })
     expect(operations.protocols.federatedAgents).toEqual([])
     expect(operations.protocols.federatedSkills).toBe(0)
@@ -498,6 +527,7 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       catalogRevision: target.catalogRevision,
       bossAgentId: target.bossAgentId,
       sessionId: session.session.id,
+      secondarySessionId: secondarySession.session.id,
       runId: run!.runId,
       selectedSkill: selectedSkill?.id ?? null,
       presentationId: presentation!.id,
