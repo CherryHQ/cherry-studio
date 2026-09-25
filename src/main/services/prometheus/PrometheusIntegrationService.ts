@@ -7,6 +7,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { readAppliedUarStorage, type UarSidecarEndpoint } from '@main/ai/runtime/uar'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { installPrometheusPack } from '@main/utils/prometheusPack'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -75,6 +76,7 @@ export class PrometheusIntegrationService extends BaseService {
 
   private async initialize(): Promise<void> {
     await this.operationRunner.initialize()
+    await installPrometheusPack()
     await migrateIntegrationDocument()
     await installCommandPath()
     const config = readIntegrationConfig()
