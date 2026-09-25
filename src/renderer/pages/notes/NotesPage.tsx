@@ -61,6 +61,7 @@ type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
+  const [dictationContainer, setDictationContainer] = useState<HTMLDivElement | null>(null)
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
@@ -1077,6 +1078,7 @@ const NotesPage: FC = () => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                dictationContainerRef={setDictationContainer}
               />
             </motion.div>
           )}
@@ -1126,6 +1128,7 @@ const NotesPage: FC = () => {
             <NotesEditor
               activeNodeId={editorNodeId}
               voiceNoteId={activeNode?.type === 'file' ? voiceNoteId : undefined}
+              dictationContainer={dictationContainer}
               currentContent={currentContent}
               contentLoadError={contentLoadError}
               tokenCount={tokenCount}

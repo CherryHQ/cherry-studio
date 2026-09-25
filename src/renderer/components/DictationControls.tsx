@@ -46,7 +46,7 @@ export function DictationControls({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {snapshot.phase !== 'idle' && (
         <span role="status" className="text-xs text-muted-foreground">
           {t(PHASE_KEYS[snapshot.phase])}

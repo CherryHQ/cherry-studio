@@ -1,5 +1,5 @@
 import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, Ref } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,6 +30,7 @@ interface NotesSidebarProps {
   activeFilePath?: string
   sortType: NotesSortType
   selectedFolderId?: string | null
+  dictationContainerRef?: Ref<HTMLDivElement>
 }
 
 const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
@@ -82,6 +83,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
+  dictationContainerRef,
   notesTree,
   activeFilePath,
   sortType,
@@ -395,6 +397,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           </CommandContextMenu>
         </div>
 
+        <div ref={dictationContainerRef} className="shrink-0 px-3 py-1 empty:hidden" />
         {!isShowStarred && !isShowSearch && (
           <div
             className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
