@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useMermaid } from '@renderer/hooks/useMermaid'
+import { mermaidRenderService } from '@renderer/services/MermaidRenderService'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
@@ -9,61 +10,7 @@ import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
-type MermaidRenderJob = {
-  run?: (isCancelled: () => boolean) => Promise<void>
-  resolve: () => void
-  reject: (error: unknown) => void
-  started: boolean
-  cancelled: boolean
-}
-
-class MermaidRenderQueue {
-  private pending: MermaidRenderJob[] = []
-  private running = false
-
-  enqueue(run: (isCancelled: () => boolean) => Promise<void>) {
-    let job!: MermaidRenderJob
-    const promise = new Promise<void>((resolve, reject) => {
-      job = { run, resolve, reject, started: false, cancelled: false }
-    })
-    this.pending.push(job)
-    this.startNext()
-
-    return {
-      promise,
-      isQueued: () => !job.started && !job.cancelled,
-      cancel: () => {
-        if (job.cancelled) return
-        job.cancelled = true
-        if (!job.started) {
-          this.pending.splice(this.pending.indexOf(job), 1)
-          job.run = undefined
-          job.resolve()
-        }
-      }
-    }
-  }
-
-  private startNext() {
-    if (this.running) return
-    const job = this.pending.shift()
-    if (!job) return
-
-    this.running = true
-    job.started = true
-    const run = job.run!
-    job.run = undefined
-    void run(() => job.cancelled)
-      .then(job.resolve, job.reject)
-      .finally(() => {
-        this.running = false
-        this.startNext()
-      })
-  }
-}
-
-const mermaidRenderQueue = new MermaidRenderQueue()
-type MermaidRenderInvocation = ReturnType<MermaidRenderQueue['enqueue']>
+type MermaidRenderInvocation = ReturnType<typeof mermaidRenderService.enqueue>
 
 /**
  * 预览 Mermaid 图表
@@ -99,7 +46,7 @@ const MermaidPreview = ({
         if (invocation.isQueued()) invocation.cancel()
       }
 
-      const invocation = mermaidRenderQueue.enqueue(async (isCancelled) => {
+      const invocation = mermaidRenderService.enqueue(async (isCancelled) => {
         try {
           if (isCancelled()) return
           // 验证语法，提前抛出异常
