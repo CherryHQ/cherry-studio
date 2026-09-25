@@ -4,6 +4,7 @@ import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { readErrorMessage } from '../readErrorMessage'
+import { createAbortError } from '../transportUtils'
 
 /**
  * The HTTP rules every ComfyUI caller shares: what a caller may override, how a
@@ -84,10 +85,16 @@ export async function requestJson<T>(
     async (deadlineSignal) => {
       const response = await doFetch(url, { signal: deadlineSignal, headers: options.headers })
       if (!response.ok) {
-        // Inside the deadline: the error body is a read like any other.
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: await readErrorMessage(response, fallback)
-        })
+        // Inside the deadline: the error body is a read like any other. A read cut
+        // short by the caller's own cancellation must not surface as the server's
+        // failure, so the cancellation is checked before the message is reported;
+        // a read cut short by this request's deadline leaves a structured
+        // `REMOTE_ERROR` behind, which `withDeadline` replaces with the timeout.
+        const message = await readErrorMessage(response, fallback)
+        if (signal?.aborted) {
+          throw createAbortError('Request aborted')
+        }
+        throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
       return (await response.json()) as T
     }

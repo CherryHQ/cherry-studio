@@ -51,6 +51,32 @@ describe('listWorkflows', () => {
     expect(error).toBeInstanceOf(PaintingGenerateError)
     expect(error).toMatchObject({ code: 'REMOTE_ERROR', message: 'server exploded' })
   })
+
+  it('keeps a caller cancel during a rejected listing body an AbortError', async () => {
+    const controller = new AbortController()
+    const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      // A rejected response whose body read fails with the caller's abort.
+      const body = new ReadableStream({
+        start(streamController) {
+          ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+            const e = new Error('The operation was aborted')
+            e.name = 'AbortError'
+            streamController.error(e)
+          })
+        }
+      })
+      return new Response(body, { status: 500 })
+    })
+
+    const promise = listWorkflows('http://localhost:8188', controller.signal, { fetch: doFetch }).catch((e) => e)
+    await vi.waitFor(() => expect(doFetch).toHaveBeenCalled())
+    controller.abort()
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+    expect(error).not.toBeInstanceOf(PaintingGenerateError)
+  })
 })
 
 describe('a listing is bounded by its own request deadline', () => {
