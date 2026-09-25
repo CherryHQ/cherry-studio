@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Scroll model types right",
   "settings.models.list_title": "Models",
   "settings.models.manage.add_listed.label": "Add all models",
+  "settings.models.manage.add_partial_failure": "Partial success: {{added}} model(s) added, {{failed}} failed",
   "settings.models.manage.add_success_enable_failed": "Models were added, but the provider could not be enabled.",
   "settings.models.manage.add_whole_group": "Add the whole group",
   "settings.models.manage.clean_stale_models": "Clean stale models",

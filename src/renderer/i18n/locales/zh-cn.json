@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "向右滚动模型类型",
   "settings.models.list_title": "模型",
   "settings.models.manage.add_listed.label": "添加全部模型",
+  "settings.models.manage.add_partial_failure": "部分添加成功:成功 {{added}} 个,失败 {{failed}} 个",
   "settings.models.manage.add_success_enable_failed": "模型已添加，但服务商启用失败。",
   "settings.models.manage.add_whole_group": "添加整个分组",
   "settings.models.manage.clean_stale_models": "清理失效模型",

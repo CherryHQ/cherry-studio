@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Modelltypen nach rechts scrollen",
   "settings.models.list_title": "Modelle",
   "settings.models.manage.add_listed.label": "Alle Modelle hinzufügen",
+  "settings.models.manage.add_partial_failure": "Teilweise erfolgreich: {{added}} Modell(e) hinzugefügt, {{failed}} fehlgeschlagen",
   "settings.models.manage.add_success_enable_failed": "Modelle wurden hinzugefügt, aber der Anbieter konnte nicht aktiviert werden.",
   "settings.models.manage.add_whole_group": "Gesamte Gruppe hinzufügen",
   "settings.models.manage.clean_stale_models": "Ungültige Modelle bereinigen",

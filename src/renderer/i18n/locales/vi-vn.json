@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Cuộn loại mô hình sang phải",
   "settings.models.list_title": "Mô hình",
   "settings.models.manage.add_listed.label": "Thêm tất cả mô hình",
+  "settings.models.manage.add_partial_failure": "Thành công một phần: {{added}} đã được thêm, {{failed}} thất bại",
   "settings.models.manage.add_success_enable_failed": "Đã thêm các mô hình, nhưng không thể bật nhà cung cấp.",
   "settings.models.manage.add_whole_group": "Thêm toàn bộ nhóm",
   "settings.models.manage.clean_stale_models": "Dọn dẹp mô hình không hợp lệ",

@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "向右捲動模型類型",
   "settings.models.list_title": "模型",
   "settings.models.manage.add_listed.label": "新增全部模型",
+  "settings.models.manage.add_partial_failure": "部分成功：{{added}} 筆新增成功，{{failed}} 筆失敗",
   "settings.models.manage.add_success_enable_failed": "模型已新增，但供應商啟用失敗。",
   "settings.models.manage.add_whole_group": "新增整個群組",
   "settings.models.manage.clean_stale_models": "清理失效模型",

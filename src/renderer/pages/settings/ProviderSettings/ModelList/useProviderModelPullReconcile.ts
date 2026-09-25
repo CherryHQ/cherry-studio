@@ -313,31 +313,50 @@ export function useProviderModelPullReconcile(providerId: string) {
         return
       }
 
-      try {
-        const chunks = chunkArray(
-          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
-          MODELS_BATCH_MAX_ITEMS
-        )
-        for (const chunk of chunks) {
+      const chunks = chunkArray(
+        toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
+        MODELS_BATCH_MAX_ITEMS
+      )
+      // A batch that lands commits and cannot be undone here, so the batches after
+      // it stay worth sending: add what can be added, then report what actually
+      // happened. A retry only fills the gaps — `toAdd` above drops existing rows.
+      let addedCount = 0
+      let failedCount = 0
+      for (const chunk of chunks) {
+        try {
           await createModels(chunk)
+          addedCount += chunk.length
+        } catch (error) {
+          failedCount += chunk.length
+          logger.error('Failed to add a batch of provider models from manage drawer', {
+            providerId,
+            batchSize: chunk.length,
+            addedCount,
+            failedCount,
+            error
+          })
         }
-      } catch (error) {
-        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
+      }
+
+      if (addedCount === 0) {
         toast.error(t('settings.models.manage.operation_failed'))
         return
+      }
+      if (failedCount > 0) {
+        toast.warning(t('settings.models.manage.add_partial_failure', { added: addedCount, failed: failedCount }))
       }
 
       try {
         await enableProviderWhenModelsAvailable(
           provider,
           enableProvider,
-          models.length + toAdd.length,
+          models.length + addedCount,
           'model_manage_add'
         )
       } catch (error) {
         logger.error('Models were added but provider enablement failed', {
           providerId,
-          count: toAdd.length,
+          count: addedCount,
           error
         })
         toast.warning(t('settings.models.manage.add_success_enable_failed'))

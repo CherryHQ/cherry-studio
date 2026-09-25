@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Model türlerini sağa kaydır",
   "settings.models.list_title": "Modeller",
   "settings.models.manage.add_listed.label": "Tüm modelleri ekle",
+  "settings.models.manage.add_partial_failure": "Kısmen başarılı: {{added}} eklendi, {{failed}} başarısız oldu",
   "settings.models.manage.add_success_enable_failed": "Modeller eklendi ancak sağlayıcı etkinleştirilemedi.",
   "settings.models.manage.add_whole_group": "Tüm grubu ekle",
   "settings.models.manage.clean_stale_models": "Eski modelleri temizle",

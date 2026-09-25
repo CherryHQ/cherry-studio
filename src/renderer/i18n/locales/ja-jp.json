@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "モデルタイプを右にスクロール",
   "settings.models.list_title": "モデル",
   "settings.models.manage.add_listed.label": "すべてのモデルを追加",
+  "settings.models.manage.add_partial_failure": "部分的な成功: {{added}}件を追加し、{{failed}}件が失敗しました",
   "settings.models.manage.add_success_enable_failed": "モデルが追加されましたが、プロバイダーを有効化できませんでした。",
   "settings.models.manage.add_whole_group": "グループ全体を追加",
   "settings.models.manage.clean_stale_models": "無効なモデルをクリーンアップ",

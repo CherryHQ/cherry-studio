@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Derulează tipurile de modele spre dreapta",
   "settings.models.list_title": "Modele",
   "settings.models.manage.add_listed.label": "Adaugă toate modelele",
+  "settings.models.manage.add_partial_failure": "Succes parțial: {{added}} adăugate, {{failed}} eșuate",
   "settings.models.manage.add_success_enable_failed": "Modelele au fost adăugate, dar furnizorul nu a putut fi activat.",
   "settings.models.manage.add_whole_group": "Adaugă întregul grup",
   "settings.models.manage.clean_stale_models": "Curăță modelele expirate",

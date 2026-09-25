@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Прокрутить типы моделей вправо",
   "settings.models.list_title": "Модели",
   "settings.models.manage.add_listed.label": "Добавить все модели",
+  "settings.models.manage.add_partial_failure": "Частичный успех: {{added}} добавлено, {{failed}} не удалось",
   "settings.models.manage.add_success_enable_failed": "Модели были добавлены, но провайдер не удалось включить.",
   "settings.models.manage.add_whole_group": "Добавить всю группу",
   "settings.models.manage.clean_stale_models": "Очистить устаревшие модели",

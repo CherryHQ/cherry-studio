@@ -314,7 +314,7 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
-  it('stops after a later create batch fails and does not enable the provider', async () => {
+  it('keeps sending the batches after one fails and reports the library it left behind', async () => {
     const remoteModels = Array.from({ length: 804 }, (_, index) => ({
       id: `openai::remote-model-${index}`,
       providerId: 'openai',
@@ -322,7 +322,36 @@ describe('useProviderModelPullReconcile', () => {
       name: `Remote Model ${index}`,
       group: 'OpenAI'
     }))
+    // The first 500 land, the remaining 304 do not: the operation is partial, and
+    // the report has to name that instead of a flat failure.
     createModelsMock.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('second batch failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels(remoteModels as any)
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(2)
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_partial_failure')
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    // The batches that landed are still a usable provider: enable it for them.
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'openai', isEnabled: false },
+      enableProviderMock,
+      501,
+      'model_manage_add'
+    )
+  })
+
+  it('does not enable the provider when every batch fails', async () => {
+    const remoteModels = Array.from({ length: 804 }, (_, index) => ({
+      id: `openai::remote-model-${index}`,
+      providerId: 'openai',
+      apiModelId: `remote-model-${index}`,
+      name: `Remote Model ${index}`,
+      group: 'OpenAI'
+    }))
+    createModelsMock.mockRejectedValue(new Error('create failed'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
     await act(async () => {

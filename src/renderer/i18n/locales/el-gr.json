@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Κύλιση τύπων μοντέλων προς τα δεξιά",
   "settings.models.list_title": "Μοντέλα",
   "settings.models.manage.add_listed.label": "Προσθήκη όλων των μοντέλων",
+  "settings.models.manage.add_partial_failure": "Μερική επιτυχία: {{added}} προστέθηκαν, {{failed}} απέτυχαν",
   "settings.models.manage.add_success_enable_failed": "Προστέθηκαν μοντέλα, αλλά ο πάροχος δεν μπόρεσε να ενεργοποιηθεί.",
   "settings.models.manage.add_whole_group": "Προσθήκη ολόκληρης ομάδας",
   "settings.models.manage.clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",

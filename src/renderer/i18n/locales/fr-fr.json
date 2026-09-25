@@ -4799,6 +4799,7 @@
   "settings.models.filter.scroll_right": "Faire défiler les types de modèles vers la droite",
   "settings.models.list_title": "Modèles",
   "settings.models.manage.add_listed.label": "Ajouter tous les modèles",
+  "settings.models.manage.add_partial_failure": "Succès partiel : {{added}} ajoutés, {{failed}} échoués",
   "settings.models.manage.add_success_enable_failed": "Des modèles ont été ajoutés, mais le fournisseur n'a pas pu être activé.",
   "settings.models.manage.add_whole_group": "Ajouter tout le groupe",
   "settings.models.manage.clean_stale_models": "Nettoyer les modèles obsolètes",
