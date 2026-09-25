@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "Schnellmodell",
   "settings.models.quick_model.setting_title": "Schnellmodell-Einstellungen",
   "settings.models.quick_model.tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen",
+  "settings.models.reorder_failed": "Fehler beim Neuanordnen der Modelle",
   "settings.models.retry.backoff": "Exponentielles Backoff",
   "settings.models.retry.description": "Wiederholt Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
   "settings.models.retry.fallback_models": "Fallback-Modelle",

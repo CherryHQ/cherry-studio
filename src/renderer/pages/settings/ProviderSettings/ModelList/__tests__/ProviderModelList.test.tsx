@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderModelList from '../ProviderModelList'
@@ -54,10 +54,17 @@ vi.mock('@renderer/components/VirtualList', () => ({
   }
 }))
 
-const { moveModelMock } = vi.hoisted(() => ({ moveModelMock: vi.fn().mockResolvedValue(undefined) }))
+const { moveModelMock, toastErrorMock } = vi.hoisted(() => ({
+  moveModelMock: vi.fn().mockResolvedValue(undefined),
+  toastErrorMock: vi.fn()
+}))
 
 vi.mock('@renderer/data/hooks/useReorder', () => ({
   useReorder: () => ({ move: moveModelMock, isPending: false })
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock, success: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
 
 vi.mock('../ModelDrawer', () => ({
@@ -193,6 +200,29 @@ describe('ProviderModelList', () => {
     })
 
     expect(moveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('tells the user when the reorder is rejected instead of silently snapping back', async () => {
+    moveModelMock.mockRejectedValueOnce(new Error('reorder rejected'))
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overId: 'openai::gpt-5',
+      overItem: { id: 'openai::gpt-5' },
+      overType: 'item',
+      position: 'after',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'OpenAI' },
+      targetGroupId: 'OpenAI',
+      sourceIndex: 0,
+      targetIndex: 1
+    })
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('settings.models.reorder_failed'))
   })
 
   it('ignores a drop that lands on a group header rather than a row', () => {

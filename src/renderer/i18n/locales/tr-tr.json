@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "Hızlı Model",
   "settings.models.quick_model.setting_title": "Hızlı model kurulumu",
   "settings.models.quick_model.tooltip": "Hafif bir model seçin ve akıl yürütme modellerinden kaçının.",
+  "settings.models.reorder_failed": "Modeller yeniden sıralanamadı",
   "settings.models.retry.backoff": "Üstel geri çekilme",
   "settings.models.retry.description": "Sohbet, gömme ve yeniden sıralama çağrılarını yeniden dener; sohbet diğer modellere geçebilir",
   "settings.models.retry.fallback_models": "Yedek modeller",

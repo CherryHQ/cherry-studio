@@ -1,7 +1,9 @@
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useReorder } from '@renderer/data/hooks/useReorder'
+import { toast } from '@renderer/services/toast'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -27,6 +29,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   onContinueApiSetup,
   actions
 }) => {
+  const { t } = useTranslation()
   const [groupExpansionCommand, setGroupExpansionCommand] = useState({ expanded: true, version: 0 })
   const modelList = useProviderModelList({
     providerId,
@@ -49,10 +52,12 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     (uniqueModelId: UniqueModelId, anchor: OrderRequest) => {
       if (disabled) return
       void moveModel(uniqueModelId, anchor).catch(() => {
-        // `move` already rolls the optimistic overlay back and revalidates.
+        // `move` already rolls the optimistic overlay back and revalidates, so
+        // the only thing left to do is tell the user why the row snapped back.
+        toast.error(t('settings.models.reorder_failed'))
       })
     },
-    [disabled, moveModel]
+    [disabled, moveModel, t]
   )
 
   const toggleGroupsExpanded = useCallback(() => {

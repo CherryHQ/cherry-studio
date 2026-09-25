@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "Γρήγορο μοντέλο",
   "settings.models.quick_model.setting_title": "Γρήγορη ρύθμιση μοντέλου",
   "settings.models.quick_model.tooltip": "Προτείνεται να επιλέξετε ένα ελαφρύ μοντέλο και δεν συνιστάται να επιλέξετε ένα μοντέλο σκέψης",
+  "settings.models.reorder_failed": "Αποτυχία αναδιάταξης μοντέλων",
   "settings.models.retry.backoff": "Εκθετική υποχώρηση",
   "settings.models.retry.description": "Επανάληψη κλήσεων συνομιλίας, ενσωμάτωσης και επαναταξινόμησης· η συνομιλία μπορεί να χρησιμοποιήσει εναλλακτικά μοντέλα",
   "settings.models.retry.fallback_models": "Εναλλακτικά μοντέλα",

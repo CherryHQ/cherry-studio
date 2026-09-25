@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "Modèle rapide",
   "settings.models.quick_model.setting_title": "Configuration rapide du modèle",
   "settings.models.quick_model.tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion.",
+  "settings.models.reorder_failed": "Échec de la réorganisation des modèles",
   "settings.models.retry.backoff": "Temporisation exponentielle",
   "settings.models.retry.description": "Réessaie les appels de chat, d'embedding et de reranking ; le chat peut basculer vers d'autres modèles",
   "settings.models.retry.fallback_models": "Modèles de secours",

@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "Mô hình Nhanh",
   "settings.models.quick_model.setting_title": "Thiết lập mô hình nhanh",
   "settings.models.quick_model.tooltip": "Chọn mô hình nhẹ và tránh các mô hình suy luận.",
+  "settings.models.reorder_failed": "Không thể sắp xếp lại các mô hình",
   "settings.models.retry.backoff": "Tăng thời gian chờ theo cấp số nhân",
   "settings.models.retry.description": "Thử lại các lệnh gọi chat, nhúng và xếp hạng lại; chat có thể chuyển sang mô hình khác",
   "settings.models.retry.fallback_models": "Mô hình dự phòng",

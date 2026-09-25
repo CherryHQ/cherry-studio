@@ -4833,6 +4833,7 @@
   "settings.models.quick_model.label": "高速モデル",
   "settings.models.quick_model.setting_title": "高速モデル設定",
   "settings.models.quick_model.tooltip": "軽量モデルを選択し、推論モデルは避けてください。",
+  "settings.models.reorder_failed": "モデルの並び替えに失敗しました",
   "settings.models.retry.backoff": "指数関数的バックオフ",
   "settings.models.retry.description": "チャット、埋め込み、リランクの呼び出しを再試行します。チャットは他のモデルにフォールバックできます。",
   "settings.models.retry.fallback_models": "フォールバックモデル",
