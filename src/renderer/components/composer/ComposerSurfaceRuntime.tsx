@@ -45,6 +45,7 @@ import {
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
+import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
@@ -689,6 +690,25 @@ export default function ComposerSurfaceRuntime({
     [onTextChange]
   )
 
+  const insertPastedPaths = useCallback((paths: string[]) => {
+    const addition = getComposerInputTextWithinLimit(textRef.current, paths.join('\n'))
+    if (!addition) return
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+    const content = createComposerPlainTextContent(addition)
+    // At the caret while focused; a global-handler paste lands at the end of the draft
+    // instead of the possibly stale stored selection. Both keep the rich tokens intact.
+    if (editor.isFocused) {
+      editor.chain().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+    } else {
+      editor
+        .chain()
+        .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+        .insertContentAt(editor.state.doc.content.size, content)
+        .run()
+    }
+  }, [])
+
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
@@ -696,9 +716,10 @@ export default function ComposerSurfaceRuntime({
       onResize: undefined,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
-      t
+      t,
+      onInsertPaths: insertPastedPaths
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
+    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t, insertPastedPaths]
   )
 
   const { handlePaste } = usePasteHandler(pasteHandlerOptions)
