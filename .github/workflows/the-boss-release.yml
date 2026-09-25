@@ -67,7 +67,7 @@ jobs:
         run: git config --global core.longpaths true
       - uses: actions/checkout@v7
         with:
-          submodules: true
+          submodules: recursive
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
