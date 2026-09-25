@@ -762,6 +762,64 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.runtimeState.queue).toEqual([])
       void service.closeSession('session-1')
     })
+
+    it('starts a queued user turn immediately while background work is still running', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const sourceTurn = entry.currentTurn
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      } as any
+      const send = vi.fn()
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: { send, close: vi.fn(), reconcile: vi.fn().mockResolvedValue('current'), refreshTraceContext: vi.fn() },
+        occupancy: {}
+      } as any
+      mocks.cacheGetShared.mockImplementation((key: string) =>
+        String(key).includes('background_tasks')
+          ? [{ id: 'child-1', type: 'subagent', description: 'Long review' }]
+          : undefined
+      )
+
+      // Detached work starts and the spawning reply's own generation ends.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      // Not held open by the background work: persistence may settle the turn immediately.
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: sourceTurn,
+        stream: 'awaiting-persistence'
+      })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(entry.runtimeState.queue.length).toBe(1)
+      // Still awaiting persistence here — the queue launches once the terminal is confirmed.
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+        expect(entry.runtimeState.queue).toEqual([])
+      })
+      // Opening the follow-up's stream admits it onto the same connection the background work runs on.
+      const followUpTurn = entry.currentTurn
+      expect(followUpTurn.turnId).not.toBe(sourceTurn.turnId)
+      const followUpReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: followUpTurn.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(followUpReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      // The follow-up turn is admitted with a reminder of the still-running background work.
+      expect(entry.runtimeState.connection.occupancy).toMatchObject({ background: expect.anything() })
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ systemReminder: true, backgroundTasksNote: expect.stringContaining('Long review') })
+      )
+      void service.closeSession('session-1')
+    })
   })
 
   it('keeps the active usage source frozen when the agent is edited or deleted mid-turn', () => {

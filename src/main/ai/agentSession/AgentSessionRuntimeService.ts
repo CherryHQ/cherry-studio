@@ -27,6 +27,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { renderBackgroundTasksNote } from '@main/ai/steerReminder'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -98,7 +99,6 @@ import {
   hasAgentSessionRuntimeBackgroundWork,
   hasAgentSessionRuntimeOpenStream,
   isAgentSessionRuntimeAutonomous,
-  isAgentSessionRuntimeAwaitingBackground,
   isAgentSessionRuntimeBusy,
   isAgentSessionRuntimeCompacting,
   isAgentSessionRuntimeTransitioning,
@@ -203,6 +203,12 @@ type AgentSessionTurn = {
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
+  /**
+   * Snapshot of detached background work still running when a queued user turn starts, rendered
+   * into the admission system-reminder so the model knows earlier results are pending delivery
+   * and does not re-launch duplicate tasks.
+   */
+  backgroundTasksNote?: string
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
@@ -537,6 +543,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private runtimeStatus(entry: AgentSessionRuntimeEntry): AgentSessionRuntimeStatus {
+    // Background occupancy is presentation-only "still working": it must not gate turn scheduling
+    // (`isSessionBusy` deliberately ignores it) but the session keeps reporting activity until the
+    // detached work drains, so the input state does not flip to "complete" mid-task (#20658).
+    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return 'active'
     return isAgentSessionRuntimeBusy(entry.runtimeState) ? 'active' : 'idle'
   }
 
@@ -610,7 +620,11 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {})
     }
 
-    if (existing && this.runtimeStatus(existing) === 'idle') {
+    // Reuse the entry whenever its execution is idle — including one holding detached background
+    // work, which must survive a fresh user turn (`runtimeStatus` reports it "active" for
+    // presentation, but it never makes the session busy). Anything else is mid-flight and the
+    // dispatcher should have queued instead of beginning; close protects against a clobbering begin.
+    if (existing && !isAgentSessionRuntimeBusy(existing.runtimeState)) {
       // A warm connection is always safe to reuse: per-turn headless enforcement lives in `canUseTool`
       // and PreToolUse hooks (resolved by session id at fire-time via `getInteractionState`), so the
       // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
@@ -1897,7 +1911,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
-        this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
+        this.handleBackgroundWorkState(entry, event.active, connection)
         break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
@@ -1908,10 +1922,6 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'autonomous-turn-state': {
         if (event.state === 'finished') {
           this.handleAutonomousGenerationFinished(entry, connection)
-          break
-        }
-        if (event.origin.kind === 'background-work' && isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
-          this.applyRuntimeStateEvent(entry, event)
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
@@ -2169,8 +2179,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleBackgroundWorkState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
-    connection = this.currentConnection(entry),
-    awaitingReply = active
+    connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
@@ -2178,7 +2187,6 @@ export class AgentSessionRuntimeService extends BaseService {
       type: 'connection-occupancy',
       occupancy: 'background',
       active,
-      awaitingReply,
       ...(active
         ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
         : {})
@@ -2467,7 +2475,9 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
-    if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+    // A live turn stream carries the lifecycle edge as an in-reply part; with no stream open (the
+    // spawning turn already settled) the cached edge above is the delivery — the tasks panel reads it.
+    if (hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
         type: 'data-agent-task-event',
         id: uuidv7(),
@@ -2598,7 +2608,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!connection) throw new Error('Agent runtime connection unavailable')
     await connection.send({
       message: turn.userMessage,
-      systemReminder: turn.systemReminder === true
+      systemReminder: turn.systemReminder === true,
+      ...(turn.backgroundTasksNote ? { backgroundTasksNote: turn.backgroundTasksNote } : {})
     })
   }
 
@@ -2825,9 +2836,18 @@ export class AgentSessionRuntimeService extends BaseService {
     const headless = pendingTurn.headless === true
 
     const turnId = crypto.randomUUID()
+    // Detached work that outlived the previous turn: the model must know it is still running so it
+    // does not re-launch duplicate tasks before the results' receive-only delivery.
+    const backgroundTasks = hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+      ? application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
+      : undefined
+    const backgroundTasksNote = renderBackgroundTasksNote(
+      (backgroundTasks ?? []).map((task) => task.description).filter((description) => description.trim().length > 0)
+    )
     const nextTurn: AgentSessionTurn = {
       turnId,
       systemReminder: pendingTurn.steer === true,
+      ...(backgroundTasksNote ? { backgroundTasksNote } : {}),
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
