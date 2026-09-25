@@ -1,10 +1,8 @@
-import { Search } from 'lucide-react'
+import { House, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { BackButton } from '@renderer/components/BackButton'
-import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
@@ -19,6 +17,7 @@ import { cn } from '@renderer/utils/style'
 
 import { useMinimalNavigation } from './hooks/useMinimalNavigation'
 import { MiniLaunchpad } from './MiniLaunchpad'
+import { MinimalSidebarHeader, MinimalSidebarFooter, MinimalSidebarToggle } from './MinimalSidebar'
 
 export function MainWindowShell() {
   const navigation = useMinimalNavigation()
@@ -39,35 +38,35 @@ export function MainWindowShell() {
       <MiniLaunchpad onOpen={navigation.openFeature} />
     </>
   )
-  const renderToolbar = (
-    sidebarOpen = false,
-    topBar?: ReactNode,
-    onSidebarToggle?: () => void,
-    onDetach?: () => void
-  ) => (
+  const renderToolbar = (sidebarOpen = false, topBar?: ReactNode, onDetach?: () => void) => (
     <header
       className={cn(
-        'flex shrink-0 items-center gap-2 px-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]',
-        navigation.isHome ? 'h-13' : 'h-11',
+        'flex shrink-0 items-center gap-2 border-b-[0.5px] border-border px-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]',
+        navigation.isHome ? 'h-11.5' : 'h-11',
+        navigation.isHome && 'gap-0 transition-[padding-left] duration-300 ease-in-out motion-reduce:transition-none',
         navigation.isHome && sidebarOpen && 'pl-0',
-        navigation.isHome && isMac && !fullscreen && 'pb-1.5',
         isMac && !fullscreen && !sidebarOpen && 'pl-[max(80px,env(titlebar-area-x))]'
       )}>
       {!navigation.isHome && (
         <div className="[-webkit-app-region:no-drag]">
-          <BackButton aria-label={t('minimal.return_home')} onClick={navigation.returnHome} />
+          <NavbarIcon
+            tone="conversation"
+            className="[&_svg]:!size-4"
+            aria-label={t('minimal.return_home')}
+            onClick={navigation.returnHome}>
+            <House strokeWidth={1.7} />
+          </NavbarIcon>
         </div>
       )}
       {!navigation.isHome && <span className="min-w-0 truncate text-sm text-muted-foreground">{activeTab?.title}</span>}
-      {navigation.isHome && !sidebarOpen && (
-        <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-          <ConversationSidebarToggleButton
-            sidebarOpen={false}
-            onSidebarToggle={onSidebarToggle}
-            tooltipPlacement="bottom"
-          />
-          {sidebarToolbarActions}
-        </div>
+      {navigation.isHome && (
+        <div
+          aria-hidden
+          className={cn(
+            'shrink-0 transition-[width] duration-300 ease-in-out [-webkit-app-region:no-drag] motion-reduce:transition-none',
+            sidebarOpen ? 'w-0' : 'w-[34px]'
+          )}
+        />
       )}
       <div className="min-w-0 flex-1">{topBar}</div>
       {onDetach && (
@@ -93,7 +92,12 @@ export function MainWindowShell() {
       value={{
         ...navigation,
         renderHomeToolbar: renderToolbar,
-        sidebarToolbarActions
+        sidebarToolbarActions,
+        sidebarHeader: <MinimalSidebarHeader />,
+        renderSidebarToggle: (sidebarOpen, onSidebarToggle) => (
+          <MinimalSidebarToggle sidebarOpen={sidebarOpen} onSidebarToggle={onSidebarToggle} />
+        ),
+        sidebarFooter: <MinimalSidebarFooter />
       }}>
       <AppShell
         minimalToolbar={(detachTab) =>
@@ -101,7 +105,6 @@ export function MainWindowShell() {
             ? null
             : renderToolbar(
                 false,
-                undefined,
                 undefined,
                 activeTab
                   ? () => {

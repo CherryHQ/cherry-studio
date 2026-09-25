@@ -4,6 +4,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import Tools from './Tools'
@@ -40,7 +41,13 @@ const AgentContent = ({
           />
         )}
         <ConversationTopBarPortalHost
-          className={minimalMode?.enabled && minimalMode.isHome ? '[-webkit-app-region:drag]' : undefined}>
+          className={cn(
+            minimalMode?.enabled &&
+              minimalMode.isHome && [
+                '[-webkit-app-region:drag] transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
+                !showSidebar && 'ml-0'
+              ]
+          )}>
           {conversationControls}
         </ConversationTopBarPortalHost>
       </div>

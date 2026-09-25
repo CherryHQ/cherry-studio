@@ -1,7 +1,14 @@
 import { createContext, type ReactNode, use } from 'react'
 
+export type MinimalHomeKind = 'agent' | 'assistant'
+
 export interface MinimalModeContextValue {
-  renderHomeToolbar?: (sidebarOpen: boolean, topBar: ReactNode, onSidebarToggle?: () => void) => ReactNode
+  homeKind: MinimalHomeKind
+  switchHome: (kind: MinimalHomeKind) => void
+  sidebarHeader?: ReactNode
+  renderSidebarToggle?: (sidebarOpen: boolean, onSidebarToggle?: () => void) => ReactNode
+  sidebarFooter?: ReactNode
+  renderHomeToolbar?: (sidebarOpen: boolean, topBar: ReactNode) => ReactNode
   sidebarToolbarActions?: ReactNode
   enabled: boolean
   isHome: boolean

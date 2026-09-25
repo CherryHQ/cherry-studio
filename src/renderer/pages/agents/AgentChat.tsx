@@ -754,9 +754,8 @@ function AgentChatLayout({
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
         transparentNavigation={minimalMode?.enabled}
-        renderMainHeader={
-          minimalMode?.enabled ? (bar) => minimalMode.renderHomeToolbar?.(!!paneOpen, bar, onSidebarToggle) : undefined
-        }
+        navigationToggle={minimalMode?.renderSidebarToggle?.(!!paneOpen, onSidebarToggle)}
+        renderMainHeader={minimalMode?.enabled ? (bar) => minimalMode.renderHomeToolbar?.(!!paneOpen, bar) : undefined}
         className={className}
         pane={pane}
         paneOpen={paneOpen}

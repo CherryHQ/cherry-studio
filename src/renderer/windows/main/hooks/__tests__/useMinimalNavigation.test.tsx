@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
@@ -30,6 +31,10 @@ vi.mock('@renderer/hooks/tab', () => ({
       tabs,
       activeTabId,
       setActiveTab,
+      closeTabs: (ids: readonly string[], activateId?: string) => {
+        setTabs((current) => current.filter((tab) => !ids.includes(tab.id)))
+        if (ids.includes(activeTabId) && activateId) setActiveTab(activateId)
+      },
       openTab: (url: string) => {
         const id = `new:${url}`
         setTabs((current) => [...current, { id, url, title: '', type: 'route' }])
@@ -44,6 +49,7 @@ import { useMinimalNavigation } from '../useMinimalNavigation'
 
 afterEach(() => {
   MockUsePreferenceUtils.resetMocks()
+  MockUseCacheUtils.resetMocks()
 })
 
 describe('minimal navigation', () => {
@@ -67,7 +73,8 @@ describe('minimal navigation', () => {
     expect(capture.current?.tabs).toEqual(initialTabs)
     MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
     rerender()
-    expect(capture.current?.tabs).toEqual(initialTabs)
+    expect(capture.current?.tabs).toEqual([initialTabs[1]])
+    expect(capture.current?.activeTabId).toBe('agent')
   })
 
   it('does not redirect a subsequent explicit navigation back to home', () => {
@@ -129,5 +136,99 @@ describe('minimal navigation', () => {
     act(() => result.current.returnHome())
     expect(capture.current?.activeTabId).toBe(homeId)
     expect(capture.current?.tabs.filter((tab) => tab.url.startsWith('/app/agents'))).toHaveLength(1)
+  })
+  it('switches between existing home tabs and returns to the chosen home without losing either conversation', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    const { result } = renderHook(useMinimalNavigation)
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    expect(result.current.homeKind).toBe('assistant')
+    expect(result.current.isHome).toBe(true)
+    expect(capture.current?.activeTabId).toBe('chat')
+    act(() =>
+      capture.current?.setTabs(
+        initialTabs.map((tab) => (tab.id === 'chat' ? { ...tab, url: '/app/chat?topicId=selected' } : tab))
+      )
+    )
+    act(() => {
+      result.current.switchHome('agent')
+    })
+    expect(capture.current?.activeTabId).toBe('agent')
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    act(() => result.current.openFeature('/app/notes'))
+    expect(result.current.isHome).toBe(false)
+    act(() => result.current.returnHome())
+    expect(capture.current?.activeTabId).toBe('chat')
+    expect(result.current.isHome).toBe(true)
+    expect(capture.current?.tabs.find((tab) => tab.id === 'chat')?.url).toBe('/app/chat?topicId=selected')
+    expect(capture.current?.tabs.find((tab) => tab.id === 'agent')?.url).toBe('/app/agents?sessionId=existing')
+    expect(capture.current?.tabs).toHaveLength(initialTabs.length)
+  })
+
+  it('creates the missing assistant home once and opens launcher chat entries as that home', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    const { result } = renderHook(useMinimalNavigation)
+    act(() => capture.current?.setTabs(initialTabs.filter((tab) => tab.id !== 'chat')))
+    act(() => result.current.openFeature('/app/chat'))
+    expect(result.current.homeKind).toBe('assistant')
+    expect(result.current.isHome).toBe(true)
+    const assistantHomeId = capture.current?.activeTabId
+    act(() => {
+      result.current.switchHome('agent')
+    })
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    expect(capture.current?.activeTabId).toBe(assistantHomeId)
+    expect(capture.current?.tabs.filter((tab) => tab.url.startsWith('/app/chat'))).toHaveLength(1)
+  })
+  it('keeps the Agent home on exiting from Chat, including closing pinned and mini-app tabs', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'example')
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    const { result, rerender } = renderHook(useMinimalNavigation)
+    act(() =>
+      capture.current?.setTabs([
+        ...initialTabs,
+        { id: 'pinned', type: 'route', url: '/app/files', title: 'Files', isPinned: true },
+        { id: 'mini', type: 'route', url: '/app/mini-app/example', title: 'Mini app' }
+      ])
+    )
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
+    rerender()
+    expect(capture.current?.tabs).toEqual([initialTabs[1]])
+    expect(capture.current?.activeTabId).toBe('agent')
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+    act(() => result.current.openFeature('/app/notes'))
+    rerender()
+    expect(capture.current?.tabs).toHaveLength(2)
+    expect(capture.current?.activeTabId).toBe('new:/app/notes')
+  })
+
+  it('creates an Agent home before closing other tabs if the old home was removed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    const { result, rerender } = renderHook(useMinimalNavigation)
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    act(() => capture.current?.setTabs(initialTabs.filter((tab) => !tab.url.startsWith('/app/agents'))))
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
+    rerender()
+    expect(capture.current?.tabs).toEqual([{ id: 'new:/app/agents', url: '/app/agents', title: '', type: 'route' }])
+    expect(capture.current?.activeTabId).toBe('new:/app/agents')
+  })
+
+  it('leaves restored tabs alone when starting in efficiency mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
+    renderHook(useMinimalNavigation)
+    expect(capture.current?.tabs).toEqual(initialTabs)
+    expect(capture.current?.activeTabId).toBe('chat')
   })
 })

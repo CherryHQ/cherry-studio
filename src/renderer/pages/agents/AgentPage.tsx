@@ -971,7 +971,6 @@ const AgentPage = () => {
       />
     ) : (
       <AgentSidePanel
-        onSidebarToggle={toggleShellPane}
         activeSessionId={activeSessionId}
         dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
@@ -1024,7 +1023,7 @@ const AgentPage = () => {
               <ConversationResourceView
                 kind={activeResourceKind}
                 toolbarLeading={
-                  !isWindowFrame && (!minimalMode || !shellPaneOpen) ? (
+                  !isWindowFrame && !minimalMode ? (
                     <ConversationSidebarToggleButton
                       sidebarOpen={shellPaneOpen}
                       onSidebarToggle={toggleShellPane}
@@ -1050,7 +1049,7 @@ const AgentPage = () => {
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
             toolbarLeading={
-              !isWindowFrame && (!minimalMode || !shellPaneOpen) ? (
+              !isWindowFrame && !minimalMode ? (
                 <ConversationSidebarToggleButton
                   sidebarOpen={shellPaneOpen}
                   onSidebarToggle={toggleShellPane}

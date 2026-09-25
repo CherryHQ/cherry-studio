@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SegmentedControl } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDescription,
@@ -27,21 +27,18 @@ export function LabsSettings() {
             <SettingRowTitle id="interface-mode-label">{t('settings.labs.mode')}</SettingRowTitle>
             <SettingDescription>{t('settings.labs.description')}</SettingDescription>
           </div>
-          <Select
+          <SegmentedControl<'efficiency' | 'minimal'>
+            aria-labelledby="interface-mode-label"
+            className="shrink-0"
             value={mode}
+            options={[
+              { value: 'efficiency', label: t('settings.labs.efficiency') },
+              { value: 'minimal', label: t('settings.labs.minimal') }
+            ]}
             onValueChange={(value) => {
-              if (value === 'minimal' || value === 'efficiency') {
-                void setMode(value).catch(() => toast.error(t('settings.labs.save_error')))
-              }
-            }}>
-            <SelectTrigger aria-labelledby="interface-mode-label" className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="efficiency">{t('settings.labs.efficiency')}</SelectItem>
-              <SelectItem value="minimal">{t('settings.labs.minimal')}</SelectItem>
-            </SelectContent>
-          </Select>
+              void setMode(value).catch(() => toast.error(t('settings.labs.save_error')))
+            }}
+          />
         </SettingRow>
       </SettingGroup>
     </SettingsContentColumn>

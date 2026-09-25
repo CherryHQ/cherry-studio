@@ -15,6 +15,7 @@ export interface ConversationShellProps {
   className?: string
   pane?: ReactNode
   transparentNavigation?: boolean
+  navigationToggle?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   renderMainHeader?: (topBar: ReactNode) => ReactNode
@@ -41,6 +42,7 @@ export default function ConversationShell({
   className,
   pane,
   transparentNavigation = false,
+  navigationToggle,
   paneOpen,
   panePosition,
   renderMainHeader,
@@ -83,7 +85,7 @@ export default function ConversationShell({
       <QuickPanelProvider>
         <ConversationTopBarPortalProvider>
           <ChatAppShell
-            mainRegionClassName={transparentNavigation ? 'bg-background' : undefined}
+            mainRegionClassName={transparentNavigation ? 'bg-[oklch(from_var(--background)_l_c_h_/_1)]' : undefined}
             mainHeader={renderMainHeader?.(resolvedTopBar)}
             pane={pane}
             paneOpen={paneOpen}
@@ -104,6 +106,7 @@ export default function ConversationShell({
           />
         </ConversationTopBarPortalProvider>
       </QuickPanelProvider>
+      {navigationToggle}
     </div>
   )
 }

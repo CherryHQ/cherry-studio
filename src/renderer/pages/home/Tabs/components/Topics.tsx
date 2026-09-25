@@ -147,6 +147,7 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
 } as const
 
 interface Props {
+  className?: string
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
@@ -263,6 +264,7 @@ function AssistantGroupMoreMenu({
 }
 
 export function Topics({
+  className,
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
@@ -1521,6 +1523,7 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
+        className={className}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         presentation={presentation}
         items={visibleFilteredTopics}

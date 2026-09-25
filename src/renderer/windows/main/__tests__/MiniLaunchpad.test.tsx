@@ -8,9 +8,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.unmock('@cherrystudio/ui')
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({ pinned: [{ appId: 'pinned-app', name: 'Pinned application', orderKey: 'a0' }] })
+  useMiniApps: () => ({
+    openedKeepAliveMiniApps: [],
+    pinned: [{ appId: 'pinned-app', name: 'Pinned application', orderKey: 'a0' }]
+  })
 }))
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({ default: () => <span /> }))
+
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 
 import { MiniLaunchpad } from '../MiniLaunchpad'
 
@@ -18,7 +23,17 @@ function Harness() {
   const [destination, setDestination] = useState('home')
   return (
     <>
-      <MiniLaunchpad onOpen={setDestination} />
+      <MinimalModeContext
+        value={{
+          enabled: true,
+          isHome: true,
+          homeKind: 'agent',
+          switchHome: () => {},
+          returnHome: () => {},
+          openFeature: setDestination
+        }}>
+        <MiniLaunchpad onOpen={setDestination} />
+      </MinimalModeContext>
       <output aria-label="destination">{destination}</output>
     </>
   )
@@ -30,29 +45,37 @@ afterEach(() => {
 })
 
 describe('mini launchpad', () => {
-  it('filters pinned apps, shows empty results, and opens the selected app', async () => {
+  it('shows apps without search and closes after opening the selected app', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: '启动台' }))
-    const search = screen.getByRole('textbox', { name: '搜索应用' })
-    await user.type(search, 'no-such-app')
-    expect(screen.getByText('未找到应用')).toBeVisible()
-    await user.clear(search)
-    await user.type(search, 'pinned')
-    await user.click(screen.getByRole('button', { name: 'Pinned application' }))
+    await screen.findByRole('button', { name: 'Pinned application' })
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '应用' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: '小程序' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '助手' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '智能体' })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Pinned application' }))
     expect(screen.getByLabelText('destination')).toHaveTextContent('/app/mini-app/pinned-app')
-    expect(screen.queryByRole('textbox', { name: '搜索应用' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '启动台' })).not.toBeInTheDocument()
   })
 
-  it('dismisses with Escape, returns focus, and clears the previous query', async () => {
+  it('opens a built-in app through the host callback and closes the popup', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: '启动台' }))
+    await user.click(await screen.findByRole('button', { name: '翻译' }))
+    expect(screen.getByLabelText('destination')).toHaveTextContent('/app/translate')
+    expect(screen.queryByRole('dialog', { name: '启动台' })).not.toBeInTheDocument()
+  })
+
+  it('dismisses with Escape and returns focus to the trigger', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     const trigger = screen.getByRole('button', { name: '启动台' })
     await user.click(trigger)
-    await user.type(screen.getByRole('textbox', { name: '搜索应用' }), 'pinned')
     await user.keyboard('{Escape}')
     await waitFor(() => expect(trigger).toHaveFocus())
-    await user.click(trigger)
-    expect(screen.getByRole('textbox', { name: '搜索应用' })).toHaveValue('')
+    expect(screen.queryByRole('dialog', { name: '启动台' })).not.toBeInTheDocument()
   })
 })
