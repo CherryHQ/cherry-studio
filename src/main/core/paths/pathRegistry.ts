@@ -209,7 +209,9 @@ export function buildPathRegistry() {
     // `.runtime` is the writable copy the doctor is spawned from. The copy exists because a
     // `node scripts/doctor.mjs` run writes nothing itself, but the checks it hosts resolve
     // paths relative to the pack root, and the bundled copy is replaced on every app update.
-    'feature.prometheus.pack.builtin': path.join(appRootResources, 'prometheus-skills-mini'),
+    'feature.prometheus.pack.builtin': app.isPackaged
+      ? path.join(appRootResources, 'prometheus-skills-mini')
+      : path.join(__dirname, '../../build/prometheus-payload'),
     'feature.prometheus.pack.runtime': path.join(appUserDataData, 'PrometheusPack'),
     'feature.prometheus.state': path.join(appUserDataData, 'Prometheus'),
     'feature.prometheus.commands': path.join(appUserData, 'commands'),
