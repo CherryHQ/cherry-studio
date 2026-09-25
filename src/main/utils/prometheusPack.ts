@@ -9,6 +9,7 @@ import { pathExists } from '@main/utils/legacyFile'
 import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('prometheusPack')
+const installations = new Map<string, Promise<void>>()
 
 /** Complete runnable payload: skills load these adjacent scripts and references on demand. */
 export const PACK_ENTRIES = [
@@ -45,10 +46,19 @@ const PACK_FILES = ['package.json', 'versions.toml', 'release-manifest.json'] as
  * The installed manifest identifies the complete payload. Matching launches reuse
  * it; an upgrade replaces app-owned runtime assets before installing its manifest.
  */
-export async function installPrometheusPack(): Promise<void> {
+export function installPrometheusPack(): Promise<void> {
   const source = toAsarUnpackedPath(application.getPath('feature.prometheus.pack.builtin'))
   const destination = application.getPath('feature.prometheus.pack.runtime')
+  const active = installations.get(destination)
+  if (active) return active
+  const installation = performPrometheusPackInstall(source, destination).finally(() =>
+    installations.delete(destination)
+  )
+  installations.set(destination, installation)
+  return installation
+}
 
+async function performPrometheusPackInstall(source: string, destination: string): Promise<void> {
   try {
     await fs.access(source)
   } catch {

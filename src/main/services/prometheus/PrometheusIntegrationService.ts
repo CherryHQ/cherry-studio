@@ -68,10 +68,16 @@ export class PrometheusIntegrationService extends BaseService {
   private lastUarApplyError?: string
 
   protected onAllReady(): void {
-    this.initialization = this.initialize().catch(async (error) => {
+    void this.ensureInitialized().catch(() => undefined)
+  }
+
+  private ensureInitialized(): Promise<void> {
+    this.initialization ??= this.initialize().catch(async (error) => {
       logger.error('Integration initialization failed', error)
       await this.operationRunner.recordInitializationFailure(error)
+      throw error
     })
+    return this.initialization
   }
 
   private async initialize(): Promise<void> {
@@ -92,7 +98,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   async snapshot(): Promise<IntegrationSnapshot> {
-    await this.initialization
+    await this.ensureInitialized()
     const document = readIntegrationDocument()
     const secrets = await readSecrets()
     let inventory: IntegrationSnapshot['inventory'] = null
@@ -170,6 +176,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   async configure(updates: IntegrationUpdate[], secretPatch: IntegrationSecretPatch): Promise<IntegrationSnapshot> {
+    await this.ensureInitialized()
     const result = this.configurationMutation.then(() => this.applyConfiguration(updates, secretPatch))
     this.configurationMutation = result.then(
       () => undefined,
@@ -247,7 +254,7 @@ export class PrometheusIntegrationService extends BaseService {
     session: AgentSessionEntity,
     sourceAgent: AgentEntity
   ): Promise<{ agent: AgentEntity; servers: McpServer[] }> {
-    await this.initialization
+    await this.ensureInitialized()
     const config = readIntegrationConfig()
     const workspace = await describeWorkspace(session.workspace.path, config)
     this.workspaces.set(workspace.id, workspace)
@@ -303,7 +310,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   async setWorkspaceEnabled(workspacePath: string, enabled: boolean): Promise<WorkspaceIntegration> {
-    await this.initialization
+    await this.ensureInitialized()
     if (!path.isAbsolute(workspacePath) || !(await fs.stat(workspacePath)).isDirectory())
       throw new Error('prometheus.error.workspaceDirectory')
     const resolved = await fs.realpath(workspacePath)
@@ -323,6 +330,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   async start(action: IntegrationAction, workspacePath?: string): Promise<IntegrationOperation> {
+    await this.ensureInitialized()
     const { operation } = await this.runOperation(
       action,
       workspacePath,
@@ -471,19 +479,23 @@ export class PrometheusIntegrationService extends BaseService {
     return operation
   }
 
-  cancel(id: string): void {
+  async cancel(id: string): Promise<void> {
+    await this.ensureInitialized()
     this.operationRunner.cancel(id)
   }
 
-  operationEvents(id: string, after?: number, limit?: number): Promise<IntegrationOperationEventPage> {
+  async operationEvents(id: string, after?: number, limit?: number): Promise<IntegrationOperationEventPage> {
+    await this.ensureInitialized()
     return this.operationRunner.events(id, after, limit)
   }
 
-  readOperationLog(id: string, offset?: number, limit?: number): Promise<IntegrationOperationLogPage> {
+  async readOperationLog(id: string, offset?: number, limit?: number): Promise<IntegrationOperationLogPage> {
+    await this.ensureInitialized()
     return this.operationRunner.log(id, offset, limit)
   }
 
-  exportOperationLog(id: string): Promise<IntegrationOperationLogExport> {
+  async exportOperationLog(id: string): Promise<IntegrationOperationLogExport> {
+    await this.ensureInitialized()
     return this.operationRunner.exportLog(id)
   }
 
