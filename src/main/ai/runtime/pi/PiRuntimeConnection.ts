@@ -190,6 +190,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   private apiProviderSourceId?: string
   private promptRunActive = false
+  private stopRequested = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -596,9 +597,73 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
+  /** Stop the active Pi prompt while retaining the session and its conversation state. */
+  async abortTurn(): Promise<boolean> {
+    const session = this.session
+    if (this.closed || !session) return false
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown.
+    if (!this.promptRunActive) {
+      // A manual `/compact` is a live host turn that never goes through `prompt()`. pi's
+      // `abort()` only aborts the agent loop — it never touches the compaction controller —
+      // so the stop must go through `abortCompaction()`, else the compaction keeps running
+      // and can commit behind a successful-looking stop.
+      if (!this.manualCompactInFlight) return true
+      return this.abortPiWork(
+        () => this.manualCompactInFlight,
+        'compact',
+        () => session.abortCompaction()
+      )
+    }
+    this.stopRequested = true
+    return this.abortPiWork(
+      () => this.promptRunActive,
+      'turn',
+      () => session.abort()
+    )
+  }
+
+  /** Abort pi's in-flight work (prompt turn or manual compaction) and wait for it to settle. */
+  private async abortPiWork(
+    workActive: () => boolean,
+    label: string,
+    abortWork: () => void | Promise<void>
+  ): Promise<boolean> {
+    try {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([
+        abortWork(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(`Pi ${label} abort timed out`)), 5_000)
+        })
+      ]).finally(() => clearTimeout(timeout))
+      if (!workActive()) return true
+      const settled = await new Promise<boolean>((resolve) => {
+        const poll = setInterval(() => {
+          if (workActive() && !this.closed) return
+          clearInterval(poll)
+          clearTimeout(settleTimeout)
+          resolve(!this.closed)
+        }, 25)
+        const settleTimeout = setTimeout(() => {
+          clearInterval(poll)
+          resolve(false)
+        }, 5_000)
+      })
+      if (!settled) this.stopRequested = false
+      return settled
+    } catch (error) {
+      this.stopRequested = false
+      logger.warn(`pi ${label} abort failed`, { sessionId: this.input.sessionId, error })
+      return false
+    }
+  }
+
   private closePromise?: Promise<void>
 
-  close(): Promise<void> {
+  async close(): Promise<void> {
+    // Repeat callers join the in-flight teardown (DSH parity): returning early would
+    // let the host release the session while abort/dispose are still running.
     this.closed = true
     return (this.closePromise ??= this.finishClose())
   }
@@ -678,7 +743,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+    if (this.stopRequested) {
+      this.stopRequested = false
+      this.eventQueue.push({ type: 'turn-complete' })
+    } else if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
       let failure: Error
       if (error instanceof Error) {
         failure = error

@@ -109,10 +109,14 @@ import {
 } from './agentSessionRuntimeState'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
+import { USER_STOP_ABORT_REASON, buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+/** Bounds the user-stop wait for the stopped turn to leave the live set — covers a driver's own
+ *  interrupt-request and settle timeouts so the stop never outlives them. */
+const USER_STOP_TURN_LEAVE_TIMEOUT_MS = 11_000
+const USER_STOP_TURN_LEAVE_POLL_MS = 50
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
@@ -442,6 +446,8 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
+  /** Single-flight user-stop handling per session (see {@link handleUserStop}). */
+  private readonly userStopSessions = new Map<string, Promise<void>>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -518,6 +524,11 @@ export class AgentSessionRuntimeService extends BaseService {
   getLiveAssistantMessageId(sessionId: string): string | undefined {
     const entry = this.entries.get(sessionId)
     return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
+  }
+
+  getLiveTurnId(sessionId: string): string | undefined {
+    const entry = this.entries.get(sessionId)
+    return entry ? this.liveTurn(entry)?.turnId : undefined
   }
 
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
@@ -895,11 +906,31 @@ export class AgentSessionRuntimeService extends BaseService {
           turn.controller = controller
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
 
-          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
-          // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
+          // A user Stop is the only abort source now (steer no longer interrupts). It asks the
+          // connection for a graceful SDK interrupt so the subprocess — its background tasks and
+          // subagents — survives; every other abort source tears the session down, which
+          // `connection.close()` turns into killing the warm query and its subagent.
+          const onAbort = () => {
+            if (input.signal.reason === USER_STOP_ABORT_REASON) {
+              void this.handleUserStop(entry.sessionId, turn.turnId)
+            } else {
+              void this.closeSession(entry.sessionId)
+            }
+          }
+          // A stop that already dispatched ends this stream itself: settle the machine and close
+          // the controller so the pipe's accumulator can drain — a dangling open stream hangs the
+          // stop-and-drain on a pipe that never sees another chunk.
+          const abandonTurnStream = () => {
+            this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+            try {
+              controller.close()
+            } catch {
+              // The consumer cancelled first; the stream is already closed.
+            }
+          }
           if (input.signal.aborted) {
             onAbort()
+            abandonTurnStream()
             return
           } else {
             input.signal.addEventListener('abort', onAbort, { once: true })
@@ -911,6 +942,10 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'flush-transition' })
           if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
+          if (input.signal.aborted) {
+            abandonTurnStream()
+            return
+          }
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
           await this.admitTurn(entry, turn)
         } catch (error) {
@@ -1054,6 +1089,94 @@ export class AgentSessionRuntimeService extends BaseService {
       this.refreshIdleTimer(entry)
       if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
     }
+  }
+
+  /**
+   * A user Stop for a live turn: hand the connection a graceful SDK interrupt and keep the session
+   * (and its subprocess — background tasks, subagents) alive when it succeeds. Falls back to the
+   * full session teardown when the driver cannot gracefully stop (unsupported driver, no live turn,
+   * interrupt not answered in time). Single-flight: the turn stream's abort listener and the
+   * stream manager's stop-and-drain both dispatch here for the same Stop.
+   */
+  handleUserStop(sessionId: string, expectedTurnId?: string): Promise<void> {
+    const inFlight = this.userStopSessions.get(sessionId)
+    if (inFlight) return inFlight
+    const stopping = this.stopForUser(sessionId, expectedTurnId).finally(() => {
+      if (this.userStopSessions.get(sessionId) === stopping) this.userStopSessions.delete(sessionId)
+    })
+    this.userStopSessions.set(sessionId, stopping)
+    return stopping
+  }
+
+  private async stopForUser(sessionId: string, expectedTurnId?: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (entry && expectedTurnId && this.liveTurn(entry)?.turnId !== expectedTurnId) return
+    // Bind the stop to the turn it targets: the driver's settle wait observes connection-wide
+    // state, so without this binding a turn admitted after the stop extends its wait — and the
+    // stop-and-drain dispatch lock behind it — onto the successor's activity.
+    const stoppingTurnId = expectedTurnId ?? (entry ? this.liveTurn(entry)?.turnId : undefined)
+    // No live turn: the same Stop already settled through the turn stream's abort dispatch.
+    // Re-running it would hit an idle runtime, get declined, and tear down what it preserved.
+    if (!stoppingTurnId) return
+    const connection = entry ? this.currentConnection(entry) : undefined
+    const graceful = await this.raceAbortTurn(connection, sessionId, stoppingTurnId)
+    if (graceful === true) return
+    await this.closeAfterFailedUserStop(sessionId, stoppingTurnId, connection)
+  }
+
+  private async closeAfterFailedUserStop(
+    sessionId: string,
+    stoppingTurnId: string | undefined,
+    connection: AgentRuntimeConnection | undefined
+  ): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.currentConnection(entry) !== connection) return
+    // A successor owns the shared connection. An already-settled stopped turn does not.
+    const liveTurn = this.liveTurn(entry)
+    if (liveTurn && stoppingTurnId && liveTurn.turnId !== stoppingTurnId) return
+    await this.closeSession(sessionId)
+  }
+
+  /**
+   * Awaits the connection's graceful turn interrupt. When the stopped turn leaves before the
+   * driver verdict, the stop still waits for the in-flight interrupt to land — the driver cancel
+   * is identity-free on the connection, and the topic dispatch lock behind this stop must not
+   * admit a queued successor under a still-traveling cancel.
+   */
+  private async raceAbortTurn(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string,
+    stoppingTurnId: string | undefined
+  ): Promise<boolean | undefined> {
+    const aborting = connection?.abortTurn?.().catch((error) => {
+      logger.warn('Agent runtime graceful turn interrupt failed', { sessionId, error })
+      return false
+    })
+    if (!aborting || !stoppingTurnId) return aborting
+    // The losing poll must not keep ticking after the race settles.
+    let raceSettled = false
+    const turnLeftLive = async (): Promise<boolean> => {
+      const deadline = Date.now() + USER_STOP_TURN_LEAVE_TIMEOUT_MS
+      while (!raceSettled && Date.now() < deadline) {
+        const entry = this.entries.get(sessionId)
+        if (!entry || this.liveTurn(entry)?.turnId !== stoppingTurnId) return true
+        await new Promise((resolve) => setTimeout(resolve, USER_STOP_TURN_LEAVE_POLL_MS))
+      }
+      const entry = this.entries.get(sessionId)
+      return !entry || (this.liveTurn(entry)?.turnId ?? stoppingTurnId) !== stoppingTurnId
+    }
+    const result = await Promise.race([
+      aborting.then((value) => ({ source: 'driver' as const, value })),
+      turnLeftLive().then((value) => ({ source: 'turn-left' as const, value }))
+    ])
+    raceSettled = true
+    if (result.source !== 'turn-left' || !result.value) return result.value
+    // The turn left while the interrupt was still in flight. Hold the stop until the interrupt
+    // lands before releasing: the driver cancel is identity-free on the connection, and the
+    // topic dispatch lock behind this stop must not admit a queued successor under a
+    // still-traveling cancel. Bounded by the driver's own interrupt timeouts; a late failed
+    // verdict still reaches the teardown fallback in `stopForUser`.
+    return aborting
   }
 
   closeSession(sessionId: string): Promise<void> {
