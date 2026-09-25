@@ -26,6 +26,7 @@ import type { AgentSessionSchemas } from './agentSessions'
 import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AiUsageRecordSchemas } from './aiUsageRecords'
 import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
+import type { ArchiveSchemas } from './archives'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
 import type { ExternalKnowledgeConnectionSchemas } from './externalKnowledgeConnections'
@@ -77,6 +78,7 @@ export type ApiSchemas = AssertValidSchemas<
     KnowledgeSchemas &
     MiniAppSchemas &
     NoteSchemas &
+    ArchiveSchemas &
     AssistantSchemas &
     TagSchemas &
     PromptSchemas &

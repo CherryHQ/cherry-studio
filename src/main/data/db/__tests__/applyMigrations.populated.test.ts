@@ -70,6 +70,52 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
+    sqlite.pragma('foreign_keys = ON')
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
+    const insertDevice = sqlite.prepare(`INSERT INTO api_gateway_paired_device
+      (id, name, platform, token_hash, created_at, updated_at)
+      VALUES (?, ?, 'ios', ?, 1000, 2000)`)
+    for (const id of ['phone', 'tablet']) insertDevice.run(id, id, id)
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT * FROM api_gateway_paired_device ORDER BY id').all()).toEqual(
+      ['phone', 'tablet'].map((id) => ({
+        id,
+        name: id,
+        platform: 'ios',
+        created_at: 1000,
+        updated_at: 2000,
+        peer_identity: null,
+        configuration_grant_id: null,
+        agent_grant_id: null
+      }))
+    )
+    const insertReceipt = sqlite.prepare(`INSERT INTO remote_command
+      (device_id, grant_id, command_id, method, identity_digest, status, session_id, execution_id,
+       result, error, admitted_at, created_at, updated_at)
+      VALUES (?, ?, 'command', 'agent.messages.send', 'digest', 'applied', 'session', 'execution',
+              '{"executionId":"execution"}', NULL, 1000, 1000, 2000)`)
+    insertReceipt.run('phone', 'previous-grant')
+    insertReceipt.run('phone', 'current-grant')
+    insertReceipt.run('tablet', 'current-grant')
+    const owned = sqlite.prepare('SELECT * FROM remote_command ORDER BY device_id, grant_id').all() as Array<{
+      device_id: string
+    }>
+
+    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT * FROM remote_command ORDER BY device_id, grant_id').all()).toEqual(owned)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
+    expect(() => insertReceipt.run('deleted-device', 'old-grant')).toThrow('FOREIGN KEY constraint failed')
+    sqlite.prepare("DELETE FROM api_gateway_paired_device WHERE id = 'phone'").run()
+    expect(sqlite.prepare('SELECT * FROM remote_command').all()).toEqual(
+      owned.filter((row) => row.device_id === 'tablet')
+    )
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   /** Seed rows that exercise both `file_entry` variants plus a child reference. */
   function seedBaselineRows(): void {
     const now = Date.now()

@@ -156,7 +156,9 @@ export function agentSessionReadModelEffects(
 export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
-    if (effects.length > 0) notifyDataApiDataChange(effects)
+    if (effects.length === 0) return
+    if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    notifyDataApiDataChange(effects)
   }
 
   notifyPurged(sessionIds: readonly string[]): void {
@@ -695,6 +697,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
@@ -715,7 +718,15 @@ export class AgentSessionService {
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
         .where(
-          and(conversationFilter, agentFilter, idFilter, activeAgentFilter, isNull(sessionsTable.deletedAt), pinAfter)
+          and(
+            conversationFilter,
+            agentFilter,
+            workspaceFilter,
+            idFilter,
+            activeAgentFilter,
+            isNull(sessionsTable.deletedAt),
+            pinAfter
+          )
         )
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
@@ -768,6 +779,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           agentFilter,
+          workspaceFilter,
           idFilter,
           activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
@@ -856,7 +868,10 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([
+      ...agentSessionReadModelEffects([id], 'projection'),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
     return this.getById(id)
   }
 

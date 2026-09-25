@@ -209,6 +209,15 @@ describe('BinaryManager', () => {
     expect(findExecutable).not.toHaveBeenCalled()
   })
 
+  it('initializes with binary management disabled when the Windows mise lookup fails', async () => {
+    platformMock.isWin = true
+    vi.mocked(findMiseExecutable).mockRejectedValue(new Error("Timed out resolving command 'mise' on Windows"))
+    const service = new BinaryManager()
+
+    await expect((service as any).onInit()).resolves.toBeUndefined()
+    expect((service as any).miseBin).toBeNull()
+  })
+
   it('starts the process-wide shell environment capture without awaiting it', async () => {
     vi.mocked(getRawShellEnv).mockReturnValue(new Promise<never>(() => {}))
     const service = new BinaryManager()
@@ -965,6 +974,37 @@ describe('BinaryManager', () => {
       expect(snapshots.bun.operation).toBeUndefined()
     })
 
+    it('drops a stale installing operation with no live mutation behind it', async () => {
+      // Phantom install (issue #20945): the operation says installing, but no
+      // mutation is genuinely in flight, so nothing will ever clear it.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toBeUndefined()
+    })
+
+    it('keeps installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toMatchObject({ status: 'installing', action: 'install' })
+    })
+
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1531,6 +1571,31 @@ describe('BinaryManager', () => {
       })
       expect(miseArgs()).not.toContainEqual(['uninstall', '--all', 'core:node'])
       expect(manifestRef.value).toEqual([{ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' }])
+      expect(operations()).toEqual({})
+    })
+
+    it('exits removing and retains the definition when the system probe rejects, then allows retry', async () => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+      const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+
+      const removal = service.removeTool({ name: 'mytool' })
+      broadcast.mockClear()
+
+      await expect(removal).resolves.toEqual({
+        status: 'cleanup_blocked',
+        reason: 'query_failed',
+        message: 'Command lookup exited with code 2'
+      })
+      expect(operations()).toEqual({})
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
+      expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+      expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+
+      await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
+      expect(manifestRef.value).toEqual([])
       expect(operations()).toEqual({})
     })
 
@@ -2413,6 +2478,45 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(manifestRef.value).toEqual([])
     })
+
+    it.each([undefined, '11.0.0'])(
+      'records a system probe rejection with target %s and allows subsequent operations and retry',
+      async (targetVersion) => {
+        const service = makeService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+        const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+        const request = { name: 'fd', ...(targetVersion ? { targetVersion } : {}) }
+
+        const install = service.installByName(request)
+        broadcast.mockClear()
+
+        await expect(install).rejects.toThrow('Command lookup exited with code 2')
+        const failed = {
+          status: 'failed',
+          action: 'install',
+          error: 'Command lookup exited with code 2',
+          ...(targetVersion ? { targetVersion } : {})
+        }
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({ fd: failed })
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual(failed)
+        expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+        expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+
+        await expect(service.removeTool({ name: 'rg' })).resolves.toEqual({ status: 'removed' })
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+          if (args[0] === 'ls')
+            return { stdout: JSON.stringify({ fd: [{ version: '11.0.0', active: true }] }), stderr: '' }
+          if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        await expect(service.installByName(request)).resolves.toBeUndefined()
+        expect(miseArgs()).toContainEqual(['use', '-g', `fd@${targetVersion ?? 'latest'}`])
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+      }
+    )
 
     it('re-installs an owned custom tool by name without writing Preference or mutating its recipe', async () => {
       const service = makeService()
@@ -3987,6 +4091,35 @@ describe('BinaryManager', () => {
 
       expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
       expect(mockExecFileAsync.mock.calls.every((call: any[]) => call[1][0] === 'ls')).toBe(true)
+    })
+
+    it('does not report installing for a phantom operation without a live mutation', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'not_installed' })
+      )
+    })
+
+    it('still reports installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'installing' })
+      )
     })
   })
 
