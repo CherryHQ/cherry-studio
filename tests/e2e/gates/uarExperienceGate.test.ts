@@ -364,8 +364,14 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       })
       .toBe(true)
     let operations = await ipc<OperationSnapshot>(page, 'prometheus.uar.operations.read', {})
-    const run = operations.runs.find((candidate) => candidate.ownerSessionId === session.session.id)
-    expect(run).toBeTruthy()
+    let run = operations.runs.find((candidate) => candidate.ownerSessionId === session.session.id)
+    await expect
+      .poll(async () => {
+        operations = await ipc<OperationSnapshot>(page, 'prometheus.uar.operations.read', {})
+        run = operations.runs.find((candidate) => candidate.ownerSessionId === session.session.id)
+        return run
+      })
+      .toBeTruthy()
     const runDetail = await ipc<any>(page, 'prometheus.uar.runs.read', { runId: run!.runId })
     const gateState = await page.evaluate(() => (window as any).__gateV)
     expect(gateState, JSON.stringify({ providerRequests, runDetail }, null, 2)).toMatchObject({
