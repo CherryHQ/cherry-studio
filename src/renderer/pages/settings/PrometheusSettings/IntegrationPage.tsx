@@ -67,6 +67,13 @@ export function IntegrationSecretField({
 function IntegrationSaveBar({ controller }: { controller: IntegrationSettingsController }) {
   const { t } = useTranslation()
   const latest = controller.snapshot?.operations[0]
+  const latestFailed = latest?.status === 'failed' || latest?.status === 'interrupted'
+  const latestState =
+    latest?.status === 'queued' || latest?.status === 'running'
+      ? 'running'
+      : latest?.status === 'succeeded'
+        ? 'done'
+        : latest?.status
   return (
     <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background px-1 py-3">
       <div className="min-w-0 flex-1 text-sm" role={controller.error ? 'alert' : 'status'} aria-live="polite">
@@ -81,14 +88,9 @@ function IntegrationSaveBar({ controller }: { controller: IntegrationSettingsCon
         ) : controller.dirty ? (
           integrationText(t, 'unsaved')
         ) : latest ? (
-          <span
-            className={latest.status === 'failed' ? 'flex items-center gap-2 text-error' : 'flex items-center gap-2'}>
-            {latest.status === 'failed' ? (
-              <XCircle size={14} aria-hidden="true" />
-            ) : (
-              <CheckCircle2 size={14} aria-hidden="true" />
-            )}
-            {integrationText(t, `actions.${latest.action}`)} · {integrationText(t, `states.${latest.status}`)}
+          <span className={latestFailed ? 'flex items-center gap-2 text-error' : 'flex items-center gap-2'}>
+            {latestFailed ? <XCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
+            {integrationText(t, `actions.${latest.action}`)} · {integrationText(t, `states.${latestState}`)}
             {latest.error ? ` — ${t(latest.error, { defaultValue: latest.error })}` : ''}
           </span>
         ) : (

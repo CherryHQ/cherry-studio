@@ -37,10 +37,12 @@ export function IntegrationOperations({
     'discover-services': t('settings.prometheus.integration.actions.discover-services')
   }
   const operationState: Record<IntegrationOperation['status'], string> = {
+    queued: t('settings.prometheus.integration.states.running'),
     running: t('settings.prometheus.integration.states.running'),
-    done: t('settings.prometheus.integration.states.done'),
+    succeeded: t('settings.prometheus.integration.states.done'),
     failed: t('settings.prometheus.integration.states.failed'),
-    cancelled: t('settings.prometheus.integration.states.cancelled')
+    cancelled: t('settings.prometheus.integration.states.cancelled'),
+    interrupted: t('settings.prometheus.integration.states.failed')
   }
   const diagnosticState: Record<IntegrationDiagnostic['state'], string> = {
     operational: t('settings.prometheus.integration.states.operational'),
@@ -59,9 +61,9 @@ export function IntegrationOperations({
     <div className="divide-y divide-border" aria-label={t('settings.prometheus.integration.activity')}>
       {operations.map((operation) => {
         const Icon =
-          operation.status === 'running'
+          operation.status === 'queued' || operation.status === 'running'
             ? Loader2
-            : operation.status === 'done'
+            : operation.status === 'succeeded'
               ? CheckCircle2
               : operation.status === 'cancelled'
                 ? CircleSlash
@@ -83,12 +85,12 @@ export function IntegrationOperations({
                 />
                 {actionLabel[operation.action]} · {operationState[operation.status]}
               </span>
-              {operation.status === 'running' && (
+              {(operation.status === 'queued' || operation.status === 'running') && (
                 <Button variant="outline" size="sm" onClick={() => cancel(operation.id)}>
                   {t('common.cancel')}
                 </Button>
               )}
-              {operation.status === 'failed' && (
+              {(operation.status === 'failed' || operation.status === 'interrupted') && (
                 <Button variant="outline" size="sm" onClick={() => retry(operation)}>
                   {t('settings.prometheus.integration.actions.retry')}
                 </Button>
@@ -119,15 +121,15 @@ export function IntegrationOperations({
                 ))}
               </dl>
             )}
-            {operation.status === 'running' && operation.output && (
+            {(operation.status === 'queued' || operation.status === 'running') && operation.output && (
               <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-all text-xs text-foreground-secondary">
                 {operation.output}
               </p>
             )}
             {operation.output && (
-              <details className="mt-2" open={operation.status === 'running'}>
+              <details className="mt-2" open={operation.status === 'queued' || operation.status === 'running'}>
                 <summary className="cursor-pointer text-sm text-foreground-secondary focus-visible:outline focus-visible:outline-2">
-                  {operation.status === 'running'
+                  {operation.status === 'queued' || operation.status === 'running'
                     ? t('settings.prometheus.integration.liveOutput')
                     : t('settings.prometheus.integration.output')}
                 </summary>

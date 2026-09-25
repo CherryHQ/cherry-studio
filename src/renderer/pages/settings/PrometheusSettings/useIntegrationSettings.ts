@@ -21,7 +21,8 @@ export function useIntegrationSettings() {
   const [startingAction, setStartingAction] = useState<IntegrationAction | null>(null)
   const dirty =
     snapshot !== null && (JSON.stringify(draft) !== JSON.stringify(snapshot.config) || Object.keys(secrets).length > 0)
-  const running = snapshot?.operations.some((operation) => operation.status === 'running') ?? false
+  const running =
+    snapshot?.operations.some((operation) => operation.status === 'queued' || operation.status === 'running') ?? false
   const busy = saving || startingAction !== null || running
 
   const load = useCallback(async () => {
@@ -132,7 +133,8 @@ export function useIntegrationSettings() {
   }, [])
 
   const activeOperation = useMemo(
-    () => snapshot?.operations.find((operation) => operation.status === 'running') ?? null,
+    () =>
+      snapshot?.operations.find((operation) => operation.status === 'queued' || operation.status === 'running') ?? null,
     [snapshot?.operations]
   )
 
