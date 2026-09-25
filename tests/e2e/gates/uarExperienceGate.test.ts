@@ -18,6 +18,12 @@ type Catalog = {
 type PresentationSnapshot = {
   presentations: Array<{ id: string; revision: number; title: string }>
 }
+type IntegrationSnapshot = {
+  revisions: { filesystem: number }
+  config: {
+    filesystem: { enabled: boolean; allowWrite: boolean; additionalRoots: string[] }
+  }
+}
 type OperationSnapshot = {
   runs: Array<{ runId: string; ownerSessionId: string; status: string; agentRevision?: string }>
   approvals: Array<{
@@ -158,6 +164,17 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
     launched = await launch(profile)
     app = launched.app
     const page = launched.page
+    const integration = await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})
+    await ipc<IntegrationSnapshot>(page, 'prometheus.integration.configure', {
+      updates: [
+        {
+          feature: 'filesystem',
+          expectedRevision: integration.revisions.filesystem,
+          value: { ...integration.config.filesystem, enabled: true, allowWrite: true }
+        }
+      ],
+      secrets: {}
+    })
     const bossProviderId = `gate-v-boss-${Date.now()}`
     const bossModelId = `${bossProviderId}::gate-v-model`
     await data(page, 'POST', '/providers', {
