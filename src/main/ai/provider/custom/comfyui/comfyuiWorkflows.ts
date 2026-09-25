@@ -3,6 +3,10 @@ import { createUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('ComfyuiWorkflows')
 
+/** Saved workflows live in this ComfyUI user-data directory, as `.json` files. */
+export const WORKFLOW_DIR = 'workflows'
+export const WORKFLOW_FILE_EXTENSION = '.json'
+
 /**
  * A saved workflow is a model here, so its handle becomes the model's `apiModelId`:
  * whether it can be listed is whether that id can be built at all. A handle carrying a

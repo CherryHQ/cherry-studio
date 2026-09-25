@@ -52,7 +52,7 @@ import {
   headersWithoutCredentials
 } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
-import { listWorkflows } from './custom/comfyui/comfyuiTransport'
+import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
 import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
 import {
   createVertexModelListRequest,

@@ -207,7 +207,7 @@ export const OllamaExtension = ProviderExtension.create({
 
 /**
  * ComfyUI — a local node-graph image server. Its "models" are the user's saved
- * workflows (listed by `listWorkflows` in the transport), and generation is a
+ * workflows (listed by `listWorkflows` in the discovery client), and generation is a
  * submit → poll `/history` → `/view` download loop, so the whole surface is served by
  * the bespoke provider rather than any OpenAI adapter. Image-only: `languageModel`
  * and `embeddingModel` throw by design.

@@ -13,11 +13,14 @@ import type {
 } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
+import { type ComfyuiRequestOptions, normalizeComfyuiBaseUrl, requestJson, withDeadline } from './comfyuiHttp'
+import { WORKFLOW_DIR, WORKFLOW_FILE_EXTENSION } from './comfyuiWorkflows'
 import { applySeed, convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo } from './uiToApiPrompt'
 
 /**
- * ComfyUI transport: list the user's saved workflows, expand one into a prompt,
- * submit it, then poll the queue and pull the rendered images back.
+ * ComfyUI transport: expand a saved workflow into a prompt, submit it, then poll
+ * the queue and pull the rendered images back. Which workflows exist is the
+ * listing's business (`comfyuiWorkflowDiscovery`), not this loop's.
  *
  * ComfyUI is driven by a node graph rather than a prompt string, so a workflow
  * supplies everything except the prompt: the node that receives it is found by
@@ -28,13 +31,10 @@ const logger = loggerService.withContext('comfyui')
 
 export const DEFAULT_COMFYUI_BASE_URL = 'http://localhost:8188'
 
-const WORKFLOW_DIR = 'workflows'
 const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
 const CAPABILITY_TIMEOUT_MS = 5000
-/** Reading a listing. Small body, but a large install can be slow to enumerate. */
-const LIST_TIMEOUT_MS = 30 * 1000
 /** `/object_info` and the `/prompt` submit on an install with many custom nodes. */
 const SUBMIT_TIMEOUT_MS = 60 * 1000
 
@@ -72,14 +72,7 @@ export interface ComfyuiCancelCapabilities {
   targetedInterrupt: boolean
 }
 
-/** Per-request overrides shared by the transport and the standalone helpers. */
-export interface ComfyuiRequestOptions {
-  /** Extra headers, e.g. the provider's configured extra headers. */
-  headers?: Record<string, string>
-  /** Overrides `fetch` for every request. */
-  fetch?: FetchFunction
-}
-
+/** Per-request overrides are the HTTP surface's; this is the transport's own. */
 export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
   baseURL?: string
 }
@@ -92,114 +85,6 @@ interface HistoryEntry {
 
 /** Per-transport short-lived timeouts to prevent forever-pending HTTP calls. */
 const CANCEL_QUEUE_TIMEOUT_MS = 5000
-
-interface UserDataEntry {
-  name: string
-  type: string
-  /** Path relative to the user data root (`workflows/sub/x.json`); the listing
-   * walks subdirectories, so `name` alone is only the basename. */
-  path?: string
-}
-
-export const WORKFLOW_FILE_EXTENSION = '.json'
-
-/**
- * Everything from `#` on belongs to the client and is never sent, so a host the
- * user pasted as `http://host:8188/#` would otherwise put every request on the
- * console's HTML root instead of the API. Trailing slashes go with it, or the
- * fragment leaves a doubled separator behind.
- */
-export function normalizeComfyuiBaseUrl(baseURL: string): string {
-  return baseURL.split('#')[0].replace(/\/+$/, '')
-}
-
-/** Saved workflow names, newest first. Directories and non-workflow files are skipped. */
-export async function listWorkflows(
-  baseURL: string,
-  signal?: AbortSignal,
-  options: ComfyuiRequestOptions = {}
-): Promise<string[]> {
-  const entries = await requestJson<UserDataEntry[]>(
-    `${normalizeComfyuiBaseUrl(baseURL)}/v2/userdata?path=${WORKFLOW_DIR}`,
-    t('paintings.comfyui.list_failed'),
-    signal,
-    options
-  )
-  const prefix = `${WORKFLOW_DIR}/`
-  return entries
-    .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
-    .map((entry) => {
-      // The listing walks subdirectories, so a workflow in one arrives with the
-      // basename in `name` and its real location in `path`. Keep the relative
-      // path as the handle: it is what resolves again when the workflow is read
-      // back and submitted.
-      const relative = (entry.path ?? `${WORKFLOW_DIR}/${entry.name}`).replace(/^\/+/, '')
-      const workflowPath = relative.startsWith(prefix) ? relative.slice(prefix.length) : relative
-      return workflowPath.slice(0, -WORKFLOW_FILE_EXTENSION.length)
-    })
-}
-
-/**
- * The one place a GET is issued: the listing and every read the transport makes
- * go through it, so the headers, the fetch override and the structured failure
- * have a single owner. The caller resolves its own fallback message: the i18n
- * gate only accepts a key written literally where the helper is called.
- */
-/**
- * Run one exchange under an absolute deadline, combined with the caller's
- * signal, and report this request's own timeout as a structured failure.
- *
- * `run` receives the combined signal, so everything it awaits — the fetch, the
- * body read, a second read of an error body — is bounded by the same budget and
- * is actually aborted when it fires. This is the transport's only deadline
- * implementation; the one on the class delegates here.
- */
-async function withDeadline<T>(
-  signal: AbortSignal | undefined,
-  timeoutMs: number,
-  timeoutMessage: string,
-  run: (deadlineSignal: AbortSignal) => Promise<T>
-): Promise<T> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
-  try {
-    return await run(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
-  } catch (error) {
-    // The combined signal aborts for the caller's cancellation AND for this
-    // request's own budget; only the latter is a deadline failure.
-    if (controller.signal.aborted && !signal?.aborted) {
-      throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-async function requestJson<T>(
-  url: string,
-  fallback: string,
-  signal?: AbortSignal,
-  options: ComfyuiRequestOptions = {},
-  timeoutMs: number = LIST_TIMEOUT_MS
-): Promise<T> {
-  const doFetch = options.fetch ?? fetch
-  return withDeadline(
-    signal,
-    timeoutMs,
-    t('paintings.comfyui.request_timeout', { seconds: timeoutMs / 1000 }),
-    async (deadlineSignal) => {
-      const response = await doFetch(url, { signal: deadlineSignal, headers: options.headers })
-      if (!response.ok) {
-        // Inside the deadline: the error body is a read like any other.
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: await readErrorMessage(response, fallback)
-        })
-      }
-      return (await response.json()) as T
-    }
-  )
-}
 
 /**
  * Turn ComfyUI's validation payload into something a user can act on. The
@@ -567,16 +452,8 @@ class ComfyuiTransport implements ImageGenerationTransport {
     }
   }
 
-  /**
-   * Run one exchange under an absolute deadline, combined with the caller's
-   * signal, and report this request's own timeout as a structured failure.
-   *
-   * `run` receives the combined signal, so everything it awaits — the fetch, the
-   * body read, a second read of an error body — is bounded by the same budget
-   * and is actually aborted when it fires. Racing a read without aborting it,
-   * which is what a bare `Promise.race` does, leaves the response buffering
-   * behind the failure.
-   */
+  /** The transport's own reads (history, images, the cancellation writes) share
+   *  the HTTP layer's deadline helper rather than implementing a second one. */
   private withDeadline<T>(
     signal: AbortSignal | undefined,
     timeoutMs: number,
