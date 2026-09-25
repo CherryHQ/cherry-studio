@@ -64,6 +64,12 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.integration.start': async ({ action, workspacePath }) =>
     application.get('PrometheusIntegrationService').start(action, workspacePath),
   'prometheus.integration.cancel': async ({ id }) => application.get('PrometheusIntegrationService').cancel(id),
+  'prometheus.integration.operation_events': async ({ id, after, limit }) =>
+    application.get('PrometheusIntegrationService').operationEvents(id, after, limit),
+  'prometheus.integration.operation_log': async ({ id, offset, limit }) =>
+    application.get('PrometheusIntegrationService').readOperationLog(id, offset, limit),
+  'prometheus.integration.export_log': async ({ id }) =>
+    application.get('PrometheusIntegrationService').exportOperationLog(id),
   'prometheus.uar.admin.snapshot': async () => readUarAdministrationSnapshot(),
   'prometheus.uar.admin.diagnose_authority': async () => diagnoseUarAuthority(),
   'prometheus.uar.operations.read': async () => readUarOperations(),
