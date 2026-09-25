@@ -13,15 +13,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // over them without a TDZ error.
 const { mockGetModels, mockIsInternalAgentRequest, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } =
   vi.hoisted(() => ({
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
-  mockIsInternalAgentRequest: vi.fn(() => false),
-  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
-  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
-    async () =>
-      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
-  )
-}))
+    mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+    mockIsInternalAgentRequest: vi.fn(() => false),
+    mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
+    mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+    mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
+    )
+  }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
