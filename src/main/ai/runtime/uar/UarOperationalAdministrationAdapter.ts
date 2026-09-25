@@ -22,10 +22,11 @@ import {
   rawPendingApproval
 } from './uarApprovalLifecycle'
 
+const optionalSessionId = z.string().nullable().optional()
 export const rawRun = z.object({
   run_id: z.string(),
   agent_id: z.string(),
-  conversation_id: z.string().nullable().optional(),
+  conversation_id: optionalSessionId,
   status: z.enum(['pending', 'running', 'paused', 'done', 'error', 'cancelled']),
   agent_revision: z.string().nullable().optional(),
   effective_model: z.unknown().optional(),
@@ -34,6 +35,8 @@ export const rawRun = z.object({
 })
 const rawKnowledgeBase = z.object({
   id: z.string(),
+  conversation_id: optionalSessionId,
+  host_session_id: optionalSessionId,
   name: z.string(),
   description: z.string().nullable().optional(),
   config: z
@@ -70,7 +73,11 @@ const rawMcpHealth = z.object({
   total_tools: z.number(),
   servers: z.array(z.object({ name: z.string(), status: z.string(), tool_count: z.number() }))
 })
-const rawCredential = z.object({ provider_id: z.string() })
+const rawCredential = z.object({
+  provider_id: z.string(),
+  conversation_id: optionalSessionId,
+  host_session_id: optionalSessionId
+})
 const rawFederatedAgent = z.object({
   id: z.string(),
   name: z.string(),
@@ -150,14 +157,29 @@ function owner(sessionId: string): UarAdministrationOwner {
   }
 }
 
+export const UNATTRIBUTED_UAR_OWNER_SESSION_ID = '__unattributed__'
+
+export function attributedOwnerSessionId(
+  record: { conversation_id?: string | null; host_session_id?: string | null },
+  availableOwners: UarAdministrationOwner[]
+): string {
+  const candidate = record.host_session_id ?? record.conversation_id
+  return candidate && availableOwners.some((current) => current.sessionId === candidate)
+    ? candidate
+    : UNATTRIBUTED_UAR_OWNER_SESSION_ID
+}
+
 export async function ownerRequest(
   sessionId: string,
   path: string,
   init: RequestInit = {},
   expectedGeneration?: number
 ): Promise<Response> {
-  owner(sessionId)
-  return application.get('UarSidecarService').request(path, uarPrincipalForSession(sessionId), init, expectedGeneration)
+  const current = sessionId === UNATTRIBUTED_UAR_OWNER_SESSION_ID ? owners()[0] : owner(sessionId)
+  if (!current) throw new Error('No UAR conversation is available for the shared installation owner')
+  return application
+    .get('UarSidecarService')
+    .request(path, uarPrincipalForSession(current.sessionId), init, expectedGeneration)
 }
 
 export function projectRun(run: z.infer<typeof rawRun>, ownerSessionId: string): UarRunInspection {
@@ -194,10 +216,9 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
   const availableOwners = owners()
   const failures: UarOperationalSnapshot['failures'] = []
   const hostApprovals = uarApprovalLifecycleStore.snapshot().map(projectHostApproval)
-
-  const perOwner = await Promise.all(
-    availableOwners.map(async (current) => {
-      const [runs, knowledge, credentials] = await Promise.all([
+  const sharedRequestOwner = availableOwners[0]
+  const [runs, knowledge, credentials] = sharedRequestOwner
+    ? await Promise.all([
         optional(
           'runs',
           failures,
@@ -206,7 +227,7 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
               .array(rawRun)
               .parse(
                 await body(
-                  await ownerRequest(current.sessionId, '/api/uar/runs', {}, endpoint.generation),
+                  await ownerRequest(sharedRequestOwner.sessionId, '/api/uar/runs', {}, endpoint.generation),
                   'Run inventory'
                 )
               ),
@@ -220,7 +241,7 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
               .array(rawKnowledgeBase)
               .parse(
                 await body(
-                  await ownerRequest(current.sessionId, '/api/uar/knowledge-bases', {}, endpoint.generation),
+                  await ownerRequest(sharedRequestOwner.sessionId, '/api/uar/knowledge-bases', {}, endpoint.generation),
                   'Knowledge inventory'
                 )
               ),
@@ -234,86 +255,87 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
               .array(rawCredential)
               .parse(
                 await body(
-                  await ownerRequest(current.sessionId, '/api/uar/credentials', {}, endpoint.generation),
+                  await ownerRequest(sharedRequestOwner.sessionId, '/api/uar/credentials', {}, endpoint.generation),
                   'Credential inventory'
                 )
               ),
           []
         )
       ])
-      const documents = new Map<string, z.infer<typeof rawDocument>[]>()
-      const approvalRecords: UarApprovalLifecycleInspection[] = []
-      await Promise.all([
-        ...knowledge.map(async (kb) => {
-          const items = await optional(
-            'knowledge',
+    : ([[], [], []] as const)
+  const documents = new Map<string, z.infer<typeof rawDocument>[]>()
+  const approvalRecords: UarApprovalLifecycleInspection[] = []
+  if (sharedRequestOwner) {
+    await Promise.all([
+      ...knowledge.map(async (kb) => {
+        const items = await optional(
+          'knowledge',
+          failures,
+          async () =>
+            z
+              .array(rawDocument)
+              .parse(
+                await body(
+                  await ownerRequest(
+                    sharedRequestOwner.sessionId,
+                    `/api/uar/knowledge-bases/${encodeURIComponent(kb.id)}/documents`,
+                    {},
+                    endpoint.generation
+                  ),
+                  'Knowledge documents'
+                )
+              ),
+          []
+        )
+        documents.set(kb.id, items)
+      }),
+      ...runs.map(async (run) => {
+        const ownerSessionId = attributedOwnerSessionId(run, availableOwners)
+        const [pending, evidence] = await Promise.all([
+          optional(
+            'approvals',
             failures,
             async () =>
-              z
-                .array(rawDocument)
-                .parse(
-                  await body(
-                    await ownerRequest(
-                      current.sessionId,
-                      `/api/uar/knowledge-bases/${encodeURIComponent(kb.id)}/documents`,
-                      {},
-                      endpoint.generation
-                    ),
-                    'Knowledge documents'
-                  )
-                ),
-            []
+              rawPendingApproval.parse(
+                await body(
+                  await ownerRequest(
+                    sharedRequestOwner.sessionId,
+                    `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-approval/pending`,
+                    {},
+                    endpoint.generation
+                  ),
+                  'Pending approval snapshot'
+                )
+              ),
+            undefined
+          ),
+          optional(
+            'approvals',
+            failures,
+            async () =>
+              rawAdmissionEvidence.parse(
+                await body(
+                  await ownerRequest(
+                    sharedRequestOwner.sessionId,
+                    `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-admission-evidence`,
+                    {},
+                    endpoint.generation
+                  ),
+                  'Tool-admission evidence'
+                )
+              ),
+            undefined
           )
-          documents.set(kb.id, items)
-        }),
-        ...runs.map(async (run) => {
-          const [pending, evidence] = await Promise.all([
-            optional(
-              'approvals',
-              failures,
-              async () =>
-                rawPendingApproval.parse(
-                  await body(
-                    await ownerRequest(
-                      current.sessionId,
-                      `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-approval/pending`,
-                      {},
-                      endpoint.generation
-                    ),
-                    'Pending approval snapshot'
-                  )
-                ),
-              undefined
-            ),
-            optional(
-              'approvals',
-              failures,
-              async () =>
-                rawAdmissionEvidence.parse(
-                  await body(
-                    await ownerRequest(
-                      current.sessionId,
-                      `/api/uar/runs/${encodeURIComponent(run.run_id)}/tool-admission-evidence`,
-                      {},
-                      endpoint.generation
-                    ),
-                    'Tool-admission evidence'
-                  )
-                ),
-              undefined
-            )
-          ])
-          if (evidence) {
-            approvalRecords.push(...evidence.records.map((record) => projectRuntimeEvidence(record, current.sessionId)))
-          }
-          if (pending?.pending) {
-            approvalRecords.push(projectRuntimePending(pending.pending, current.sessionId, run.run_id))
-          }
-        })
-      ])
-      return { owner: current, runs, knowledge, credentials, documents, approvalRecords }
-    })
-  )
+        ])
+        if (evidence) {
+          approvalRecords.push(...evidence.records.map((record) => projectRuntimeEvidence(record, ownerSessionId)))
+        }
+        if (pending?.pending) {
+          approvalRecords.push(projectRuntimePending(pending.pending, ownerSessionId, run.run_id))
+        }
+      })
+    ])
+  }
 
   const [memory, toolCatalog, mcpHealth, governance, federatedAgents, federatedSkills, a2aCard, acp] =
     await Promise.all([
@@ -402,27 +424,25 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
     schemaVersion: 1,
     generation: endpoint.generation,
     owners: availableOwners,
-    runs: perOwner.flatMap((item) => item.runs.map((run) => projectRun(run, item.owner.sessionId))),
-    knowledgeBases: perOwner.flatMap((item) =>
-      item.knowledge.map(
-        (kb): UarKnowledgeBaseInspection => ({
-          ownerSessionId: item.owner.sessionId,
-          id: kb.id,
-          name: kb.name,
-          ...(kb.description ? { description: kb.description } : {}),
-          documentCount: kb.document_count,
-          embeddingProvider: kb.config.embedding_provider,
-          embeddingModel: kb.config.embedding_model,
-          updatedAt: kb.updated_at,
-          documents: (item.documents.get(kb.id) ?? []).map((document) => ({
-            id: document.id,
-            filename: document.filename,
-            status: document.status,
-            chunkCount: document.chunk_count,
-            ...(document.error_message ? { error: document.error_message } : {})
-          }))
-        })
-      )
+    runs: runs.map((run) => projectRun(run, attributedOwnerSessionId(run, availableOwners))),
+    knowledgeBases: knowledge.map(
+      (kb): UarKnowledgeBaseInspection => ({
+        ownerSessionId: attributedOwnerSessionId(kb, availableOwners),
+        id: kb.id,
+        name: kb.name,
+        ...(kb.description ? { description: kb.description } : {}),
+        documentCount: kb.document_count,
+        embeddingProvider: kb.config.embedding_provider,
+        embeddingModel: kb.config.embedding_model,
+        updatedAt: kb.updated_at,
+        documents: (documents.get(kb.id) ?? []).map((document) => ({
+          id: document.id,
+          filename: document.filename,
+          status: document.status,
+          chunkCount: document.chunk_count,
+          ...(document.error_message ? { error: document.error_message } : {})
+        }))
+      })
     ),
     memory: {
       enabled: memory.enabled,
@@ -438,7 +458,7 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
         ...(item.created_at ? { createdAt: item.created_at } : {})
       }))
     },
-    approvals: latestApprovals([...perOwner.flatMap((item) => item.approvalRecords), ...hostApprovals]),
+    approvals: latestApprovals([...approvalRecords, ...hostApprovals]),
     tools: {
       total: toolCatalog.tools.length + toolCatalog.built_in_tools.length,
       names: [
@@ -455,7 +475,13 @@ export async function readUarOperations(): Promise<UarOperationalSnapshot> {
     security: {
       governance: governance ? (governance.effective_enabled ? 'enabled' : 'disabled') : 'unavailable',
       credentialProvidersBySession: Object.fromEntries(
-        perOwner.map((item) => [item.owner.sessionId, item.credentials.map((entry) => entry.provider_id)])
+        credentials.reduce<Array<[string, string[]]>>((groups, credential) => {
+          const ownerSessionId = attributedOwnerSessionId(credential, availableOwners)
+          const current = groups.find(([sessionId]) => sessionId === ownerSessionId)
+          if (current) current[1].push(credential.provider_id)
+          else groups.push([ownerSessionId, [credential.provider_id]])
+          return groups
+        }, [])
       )
     },
     protocols: {

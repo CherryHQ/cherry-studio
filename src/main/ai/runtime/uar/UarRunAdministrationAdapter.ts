@@ -2,6 +2,7 @@ import { application } from '@application'
 import type { UarRunDetailSnapshot, UarRunInspection } from '@shared/types/prometheusIntegration'
 
 import {
+  attributedOwnerSessionId,
   body,
   ownerRequest,
   owners,
@@ -9,16 +10,26 @@ import {
   rawCheckpointResponse,
   rawRun
 } from './UarOperationalAdministrationAdapter'
-async function resolveRun(runId: string, generation: number): Promise<{ sessionId: string; run: UarRunInspection }> {
-  for (const current of owners()) {
-    const response = await ownerRequest(current.sessionId, `/api/uar/runs/${encodeURIComponent(runId)}`, {}, generation)
-    if (response.status === 404) continue
-    return {
-      sessionId: current.sessionId,
-      run: projectRun(rawRun.parse(await body(response, 'Run detail')), current.sessionId)
-    }
+
+async function resolveRun(
+  runId: string,
+  generation: number
+): Promise<{ requestSessionId: string; run: UarRunInspection }> {
+  const availableOwners = owners()
+  const requestOwner = availableOwners[0]
+  if (!requestOwner) throw new Error('No UAR conversation is available for the shared installation owner')
+  const response = await ownerRequest(
+    requestOwner.sessionId,
+    `/api/uar/runs/${encodeURIComponent(runId)}`,
+    {},
+    generation
+  )
+  if (response.status === 404) throw new Error('The selected run is no longer available to the UAR installation owner')
+  const raw = rawRun.parse(await body(response, 'Run detail'))
+  return {
+    requestSessionId: requestOwner.sessionId,
+    run: projectRun(raw, attributedOwnerSessionId(raw, availableOwners))
   }
-  throw new Error('The selected run is no longer available to any UAR conversation')
 }
 
 export async function readUarRunDetail(runId: string): Promise<UarRunDetailSnapshot> {
@@ -27,7 +38,7 @@ export async function readUarRunDetail(runId: string): Promise<UarRunDetailSnaps
   const checkpoints = rawCheckpointResponse.parse(
     await body(
       await ownerRequest(
-        resolved.sessionId,
+        resolved.requestSessionId,
         `/api/uar/runs/${encodeURIComponent(runId)}/checkpoints`,
         {},
         endpoint.generation
@@ -38,7 +49,7 @@ export async function readUarRunDetail(runId: string): Promise<UarRunDetailSnaps
   const sessionId = resolved.run.conversationId
   const inspect = async (path: string) => {
     if (!sessionId) return undefined
-    const response = await ownerRequest(resolved.sessionId, path, {}, endpoint.generation)
+    const response = await ownerRequest(resolved.requestSessionId, path, {}, endpoint.generation)
     if (response.status === 404) return undefined
     return body(response, 'Run context')
   }
@@ -75,7 +86,7 @@ export async function cancelUarRun(runId: string): Promise<UarRunDetailSnapshot>
   const resolved = await resolveRun(runId, endpoint.generation)
   await body(
     await ownerRequest(
-      resolved.sessionId,
+      resolved.requestSessionId,
       `/api/uar/runs/${encodeURIComponent(runId)}/cancel`,
       { method: 'POST' },
       endpoint.generation
@@ -95,7 +106,7 @@ export async function saveUarConversationPolicy(
   if (!conversationId) throw new Error('The selected run has no conversation policy scope')
   await body(
     await ownerRequest(
-      resolved.sessionId,
+      resolved.requestSessionId,
       `/api/uar/conversations/${encodeURIComponent(conversationId)}/policy`,
       policy
         ? {
