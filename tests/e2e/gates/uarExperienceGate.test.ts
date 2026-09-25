@@ -20,6 +20,12 @@ type PresentationSnapshot = {
 }
 type OperationSnapshot = {
   runs: Array<{ runId: string; ownerSessionId: string; status: string; agentRevision?: string }>
+  approvals: Array<{
+    rootRunId: string
+    ownerSessionId: string
+    state: string
+    action: { operation?: string; target?: string }
+  }>
   knowledgeBases: Array<{
     id: string
     name: string
@@ -354,6 +360,12 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
 
     expect(run).toMatchObject({ status: 'done', agentRevision: target.catalogRevision })
     expect(runDetail.run.presentationSelection).toMatchObject({ mode: 'selected', ids: [presentation!.id] })
+    const approvalLifecycle = operations.approvals.find((candidate) => candidate.rootRunId === run!.runId)
+    expect(approvalLifecycle).toMatchObject({
+      ownerSessionId: session.session.id,
+      state: 'succeeded'
+    })
+    expect(JSON.stringify(approvalLifecycle?.action)).not.toContain('approved filesystem operation')
 
     operations = await ipc<OperationSnapshot>(page, 'prometheus.uar.knowledge.create', {
       sessionId: session.session.id,
@@ -436,6 +448,11 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       await page.screenshot({ path: join(screenshotDirectory, 'gate-v-agents-narrow.png'), fullPage: true })
     }
 
+    await ipc(page, 'navigation.open_route_in_main', { path: '/settings/uar?panel=approvals' })
+    await expect(page.getByText('Tool approval lifecycle', { exact: true })).toBeVisible()
+    await expect(page.getByText('Completed results', { exact: true })).toBeVisible()
+    await expect(page.getByText('Succeeded', { exact: true }).first()).toBeVisible()
+
     const evidence = {
       gate: 'V',
       uarVersion: administration.uarVersion,
@@ -446,6 +463,10 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       selectedSkill: selectedSkill?.id ?? null,
       presentationId: presentation!.id,
       approvalReconnect: 'operational',
+      approvalLifecycle: {
+        state: approvalLifecycle!.state,
+        safeProjection: approvalLifecycle!.action
+      },
       toolOutput: join(workspace, 'gate-v-approved.txt'),
       knowledge: { id: knowledge!.id, queryResults: search.length },
       protocols: operations.protocols,
