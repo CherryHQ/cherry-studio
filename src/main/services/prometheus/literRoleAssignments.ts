@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { edit as editToml, initSync as initTomlEditor, parse as parseToml } from '@rainbowatcher/toml-edit-js'
 import { dialog } from 'electron'
 
 import { application } from '@application'
@@ -19,15 +18,21 @@ import {
 import { integrationDirectory, readIntegrationConfig } from './integrationConfig'
 
 const ROLES = ['critic', 'judge', 'backup'] as const
-let tomlEditorReady: Promise<void> | undefined
+type TomlEditor = typeof import('@rainbowatcher/toml-edit-js')
+
+let tomlEditorReady: Promise<TomlEditor> | undefined
 
 function revisionOf(source: string): string {
   return createHash('sha256').update(source).digest('hex')
 }
 
-async function ensureTomlEditor(): Promise<void> {
-  tomlEditorReady ??= fs.readFile(application.getPath('feature.prometheus.toml_editor_wasm')).then((bytes) => {
-    initTomlEditor(new Uint8Array(bytes))
+async function ensureTomlEditor(): Promise<TomlEditor> {
+  tomlEditorReady ??= Promise.all([
+    fs.readFile(application.getPath('feature.prometheus.toml_editor_wasm')),
+    import('@rainbowatcher/toml-edit-js')
+  ]).then(([bytes, editor]) => {
+    editor.initSync(new Uint8Array(bytes))
+    return editor
   })
   return tomlEditorReady
 }
@@ -83,7 +88,7 @@ async function candidate(source: LiterRoleSource, expectedRevision: string) {
   }
   const assignments = readIntegrationConfig().services.literRoles
   if (!assignments) throw new Error('prometheus.error.literRolesIncomplete')
-  await ensureTomlEditor()
+  const { edit: editToml, parse: parseToml } = await ensureTomlEditor()
   try {
     parseToml(current.content)
     let content = current.content
@@ -143,7 +148,7 @@ export async function selectLocalLiterRoleDocument(): Promise<LiterRoleSourceSel
 
 export async function readLiterRoleDocument(source: LiterRoleSource): Promise<LiterRoleDocumentSnapshot> {
   const current = await resolveSource(source)
-  await ensureTomlEditor()
+  const { parse: parseToml } = await ensureTomlEditor()
   let assignments: LiterRoleAssignments | undefined
   try {
     assignments = assignmentsFromDocument(parseToml(current.content))

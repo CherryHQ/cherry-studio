@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { edit as editToml, initSync as initTomlEditor, parse as parseToml } from '@rainbowatcher/toml-edit-js'
 import { dialog } from 'electron'
 
 import { application } from '@application'
@@ -28,7 +27,9 @@ import { serviceDirectory } from './managedServices'
 
 const EMPTY_CONFIG =
   '[server]\nhost = "0.0.0.0"\nport = 4000\n\n[general]\nmaster_key = "${LITER_LLM_MASTER_KEY}"\n\n[security]\noutbound_policy = "deny_private"\n'
-let tomlEditorReady: Promise<void> | undefined
+type TomlEditor = typeof import('@rainbowatcher/toml-edit-js')
+
+let tomlEditorReady: Promise<TomlEditor> | undefined
 
 function revisionOf(source: string): string {
   return createHash('sha256').update(source).digest('hex')
@@ -43,9 +44,13 @@ export async function selectLocalLiterConfig(): Promise<LiterConfigSourceSelecti
   return { ownership: 'local', path: await fs.realpath(selected.filePaths[0]) }
 }
 
-async function ensureTomlEditor(): Promise<void> {
-  tomlEditorReady ??= fs.readFile(application.getPath('feature.prometheus.toml_editor_wasm')).then((bytes) => {
-    initTomlEditor(new Uint8Array(bytes))
+async function ensureTomlEditor(): Promise<TomlEditor> {
+  tomlEditorReady ??= Promise.all([
+    fs.readFile(application.getPath('feature.prometheus.toml_editor_wasm')),
+    import('@rainbowatcher/toml-edit-js')
+  ]).then(([bytes, editor]) => {
+    editor.initSync(new Uint8Array(bytes))
+    return editor
   })
   return tomlEditorReady
 }
@@ -138,7 +143,7 @@ async function candidate(source: LiterConfigSource, expectedRevision: string, ed
       conflict: { expectedRevision, currentRevision }
     }
   }
-  await ensureTomlEditor()
+  const { edit: editToml, parse: parseToml } = await ensureTomlEditor()
   try {
     parseToml(current.content)
     const content = edits.reduce((document, change) => editToml(document, change.path, change.value), current.content)
