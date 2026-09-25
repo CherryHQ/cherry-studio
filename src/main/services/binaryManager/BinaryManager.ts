@@ -213,7 +213,7 @@ const BUNDLED_TOOLS: Array<{
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
-  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', ...(isUarEnabled() ? ['uar-sidecar'] : [])].map(
+  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', ...(isUarEnabled() ? ['liter-llm'] : [])].map(
     (name) => ({
       name,
       binaries: [name],

@@ -1,7 +1,6 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
 
@@ -9,10 +8,9 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { ensureManagedSecrets } from '@main/services/prometheus/integrationConfig'
-import { toAsarUnpackedPath } from '@main/utils/asar'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { assertUarEnabled, isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
@@ -20,10 +18,37 @@ import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } fro
 
 import { uarPrincipalForSession } from './uarPrincipal'
 import { type AppliedUarStorage, readAppliedUarStorage, writeAppliedUarStorage } from './uarStorageProfile'
+import { inspectUarPayload, requireUarPayload, type UarPayload } from './uarPayload'
 
 const logger = loggerService.withContext('UarSidecarService')
 const START_TIMEOUT_MS = 30_000
 const STOP_TIMEOUT_MS = 5_000
+const PROVIDER_CREDENTIAL_ENV_PATTERNS = [
+  /_API_KEY$/i,
+  /_API_TOKEN$/i,
+  /_ACCESS_TOKEN$/i,
+  /_SECRET_KEY$/i
+]
+const LEGACY_UAR_ENV_KEYS = new Set([
+  'ANTHROPIC_API_KEY',
+  'COHERE_API_KEY',
+  'CONFIG_FILE',
+  'EXTERNAL_CACHE_ENABLED',
+  'GEMINI_API_KEY',
+  'GROQ_API_KEY',
+  'JWT_REQUIRED',
+  'LLM_API_KEY',
+  'LLM_BASE_URL',
+  'LLM_MODEL',
+  'LLM_PROTOCOL',
+  'MISTRAL_API_KEY',
+  'OPENAI_API_KEY',
+  'PERPLEXITY_API_KEY',
+  'PORT',
+  'RATE_LIMIT_ENABLED',
+  'TIMEOUT_DISABLED',
+  'TOGETHER_API_KEY'
+])
 const REQUIRED_CAPABILITIES = [
   'approval_lifecycle_v1',
   'host_history',
@@ -52,9 +77,22 @@ type RunningSidecar = Omit<UarSidecarEndpoint, 'storage'> & {
   storage: AppliedUarStorage
 }
 
+function isolatedSidecarEnvironment(raw: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(raw).filter(([key]) => {
+      const normalized = key.toUpperCase()
+      return (
+        !normalized.startsWith('UAR_') &&
+        !normalized.startsWith('LLM_') &&
+        !LEGACY_UAR_ENV_KEYS.has(normalized) &&
+        !PROVIDER_CREDENTIAL_ENV_PATTERNS.some((pattern) => pattern.test(normalized))
+      )
+    })
+  )
+}
+
 @Injectable('UarSidecarService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['BinaryManager'])
 export class UarSidecarService extends BaseService {
   private readonly operation = new Mutex()
   private running?: RunningSidecar
@@ -97,6 +135,10 @@ export class UarSidecarService extends BaseService {
       administration: running.administration,
       storage: this.storageStatus(running.storage)
     }
+  }
+
+  payload(): UarPayload | undefined {
+    return inspectUarPayload()
   }
 
   async restart(): Promise<UarSidecarEndpoint> {
@@ -225,14 +267,22 @@ export class UarSidecarService extends BaseService {
 
   private async startOwnedProcess(storage: AppliedUarStorage): Promise<RunningSidecar> {
     assertUarEnabled()
-    const executable = await this.resolveExecutable()
+    const payload = requireUarPayload()
+    const executable = payload.executable
     const launchToken = randomBytes(32).toString('hex')
     const managedSecrets = await ensureManagedSecrets()
     const adminKey = managedSecrets.uarAdminKey
     const credentialEncryptionKey = managedSecrets.uarCredentialEncryptionKey
     if (!adminKey || !credentialEncryptionKey) throw new Error('UAR protected authority could not be provisioned')
     const dataRoot = application.getPath('feature.agents.uar.data')
-    await mkdir(dataRoot, { recursive: true })
+    const configFile = path.join(dataRoot, 'sidecar.yaml')
+    const dotenvFile = path.join(dataRoot, '.env')
+    await mkdir(dataRoot, { recursive: true, mode: 0o700 })
+    await Promise.all([
+      writeFile(configFile, '{}\n', { encoding: 'utf8', mode: 0o600 }),
+      writeFile(dotenvFile, '', { encoding: 'utf8', mode: 0o600 })
+    ])
+    if (!isWin) await Promise.all([chmod(dataRoot, 0o700), chmod(configFile, 0o600), chmod(dotenvFile, 0o600)])
     const persistence =
       storage.profile.backend === 'remote'
         ? {
@@ -247,7 +297,7 @@ export class UarSidecarService extends BaseService {
             UAR_PERSISTENCE__DATABASE_URL: `surrealkv://${path.resolve(dataRoot, 'runtime.db').replaceAll('\\', '/')}`
           }
     const env = {
-      ...(await getRawShellEnv()),
+      ...isolatedSidecarEnvironment(await getRawShellEnv()),
       UAR_SIDECAR: '1',
       UAR_SECURITY__SETTINGS_MUTATION_AUTH_REQUIRED: 'true',
       UAR_SECURITY__SETTINGS_ADMIN_KEY: adminKey,
@@ -255,13 +305,14 @@ export class UarSidecarService extends BaseService {
       UAR_PERSISTENCE__PROVIDER: 'surreal',
       ...persistence,
       UAR_BUILTIN_SKILLS_DIR: path.join(application.getPath('feature.prometheus.pack.runtime'), 'skills'),
-      UAR_MODELS_DIR: path.join(path.dirname(executable), 'uar-models'),
+      UAR_MODELS_DIR: payload.modelsDirectory,
       UAR_LOAD_IMPORTED_SKILLS: 'true',
       UAR_NATIVE_TOOLS__FILE_TOOLS_ENABLED: 'false',
       UAR_NATIVE_TOOLS__WEB_FETCH_ENABLED: 'false',
       UAR_NATIVE_TOOLS__TERMINAL_EXEC_ENABLED: 'false'
     }
-    const child = crossPlatformSpawn(executable, [], {
+    const child = crossPlatformSpawn(executable, ['--config', configFile], {
+      cwd: dataRoot,
       env,
       detached: !isWin,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -360,23 +411,6 @@ export class UarSidecarService extends BaseService {
     const missing = REQUIRED_CAPABILITIES.filter((capability) => !capabilities.includes(capability))
     if (missing.length) throw new Error(`UAR sidecar is missing required capabilities: ${missing.join(', ')}`)
     return { uarVersion: body.uar_version, capabilities, administration: body.administration }
-  }
-
-  private async resolveExecutable(): Promise<string> {
-    assertUarEnabled()
-    const override = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
-    if (override) return override
-    const bundled = toAsarUnpackedPath(
-      path.join(
-        application.getPath('app.root.resources.binaries'),
-        `${process.platform}-${process.arch}`,
-        `uar-sidecar${isWin ? '.exe' : ''}`
-      )
-    )
-    if (existsSync(bundled)) return bundled
-    const snapshot = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
-    if (snapshot.availability.source !== 'none') return snapshot.availability.path
-    throw new Error('UAR sidecar binary is not installed')
   }
 
   private async stopOwnedProcess(): Promise<void> {
