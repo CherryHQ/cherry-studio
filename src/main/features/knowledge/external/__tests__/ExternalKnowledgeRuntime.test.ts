@@ -400,6 +400,38 @@ describe('ExternalKnowledgeRuntime', () => {
     })
   })
 
+  it('logs safe Feishu read diagnostics when a source scan fails', async () => {
+    mockMainLoggerService.warn.mockClear()
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider({
+      listWikiChildNodes: vi.fn(async () => {
+        throw new FeishuProviderError('invalid-response', false, undefined, {
+          endpoint: 'wiki.list-nodes',
+          invalidFields: ['data.items.0.node_token']
+        })
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(
+      runtime.scanFeishuSource(value.id, { spaceId: 'space-1', scope: { kind: 'space' } })
+    ).rejects.toMatchObject({
+      code: 'invalid-provider-response'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Feishu knowledge read failed', {
+      origin: 'provider',
+      category: 'invalid-response',
+      endpoint: 'wiki.list-nodes',
+      invalidFields: ['data.items.0.node_token']
+    })
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain('access-one')
+  })
+
   it('propagates the caller cancellation unchanged while scanning a persisted source', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()

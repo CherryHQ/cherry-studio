@@ -170,7 +170,13 @@ export class FeishuProviderError extends Error {
     readonly code: FeishuProviderErrorCode,
     readonly terminal: boolean,
     readonly retryAfterMs?: number,
-    readonly diagnostics?: { httpStatus: number; providerCode?: number; oauthError?: FeishuOAuthError }
+    readonly diagnostics?: {
+      httpStatus?: number
+      providerCode?: number
+      oauthError?: FeishuOAuthError
+      endpoint?: 'wiki.list-nodes'
+      invalidFields?: string[]
+    }
   ) {
     super(`Feishu request failed: ${code}`)
     this.name = 'FeishuProviderError'
@@ -430,7 +436,12 @@ export async function listWikiChildNodes(
       signal
     })
   )
-  if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
+  if (!parsed.success) {
+    throw new FeishuProviderError('invalid-response', false, undefined, {
+      endpoint: 'wiki.list-nodes',
+      invalidFields: parsed.error.issues.map((issue) => issue.path.join('.'))
+    })
+  }
   return {
     nodes: parsed.data.data.items.map(normalizeWikiNode),
     ...(parsed.data.data.has_more ? { nextPageToken: parsed.data.data.page_token } : {})

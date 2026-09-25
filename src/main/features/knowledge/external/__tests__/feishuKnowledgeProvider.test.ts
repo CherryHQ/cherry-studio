@@ -333,6 +333,37 @@ describe('feishuKnowledgeProvider', () => {
     await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
   })
 
+  it('reports invalid Wiki list fields without exposing response values', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [
+            {
+              space_id: 'space-1',
+              node_token: 'secret-sentinel?invalid',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              node_type: 'origin',
+              title: 'Private title',
+              has_child: false
+            }
+          ],
+          has_more: false
+        }
+      })
+    )
+
+    const error = await listWikiChildNodes('access-token', 'space-1').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({
+      code: 'invalid-response',
+      diagnostics: { endpoint: 'wiki.list-nodes', invalidFields: ['data.items.0.node_token'] }
+    })
+    expect(JSON.stringify(error)).not.toContain('secret-sentinel')
+    expect(JSON.stringify(error)).not.toContain('Private title')
+  })
+
   it('rejects pagination responses that claim another page without a token', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
 

@@ -723,8 +723,12 @@ export class ExternalKnowledgeRuntime {
     state: CredentialRuntimeState,
     generation: number
   ): unknown {
-    if (error instanceof FeishuKnowledgeReadError) return new ExternalKnowledgeRuntimeError(error.code)
+    if (error instanceof FeishuKnowledgeReadError) {
+      logger.warn('Feishu knowledge read failed', { origin: 'adapter', category: error.code })
+      return new ExternalKnowledgeRuntimeError(error.code)
+    }
     if (!(error instanceof FeishuProviderError)) return error
+    logger.warn('Feishu knowledge read failed', { origin: 'provider', category: error.code, ...error.diagnostics })
     if (error.terminal) {
       this.markReauthorizationRequiredIfCurrent(connectionId, state, generation)
       return new ExternalKnowledgeRuntimeError(
