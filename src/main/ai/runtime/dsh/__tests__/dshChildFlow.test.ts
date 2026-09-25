@@ -162,6 +162,22 @@ describe('DshSubagentCoordinator binding', () => {
     expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-send')).toBe(true)
   })
 
+  it('binds a cold-resumed child to an anchor carrying the production agent_id field', () => {
+    // dsh 0.1.2-rc.1 names the target `agent_id`; reading only `subagent_id` silently drops the
+    // anchor and leaves a cold-resumed child without its root card.
+    coordinator.noteMainChunk({
+      type: 'tool-input-available',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      input: { agent_id: 'revived-child', message: 'go on' }
+    })
+    coordinator.handleLifecycle(startEdge('revived-child', 'run-9'))
+    coordinator.handleChildEvent('revived-child', textDelta(3, 0, 'resumed'))
+    const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0][0]).toBe('call-send')
+  })
+
   it('cold resume matches its targeted anchor instead of stealing an older spawn anchor', () => {
     coordinator.noteMainChunk(spawnAnchor('call-2', 'pending spawn'))
     coordinator.noteMainChunk(sendAnchor('call-send', 'revived-child'))
