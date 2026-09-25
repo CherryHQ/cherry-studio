@@ -296,8 +296,9 @@ test('Gate B: real services and isolated Compass workspaces retain observable op
     const intentionalFailure = await runOperation(page, 'start')
     expect(intentionalFailure.status).toBe('failed')
     expect(intentionalFailure.resourceKeys).toContain('compose:the-boss-prometheus')
-    await expect(page.getByText('Failed', { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+    const serviceManagement = page.locator('#setting-services-service-management')
+    await expect(serviceManagement.getByText('Failed', { exact: true })).toBeVisible()
+    await expect(serviceManagement.getByRole('button', { name: 'Try again' })).toBeVisible()
     expect((await readLog(page, intentionalFailure.id)).text).not.toContain(intentionalInvalidPassword)
 
     await configure(page, [], { rootPassword: { operation: 'set', value: secrets.root } })
