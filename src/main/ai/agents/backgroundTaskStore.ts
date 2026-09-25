@@ -34,5 +34,5 @@ export function listBackgroundTaskRecords(agentId: string): BackgroundTaskRecord
     .where(eq(agentBackgroundTaskTable.agentId, agentId))
     .orderBy(desc(agentBackgroundTaskTable.startedAt))
     .all()
-    .map(({ record }) => record as BackgroundTaskRecord)
+    .map(({ record }) => record)
 }
