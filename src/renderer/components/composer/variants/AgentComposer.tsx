@@ -94,7 +94,7 @@ import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
@@ -138,6 +138,7 @@ import { useComposerSelectionReferenceInsertion } from './shared/useComposerSele
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
+import { useSteerQueuedFollowup } from './shared/useQueuedFollowupSteer'
 
 const logger = loggerService.withContext('AgentComposer')
 
@@ -1553,19 +1554,38 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
+  // Scope by agent + session so a queued payload is always drained through the agent it was enqueued for,
+  // even if the selected agent changes before the drain fires.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    hasLiveSend: hasLiveFollowupSend,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend
   } = useFollowupQueue({
-    scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
+    scopeKey: launchOptions?.editing
+      ? `${agentId}:${sessionTopicId}:edit:${launchOptions.editing.messageId}`
+      : `${agentId}:${sessionTopicId}`,
     isFulfilled: !launchOptions?.editing && sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
+  })
+  const steerQueuedFollowup = useSteerQueuedFollowup({
+    items: queuedFollowups,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend,
+    removeFollowup,
+    sendPayload: sendQueuedPayload
   })
 
   useEffect(() => {
@@ -1621,9 +1641,16 @@ const AgentComposerInner = ({
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
-      // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
+      // falls through to the direct send below, mirroring the dock's "insert" action. A queue send
+      // still in flight also queues: sending directly now would run concurrently with it.
+      // `drainingFollowupId` resets on remount, so also probe the durable claim — otherwise a
+      // remounted composer direct-sends while the previous instance's send is still pending.
+      if ((isStreaming && !options?.steer) || drainingFollowupId !== null || hasLiveFollowupSend()) {
+        const followupResult = enqueueFollowup(draft, payload)
+        if (followupResult !== 'ok') {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1641,7 +1668,9 @@ const AgentComposerInner = ({
     [
       buildQueuedPayload,
       clearCurrentDraft,
+      drainingFollowupId,
       enqueueFollowup,
+      hasLiveFollowupSend,
       isStreaming,
       model,
       sendDisabled,
@@ -1828,14 +1857,7 @@ const AgentComposerInner = ({
                   items={queuedFollowups}
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
-                  onSteer={async (id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    // Only drop the item once the send actually succeeds; a failed manual
-                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload)
-                    if (sent) removeFollowup(id)
-                  }}
+                  onSteer={steerQueuedFollowup}
                   onEdit={(id) => {
                     const item = queuedFollowups.find((entry) => entry.id === id)
                     if (!item) return
@@ -1844,6 +1866,16 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
+                  onClearAll={clearFollowups}
+                  failedItemId={failedFollowupId}
+                  onRetryFailed={retryFailedFollowup}
+                  onSkipFailed={skipFailedFollowup}
+                  onAbortQueue={clearFollowups}
+                  // `drainingFollowupId` resets on remount while the durable claim survives — keep Skip/Retry locked until the retry settles.
+                  isFailureDraining={
+                    failedFollowupId != null && (failedFollowupId === drainingFollowupId || hasLiveFollowupSend())
+                  }
+                  isSteerDisabled={(item) => item.id === drainingFollowupId}
                 />
               ) : undefined}
             </>

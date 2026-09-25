@@ -110,7 +110,9 @@ const fileTokenVariantByExtension = new Map<string, FileTokenVariant>(
 )
 
 function getNormalizedFileExtension(file: ComposerAttachment | undefined, fallbackLabel: string) {
-  const extension = file?.ext || fallbackLabel.match(/\.[^.]+$/)?.[0] || ''
+  const safeFallbackLabel = typeof fallbackLabel === 'string' ? fallbackLabel : ''
+  const rawExtension = typeof file?.ext === 'string' ? file.ext : undefined
+  const extension = rawExtension || safeFallbackLabel.match(/\.[^.]+$/)?.[0] || ''
   return extension.replace(/^\./, '').toLowerCase()
 }
 
