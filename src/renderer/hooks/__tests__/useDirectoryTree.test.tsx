@@ -1,5 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react'
+import { Activity, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
@@ -37,13 +37,16 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   mocks.create.mockReset()
   mocks.activate.mockReset().mockResolvedValue(true)
   mocks.dispose.mockReset().mockResolvedValue(undefined)
   mocks.onMutation.mockReset()
 })
 
-afterEach(() => {
+afterEach(async () => {
+  cleanup()
+  await vi.runOnlyPendingTimersAsync()
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
@@ -156,7 +159,7 @@ describe('useDirectoryTree', () => {
     expect(result.current.root?.hasChild('renamed.md')).toBe(true)
   })
 
-  it('disposes the tree on unmount', async () => {
+  it('releases an unused tree after the idle grace period', async () => {
     mocks.create.mockResolvedValue({ treeId: 't-3', revision: 0, snapshot: makeSnapshot('/notes', []) })
     const unsub = vi.fn()
     mocks.onMutation.mockReturnValue(unsub)
@@ -168,6 +171,8 @@ describe('useDirectoryTree', () => {
     })
 
     unmount()
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(unsub).toHaveBeenCalled()
     expect(mocks.dispose).toHaveBeenCalledWith('t-3')
   })
@@ -305,6 +310,7 @@ describe('useDirectoryTree', () => {
     expect(result.current.isLoading).toBe(true)
 
     unmount()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
 
     // Rejecting after the cleanup ran must not trigger any state update
     // on the unmounted hook. React would log an act() warning if it did.
@@ -317,22 +323,191 @@ describe('useDirectoryTree', () => {
     expect(mocks.dispose).not.toHaveBeenCalled()
   })
 
-  it('disposes the first tree under React StrictMode mount-unmount-mount', async () => {
-    mocks.create
-      .mockResolvedValueOnce({ treeId: 't-strict-1', revision: 0, snapshot: makeSnapshot('/notes', []) })
-      .mockResolvedValueOnce({ treeId: 't-strict-2', revision: 0, snapshot: makeSnapshot('/notes', []) })
-    const unsub1 = vi.fn()
-    const unsub2 = vi.fn()
-    mocks.onMutation.mockReturnValueOnce(unsub1).mockReturnValueOnce(unsub2)
+  it('reuses its resource through StrictMode cleanup and releases it after the real unmount', async () => {
+    mocks.create.mockResolvedValue({ treeId: 'strict-tree', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
+    const { result, unmount } = renderHook(() => useDirectoryTree('/notes'), { wrapper: StrictMode })
+    await waitFor(() => expect(result.current.root?.hasChild('a.md')).toBe(true))
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    unmount()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(mocks.dispose).toHaveBeenCalledWith('strict-tree')
+  })
 
-    const { result } = renderHook(() => useDirectoryTree('/notes'), { wrapper: StrictMode })
-
-    await waitFor(() => {
-      expect(result.current.treeId).toBe('t-strict-2')
+  it('updates the mirror while Activity suspends rendering and resumes without another scan', async () => {
+    mocks.create.mockResolvedValue({ treeId: 'activity-tree', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
+    let publish: ((payload: TreeMutationPushPayload) => void) | undefined
+    mocks.onMutation.mockImplementation((listener) => {
+      publish = listener
+      return () => {
+        publish = undefined
+      }
     })
+    function Tree() {
+      const tree = useDirectoryTree('/notes')
+      return (
+        <output>
+          {tree.root
+            ? Object.values(tree.root.children)
+                .map((node) => node.basename)
+                .join(',')
+            : ''}
+        </output>
+      )
+    }
+    const view = render(
+      <Activity mode="visible">
+        <Tree />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('a.md'))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree />
+      </Activity>
+    )
+    act(() =>
+      publish?.({
+        treeId: 'activity-tree',
+        revision: 1,
+        event: { type: 'renamed', oldPath: '/notes/a.md', newPath: '/notes/b.md', basename: 'b.md' }
+      })
+    )
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    view.rerender(
+      <Activity mode="visible">
+        <Tree />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('b.md'))
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+  })
 
-    // StrictMode's discarded mount must hand back its treeId, not leak it.
-    expect(mocks.dispose).toHaveBeenCalledWith('t-strict-1')
+  it('keeps the original idle deadline across hidden root changes and ignores the old root events', async () => {
+    mocks.create.mockResolvedValue({ treeId: 'old-root', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
+    let publish: ((payload: TreeMutationPushPayload) => void) | undefined
+    mocks.onMutation.mockImplementation((listener) => {
+      publish = listener
+      return () => {
+        publish = undefined
+      }
+    })
+    const onMutation = vi.fn()
+    function Tree({ root }: { root: string | undefined }) {
+      const tree = useDirectoryTree(root, undefined, onMutation)
+      return <output>{tree.treeId}</output>
+    }
+    const view = render(
+      <Activity mode="visible">
+        <Tree root="/notes" />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('old-root'))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree root="/notes" />
+      </Activity>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(4_000))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree root="/notes2" />
+      </Activity>
+    )
+    await act(async () => {})
+    expect(publish).toBeDefined()
+    act(() => publish?.({ treeId: 'old-root', revision: 1, event: { type: 'removed', path: '/notes/a.md' } }))
+    expect(onMutation).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(4_000))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree root={undefined} />
+      </Activity>
+    )
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(mocks.dispose).toHaveBeenCalledExactlyOnceWith('old-root')
+    expect(publish).toBeUndefined()
+    expect(mocks.create).toHaveBeenCalledExactlyOnceWith('/notes', undefined)
+  })
+
+  it('releases the hidden old root on early resume and exposes only the new root', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 'old-root', revision: 0, snapshot: makeSnapshot('/notes', ['old.md']) })
+      .mockResolvedValueOnce({ treeId: 'new-root', revision: 0, snapshot: makeSnapshot('/notes2', ['new.md']) })
+    let publish: ((payload: TreeMutationPushPayload) => void) | undefined
+    mocks.onMutation.mockImplementation((listener) => {
+      publish = listener
+      return () => {
+        publish = undefined
+      }
+    })
+    const onMutation = vi.fn()
+    function Tree({ root }: { root: string }) {
+      const tree = useDirectoryTree(root, undefined, onMutation)
+      return <output>{tree.getNode(`${root}/new.md`)?.path ?? tree.root?.path}</output>
+    }
+    const view = render(
+      <Activity mode="visible">
+        <Tree root="/notes" />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('/notes'))
+    const oldPublish = publish
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree root="/notes" />
+      </Activity>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree root="/notes2" />
+      </Activity>
+    )
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    view.rerender(
+      <Activity mode="visible">
+        <Tree root="/notes2" />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('/notes2/new.md'))
+    expect(mocks.dispose).toHaveBeenCalledExactlyOnceWith('old-root')
+    act(() => oldPublish?.({ treeId: 'old-root', revision: 1, event: { type: 'removed', path: '/notes/old.md' } }))
+    expect(onMutation).not.toHaveBeenCalled()
+    const event: TreeMutationEvent = { type: 'removed', path: '/notes2/new.md' }
+    act(() => publish?.({ treeId: 'new-root', revision: 1, event }))
+    expect(onMutation).toHaveBeenCalledExactlyOnceWith(event)
+    expect(view.getByRole('status').textContent).toBe('/notes2')
+  })
+
+  it('takes a fresh snapshot after an inactive tree has released its watcher', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 'old', revision: 0, snapshot: makeSnapshot('/notes', ['old.md']) })
+      .mockResolvedValueOnce({ treeId: 'fresh', revision: 0, snapshot: makeSnapshot('/notes', ['fresh.md']) })
+    function Tree() {
+      const tree = useDirectoryTree('/notes')
+      return <output>{tree.treeId}</output>
+    }
+    const view = render(
+      <Activity mode="visible">
+        <Tree />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('old'))
+    view.rerender(
+      <Activity mode="hidden">
+        <Tree />
+      </Activity>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(mocks.dispose).toHaveBeenCalledWith('old')
+    view.rerender(
+      <Activity mode="visible">
+        <Tree />
+      </Activity>
+    )
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('fresh'))
   })
 
   it('ignores file.tree.mutation payloads whose treeId does not match', async () => {
