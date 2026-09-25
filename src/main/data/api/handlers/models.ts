@@ -122,6 +122,32 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     }
   },
 
+  // Declared before `/models/:uniqueModelId*` on purpose. `ApiServer` resolves
+  // a request to the first matching pattern in declaration order, and the row
+  // route's greedy tail would otherwise swallow the trailing `/order` anchor
+  // and capture `providerId::modelId/order` as the id.
+  //
+  // Greedy tail: a `UniqueModelId` is `providerId::modelId` and `modelId` may
+  // contain `/`, so a single-segment `:id` could not be routed back intact.
+  '/models/:uniqueModelId*/order': {
+    PATCH: async ({ params, body }) => {
+      const uniqueModelId = assertUniqueModelId(params.uniqueModelId)
+      const anchor = OrderRequestSchema.parse(body)
+      modelService.reorder(uniqueModelId, anchor)
+      return undefined
+    }
+  },
+
+  // A literal path with no `:`, so it is matched by exact key before any
+  // pattern is considered. Ids travel in the body, so no greedy tail is needed.
+  '/models/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      modelService.reorderBatch(parsed.moves)
+      return undefined
+    }
+  },
+
   '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
@@ -137,26 +163,6 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       modelService.delete(providerId, modelId)
-      return undefined
-    }
-  },
-
-  // Greedy tail: a `UniqueModelId` is `providerId::modelId` and `modelId` may
-  // contain `/`, so a single-segment `:id` could not be routed back intact.
-  '/models/:uniqueModelId*/order': {
-    PATCH: async ({ params, body }) => {
-      const uniqueModelId = assertUniqueModelId(params.uniqueModelId)
-      const anchor = OrderRequestSchema.parse(body)
-      modelService.reorder(uniqueModelId, anchor)
-      return undefined
-    }
-  },
-
-  // Ids travel in the body here, so this route needs no greedy tail.
-  '/models/order:batch': {
-    PATCH: async ({ body }) => {
-      const parsed = OrderBatchRequestSchema.parse(body)
-      modelService.reorderBatch(parsed.moves)
       return undefined
     }
   },

@@ -506,6 +506,38 @@ describe('/models/:uniqueModelId*/order', () => {
 
     expect(reorderMock).not.toHaveBeenCalled()
   })
+
+  it('is reachable through the real route table', async () => {
+    const { ApiServer } = await import('../../core/ApiServer')
+    const server = new (ApiServer as any)(modelHandlers)
+
+    const response = await server.handleRequest({
+      id: 'req_reorder',
+      method: 'PATCH',
+      path: '/models/openai::gpt-5/order',
+      body: { position: 'first' },
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.status).toBe(200)
+    expect(reorderMock).toHaveBeenCalledWith('openai::gpt-5', { position: 'first' })
+  })
+
+  it('routes a slash-bearing id through the real route table', async () => {
+    const { ApiServer } = await import('../../core/ApiServer')
+    const server = new (ApiServer as any)(modelHandlers)
+
+    const response = await server.handleRequest({
+      id: 'req_reorder_slash',
+      method: 'PATCH',
+      path: '/models/qwen::qwen/qwen3-vl/order',
+      body: { position: 'last' },
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.status).toBe(200)
+    expect(reorderMock).toHaveBeenCalledWith('qwen::qwen/qwen3-vl', { position: 'last' })
+  })
 })
 
 describe('/models/order:batch', () => {

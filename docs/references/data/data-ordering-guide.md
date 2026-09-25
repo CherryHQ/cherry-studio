@@ -113,9 +113,20 @@ useReorder('/mini-apps', { idKey: 'appId' })
 useReorder('/prompt-bindings/:targetType/:targetId', {
   params: { targetType: 'assistant', targetId: assistantId }
 })
+
+// Query-scoped collection — the cache key is `[path, query]`, so the query
+// must be passed or the optimistic overlay lands on a key nothing reads and
+// the PATCH is silently skipped:
+useReorder('/models', { query: { providerId } })
+
+// Item id that can contain `/` — declare a greedy tail so the server routes
+// the id back as one value (the matcher splits on segments, never decodes):
+useReorder('/models', { query: { providerId }, itemIdParam: 'uniqueModelId*' })
 ```
 
 `id` is reserved for the reordered item (`/:id/order`), so parameterized collection paths must use distinct parent parameter names such as `targetId` or `providerId`.
+
+Resources whose item id can contain `/` pass a greedy token as a second type argument — `OrderEndpoints<'/models', 'uniqueModelId*'>` yields a single-item route with a greedy tail anchored by `/order`, and `params: { uniqueModelId }`. The batch route needs no such token because its ids travel in the request body.
 
 Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 
@@ -365,7 +376,7 @@ Parameterized segments are allowed when they define the scope of the resource's 
 Complete in one PR:
 
 1. **Schema**: `...orderKeyColumns` + `orderKeyIndex(tableName)(t)` or `scopedOrderKeyIndex(tableName, scopeColumn)(t)`.
-2. **Endpoints**: `& OrderEndpoints<'/{res}'>` on the resource's schema type. Add `POST /{res}/order:reset` inline if needed. Handlers validate bodies with `OrderRequestSchema` / `OrderBatchRequestSchema`.
+2. **Endpoints**: `& OrderEndpoints<'/{res}'>` on the resource's schema type — or `OrderEndpoints<'/{res}', '{idParam}*'>` when the item id can contain `/`. Add `POST /{res}/order:reset` inline if needed. Handlers validate bodies with `OrderRequestSchema` / `OrderBatchRequestSchema`.
 3. **Service**: `insertWithOrderKey` for create, `applyMoves` (or `applyScopedMoves` for discriminator-partitioned tables) for reorder, `resetOrder` for reset. For partitioned tables, the relevant scope predicate is:
    - `group`: `eq(groupTable.entityType, entityType)` — live (`GroupService.reorder` / `reorderBatch` via `applyScopedMoves`).
    - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
@@ -375,7 +386,7 @@ Complete in one PR:
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
-5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk. If the `GET` response is neither a flat array nor `{ items }`-shaped (e.g. a grouped or connection-style envelope), also pass `selectItems` / `updateItems` — see §4.4.
+5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk. Pass `query` when the collection is fetched with one, and `itemIdParam` when the item id can contain `/`. If the `GET` response is neither a flat array nor `{ items }`-shaped (e.g. a grouped or connection-style envelope), also pass `selectItems` / `updateItems` — see §4.4.
 6. **Drizzle custom migration** (runs when the consuming resource's PR lands, not part of the base-infrastructure PR): add `order_key` nullable → backfill bucket-by-bucket via `generateOrderKeySequence` imported from `@data/services/utils/orderKey` (never from `fractional-indexing` directly) → promote to `NOT NULL` → drop the old `sort_order` column → create the index. Until this step runs, the production schema keeps the legacy `sort_order INT` column — the base infrastructure never touches existing tables.
 
 ---
