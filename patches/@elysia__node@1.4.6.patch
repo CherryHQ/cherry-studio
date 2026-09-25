@@ -1,0 +1,108 @@
+diff --git a/dist/cjs/index.js b/dist/cjs/index.js
+index e87389ca5e266b5320b3b0448429a73c996a233f..43e9b2cf95b00da96cf7e5a76c48f9e0f3a472ae 100644
+--- a/dist/cjs/index.js
++++ b/dist/cjs/index.js
+@@ -136,13 +136,6 @@ function createWebSocketAdapter() {
+             }
+           },
+           async message(ws, message) {
+-            if (message.includes("ping")) {
+-              try {
+-                return void ws.pong(message);
+-              } catch (error) {
+-                handleErrors?.(ws, error);
+-              }
+-            }
+             if (parseMessage)
+               message = await parseMessage(ws, message);
+             if (message) {
+@@ -223,7 +216,7 @@ function createWebSocketAdapter() {
+       },
+       message(ws, message) {
+         const context = ws.context;
+-        context.message(ws, message.text());
++        context.message(ws, typeof message.rawData === "string" ? message.text() : message.uint8Array());
+       },
+       close(ws, detail) {
+         const context = ws.context;
+diff --git a/dist/cjs/ws.js b/dist/cjs/ws.js
+index 0fab606dd166d8445ea9fe0988959e6379a1f0dc..e048298bc30fc77b98f466b1190e17c237e3a798 100644
+--- a/dist/cjs/ws.js
++++ b/dist/cjs/ws.js
+@@ -130,13 +130,6 @@ function createWebSocketAdapter() {
+             }
+           },
+           async message(ws, message) {
+-            if (message.includes("ping")) {
+-              try {
+-                return void ws.pong(message);
+-              } catch (error) {
+-                handleErrors?.(ws, error);
+-              }
+-            }
+             if (parseMessage)
+               message = await parseMessage(ws, message);
+             if (message) {
+@@ -217,7 +210,7 @@ function createWebSocketAdapter() {
+       },
+       message(ws, message) {
+         const context = ws.context;
+-        context.message(ws, message.text());
++        context.message(ws, typeof message.rawData === "string" ? message.text() : message.uint8Array());
+       },
+       close(ws, detail) {
+         const context = ws.context;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 9f35dbbaf4cc606cdc0efb915958adfa5f4a7e38..eec30c9cb13358b0894e7ca15b14192eaef6cc1c 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -119,13 +119,6 @@ function createWebSocketAdapter() {
+             }
+           },
+           async message(ws, message) {
+-            if (message.includes("ping")) {
+-              try {
+-                return void ws.pong(message);
+-              } catch (error) {
+-                handleErrors?.(ws, error);
+-              }
+-            }
+             if (parseMessage)
+               message = await parseMessage(ws, message);
+             if (message) {
+@@ -206,7 +199,7 @@ function createWebSocketAdapter() {
+       },
+       message(ws, message) {
+         const context = ws.context;
+-        context.message(ws, message.text());
++        context.message(ws, typeof message.rawData === "string" ? message.text() : message.uint8Array());
+       },
+       close(ws, detail) {
+         const context = ws.context;
+diff --git a/dist/ws.mjs b/dist/ws.mjs
+index 08245da777227056f7884e1ab882a904e8bd5576..f6df60caba1f9c10e63f29febf579e75abba10c6 100644
+--- a/dist/ws.mjs
++++ b/dist/ws.mjs
+@@ -114,13 +114,6 @@ function createWebSocketAdapter() {
+             }
+           },
+           async message(ws, message) {
+-            if (message.includes("ping")) {
+-              try {
+-                return void ws.pong(message);
+-              } catch (error) {
+-                handleErrors?.(ws, error);
+-              }
+-            }
+             if (parseMessage)
+               message = await parseMessage(ws, message);
+             if (message) {
+@@ -201,7 +194,7 @@ function createWebSocketAdapter() {
+       },
+       message(ws, message) {
+         const context = ws.context;
+-        context.message(ws, message.text());
++        context.message(ws, typeof message.rawData === "string" ? message.text() : message.uint8Array());
+       },
+       close(ws, detail) {
+         const context = ws.context;

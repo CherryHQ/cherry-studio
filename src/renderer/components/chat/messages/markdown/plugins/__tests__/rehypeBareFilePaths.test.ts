@@ -125,8 +125,9 @@ describe('findBareFilePathMatches', () => {
   })
 
   it('recognizes Cherry navigation routes on Windows', () => {
-    expect(paths('Open /app/chat and /settings/mcp/servers.', 'windows')).toEqual([
+    expect(paths('Open /app/chat, /settings/archive and /settings/mcp/servers.', 'windows')).toEqual([
       '/app/chat',
+      '/settings/archive',
       '/settings/mcp/servers'
     ])
   })

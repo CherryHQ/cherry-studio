@@ -1825,6 +1825,34 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(true)
     })
 
+    it('checks cancellation preconditions under admission lock before touching a newer stream', async () => {
+      const topicId = 'agent-session:session-1'
+      let release!: () => void
+      let execution = 'old'
+      let admitted!: () => void
+      const entered = new Promise<void>((resolve) => {
+        admitted = resolve
+      })
+      const admission = mgr.withDispatchLock(topicId, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+          admitted()
+        })
+        execution = 'new'
+        startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [] })
+      })
+      await entered
+      const stopping = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        if (execution !== 'old') throw new Error('Execution changed')
+      })
+      const rejected = expect(stopping).rejects.toThrow('Execution changed')
+      release()
+      await admission
+      await rejected
+      expect(mgr.inspect(topicId)?.executions[0].abortSignal.aborted).toBe(false)
+      expect(mockCloseSession).not.toHaveBeenCalled()
+    })
+
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')
@@ -3124,11 +3152,7 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
         topicId: 'a',
         modelId: 'provider-a::model-a',
-        err: {
-          name: null,
-          message: 'You have no credits remaining.',
-          stack: null
-        }
+        err: { errorMessage: 'You have no credits remaining.' }
       })
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')

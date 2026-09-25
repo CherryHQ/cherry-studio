@@ -237,8 +237,13 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
+  const persistedPartsByMessageId = useMemo(
+    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
+    [uiMessages]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })

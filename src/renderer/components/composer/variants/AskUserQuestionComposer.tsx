@@ -1,8 +1,8 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Checkbox, Input } from '@cherrystudio/ui'
+import { Button, Checkbox, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
@@ -10,6 +10,7 @@ import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
+import { readAskUserQuestionDraftCache, writeAskUserQuestionDraftCache } from './askUserQuestionDraftCache'
 
 export type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
 
@@ -42,10 +43,19 @@ export function createAskUserQuestionComposerOverride({
 export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
   const questions = request.input.questions
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>({})
-  const [customAnswers, setCustomAnswers] = useState<Record<number, string>>({})
+  // Answers are restored from the cache so a remount (switching conversations and
+  // coming back) does not discard what the user already answered but not submitted.
+  const [restoredDraft] = useState(() => readAskUserQuestionDraftCache(request.approvalId))
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    Math.min(Math.max(restoredDraft.currentIndex, 0), Math.max(questions.length - 1, 0))
+  )
+  const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>(restoredDraft.selectedAnswers)
+  const [customAnswers, setCustomAnswers] = useState<Record<number, string>>(restoredDraft.customAnswers)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    writeAskUserQuestionDraftCache(request.approvalId, { selectedAnswers, customAnswers, currentIndex })
+  }, [currentIndex, customAnswers, request.approvalId, selectedAnswers])
 
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
@@ -55,11 +65,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const currentCustomAnswerText = currentCustomAnswer.trim()
 
   const hasAnswerAt = useCallback(
-    (index: number, answersByIndex: AnswersByIndex = selectedAnswers) => {
-      const selected = answersByIndex[index] ?? []
-      return selected.length > 0
-    },
-    [selectedAnswers]
+    (index: number, answersByIndex: AnswersByIndex = selectedAnswers) =>
+      (answersByIndex[index] ?? []).length > 0 || !!customAnswers[index]?.trim(),
+    [customAnswers, selectedAnswers]
   )
 
   const hasAnyAnswer = useCallback(
@@ -69,8 +77,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   )
 
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
-  const hasAnySelectedAnswer = useMemo(() => hasAnyAnswer(selectedAnswers), [hasAnyAnswer, selectedAnswers])
-  const customActionSubmitsAll = isLastQuestion && (hasAnySelectedAnswer || !!currentCustomAnswerText)
+  const hasAnyAnswerValue = useMemo(() => hasAnyAnswer(), [hasAnyAnswer])
+  const customActionSubmitsAll = isLastQuestion && hasAnyAnswerValue
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -78,15 +86,38 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
       questions.forEach((question, index) => {
         const values = answersByIndex[index] ?? []
+        const notes = customAnswers[index]?.trim()
 
         if (values.length > 0) {
           answers[question.question] = values.join(', ')
+        } else if (notes) {
+          // Typed text without a selection is the answer itself; next to a selection
+          // it travels as an `annotations` note instead (see buildAnnotations).
+          answers[question.question] = notes
         }
       })
 
       return answers
     },
-    [questions, selectedAnswers]
+    [customAnswers, questions, selectedAnswers]
+  )
+
+  const buildAnnotations = useCallback(
+    (answersByIndex: AnswersByIndex = selectedAnswers) => {
+      const annotations: Record<string, { notes: string }> = {}
+
+      questions.forEach((question, index) => {
+        const notes = customAnswers[index]?.trim()
+        if (!notes || (answersByIndex[index] ?? []).length === 0) return
+
+        // The typed text supplements a selected option, so it goes out as the
+        // protocol's per-question `notes` annotation instead of replacing the answer.
+        annotations[question.question] = { notes }
+      })
+
+      return Object.keys(annotations).length > 0 ? annotations : undefined
+    },
+    [customAnswers, questions, selectedAnswers]
   )
 
   const respond = useCallback(
@@ -111,16 +142,18 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     async (answersByIndex: AnswersByIndex = selectedAnswers) => {
       if (!hasAnyAnswer(answersByIndex) || isSubmitting) return
 
+      const annotations = buildAnnotations(answersByIndex)
       await respond({
         match: request.match,
         approved: true,
         updatedInput: {
           ...request.input,
-          answers: buildAnswers(answersByIndex)
+          answers: buildAnswers(answersByIndex),
+          ...(annotations && { annotations })
         }
       })
     },
-    [buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
+    [buildAnnotations, buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
   )
 
   const handleDismiss = useCallback(async () => {
@@ -155,11 +188,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         ? current.includes(label)
           ? current.filter((value) => value !== label)
           : [...current, label]
-        : [label]
+        : current.includes(label)
+          ? []
+          : [label]
       const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: nextForCurrent }
 
       setSelectedAnswers(nextSelectedAnswers)
-      if (!isMultiSelect) completeCurrentQuestion(nextSelectedAnswers)
+      if (!isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
     },
     [completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
   )
@@ -167,29 +202,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const handleCustomAction = useCallback(async () => {
     if (isSubmitting) return
 
-    if (currentCustomAnswerText) {
-      const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: [currentCustomAnswerText] }
-      setSelectedAnswers(nextSelectedAnswers)
-      completeCurrentQuestion(nextSelectedAnswers)
-      return
-    }
-
     if (customActionSubmitsAll) {
       await submitAnswers(selectedAnswers)
       return
     }
 
     if (!isLastQuestion) setCurrentIndex((index) => index + 1)
-  }, [
-    completeCurrentQuestion,
-    currentCustomAnswerText,
-    currentIndex,
-    customActionSubmitsAll,
-    isLastQuestion,
-    isSubmitting,
-    selectedAnswers,
-    submitAnswers
-  ])
+  }, [customActionSubmitsAll, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
 
   if (!currentQuestion) return null
 
@@ -227,7 +246,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               size="icon-sm"
               className="size-7 shadow-none"
               aria-label={isLastQuestion ? t('agent.askUserQuestion.submit') : t('agent.askUserQuestion.next')}
-              disabled={(isLastQuestion && !hasAnySelectedAnswer) || isSubmitting}
+              disabled={(isLastQuestion && !hasAnyAnswerValue) || isSubmitting}
               onClick={
                 isLastQuestion
                   ? () => void submitAnswers()
@@ -305,25 +324,26 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           })}
         </div>
 
-        <div className="mt-2 flex items-center gap-2 border-border-subtle border-t pt-2">
-          <div className="relative min-w-0 flex-1">
-            <Pencil className="-translate-y-1/2 absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
-            <Input
+        <div className="mt-2 flex items-end gap-2 border-border-subtle border-t pt-2">
+          <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
+            <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <Textarea.Input
               value={currentCustomAnswer}
               disabled={isSubmitting}
+              rows={1}
               placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              className="h-9 rounded-full border-transparent bg-muted/70 pl-9 text-sm shadow-none focus-visible:border-transparent"
-              onChange={(event) =>
+              aria-label={t('agent.askUserQuestion.customPlaceholder')}
+              className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
+              onValueChange={(value) =>
                 setCustomAnswers((prev) => ({
                   ...prev,
-                  [currentIndex]: event.target.value
+                  [currentIndex]: value
                 }))
               }
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  void handleCustomAction()
-                }
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void handleCustomAction()
               }}
             />
           </div>
@@ -334,8 +354,10 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>
-            {currentCustomAnswerText || customActionSubmitsAll
-              ? t('agent.askUserQuestion.submit')
+            {customActionSubmitsAll || currentCustomAnswerText
+              ? isLastQuestion
+                ? t('agent.askUserQuestion.submit')
+                : t('agent.askUserQuestion.next')
               : t('agent.askUserQuestion.skip')}
           </Button>
         </div>

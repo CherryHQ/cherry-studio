@@ -287,12 +287,14 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     vi.restoreAllMocks()
   })
 
-  it('warn-logs when fsync(dir) fails with a non-silenced errno (EPERM)', async () => {
-    // Inject EPERM on the directory open call (flags === 'r'). The tmp file
+  it('warn-logs when fsync(dir) fails with a never-silenced errno (EIO)', async () => {
+    // Inject EIO on the directory open call (flags === 'r'). The tmp file
     // open call (flags === 'w') still passes through, so the rename succeeds
-    // and atomicWriteFile resolves — fsyncDirectoryOf is best-effort.
+    // and atomicWriteFile resolves — fsyncDirectoryOf is best-effort. EIO is
+    // never silenced on any platform (unlike EPERM, which win32 silences —
+    // covered in fs.test.ts), so this pins the warn path on every runner OS.
     const target = path.join(tmp, 'data.txt')
-    const fsyncErr = makeErrnoErr('EPERM', 'operation not permitted')
+    const fsyncErr = makeErrnoErr('EIO', 'i/o error')
     mockOpen.mockImplementation(async (p, flags) => {
       if (flags === 'r' && p === path.dirname(target)) {
         throw fsyncErr
@@ -307,16 +309,17 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
       expect.stringContaining('fsync(dir) failed'),
       expect.objectContaining({
         target,
-        code: 'EPERM',
+        code: 'EIO',
         err: fsyncErr
       })
     )
   })
 
   it('stays silent when fsync(dir) fails with a silenced errno (EINVAL: FS rejects dir fsync)', async () => {
-    // Windows / FUSE / network mounts surface EINVAL/EISDIR/ENOTSUP for
-    // directory fsync; the classifier silences these because they are
-    // expected and would spam dashboards.
+    // FUSE / network mounts surface EINVAL/EISDIR/ENOTSUP for directory
+    // fsync; the classifier silences these because they are expected and
+    // would spam dashboards. (Windows surfaces EPERM instead — silenced via
+    // the win32 branch, covered in fs.test.ts.)
     const target = path.join(tmp, 'data.txt')
     mockOpen.mockImplementation(async (p, flags) => {
       if (flags === 'r' && p === path.dirname(target)) {

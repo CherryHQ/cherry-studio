@@ -1,4 +1,4 @@
-import { CircleArrowUp, PictureInPicture2, Search, Settings } from 'lucide-react'
+import { CircleArrowUp, PictureInPicture2, Search, Settings, Stethoscope } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -6,6 +6,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
+import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -38,6 +39,10 @@ export function ShellTabBarActions() {
 
   const handleSettingsClick = () => {
     openSettingsTab()
+  }
+
+  const handleDiagnosticsClick = () => {
+    void DoctorPopup.show({ initialPanel: 'checks' })
   }
 
   const handleUpdateClick = () => {
@@ -82,19 +87,32 @@ export function ShellTabBarActions() {
             </Button>
           </Tooltip>
         )}
-        {isSidebarHidden && (
-          <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={t('settings.title')}
-              onClick={handleSettingsClick}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-              <Settings size={16} strokeWidth={1.8} />
-            </Button>
-          </CommandTooltip>
-        )}
+        {isSidebarHidden ? (
+          <>
+            <Tooltip content={t('settings.doctor.entry.title')} placement="bottom" delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('settings.doctor.entry.title')}
+                onClick={handleDiagnosticsClick}
+                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+                <Stethoscope size={16} strokeWidth={1.8} />
+              </Button>
+            </Tooltip>
+            <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('settings.title')}
+                onClick={handleSettingsClick}
+                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+                <Settings size={16} strokeWidth={1.8} />
+              </Button>
+            </CommandTooltip>
+          </>
+        ) : null}
         <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
           <Button
             type="button"

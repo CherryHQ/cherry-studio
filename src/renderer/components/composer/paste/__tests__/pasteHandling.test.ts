@@ -428,6 +428,141 @@ describe('pasteHandling', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('tells the user when the long-text temp file lookup returns null', async () => {
+    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const preventDefault = vi.fn()
+    const setFiles = vi.fn()
+    vi.mocked(window.api.file.get).mockResolvedValue(null)
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? clipboardText : ''),
+        files: []
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.txt'],
+      setFiles,
+      true,
+      LONG_TEXT_PASTE_THRESHOLD,
+      undefined,
+      (key) => key
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+  })
+
+  it('tells the user when a path-backed file lookup returns null', async () => {
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockResolvedValue(null)
+    const clipboardFiles = [{ name: 'gone.png', type: 'image/png' }] as File[]
+    const preventDefault = vi.fn()
+    const setFiles = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png'],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      (key) => key
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+  })
+
+  it('tells the user when a clipboard image temp file lookup returns null', async () => {
+    const clipboardImage = {
+      name: 'image.png',
+      type: 'image/png',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    vi.mocked(window.api.file.get).mockResolvedValue(null)
+    const preventDefault = vi.fn()
+    const setFiles = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: () => '',
+        files: [clipboardImage]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png'],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      (key) => key
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+  })
+
+  it('tells the user when a mixed path-backed file lookup returns null', async () => {
+    const tempImageFile: FileMetadata = {
+      ...selectedFile,
+      name: 'temp_file_123_image.png',
+      origin_name: 'temp_file_123_image.png',
+      path: '/tmp/temp_file_123_image.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    const clipboardImage = {
+      name: 'image.png',
+      type: 'image/png',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    const clipboardFiles = [clipboardImage, { name: 'gone.png', type: 'image/png' }] as unknown as File[]
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
+      file.name === 'gone.png' ? '/tmp/gone.png' : ''
+    )
+    vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
+    vi.mocked(window.api.file.get).mockImplementation((path) =>
+      path === tempImageFile.path ? Promise.resolve(tempImageFile) : Promise.resolve(null)
+    )
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png'],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      (key) => key
+    )
+
+    expect(handled).toBe(true)
+    expect(files).toHaveLength(1)
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+  })
+
   describe('handler registration and lifecycle', () => {
     it('registers a handler and allows manual unregistration', () => {
       const handler = vi.fn().mockResolvedValue(true)

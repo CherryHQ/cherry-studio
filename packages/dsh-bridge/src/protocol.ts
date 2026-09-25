@@ -96,6 +96,10 @@ export interface BridgeCommandResult {
 
 /** Host→plugin request methods with their param and result shapes. */
 export interface BridgeHostRequestMap {
+  'session/flush': {
+    params: { sessionId: string }
+    result: Record<string, never>
+  }
   'session/open': {
     params: {
       sessionId: string
@@ -171,6 +175,8 @@ export interface BridgePluginRequestMap {
 /** Plugin→host notifications. JSON-RPC has no cancel, so `tool/cancel` carries the
  *  bridge's own `callId` (independent of the transport's request id). */
 export interface BridgeNotificationMap {
+  'session/state': { sessionId: string; sessionEventSeq: SessionEvent['seq']; status: 'running' | 'idle' }
+
   'tool/cancel': { sessionId: string; callId: string }
   /**
    * One subagent residency epoch's start or terminal edge (`ctx.on('subagent/start'|'end')`).

@@ -1,16 +1,24 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { PathStaleVersionError } from '@main/utils/file'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
@@ -49,6 +57,9 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (error) {
+    if (error instanceof AgentSessionEditError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.reason, { reason: error.reason })
+    }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
@@ -198,6 +209,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -223,8 +235,52 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
     ),
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
+    try {
+      return {
+        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+      }
+    } catch (error) {
+      logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      const failure =
+        error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
+          ? error.reason
+          : undefined
+      const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+    }
+  },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
+
+  'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
+    exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
+  'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) return
+    application.get('AgentSessionRuntimeService').setPendingInputCount(wc, sessionId, count)
+  },
+  'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
+    exposeAiStreamAdmission(async () => {
+      const wc = senderWebContents(senderId)
+      if (!wc) throw new Error('Edit and resend requires a managed window')
+      try {
+        return await application
+          .get('AiStreamManager')
+          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
+            ...input,
+            trigger: 'edit-agent-message',
+            topicId: buildAgentSessionTopicId(sessionId),
+            editTarget: target
+          })
+      } catch (error) {
+        if (error instanceof AgentSessionForkError) {
+          const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
+          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+        }
+        throw error
+      }
+    }),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
@@ -234,6 +290,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
+  'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
+  'ai.agent.heartbeat.write': async ({ agentId, ...document }) => {
+    try {
+      return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)
+    } catch (error) {
+      if (error instanceof PathStaleVersionError) throw new IpcError(fileErrorCodes.STALE_VERSION, error.message)
+      throw error
+    }
+  },
+  'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>

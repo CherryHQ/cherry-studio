@@ -2,6 +2,7 @@ import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -16,6 +17,8 @@ import type { MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -68,6 +71,8 @@ export interface AgentRuntimeConnectInput {
   /** Whether this connection's turn requests Fast processing. */
   fastMode?: boolean
   resumeToken?: string
+  /** Independent native identity for an edited first turn with no history to resume. */
+  nativeSessionId?: string
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -130,7 +135,7 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete' }
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
@@ -155,8 +160,9 @@ export type AgentRuntimeEvent =
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
    *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
-   *  work have drained. This does not block host-admitted user turns unless a rebuild is required. */
-  | { type: 'background-work-state'; active: boolean }
+   *  work have drained. `awaitingReply` defaults to `active`; false keeps detached commands alive
+   *  without holding the current reply open. */
+  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
@@ -231,9 +237,12 @@ export interface AgentRuntimeConnection {
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
+  /** Confirm native process exit before replacing this session's history. */
+  closeForEdit?(): Promise<void>
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
