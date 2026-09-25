@@ -157,7 +157,22 @@ export type CherryDataPartTypes = {
 // ============================================================================
 
 /** Cherry metadata on a TextUIPart. */
-export interface CherryTextMeta {
+export interface CherryPartLinkage {
+  /** The spawning tool call this part nests under. */
+  parentToolCallId?: string
+  /** Launch-root tool-call id stamped on a SendMessage resume receipt. */
+  launchToolCallId?: string
+  /** The SendMessage call id whose resume this part continues, when the runtime tagged it. */
+  resumedViaCallId?: string
+}
+
+const CherryPartLinkageSchema = z.object({
+  parentToolCallId: z.string().optional(),
+  launchToolCallId: z.string().optional(),
+  resumedViaCallId: z.string().optional()
+})
+
+export interface CherryTextMeta extends CherryPartLinkage {
   /** Content references (citations, mentions). */
   references?: unknown[]
   /** Composer inline token display snapshot — on user TextUIPart by convention. */
@@ -165,7 +180,7 @@ export interface CherryTextMeta {
 }
 
 /** Cherry metadata on a ReasoningUIPart. */
-export interface CherryReasoningMeta {
+export interface CherryReasoningMeta extends CherryPartLinkage {
   /** Thinking duration in ms. */
   thinkingMs?: number
   /** Thinking start timestamp in epoch ms. */
@@ -173,17 +188,11 @@ export interface CherryReasoningMeta {
 }
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
-export interface CherryToolMeta {
+export interface CherryToolMeta extends CherryPartLinkage {
   /** Approval bridge transport. */
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
   toolName?: string
-  /** Runtime-neutral subagent linkage: the spawning tool call this part nests under. */
-  parentToolCallId?: string
-  /** Launch-root tool-call id stamped on a SendMessage resume receipt. */
-  launchToolCallId?: string
-  /** The SendMessage call id whose resume this part continues, when the runtime tagged it. */
-  resumedViaCallId?: string
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
   tool?: {
     serverId?: string
@@ -292,21 +301,21 @@ const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.obje
 })
 
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
+  ...CherryPartLinkageSchema.shape,
   references: z.array(z.unknown()).optional(),
   composer: ComposerMessageSnapshotSchema.optional()
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
+  ...CherryPartLinkageSchema.shape,
   thinkingMs: z.number().optional(),
   startedAt: z.number().optional()
 })
 
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
+  ...CherryPartLinkageSchema.shape,
   transport: z.string().optional(),
   toolName: z.string().optional(),
-  parentToolCallId: z.string().optional(),
-  launchToolCallId: z.string().optional(),
-  resumedViaCallId: z.string().optional(),
   tool: z
     .object({
       serverId: z.string().optional(),

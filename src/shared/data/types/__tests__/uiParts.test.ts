@@ -91,6 +91,17 @@ describe('CherryToolMetaSchema', () => {
       resumedViaCallId: 'call-resume'
     })
   })
+
+  // The adapter stamps the resume marker on the content a continuation streams, not only on tools,
+  // and the reader picks its schema by part type — so every part type has to accept the linkage.
+  it.each(['text', 'reasoning'] as const)('keeps the linkage on a %s part', (type) => {
+    const part = {
+      type,
+      providerMetadata: { cherry: { resumedViaCallId: 'call-resume', parentToolCallId: 'task-root' } }
+    } as unknown as CherryMessagePart
+
+    expect(readCherryMeta(part)).toMatchObject({ resumedViaCallId: 'call-resume', parentToolCallId: 'task-root' })
+  })
 })
 
 describe('CherryFileMetaSchema', () => {

@@ -2239,8 +2239,10 @@ export class AgentSessionRuntimeService extends BaseService {
         Date.now() - FLOW_HOST_RECOVERY_RETRY_MS
       try {
         if (due) {
-          messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
+          // Stamp before the query: a throwing lookup is throttled like a miss, or every following
+          // chunk pays another synchronous database round-trip.
           ;(entry.recoveryLookupAt ??= new Map()).set(rootToolCallId, Date.now())
+          messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
         }
       } catch (error) {
         // Keep the chunk: dropping it now and delivering later ones would hand the accumulator a
