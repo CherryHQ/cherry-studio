@@ -348,6 +348,13 @@
       "description": "LM Studio model ID used for text embeddings in local mode (empty = use default)"
     },
     {
+      "targetKey": "chat.routing.escalation_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable automatic escalation from cheap/free models to expensive ones on failure (quota protection benefit)"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,
