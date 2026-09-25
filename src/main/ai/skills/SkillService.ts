@@ -863,9 +863,7 @@ export class SkillService {
 
     if (skill.mirrorEnabled) {
       await this.linkMirror(skill.folderName, { throwOnError: true })
-    } else if (
-      !(await this.unlinkMirror(skill.folderName))
-    ) {
+    } else if (!(await this.unlinkMirror(skill.folderName))) {
       logger.warn('Opted-out skill retains a stale mirror; unlink failed', { folderName: skill.folderName })
     }
     if (this.hasMetadataChanges(skill, metadata)) {
