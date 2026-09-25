@@ -668,7 +668,14 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.modelId = input.modelId
       existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
-      this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
+      // Read before the event applies: a follow-up arriving after the spawning turn settled takes this
+      // reuse path instead of `startNextTurn`, so it needs the same reminder the queued drain builds.
+      const admissionNote = this.backgroundTasksAdmissionNote(existing)
+      this.applyRuntimeStateEvent(existing, {
+        type: 'begin-turn',
+        turn: { ...turn, ...(admissionNote ? { backgroundTasksNote: admissionNote } : {}) },
+        clearQueue: true
+      })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
       return {
@@ -2271,6 +2278,19 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
+  /**
+   * Reminder for detached work that outlived the previous turn: the model must know it is still
+   * running so it does not re-launch duplicate tasks before the results' receive-only delivery.
+   */
+  private backgroundTasksAdmissionNote(entry: AgentSessionRuntimeEntry): string | undefined {
+    if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return undefined
+    const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
+    const note = renderBackgroundTasksNote(
+      (tasks ?? []).map((task) => task.description).filter((description) => description.trim().length > 0)
+    )
+    return note || undefined
+  }
+
   private handleBackgroundWorkState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
@@ -2960,14 +2980,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const headless = pendingTurn.headless === true
 
     const turnId = crypto.randomUUID()
-    // Detached work that outlived the previous turn: the model must know it is still running so it
-    // does not re-launch duplicate tasks before the results' receive-only delivery.
-    const backgroundTasks = hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
-      ? application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
-      : undefined
-    const backgroundTasksNote = renderBackgroundTasksNote(
-      (backgroundTasks ?? []).map((task) => task.description).filter((description) => description.trim().length > 0)
-    )
+    const backgroundTasksNote = this.backgroundTasksAdmissionNote(entry)
     const nextTurn: AgentSessionTurn = {
       turnId,
       systemReminder: pendingTurn.steer === true,
