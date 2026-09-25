@@ -17,7 +17,7 @@ import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
-const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
+const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 504]
 const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
 const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 

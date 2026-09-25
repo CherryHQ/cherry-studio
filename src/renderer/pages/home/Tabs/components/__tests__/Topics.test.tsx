@@ -1,5 +1,5 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -1881,15 +1881,19 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    await act(async () => {
+      await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    })
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
-    await waitFor(() => expect(input).toHaveValue('Alpha topic'))
+    await vi.waitFor(() => expect(input).toHaveValue('Alpha topic'))
     await user.clear(input)
-    await waitFor(() => expect(input).toHaveValue(''))
+    expect(input).toHaveValue('')
     await user.type(input, 'Renamed topic')
     expect(input).toHaveValue('Renamed topic')
-    await user.keyboard('{Enter}')
+    await act(async () => {
+      await user.keyboard('{Enter}')
+    })
 
     expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
       name: 'Renamed topic',

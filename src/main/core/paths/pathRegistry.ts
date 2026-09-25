@@ -100,6 +100,8 @@ export function buildPathRegistry() {
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
 
+    'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
+
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')
@@ -320,6 +322,7 @@ export function buildPathRegistry() {
         : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

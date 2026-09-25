@@ -172,6 +172,14 @@ export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Prom
   })
 }
 
+/** Rejection of `executeCommand` when output passes `maxOutputBytes`; the command has been killed. */
+export class CommandOutputLimitError extends Error {
+  constructor(maxOutputBytes: number) {
+    super(`Command output exceeded ${maxOutputBytes} bytes`)
+    this.name = 'CommandOutputLimitError'
+  }
+}
+
 /**
  * Execute a command and return its output.
  * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
@@ -207,7 +215,7 @@ export async function executeCommand(
       const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
       const nextOutputBytes = outputBytes + chunkBytes
       if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
-        outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
+        outputLimitError = new CommandOutputLimitError(options.maxOutputBytes)
         if (timeoutId) clearTimeout(timeoutId)
         child.kill('SIGKILL')
         return null
