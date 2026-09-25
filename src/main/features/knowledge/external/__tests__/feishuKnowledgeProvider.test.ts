@@ -178,6 +178,42 @@ describe('feishuKnowledgeProvider', () => {
     )
   })
 
+  it('accepts an origin Wiki node with empty optional metadata', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          node: {
+            space_id: 'space-1',
+            node_token: 'wikcnRoot',
+            obj_token: 'doxcnDocument',
+            obj_type: 'docx',
+            parent_node_token: '',
+            node_type: 'origin',
+            origin_node_token: '',
+            origin_space_id: '',
+            title: '',
+            has_child: false
+          }
+        }
+      })
+    )
+
+    await expect(getWikiNode('access-token', { token: 'wikcnRoot', objType: 'wiki' })).resolves.toEqual({
+      spaceId: 'space-1',
+      nodeToken: 'wikcnRoot',
+      objToken: 'doxcnDocument',
+      objType: 'docx',
+      parentNodeToken: null,
+      nodeType: 'origin',
+      originNodeToken: null,
+      originSpaceId: null,
+      title: '',
+      hasChild: false,
+      objEditTime: null
+    })
+  })
+
   it('rejects incomplete or contradictory Wiki node responses', async () => {
     vi.mocked(net.fetch)
       .mockResolvedValueOnce(response({ code: 0, data: { node: { space_id: 'space-1', node_token: 'wikcnNode' } } }))
