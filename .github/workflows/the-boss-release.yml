@@ -55,6 +55,7 @@ jobs:
     timeout-minutes: 120
     env:
       HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
+      HAS_NOTARIZATION: ${{ secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}
     permissions:
       contents: write
     strategy:
@@ -89,6 +90,14 @@ jobs:
         run: brew install python-setuptools
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Require macOS distribution credentials
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          if [ "$HAS_SIGNING" != "true" ] || [ "$HAS_NOTARIZATION" != "true" ]; then
+            echo "macOS releases require Developer ID signing and App Store Connect notarization credentials" >&2
+            exit 1
+          fi
       - name: Check Windows runner capacity
         if: runner.os == 'Windows'
         shell: pwsh
@@ -121,6 +130,20 @@ jobs:
           echo "APPLE_ID=$SIGN_APPLE_ID" >> "$GITHUB_ENV"
           echo "APPLE_APP_SPECIFIC_PASSWORD=$SIGN_APPLE_PASSWORD" >> "$GITHUB_ENV"
           echo "APPLE_TEAM_ID=$SIGN_APPLE_TEAM" >> "$GITHUB_ENV"
+      - name: Enable App Store Connect notarization
+        if: runner.os == 'macOS' && env.HAS_NOTARIZATION == 'true'
+        shell: bash
+        env:
+          SIGN_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          SIGN_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          SIGN_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$SIGN_API_KEY_ID.p8"
+          printf '%s' "$SIGN_API_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
+          echo "APPLE_API_KEY_ID=$SIGN_API_KEY_ID" >> "$GITHUB_ENV"
+          echo "APPLE_API_ISSUER=$SIGN_API_ISSUER" >> "$GITHUB_ENV"
       - name: Build actual installers
         run: pnpm ${{ matrix.script }}
         env:

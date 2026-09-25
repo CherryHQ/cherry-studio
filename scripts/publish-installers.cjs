@@ -63,7 +63,13 @@ async function main() {
       try {
         execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' })
         const detail = spawnSync('codesign', ['-d', '--verbose=4', app], { encoding: 'utf8' })
-        signing = detail.stderr.includes('Authority=') ? 'signed (not notarized)' : 'ad-hoc (not notarized)'
+        const stapled = spawnSync('xcrun', ['stapler', 'validate', app], { encoding: 'utf8' })
+        signing =
+          detail.stderr.includes('Authority=Developer ID Application') && stapled.status === 0
+            ? 'Developer ID (notarized)'
+            : detail.stderr.includes('Authority=')
+              ? 'signed (not notarized)'
+              : 'ad-hoc (not notarized)'
       } catch {
         signing = process.env.HAS_SIGNING === 'true' ? 'signature invalid' : 'unsigned (not notarized)'
       }

@@ -76,7 +76,21 @@ function verifyApplicationBundle(app) {
     throw new Error('Mounted DMG application is missing its sealed code resources')
   }
   execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=4', app], { stdio: 'inherit' })
+  execFileSync('xcrun', ['stapler', 'validate', app], { stdio: 'inherit', timeout: 60_000 })
+  execFileSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', app], { stdio: 'inherit' })
   verifyPackagedApplication(path.join(app, 'Contents', 'Resources'))
+}
+
+function detachMountedImage(mount) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      execFileSync('hdiutil', ['detach', mount], { stdio: 'pipe', timeout: 60_000 })
+      return
+    } catch {
+      if (attempt < 4) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_000)
+    }
+  }
+  execFileSync('hdiutil', ['detach', '-force', mount], { stdio: 'inherit', timeout: 60_000 })
 }
 
 function validateDmg() {
@@ -101,7 +115,7 @@ function validateDmg() {
     verifyApplicationBundle(apps[0])
   } finally {
     try {
-      if (mounted) execFileSync('hdiutil', ['detach', mount], { stdio: 'inherit', timeout: 60_000 })
+      if (mounted) detachMountedImage(mount)
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true })
     }
