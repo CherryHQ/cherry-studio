@@ -9,6 +9,8 @@ import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
+let mermaidRenderQueue = Promise.resolve()
+
 /**
  * 预览 Mermaid 图表
  * - 使用 useDebouncedRender 改善体验
@@ -29,36 +31,40 @@ const MermaidPreview = ({
    * 如果这个方案有问题，可以回退到 innerHTML。
    */
   const renderMermaid = useCallback(
-    async (content: string, container: HTMLDivElement) => {
-      // 验证语法，提前抛出异常
-      await mermaid.parse(content)
-      const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
+    (content: string, container: HTMLDivElement) => {
+      const render = mermaidRenderQueue.then(async () => {
+        // 验证语法，提前抛出异常
+        await mermaid.parse(content)
+        const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
 
-      // 获取容器宽度
-      const { width } = container.getBoundingClientRect()
-      if (width === 0) return
+        // 获取容器宽度
+        const { width } = container.getBoundingClientRect()
+        if (width === 0) return
 
-      // 创建临时的 div 用于 mermaid 测量
-      const measureEl = document.createElement('div')
-      measureEl.style.position = 'absolute'
-      measureEl.style.left = '-9999px'
-      measureEl.style.top = '-9999px'
-      measureEl.style.width = `${width}px`
-      document.body.appendChild(measureEl)
+        // 创建临时的 div 用于 mermaid 测量
+        const measureEl = document.createElement('div')
+        measureEl.style.position = 'absolute'
+        measureEl.style.left = '-9999px'
+        measureEl.style.top = '-9999px'
+        measureEl.style.width = `${width}px`
+        document.body.appendChild(measureEl)
 
-      try {
-        const { svg } = await mermaid.render(diagramId, content, measureEl)
+        try {
+          const { svg } = await mermaid.render(diagramId, content, measureEl)
 
-        // 避免不可见时产生 undefined 和 NaN
-        const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
+          // 避免不可见时产生 undefined 和 NaN
+          const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
 
-        // 有问题可以回退到 innerHTML
-        renderSvgInShadowHost(fixedSvg, container)
-        setPreviewBackgroundColor(renderBackgroundColor)
-        // container.innerHTML = fixedSvg
-      } finally {
-        document.body.removeChild(measureEl)
-      }
+          // 有问题可以回退到 innerHTML
+          renderSvgInShadowHost(fixedSvg, container)
+          setPreviewBackgroundColor(renderBackgroundColor)
+          // container.innerHTML = fixedSvg
+        } finally {
+          document.body.removeChild(measureEl)
+        }
+      })
+      mermaidRenderQueue = render.catch(() => {})
+      return render
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [diagramId, mermaid, forceRenderKey]
