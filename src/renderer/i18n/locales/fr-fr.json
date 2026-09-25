@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Veuillez optimiser ou reformuler la saisie utilisateur comprise dans l’élément XML INPUT, tout en préservant le sens et l’intégrité du contenu d’origine. Exigences : répondez dans la même langue que la saisie utilisateur ; n’incluez aucune explication de cette consigne et fournissez directement la réponse ; ne produisez pas les balises XML, mais directement le contenu optimisé : \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Veuillez résumer le contenu suivant. Exigences : répondez en {{language}} ; n’incluez aucune explication de cette consigne et fournissez directement la réponse : \n\n",
   "selection.action.translate.smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire",
+  "selection.action.voice.read_original": "Lire l’original à voix haute",
+  "selection.action.voice.read_result": "Lire le résultat à voix haute",
   "selection.action.window.c_copy": "C Copier",
   "selection.action.window.esc_close": "Esc Fermer",
   "selection.action.window.esc_stop": "Esc Arrêter",

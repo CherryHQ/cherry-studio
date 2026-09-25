@@ -769,6 +769,7 @@ describe('VoiceService route facade', () => {
     const service = createService()
 
     await service.listModels()
+    await service.listTranscriptionLocales()
     await service.getModelStatus({ modelId: 'local-voice::apple-system-asr', language: 'en-US' })
     await service.listVoices()
     const install = service.installTranscriptionAsset({ language: 'en-US', source: 'settings' })
@@ -778,6 +779,7 @@ describe('VoiceService route facade', () => {
 
     expect(request.mock.calls).toEqual([
       ['ai.voice.models.list'],
+      ['ai.transcription.locales.list'],
       ['ai.voice.model.status', { modelId: 'local-voice::apple-system-asr', language: 'en-US' }],
       ['ai.speech.voices.list'],
       [

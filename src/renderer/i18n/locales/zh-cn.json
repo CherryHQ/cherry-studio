@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "请优化或润色 INPUT XML 元素中的用户输入，同时保持原文的含义和完整性。要求：输出语言应与用户输入相同；不要解释本提示词，直接给出结果；不要输出 XML 标签，直接输出优化后的内容：\n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "请总结下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n",
   "selection.action.translate.smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言",
+  "selection.action.voice.read_original": "朗读原文",
+  "selection.action.voice.read_result": "朗读结果",
   "selection.action.window.c_copy": "C 复制",
   "selection.action.window.esc_close": "Esc 关闭",
   "selection.action.window.esc_stop": "Esc 停止",

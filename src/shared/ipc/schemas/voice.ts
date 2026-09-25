@@ -171,6 +171,10 @@ export const voiceRequestSchemas = {
     input: z.void(),
     output: z.custom<{ models: readonly LocalVoiceModelFacts[]; defaultAsrModelId?: LocalTranscriptionModelId }>()
   }),
+  'ai.transcription.locales.list': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ supported: z.array(languageTag), installed: z.array(languageTag) })
+  }),
   'ai.voice.model.status': defineRoute({
     input: z.strictObject({ modelId, language, voice: z.string().min(1).max(256).optional() }),
     output: z.strictObject({

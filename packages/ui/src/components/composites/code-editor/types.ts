@@ -16,12 +16,14 @@ export interface CodeEditorHandles {
   save?: () => void
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
   getContent?: () => string
+  getSelection?: () => { from: number; to: number; text: string } | null
+  replaceRange?: (range: { from: number; to: number }, text: string) => boolean
   insertText?: (text: string) => boolean
   focus?: () => void
 }
 
 export interface CodeEditorProps {
-  ref?: React.RefObject<CodeEditorHandles | null>
+  ref?: React.Ref<CodeEditorHandles>
   /** Value used in controlled mode, e.g., code blocks. */
   value: string
   /** Placeholder when the editor content is empty. */

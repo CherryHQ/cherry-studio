@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Lütfen INPUT XML öğesindeki kullanıcı girdisini, özgün içeriğin anlamını ve bütünlüğünü koruyarak optimize edin veya iyileştirin. Gereksinimler: Çıktı, kullanıcı girdisiyle aynı dilde olmalıdır; bu istemle ilgili herhangi bir açıklama eklemeyin, yalnızca doğrudan yanıtı verin; XML etiketlerini çıktıya dahil etmeyin, optimize edilmiş içeriği doğrudan verin: \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Lütfen aşağıdaki içeriği özetleyin. Gereksinimler: Yanıtı {{language}} dilinde verin; bu istemle ilgili herhangi bir açıklama eklemeyin, yalnızca doğrudan yanıtı verin: \n\n",
   "selection.action.translate.smart_translate_tips": "Akıllı Çeviri: İçerik önce hedef dile çevrilir; zaten hedef dilde olan içerik ise alternatif dile çevrilir",
+  "selection.action.voice.read_original": "Orijinali sesli oku",
+  "selection.action.voice.read_result": "Sonucu sesli oku",
   "selection.action.window.c_copy": "C: Kopyala",
   "selection.action.window.esc_close": "Esc: Kapat",
   "selection.action.window.esc_stop": "Esc: Durdur",

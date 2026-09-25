@@ -1,18 +1,21 @@
-import { SpellCheck } from 'lucide-react'
+import { SpellCheck, Volume2 } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
+import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
+import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
 
 const logger = loggerService.withContext('NotesEditor')
@@ -37,6 +40,8 @@ export function NotesEditorLoading({ label }: { label: string }) {
 
 interface NotesEditorProps {
   activeNodeId?: string
+  voiceNoteId?: string
+  dictationContainer?: HTMLDivElement | null
   currentContent: string
   contentLoadError?: Error
   tokenCount: number
@@ -49,6 +54,8 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({
     activeNodeId,
+    voiceNoteId,
+    dictationContainer,
     currentContent,
     contentLoadError,
     tokenCount,
@@ -71,6 +78,69 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const userViewModeOverrideRef = useRef(false)
+    const readButtonRef = useRef<HTMLButtonElement>(null)
+    const [richReady, setRichReady] = useState(false)
+    const [sourceReady, setSourceReady] = useState(false)
+    const onRichRef = useCallback(
+      (instance: RichEditorRef | null) => {
+        editorRef.current = instance
+        setRichReady(Boolean(instance))
+      },
+      [editorRef]
+    )
+    const onSourceRef = useCallback(
+      (instance: CodeEditorHandles | null) => {
+        codeEditorRef.current = instance
+        setSourceReady(Boolean(instance))
+      },
+      [codeEditorRef]
+    )
+    const editorReady = tmpViewMode === 'source' ? sourceReady : richReady
+    const voiceIdentityRef = useRef(voiceNoteId)
+    voiceIdentityRef.current = voiceNoteId
+    const voiceTargetId = voiceNoteId ? `notes:${voiceNoteId}:${tmpViewMode}` : undefined
+    const markVoiceTargetCurrent = () => voiceTargetId && voiceTargetManager.markCurrent(voiceTargetId)
+
+    useEffect(() => {
+      if (!activeNodeId || !voiceNoteId || !voiceTargetId || contentLoadError || tmpViewMode === 'read') return
+      const currentEditor = () => (tmpViewMode === 'source' ? codeEditorRef.current : editorRef.current)
+      return voiceTargetManager.bind({
+        targetId: voiceTargetId,
+        owner: window,
+        sourceEntityId: voiceNoteId,
+        captureReplaceRange: () => {
+          const selection = currentEditor()?.getSelection?.()
+          return selection ? { from: selection.from, to: selection.to } : null
+        },
+        replaceRange: (range, text) => currentEditor()?.replaceRange?.(range, text) ?? false
+      })
+    }, [activeNodeId, voiceNoteId, voiceTargetId, contentLoadError, tmpViewMode, editorRef, codeEditorRef])
+
+    const readCurrentNote = () => {
+      if (!voiceNoteId) return
+      const selection =
+        tmpViewMode === 'source' ? codeEditorRef.current?.getSelection?.() : editorRef.current?.getSelection()
+      const selectedText = selection?.text ?? ''
+      const draft =
+        tmpViewMode === 'source'
+          ? (codeEditorRef.current?.getContent?.() ?? currentContent)
+          : (editorRef.current?.getMarkdown() ?? currentContent)
+      const text = selectedText.trim() ? selectedText : draft
+      if (!text.trim()) return
+      const mode = selectedText.trim() ? 'selection' : 'document'
+      void readTextAloud({
+        text,
+        mode,
+        sourceLabel: mode,
+        sourceEntityId: voiceNoteId,
+        isCurrent: () => voiceIdentityRef.current === voiceNoteId,
+        focusOnClose: () => {
+          if (tmpViewMode === 'source') codeEditorRef.current?.focus?.()
+          else if (tmpViewMode === 'preview') editorRef.current?.focus()
+          else readButtonRef.current?.focus()
+        }
+      })
+    }
 
     useEffect(() => {
       currentViewModeRef.current = currentViewMode
@@ -109,18 +179,33 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       )
     }
 
+    const dictationControls = voiceNoteId ? (
+      <div onFocusCapture={markVoiceTargetCurrent} onPointerDownCapture={markVoiceTargetCurrent}>
+        <DictationControls
+          targetId={voiceTargetId ?? ''}
+          disabled={tmpViewMode === 'read' || !editorReady}
+          focusInput={() => {
+            if (tmpViewMode === 'source') codeEditorRef.current?.focus?.()
+            else editorRef.current?.focus()
+          }}
+        />
+      </div>
+    ) : null
+
     return (
       <>
         <div
           data-ui="notes.editor"
           data-note-id={activeNodeId}
+          onFocusCapture={markVoiceTargetCurrent}
+          onPointerDownCapture={markVoiceTargetCurrent}
           className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           <ErrorBoundary>
             <Suspense fallback={<NotesEditorLoading label={t('common.loading')} />}>
               {tmpViewMode === 'source' ? (
                 <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
                   <CodeEditor
-                    ref={codeEditorRef}
+                    ref={onSourceRef}
                     value={currentContent}
                     language="markdown"
                     onChange={onMarkdownChange}
@@ -134,7 +219,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ) : (
                 <RichEditor
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
-                  ref={editorRef}
+                  ref={onRichRef}
                   initialContent={currentContent}
                   onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
                   showToolbar={tmpViewMode === 'preview'}
@@ -161,6 +246,21 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               {t('notes.characters')}: {tokenCount}
             </div>
             <div className="flex items-center gap-3 text-muted-foreground text-xs">
+              {voiceNoteId && (
+                <>
+                  {dictationContainer ? createPortal(dictationControls, dictationContainer) : dictationControls}
+                  <Button
+                    ref={readButtonRef}
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('chat.message.read_aloud.label')}
+                    disabled={!currentContent.trim()}
+                    onClick={readCurrentNote}>
+                    <Volume2 className="size-4" />
+                  </Button>
+                </>
+              )}
               {tmpViewMode === 'preview' && (
                 <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton

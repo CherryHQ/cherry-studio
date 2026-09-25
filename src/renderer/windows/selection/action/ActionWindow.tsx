@@ -1,6 +1,7 @@
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
 import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
+import Volume2 from 'lucide-react/dist/esm/icons/volume-2'
 import X from 'lucide-react/dist/esm/icons/x'
 import type { ComponentProps, FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -11,6 +12,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
+import { readTextAloud, speechPlaybackService } from '@renderer/services/voice'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -57,10 +59,25 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   // (not in an effect) so the remount lands before ActionGeneral sends.
   const [prevAction, setPrevAction] = useState(action)
   const [sessionId, setSessionId] = useState(0)
+  const [sourceEntityId, setSourceEntityId] = useState(() => crypto.randomUUID())
   if (action !== prevAction) {
     setPrevAction(action)
     setSessionId((n) => n + 1)
+    setSourceEntityId(crypto.randomUUID())
   }
+  const currentSessionRef = useRef(sessionId)
+  currentSessionRef.current = sessionId
+  const readOriginalButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(
+    () => () => {
+      const snapshot = speechPlaybackService.getSnapshot()
+      if (snapshot.phase !== 'idle' && (snapshot.sourceLabel === 'selection' || snapshot.sourceLabel === 'preview')) {
+        void speechPlaybackService.stop().catch(() => undefined)
+      }
+    },
+    [action]
+  )
 
   const shouldCloseWhenBlur = useRef(false)
   const contentElementRef = useRef<HTMLDivElement>(null)
@@ -278,9 +295,43 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         <div
           ref={contentElementRef}
           className="flex max-w-[1280px] flex-1 flex-col overflow-auto p-4 text-sm select-text [-webkit-app-region:no-drag]">
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.selectedText?.trim() && (
+            <Button
+              ref={readOriginalButtonRef}
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mb-2 self-start"
+              aria-label={t('selection.action.voice.read_original')}
+              onClick={() =>
+                void readTextAloud({
+                  text: action.selectedText!,
+                  mode: 'selection',
+                  sourceLabel: 'selection',
+                  sourceEntityId,
+                  isCurrent: () => currentSessionRef.current === sessionId,
+                  focusOnClose: () => readOriginalButtonRef.current?.focus()
+                })
+              }>
+              <Volume2 className="size-4" />
+              {t('selection.action.voice.read_original')}
+            </Button>
+          )}
+          {action.id == 'translate' && (
+            <ActionTranslate
+              key={sessionId}
+              action={action}
+              sourceEntityId={sourceEntityId}
+              scrollToBottom={handleScrollToBottom}
+            />
+          )}
           {action.id != 'translate' && (
-            <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />
+            <ActionGeneral
+              key={sessionId}
+              action={action}
+              sourceEntityId={sourceEntityId}
+              scrollToBottom={handleScrollToBottom}
+            />
           )}
         </div>
       </div>

@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
@@ -40,6 +41,7 @@ const SelectionActionApp: FC = () => {
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />
+          <VoicePlaybackHost />
         </CodeStyleProvider>
       </ThemeProvider>
     </ErrorBoundary>

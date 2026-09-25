@@ -19,6 +19,7 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
+import { ResultReadAloudButton } from './ResultReadAloudButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -34,10 +35,11 @@ const logger = loggerService.withContext('ActionGeneral')
 const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 interface Props {
   action: SelectionActionItem
+  sourceEntityId: string
   scrollToBottom?: () => void
 }
 
-const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
+const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
@@ -225,6 +227,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
       </div>
       <div className="min-h-3" />
+      {!isStreaming && !isPreparing && !error && content.trim() && (
+        <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+      )}
       <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )

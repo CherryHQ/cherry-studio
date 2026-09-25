@@ -27,5 +27,7 @@ export type {
 } from './SpeechPlaybackService'
 export { readMessageAloud } from './messagePlayback'
 export type { ReadMessageAloudInput } from './messagePlayback'
+export { readTextAloud } from './manualPlayback'
+export type { ReadTextAloudInput } from './manualPlayback'
 export { autoReadCoordinator } from './AutoReadCoordinator'
 export type { AutoReadCompletion, AutoReadResult } from './AutoReadCoordinator'

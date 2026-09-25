@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Otimize ou aperfeiçoe o texto introduzido pelo utilizador no elemento XML INPUT, mantendo o significado e a integridade do conteúdo original. Requisitos: a resposta deve estar no mesmo idioma do texto do utilizador; não inclua qualquer explicação deste prompt, apresente apenas a resposta diretamente; não apresente etiquetas XML, apresente diretamente o conteúdo otimizado: \n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Resuma o conteúdo seguinte. Requisitos: responda em {{language}}; não inclua qualquer explicação deste prompt, apresente apenas a resposta diretamente: \n\n",
   "selection.action.translate.smart_translate_tips": "Tradução inteligente: o conteúdo será priorizado para tradução no idioma de destino; se o conteúdo já estiver no idioma de destino, será traduzido para o idioma alternativo",
+  "selection.action.voice.read_original": "Ler original em voz alta",
+  "selection.action.voice.read_result": "Ler resultado em voz alta",
   "selection.action.window.c_copy": "C Copiar",
   "selection.action.window.esc_close": "Esc Fechar",
   "selection.action.window.esc_stop": "Esc Parar",

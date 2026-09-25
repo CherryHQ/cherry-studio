@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "請最佳化或潤飾 INPUT XML 元素中的使用者輸入，同時保留原文的含義與完整性。要求：輸出語言必須與使用者輸入相同；不要解釋此提示詞，直接給出結果；不要輸出 XML 標籤，直接輸出最佳化後的內容：\n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "請摘要以下內容。要求：使用 {{language}} 回覆；不要解釋此提示詞，直接給出回覆：\n\n",
   "selection.action.translate.smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言",
+  "selection.action.voice.read_original": "朗讀原文",
+  "selection.action.voice.read_result": "朗讀結果",
   "selection.action.window.c_copy": "C 複製",
   "selection.action.window.esc_close": "Esc 關閉",
   "selection.action.window.esc_stop": "Esc 停止",

@@ -242,6 +242,10 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.voice.models.list'))
   }
 
+  listTranscriptionLocales(): Promise<OutputFor<'ai.transcription.locales.list'>> {
+    return this.invoke(() => this.ipc.request('ai.transcription.locales.list'))
+  }
+
   getModelStatus(input: InputFor<'ai.voice.model.status'>): Promise<OutputFor<'ai.voice.model.status'>> {
     return this.invoke(() => this.ipc.request('ai.voice.model.status', input))
   }

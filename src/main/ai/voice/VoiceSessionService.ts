@@ -21,7 +21,13 @@ import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 
-import { getLocalVoiceStatus, installAppleAsrAsset, listLocalVoices, voiceAudioProcess } from './localAdapters'
+import {
+  getLocalVoiceStatus,
+  installAppleAsrAsset,
+  listAppleAsrLocales,
+  listLocalVoices,
+  voiceAudioProcess
+} from './localAdapters'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 const logger = loggerService.withContext('VoiceSessionService')
@@ -116,6 +122,10 @@ export class VoiceSessionService extends BaseService {
   listModels() {
     this.requireAdmission()
     return { models: LOCAL_VOICE_MODELS, defaultAsrModelId: this.defaultAsrModel() }
+  }
+
+  listTranscriptionLocales(owner: VoiceOwner) {
+    return this.inspect(owner, (signal) => listAppleAsrLocales(signal))
   }
 
   status(owner: VoiceOwner, input: InputFor<'ai.voice.model.status'>) {

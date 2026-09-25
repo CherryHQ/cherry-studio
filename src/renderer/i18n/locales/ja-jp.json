@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "INPUT XML 要素内のユーザー入力について、元の意味と内容を保ったまま表現を最適化または推敲してください。要件: ユーザー入力と同じ言語で出力してください。このプロンプト自体の説明は含めず、結果だけを直接出力してください。XML タグは出力せず、最適化した内容だけを出力してください:\n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "以下の内容を要約してください。要件: {{language}} で回答してください。このプロンプト自体の説明は含めず、回答だけを直接出力してください: \n\n",
   "selection.action.translate.smart_translate_tips": "スマート翻訳: 内容を優先的に対象言語へ翻訳します。すでに対象言語の場合は、予備の言語へ翻訳します。",
+  "selection.action.voice.read_original": "元のテキストを読み上げる",
+  "selection.action.voice.read_result": "結果を読み上げる",
   "selection.action.window.c_copy": "Cでコピー",
   "selection.action.window.esc_close": "Escで閉じる",
   "selection.action.window.esc_stop": "Escで停止",

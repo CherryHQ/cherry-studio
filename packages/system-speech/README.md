@@ -5,10 +5,13 @@ Main adapters own platform checks, temporary paths and cancellation; this packag
 owns the Apple frameworks and its typed subprocess protocol. It is selectively
 rebuilt from validation PR #20733, not a validation application.
 
-`capabilities` and `transcribe` never request asset installation. Only the explicit
-`install_asr_assets` command with `confirmDownload: true` installs Apple ASR assets.
-ASR requires macOS 26 or later. TTS requires a supported macOS and the exact
-installed voice identifier; missing voices are never substituted.
+`capabilities` and `transcribe` never request asset installation. On macOS 26 or
+later, only the explicit `install_asr_assets` command with `confirmDownload: true`
+installs Apple ASR assets. On macOS 13–15, ASR uses `SFSpeechRecognizer` only when
+the requested language supports on-device recognition; it never falls back to
+Apple's network recognition. The older API requests speech authorization at first
+transcription and does not offer asset installation. TTS requires macOS 13 or later
+and the exact installed voice identifier; missing voices are never substituted.
 
 Native requests travel over stdin, never command-line arguments. Protocol failures
 discard stderr and arbitrary errors. Aborting or timing out waits for helper exit
@@ -37,3 +40,7 @@ the absence of helper entitlements, matching helper/app Mach-O architectures, th
 app's deep strict signature, and a capabilities round trip. The helper is signed with
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
+
+The Windows SAPI helper under `windows/` is an isolated proof of concept. It is
+not yet packaged or selected by the Voice Runtime; see its README for the
+Windows x64 build and device checks.

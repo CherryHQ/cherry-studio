@@ -3325,6 +3325,8 @@
   "selection.action.prompt.refine": "Vui lòng tối ưu hoặc trau chuốt nội dung người dùng trong phần tử XML INPUT, đồng thời giữ nguyên ý nghĩa và tính toàn vẹn của nội dung gốc. Yêu cầu: Kết quả phải cùng ngôn ngữ với nội dung đầu vào; không giải thích lời nhắc này, chỉ đưa ra kết quả trực tiếp; không xuất thẻ XML, chỉ xuất nội dung đã tối ưu:\n\n<INPUT>{{text}}</INPUT>",
   "selection.action.prompt.summary": "Vui lòng tóm tắt nội dung sau. Yêu cầu: Trả lời bằng {{language}}; không giải thích lời nhắc này, chỉ đưa ra câu trả lời trực tiếp: \n\n",
   "selection.action.translate.smart_translate_tips": "Dịch thông minh: Nội dung sẽ được dịch sang ngôn ngữ đích trước; nội dung đã ở ngôn ngữ đích sẽ được dịch sang ngôn ngữ thay thế",
+  "selection.action.voice.read_original": "Đọc to văn bản gốc",
+  "selection.action.voice.read_result": "Đọc to kết quả",
   "selection.action.window.c_copy": "C: Sao chép",
   "selection.action.window.esc_close": "Esc: Đóng",
   "selection.action.window.esc_stop": "Esc: Dừng",

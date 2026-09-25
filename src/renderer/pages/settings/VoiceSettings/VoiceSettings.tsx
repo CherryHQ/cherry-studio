@@ -1,9 +1,11 @@
 import { Copy, Download, Mic, Play, Square, Trash2, X } from 'lucide-react'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  Combobox,
+  type ComboboxOption,
   Input,
   InputNumber,
   Select,
@@ -37,6 +39,7 @@ import {
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  DEFAULT_APPLE_ASR_LOCALE,
   FUNASR_MODEL_ID,
   type LocalVoiceModelFacts,
   type LocalVoiceModelId,
@@ -49,6 +52,12 @@ type ModelStatus = 'unsupported' | 'not_installed' | 'installing' | 'ready' | 'f
 interface StatusState {
   status: ModelStatus
   reason?: VoiceErrorReason
+}
+
+interface QueriedRecognitionStatus {
+  modelId: LocalTranscriptionModelId
+  language: string
+  result: StatusState
 }
 
 type FunAsrAction = 'download' | 'cancel' | 'remove'
@@ -133,7 +142,7 @@ function funAsrStatusState(model: Pick<ReturnType<typeof useFunAsrModel>, 'isSta
 }
 
 function VoiceSettings() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const [recognitionPreferences, setRecognitionPreferences] = useMultiplePreferences(RECOGNITION_PREFERENCE_KEYS)
   const { language: recognitionLanguage, modelId: recognitionModel } = recognitionPreferences
@@ -155,11 +164,10 @@ function VoiceSettings() {
   )
   const funAsrModel = useFunAsrModel()
   const [models, setModels] = useState<readonly LocalVoiceModelFacts[]>([])
+  const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
-  const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<StatusState>({
-    status: 'unconfigured'
-  })
+  const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
   const [speechStatus, setSpeechStatus] = useState<StatusState>({ status: 'unconfigured' })
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>('unknown')
@@ -180,8 +188,9 @@ function VoiceSettings() {
     void voiceService
       .initialize()
       .then(async () => {
-        const [modelResult, voiceResult, microphoneResult] = await Promise.allSettled([
+        const [modelResult, localeResult, voiceResult, microphoneResult] = await Promise.allSettled([
           voiceService.listModels(),
+          voiceService.listTranscriptionLocales(),
           voiceService.listVoices(),
           voiceService.getMicrophoneStatus()
         ])
@@ -190,6 +199,7 @@ function VoiceSettings() {
           setModels(modelResult.value.models)
           setDefaultAsrModel(modelResult.value.defaultAsrModelId)
         }
+        if (localeResult.status === 'fulfilled') setAsrLocales(localeResult.value)
         if (voiceResult.status === 'fulfilled') setVoices(voiceResult.value)
         if (microphoneResult.status === 'fulfilled') setMicrophoneStatus(microphoneResult.value)
       })
@@ -205,6 +215,38 @@ function VoiceSettings() {
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
   const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
   const funAsrSelected = effectiveRecognitionModel === FUNASR_MODEL_ID
+  const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? DEFAULT_APPLE_ASR_LOCALE
+  const recognitionLanguageOptions = useMemo<ComboboxOption[]>(() => {
+    if (!asrLocales) return []
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' })
+    const label = (tag: string) => {
+      try {
+        return `${displayNames.of(tag) ?? tag} (${tag})`
+      } catch {
+        return tag
+      }
+    }
+    const installed = new Set(asrLocales.installed)
+    const options: ComboboxOption[] = [...asrLocales.supported]
+      .sort((a, b) => Number(installed.has(b)) - Number(installed.has(a)) || a.localeCompare(b))
+      .map((tag) => ({
+        value: tag,
+        label:
+          tag === DEFAULT_APPLE_ASR_LOCALE && !languageValue(recognitionLanguage)
+            ? `${label(tag)} · ${t('common.default')}`
+            : label(tag),
+        description: t(installed.has(tag) ? 'settings.voice.status.ready' : 'settings.voice.status.not_installed')
+      }))
+    if (!asrLocales.supported.includes(effectiveRecognitionLanguage)) {
+      options.push({
+        value: effectiveRecognitionLanguage,
+        label: label(effectiveRecognitionLanguage),
+        description: t('settings.voice.status.unsupported'),
+        disabled: true
+      })
+    }
+    return options
+  }, [asrLocales, effectiveRecognitionLanguage, i18n.language, recognitionLanguage, t])
   const recognitionStatus =
     hasConfiguredRecognitionModel && !configuredRecognitionModel
       ? ({ status: 'unsupported', reason: 'unsupported' } satisfies StatusState)
@@ -212,7 +254,10 @@ function VoiceSettings() {
         ? ({ status: 'unconfigured' } satisfies StatusState)
         : funAsrSelected
           ? funAsrStatusState(funAsrModel)
-          : queriedRecognitionStatus
+          : queriedRecognitionStatus?.modelId === effectiveRecognitionModel &&
+              queriedRecognitionStatus.language === effectiveRecognitionLanguage
+            ? queriedRecognitionStatus.result
+            : ({ status: 'unconfigured' } satisfies StatusState)
   const funAsrAction: FunAsrAction | undefined =
     !funAsrSelected || !funAsrModel.isStatusResolved
       ? undefined
@@ -232,21 +277,24 @@ function VoiceSettings() {
     )
       return
     let current = true
+    const query = { modelId: effectiveRecognitionModel, language: effectiveRecognitionLanguage }
     void voiceService
-      .getModelStatus({
-        modelId: effectiveRecognitionModel,
-        ...(languageValue(recognitionLanguage) && { language: languageValue(recognitionLanguage) })
-      })
+      .getModelStatus(query)
       .then((status) => {
-        if (current) setQueriedRecognitionStatus(status)
+        if (current) setQueriedRecognitionStatus({ ...query, result: status })
       })
       .catch(() => {
-        if (current) setQueriedRecognitionStatus({ status: 'failed', reason: 'operation_failed' })
+        if (current) setQueriedRecognitionStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
       })
     return () => {
       current = false
     }
-  }, [configuredRecognitionModel, effectiveRecognitionModel, hasConfiguredRecognitionModel, recognitionLanguage])
+  }, [
+    configuredRecognitionModel,
+    effectiveRecognitionLanguage,
+    effectiveRecognitionModel,
+    hasConfiguredRecognitionModel
+  ])
 
   useEffect(() => {
     if (!speechModel) {
@@ -328,8 +376,7 @@ function VoiceSettings() {
   const transcriptionModels = models.filter((model) => model.id === APPLE_ASR_MODEL_ID || model.id === FUNASR_MODEL_ID)
   const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID)
   const canInstallApple =
-    recognitionModel === APPLE_ASR_MODEL_ID &&
-    Boolean(languageValue(recognitionLanguage)) &&
+    effectiveRecognitionModel === APPLE_ASR_MODEL_ID &&
     recognitionStatus.status === 'not_installed' &&
     recognitionStatus.reason === 'asset_required'
   const dictationRecording = dictation.phase === 'starting' || dictation.phase === 'recording'
@@ -354,17 +401,20 @@ function VoiceSettings() {
   }
 
   const installAppleAsset = async () => {
-    const language = languageValue(recognitionLanguage)
-    if (!language || !canInstallApple) return
+    if (!canInstallApple) return
     const previousStatus = recognitionStatus
+    const query = { modelId: APPLE_ASR_MODEL_ID, language: effectiveRecognitionLanguage }
     setInstalling(true)
-    setQueriedRecognitionStatus({ status: 'installing', reason: 'asset_required' })
+    setQueriedRecognitionStatus({ ...query, result: { status: 'installing', reason: 'asset_required' } })
     setActionFailed(false)
     try {
-      await voiceService.installTranscriptionAsset({ language, source: 'settings' }).result
-      setQueriedRecognitionStatus(await voiceService.getModelStatus({ modelId: APPLE_ASR_MODEL_ID, language }))
+      await voiceService.installTranscriptionAsset({ language: effectiveRecognitionLanguage, source: 'settings' })
+        .result
+      setQueriedRecognitionStatus({ ...query, result: await voiceService.getModelStatus(query) })
+      const locales = await voiceService.listTranscriptionLocales().catch(() => undefined)
+      if (locales) setAsrLocales(locales)
     } catch {
-      setQueriedRecognitionStatus(previousStatus)
+      setQueriedRecognitionStatus({ ...query, result: previousStatus })
       setActionFailed(true)
     } finally {
       setInstalling(false)
@@ -486,17 +536,24 @@ function VoiceSettings() {
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Input
+          <Combobox
             className="w-64"
             aria-label={t('settings.voice.recognition.language')}
-            placeholder={funAsrSelected ? undefined : t('settings.voice.language.placeholder')}
-            value={
-              funAsrSelected ? t('settings.voice.language.auto_detect') : (languageValue(recognitionLanguage) ?? '')
+            options={
+              funAsrSelected
+                ? [{ value: 'auto', label: t('settings.voice.language.auto_detect') }]
+                : recognitionLanguageOptions
             }
-            disabled={funAsrSelected}
-            onChange={(event) =>
-              savePreference(() => setRecognitionPreferences({ language: storedLanguage(event.target.value) }))
-            }
+            value={funAsrSelected ? 'auto' : effectiveRecognitionLanguage}
+            disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
+            onChange={(value) => {
+              if (typeof value === 'string') savePreference(() => setRecognitionPreferences({ language: value }))
+            }}
+            placeholder={t('common.select')}
+            searchPlaceholder={t('common.search')}
+            emptyText={t('common.no_results')}
+            searchPlacement="trigger"
+            popoverClassName="w-(--radix-popover-trigger-width)"
           />
         </SettingRow>
         <SettingDivider />

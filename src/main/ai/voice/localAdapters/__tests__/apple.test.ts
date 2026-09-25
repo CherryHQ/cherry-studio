@@ -12,7 +12,8 @@ import {
   createLocalSpeechModel,
   createLocalTranscriptionModel,
   getLocalVoiceStatus,
-  installAppleAsrAsset
+  installAppleAsrAsset,
+  listAppleAsrLocales
 } from '../../localAdapters'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
@@ -40,15 +41,19 @@ const capabilities = {
   }
 }
 
-beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'apple-adapter-'))
+function stubMacVersion(version: string): void {
   vi.stubGlobal(
     'process',
     Object.defineProperties(Object.create(process), {
-      getSystemVersion: { value: () => '26.3' },
+      getSystemVersion: { value: () => version },
       platform: { value: 'darwin' }
     })
   )
+}
+
+beforeEach(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'apple-adapter-'))
+  stubMacVersion('26.3')
   vi.mocked(application.getPath).mockImplementation((_key, filename) =>
     filename ? join(directory, filename) : directory
   )
@@ -86,6 +91,40 @@ afterEach(async () => {
 })
 
 describe('local Apple adapters', () => {
+  it('uses the installed offline Apple recognizer on macOS 15 without requesting an asset', async () => {
+    stubMacVersion('15.7')
+    mocks.nativeRequest.mockResolvedValueOnce({
+      ...capabilities,
+      result: { ...capabilities.result, osVersion: '15.7' }
+    })
+    expect(await getLocalVoiceStatus(APPLE_ASR_MODEL_ID, { language: 'en-US' })).toEqual({ status: 'ready' })
+
+    mocks.nativeRequest
+      .mockResolvedValueOnce({ ...capabilities, result: { ...capabilities.result, osVersion: '15.7' } })
+      .mockResolvedValueOnce({ operation: 'transcribe', result: { locale: 'en_US', text: 'offline transcript' } })
+    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+      audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+      mediaType: 'audio/webm;codecs=opus'
+    })
+    expect(result.text).toBe('offline transcript')
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('does not offer asset installation on macOS 15', async () => {
+    stubMacVersion('15.7')
+    await expect(installAppleAsrAsset('en-US')).rejects.toMatchObject({ reason: 'unsupported' })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+  })
+
+  it('lists only system-supported Apple recognition locales', async () => {
+    mocks.nativeRequest.mockResolvedValueOnce({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
+
+    await expect(listAppleAsrLocales()).resolves.toEqual({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+    expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'list_asr_locales' }, { signal: undefined })
+  })
   it('returns WAV bytes and releases synthesis scratch before completion', async () => {
     const model = createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact' })
     const result = await model.doGenerate({ text: 'private TTS text', voice: 'voice.exact', outputFormat: 'wav' })
