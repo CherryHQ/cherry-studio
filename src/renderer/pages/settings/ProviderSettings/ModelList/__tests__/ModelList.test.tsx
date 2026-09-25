@@ -132,6 +132,34 @@ describe('useProviderModelList', () => {
     await waitFor(() => expect(result.current.header.selectedFilter).toBe('all'))
   })
 
+  it('returns to all models when search hides every failed model', async () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.header.selectedFilter).toBe('failed')
+
+    act(() => result.current.header.setSearchText('Beta'))
+
+    await waitFor(() => expect(result.current.header.failedModelCount).toBe(0))
+    await waitFor(() => expect(result.current.header.selectedFilter).toBe('all'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toEqual([{ model: models[1] }])
+  })
+
   it('guards edit and delete commands while model checks are running', async () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai', disabled: true }))
 

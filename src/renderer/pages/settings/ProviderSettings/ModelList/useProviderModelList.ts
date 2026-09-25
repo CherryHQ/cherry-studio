@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 
 import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
-import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { isModelCompletelyFailed } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
@@ -119,23 +119,9 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const modelStatuses = useModelListHealthRun().completedModelStatuses
   const fullyFailedModelIds = useMemo(
-    () =>
-      new Set(
-        modelStatuses
-          .filter(
-            (status) =>
-              status.kind === 'failed' && !status.keyResults.some((key) => key.status === HealthStatus.SUCCESS)
-          )
-          .map((status) => status.model.id)
-      ),
+    () => new Set(modelStatuses.filter(isModelCompletelyFailed).map((status) => status.model.id)),
     [modelStatuses]
   )
-
-  useEffect(() => {
-    if (selectedFilter === 'failed' && fullyFailedModelIds.size === 0) {
-      setSelectedFilter('all')
-    }
-  }, [fullyFailedModelIds.size, selectedFilter])
 
   const derivedState = useMemo(
     () =>
@@ -147,6 +133,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       }),
     [fullyFailedModelIds, optimisticModels, searchText, selectedFilter]
   )
+
+  useEffect(() => {
+    if (selectedFilter === 'failed' && derivedState.failedModelCount === 0) {
+      setSelectedFilter('all')
+    }
+  }, [derivedState.failedModelCount, selectedFilter])
 
   useEffect(() => {
     const validModelIds = new Set(models.map((model) => model.id))
