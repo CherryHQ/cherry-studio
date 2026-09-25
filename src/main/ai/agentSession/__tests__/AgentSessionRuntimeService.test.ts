@@ -2268,6 +2268,50 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReset()
   })
 
+  it('lets a live override-only turn finish when the session override is cleared', async () => {
+    const connection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: null })
+
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      modelId: switchedModelId,
+      userMessage: userMessage('user-1')
+    })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
+    mocks.pauseRuntimeTurn.mockClear()
+
+    await (service as any).handleSessionModelUpdated('session-1')
+
+    expect(service.inspect('session-1')).toBeDefined()
+    expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+    await reader.cancel().catch(() => undefined)
+    mocks.getSessionById.mockReset()
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+  })
+
   it('reads the agent once per session on a push reconcile, not twice', async () => {
     // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
     // updated entity, so walking every session of that agent must not re-read it per session.
