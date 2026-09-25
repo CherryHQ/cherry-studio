@@ -74,6 +74,18 @@ async function resolveSource(source: LiterConfigSource): Promise<{ path: string;
   return { path: filename, content: await fs.readFile(filename, 'utf8'), exists: true }
 }
 
+type LiterConfigCandidate =
+  | {
+      current: Awaited<ReturnType<typeof resolveSource>>
+      currentRevision: string
+      conflict: { expectedRevision: string; currentRevision: string }
+    }
+  | {
+      current: Awaited<ReturnType<typeof resolveSource>>
+      currentRevision: string
+      content: string
+    }
+
 async function checker(): Promise<{ available: boolean; path?: string; version?: string }> {
   const override = process.env.THE_BOSS_LITER_LLM_PATH?.trim()
   if (override) return { available: true, path: override }
@@ -133,7 +145,11 @@ async function validate(
   }
 }
 
-async function candidate(source: LiterConfigSource, expectedRevision: string, edits: LiterConfigEdit[]) {
+async function candidate(
+  source: LiterConfigSource,
+  expectedRevision: string,
+  edits: LiterConfigEdit[]
+): Promise<LiterConfigCandidate> {
   const current = await resolveSource(source)
   const currentRevision = revisionOf(current.content)
   if (currentRevision !== expectedRevision) {

@@ -1,5 +1,10 @@
 import { Badge, Button } from '@cherrystudio/ui'
-import { SettingDescription, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingGroup,
+  SettingHelpText,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 
 import { IntegrationChoice } from './IntegrationFields'
@@ -32,7 +37,11 @@ export function LiterDiagnosticsPanel({
               { value: NO_WORKSPACE, label: tr('diagnostics.chooseWorkspace') },
               ...(controller.snapshot?.workspaces ?? []).map((workspace) => ({
                 value: workspace.path,
-                label: workspace.name
+                label:
+                  workspace.path
+                    .split(/[\\/]+/)
+                    .filter(Boolean)
+                    .at(-1) ?? workspace.path
               }))
             ]}
           />

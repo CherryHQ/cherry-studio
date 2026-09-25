@@ -54,6 +54,18 @@ async function resolveSource(source: LiterRoleSource): Promise<{ path: string; c
   return { path: filename, content: await fs.readFile(filename, 'utf8'), exists: true }
 }
 
+type LiterRoleCandidate =
+  | {
+      current: Awaited<ReturnType<typeof resolveSource>>
+      currentRevision: string
+      conflict: { expectedRevision: string; currentRevision: string }
+    }
+  | {
+      current: Awaited<ReturnType<typeof resolveSource>>
+      currentRevision: string
+      content: string
+    }
+
 function assignmentsFromDocument(document: unknown): LiterRoleAssignments | undefined {
   if (!document || typeof document !== 'object') return undefined
   const root = document as Record<string, unknown>
@@ -80,7 +92,7 @@ function assignmentsFromDocument(document: unknown): LiterRoleAssignments | unde
   return parsed.success ? parsed.data : undefined
 }
 
-async function candidate(source: LiterRoleSource, expectedRevision: string) {
+async function candidate(source: LiterRoleSource, expectedRevision: string): Promise<LiterRoleCandidate> {
   const current = await resolveSource(source)
   const currentRevision = revisionOf(current.content)
   if (currentRevision !== expectedRevision) {
