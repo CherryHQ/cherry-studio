@@ -168,17 +168,21 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         return false
       }
       this.current = connection
+      const previousModelId = this.currentModelId
+      this.currentModelId = fallbackModelId
+      this.hasActivity = false
+      await connection.send(this.lastInput)
+      // Announce only once the replay was admitted: a rejected send must leave no persisted marker
+      // claiming a swap that never happened. The new connection's events are not pumped until this
+      // returns, so the marker still precedes them.
       this.queue.push({
         type: 'chunk',
         chunk: {
           type: 'data-model-fallback',
           id: randomUUID(),
-          data: { from: this.currentModelId, to: fallbackModelId, reason }
+          data: { from: previousModelId, to: fallbackModelId, reason }
         }
       })
-      this.currentModelId = fallbackModelId
-      this.hasActivity = false
-      await connection.send(this.lastInput)
       return true
     } catch (cause) {
       logger.warn('Pi/DSH fallback connection failed', { sessionId: this.input.sessionId, fallbackModelId, cause })

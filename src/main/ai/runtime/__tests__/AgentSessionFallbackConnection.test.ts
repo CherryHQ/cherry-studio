@@ -53,6 +53,29 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('does not announce a fallback whose replay is rejected', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    fallback.send.mockRejectedValueOnce(new Error('replay admission failed'))
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const seen: AgentRuntimeEvent[] = []
+    for await (const event of wrapper.events) seen.push(event)
+
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+    await wrapper.close()
+  })
+
   it("does not replay a completed turn's input when a later driver-driven failure fires", async () => {
     const primary = fakeConnection()
     const driver = { connect: vi.fn() }
