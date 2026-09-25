@@ -7,4 +7,5 @@ export type ReleaseProfile = Readonly<{
 
 export const RELEASE_PLATFORM_KEYS: readonly string[]
 export const RETAINED_NATIVE_TOOLS: readonly string[]
+export const UAR_RELEASE_PLATFORM_KEYS: readonly string[]
 export function resolveReleaseProfile(env?: NodeJS.ProcessEnv): ReleaseProfile

@@ -5,11 +5,15 @@ const root = path.resolve(__dirname, '..')
 const manifestPath = path.join(root, 'build', 'integration-artifacts.json')
 const sourcesPath = path.join(root, 'build', 'integration-sources.json')
 const requiredPlatforms = new Set(['win32-x64', 'darwin-arm64'])
-const recordUrls = process.argv.slice(2)
+const cliRecordUrls = process.argv.slice(2)
+const recordUrls =
+  cliRecordUrls.length > 0
+    ? cliRecordUrls
+    : [process.env.UAR_WIN32_X64_RECORD_URL, process.env.UAR_DARWIN_ARM64_RECORD_URL]
 
-if (recordUrls.length !== requiredPlatforms.size) {
+if (recordUrls.length !== requiredPlatforms.size || recordUrls.some((recordUrl) => !recordUrl)) {
   throw new Error(
-    'usage: node scripts/import-uar-sidecar-payloads.cjs <win32-x64-record-url> <darwin-arm64-record-url>'
+    'usage: node scripts/import-uar-sidecar-payloads.cjs <win32-x64-record-url> <darwin-arm64-record-url>, or set UAR_WIN32_X64_RECORD_URL and UAR_DARWIN_ARM64_RECORD_URL'
   )
 }
 

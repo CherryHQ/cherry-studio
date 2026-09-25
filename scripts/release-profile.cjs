@@ -1,4 +1,5 @@
 const RELEASE_PLATFORM_KEYS = Object.freeze(['win32-x64', 'win32-arm64', 'darwin-arm64', 'darwin-x64'])
+const UAR_RELEASE_PLATFORM_KEYS = Object.freeze(['win32-x64', 'darwin-arm64'])
 const RETAINED_NATIVE_TOOLS = Object.freeze(['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node'])
 
 function resolveReleaseProfile(env = process.env) {
@@ -12,8 +13,8 @@ function resolveReleaseProfile(env = process.env) {
     id: uarEnabled ? 'uar-enabled' : 'non-uar',
     uarEnabled,
     nativeTools: Object.freeze(uarEnabled ? [...RETAINED_NATIVE_TOOLS, 'uar-sidecar'] : [...RETAINED_NATIVE_TOOLS]),
-    supportedPlatforms: RELEASE_PLATFORM_KEYS
+    supportedPlatforms: uarEnabled ? UAR_RELEASE_PLATFORM_KEYS : RELEASE_PLATFORM_KEYS
   })
 }
 
-module.exports = { RELEASE_PLATFORM_KEYS, RETAINED_NATIVE_TOOLS, resolveReleaseProfile }
+module.exports = { RELEASE_PLATFORM_KEYS, RETAINED_NATIVE_TOOLS, UAR_RELEASE_PLATFORM_KEYS, resolveReleaseProfile }

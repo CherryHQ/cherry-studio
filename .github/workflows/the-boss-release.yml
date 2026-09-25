@@ -1,10 +1,26 @@
 name: The Boss Release
-run-name: Installers ${{ github.ref_name }} @ ${{ github.sha }}
+run-name: Installers (${{ github.event_name == 'workflow_dispatch' && inputs.release_profile || 'non-uar' }}) ${{ github.ref_name }} @ ${{ github.sha }}
 on:
   workflow_dispatch:
     inputs:
+      release_profile:
+        description: Customer release profile
+        required: true
+        default: non-uar
+        type: choice
+        options:
+          - non-uar
+          - uar-enabled
       platforms:
         description: Optional comma-separated platforms to build from the published payload
+        required: false
+        type: string
+      uar_win32_x64_record_url:
+        description: Immutable win32-x64 UAR sidecar release record URL (required for uar-enabled)
+        required: false
+        type: string
+      uar_darwin_arm64_record_url:
+        description: Immutable darwin-arm64 UAR sidecar release record URL (required for uar-enabled)
         required: false
         type: string
   push:
@@ -22,7 +38,9 @@ concurrency:
   cancel-in-progress: false
 env:
   NODE_OPTIONS: --max-old-space-size=8192
-  THE_BOSS_UAR_ENABLED: "0"
+  THE_BOSS_UAR_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.release_profile == 'uar-enabled' && '1' || '0' }}
+  UAR_WIN32_X64_RECORD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.uar_win32_x64_record_url || '' }}
+  UAR_DARWIN_ARM64_RECORD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.uar_darwin_arm64_record_url || '' }}
 permissions:
   contents: read
 jobs:
@@ -34,6 +52,9 @@ jobs:
       profile: ${{ steps.select.outputs.profile }}
     steps:
       - uses: actions/checkout@v7
+      - name: Import complete UAR sidecar payload
+        if: env.THE_BOSS_UAR_ENABLED == '1'
+        run: node scripts/import-uar-sidecar-payloads.cjs
       - id: select
         env:
           RELEASE_PLATFORMS: ${{ inputs.platforms }}
@@ -76,6 +97,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
+      - name: Import complete UAR sidecar payload
+        if: env.THE_BOSS_UAR_ENABLED == '1'
+        run: node scripts/import-uar-sidecar-payloads.cjs
       - uses: pnpm/action-setup@v5
       - uses: actions/cache@v6
         with:

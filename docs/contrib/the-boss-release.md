@@ -4,7 +4,9 @@ sources:
   - .github/workflows/integration-payload.yml
   - .github/workflows/the-boss-release.yml
   - build/integration-sources.json
+  - scripts/import-uar-sidecar-payloads.cjs
   - scripts/package-prometheus.js
+  - scripts/release-profile.cjs
   - scripts/update-release-entry.cjs
   - src/renderer/pages/settings/PrometheusSettings/IntegrationSettings.tsx
 ---
@@ -17,6 +19,26 @@ integration release, the operator has authorized commits and publication and has
 selected the installed Windows application as the functional acceptance boundary.
 Do not run intermediate test suites, review loops, or standalone verification
 builds. Fix compiler and packaging failures in the actual release builds.
+
+## Select the customer release profile
+
+The release workflow defaults to the existing `non-uar` customer profile on
+manual dispatches and all pushes to `main`. It publishes Windows x64/ARM64 and
+macOS arm64/x64 with `THE_BOSS_UAR_ENABLED=0`; this remains the emergency path
+when UAR sidecar payloads are unavailable.
+
+For a UAR customer release, dispatch the workflow with `release_profile` set to
+`uar-enabled` and provide both immutable sidecar release record URLs. The workflow
+imports and validates the complete Windows x64 and macOS arm64 payload set before
+selecting jobs, repeats the import in each native job, and uses the explicit
+`build:win:x64:release:uar` and `build:mac:arm64:release:uar` package scripts.
+Those scripts set `THE_BOSS_UAR_ENABLED=1` for compilation, packaging, and package
+validation. Package validation probes the installed sidecar payload before an
+installer can be published, and release metadata must carry the same UAR profile.
+An existing GitHub release tag can only be resumed with its recorded profile, so
+switching between non-UAR and UAR requires a new application version and tag.
+The UAR profile supports only Windows x64 and macOS arm64 until additional
+sidecar payloads are published.
 
 ## Produce the payload and installers
 
@@ -34,11 +56,13 @@ builds. Fix compiler and packaging failures in the actual release builds.
 4. Download the generated `integration-artifacts.json` into `build/`, then commit
    it. Never substitute placeholder hashes or URLs. Its source revisions, binary
    hashes, Compass skill archive, and image digests define the payload.
-5. Dispatch `the-boss-release.yml` from that committed source. Its six native jobs
-   produce two Windows setup installers, two macOS DMGs, and x64/ARM64 AppImage,
-   DEB, and RPM packages. Compiler checks inside the packaging commands are part
-   of the build. Retain available signing configuration and report actual signing
-   status in the release metadata.
+5. Dispatch `the-boss-release.yml` from that committed source with the intended
+   customer release profile. The non-UAR profile produces two Windows setup
+   installers and two macOS DMGs. The UAR profile requires both sidecar release
+   records and produces Windows x64 and macOS arm64 installers. Compiler checks
+   inside the packaging commands are part of the build. Retain the separate
+   Windows and macOS signing configuration and report actual signing status in
+   the release metadata.
 6. Successful jobs publish installers through IPFS. The final job requires every
    selected platform from the same source commit before generating and committing
    `release-manifest.json` and the new `RELEASES.md` entry. The operator has authorized

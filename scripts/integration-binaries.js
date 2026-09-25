@@ -19,8 +19,7 @@ function loadIntegrationBinaries({ required = false } = {}) {
   for (const name of requiredTools) {
     const tool = manifest.tools.find((entry) => entry.name === name)
     if (!tool) throw new Error(`Integration manifest is missing ${name}`)
-    const platforms = name === 'uar-sidecar' ? Object.keys(tool.packages) : profile.supportedPlatforms
-    for (const platform of platforms) {
+    for (const platform of profile.supportedPlatforms) {
       const asset = tool.packages[platform]
       if (!asset || !asset.url.startsWith('https://') || !/^[a-f0-9]{64}$/.test(asset.sha256))
         throw new Error(`Unpinned integration artifact: ${name} ${platform}`)

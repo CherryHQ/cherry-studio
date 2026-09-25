@@ -10,11 +10,13 @@ async function main() {
   const profile = resolveReleaseProfile()
   const platform = process.platform
   const arch = process.arch
-  if (platform === 'darwin') {
-    execFileSync(process.execPath, [path.join(__dirname, 'validate-release-package.cjs'), `${platform}-${arch}`], {
-      stdio: 'inherit'
-    })
+  const platformKey = `${platform}-${arch}`
+  if (!profile.supportedPlatforms.includes(platformKey)) {
+    throw new Error(`Release profile ${profile.id} does not support ${platformKey}`)
   }
+  execFileSync(process.execPath, [path.join(__dirname, 'validate-release-package.cjs'), platformKey], {
+    stdio: 'inherit'
+  })
   const extensions =
     platform === 'win32' ? ['-setup.exe'] : platform === 'darwin' ? ['.dmg'] : ['.AppImage', '.deb', '.rpm']
   const directory = path.join(root, 'dist')
