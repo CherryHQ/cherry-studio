@@ -1,4 +1,17 @@
-import { AlertCircle, Check, CheckCircle2, Copy, Edit3, Loader2, Plus, Trash2, X, Zap } from 'lucide-react'
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Copy,
+  Download,
+  Edit3,
+  FileUp,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+  Zap
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,6 +26,13 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
+import {
+  detectFormat,
+  generateCSVContent,
+  parseCSVContent,
+  parseENVContent,
+  parseJSONContent
+} from './apiKeyImportExport'
 import { ApiKeyNote } from './ApiKeyNote'
 import { ApiKeyQuotaLimit } from './ApiKeyQuotaLimit'
 import { ApiKeyRotationPolicy } from './ApiKeyRotationPolicy'
@@ -121,6 +141,70 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     setEditingId(nextDraft.id)
     setDraft(nextDraft)
   }, [])
+
+  const handleImport = useCallback(async () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,.env,.json'
+    input.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const content = await file.text()
+        const format = detectFormat(file.name)
+        let importedKeys: Partial<ApiKeyEntry>[] = []
+
+        if (format === 'csv') {
+          importedKeys = parseCSVContent(content)
+        } else if (format === 'env') {
+          importedKeys = parseENVContent(content)
+        } else if (format === 'json') {
+          importedKeys = parseJSONContent(content)
+        }
+
+        if (importedKeys.length === 0) {
+          toast.warning(t('settings.provider.api_key.import.no_keys'))
+          return
+        }
+
+        let imported = 0
+        for (const partial of importedKeys) {
+          if (!partial.key) continue
+          try {
+            await addApiKey(partial.key, partial.label)
+            imported++
+          } catch (error) {
+            logger.warn('Failed to import key', { error })
+          }
+        }
+
+        toast.success(t('settings.provider.api_key.import.success', { count: imported }))
+      } catch (error) {
+        logger.error('Import failed', { error })
+        toast.error(t('settings.provider.api_key.import.failed'))
+      }
+    })
+
+    input.click()
+  }, [addApiKey, t])
+
+  const handleExport = useCallback(() => {
+    try {
+      const csv = generateCSVContent(apiKeys)
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `api-keys-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(t('settings.provider.api_key.export.success'))
+    } catch (error) {
+      logger.error('Export failed', { error })
+      toast.error(t('settings.provider.api_key.export.failed'))
+    }
+  }, [apiKeys, t])
 
   const startEdit = useCallback((entry: ApiKeyEntry) => {
     const nextDraft = toDraft(entry)
@@ -232,10 +316,32 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           </Scrollbar>
         </div>
 
-        <Button className="w-full" variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
-          <Plus size={14} />
-          {t('settings.provider.api_setup.add_key')}
-        </Button>
+        <div className="flex gap-2">
+          <Button className="flex-1" variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
+            <Plus size={14} />
+            {t('settings.provider.api_setup.add_key')}
+          </Button>
+          <Button
+            className="flex-1"
+            variant="secondary"
+            size="sm"
+            disabled={!!draft || saving}
+            onClick={handleImport}
+            title={t('settings.provider.api_key.import.button_tooltip')}>
+            <FileUp size={14} />
+            {t('settings.provider.api_key.import.button')}
+          </Button>
+          <Button
+            className="flex-1"
+            variant="secondary"
+            size="sm"
+            disabled={apiKeys.length === 0}
+            onClick={handleExport}
+            title={t('settings.provider.api_key.export.button_tooltip')}>
+            <Download size={14} />
+            {t('settings.provider.api_key.export.button')}
+          </Button>
+        </div>
 
         {apiKeys.length > 1 ? <ApiKeyRotationPolicy providerId={providerId} /> : null}
       </div>
