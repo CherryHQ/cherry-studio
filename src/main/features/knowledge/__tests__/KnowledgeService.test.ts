@@ -59,7 +59,9 @@ const {
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock,
   externalKnowledgeRuntimeStartMock,
-  externalKnowledgeRuntimeStopMock
+  externalKnowledgeRuntimeStopMock,
+  externalKnowledgeRuntimeResolveScopeMock,
+  externalKnowledgeRuntimePreviewScopeMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -104,7 +106,9 @@ const {
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn(),
   externalKnowledgeRuntimeStartMock: vi.fn(),
-  externalKnowledgeRuntimeStopMock: vi.fn()
+  externalKnowledgeRuntimeStopMock: vi.fn(),
+  externalKnowledgeRuntimeResolveScopeMock: vi.fn(),
+  externalKnowledgeRuntimePreviewScopeMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -214,6 +218,8 @@ vi.mock('../external/ExternalKnowledgeRuntime', () => ({
   ExternalKnowledgeRuntime: class {
     start = externalKnowledgeRuntimeStartMock
     stop = externalKnowledgeRuntimeStopMock
+    resolveFeishuScope = externalKnowledgeRuntimeResolveScopeMock
+    previewFeishuScope = externalKnowledgeRuntimePreviewScopeMock
   }
 }))
 
@@ -444,6 +450,8 @@ describe('KnowledgeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
     externalKnowledgeRuntimeStartMock.mockResolvedValue(undefined)
     externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
+    externalKnowledgeRuntimeResolveScopeMock.mockResolvedValue({ provider: 'feishu' })
+    externalKnowledgeRuntimePreviewScopeMock.mockResolvedValue({ supportedDocxCount: 1 })
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -489,6 +497,17 @@ describe('KnowledgeService', () => {
 
     expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
     expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+  })
+
+  it('delegates ephemeral Feishu scope resolution and preview to its owned runtime', async () => {
+    const service = new KnowledgeService()
+    const connectionId = '0198f3f2-7d1a-7abc-8def-123456789ab2'
+    const url = 'https://acme.feishu.cn/wiki/root'
+
+    await expect(service.resolveFeishuScope(connectionId, url)).resolves.toEqual({ provider: 'feishu' })
+    await expect(service.previewFeishuScope(connectionId, url)).resolves.toEqual({ supportedDocxCount: 1 })
+    expect(externalKnowledgeRuntimeResolveScopeMock).toHaveBeenCalledWith(connectionId, url)
+    expect(externalKnowledgeRuntimePreviewScopeMock).toHaveBeenCalledWith(connectionId, url)
   })
 
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {

@@ -22,6 +22,8 @@ const knowledgeService = {
   reconnectFeishuConnection: vi.fn(),
   validateFeishuConnection: vi.fn(),
   removeExternalKnowledgeConnection: vi.fn(),
+  resolveFeishuScope: vi.fn(),
+  previewFeishuScope: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
   deleteBase: vi.fn(),
@@ -162,6 +164,94 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.removeExternalKnowledgeConnection).toHaveBeenCalledWith(
       '01960000-0000-7000-8000-000000000001'
     )
+  })
+
+  it('returns validated scope metadata without exposing connection credentials or provider payloads', async () => {
+    const connectionId = '01960000-0000-7000-8000-000000000001'
+    const input = { connectionId, url: 'https://acme.feishu.cn/wiki/root' }
+    const resolution = {
+      provider: 'feishu',
+      connectionId,
+      account: { userId: 'user-1', displayName: 'Ada' },
+      tenantId: 'tenant-1',
+      spaceId: 'space-1',
+      scope: { kind: 'space' },
+      selected: {
+        remoteObjectId: 'doc-1',
+        nodeId: 'root',
+        parentNodeId: null,
+        relativeBreadcrumb: ['Root'],
+        title: 'Root',
+        originalUrl: 'https://acme.feishu.cn/wiki/root',
+        remoteRevision: '42',
+        documentKind: 'document',
+        supportState: 'supported'
+      }
+    }
+    knowledgeService.resolveFeishuScope.mockResolvedValue(resolution)
+    knowledgeService.previewFeishuScope.mockResolvedValue({
+      resolution,
+      visibleNodeCount: 1,
+      supportedDocxCount: 1,
+      unsupportedOrSkippedCount: 0,
+      embeddingCostExact: false,
+      warnings: []
+    })
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+
+    const resolved = await router.dispatch('knowledge.feishu.scope.resolve', input, ctx)
+    const preview = await router.dispatch('knowledge.feishu.scope.preview', input, ctx)
+
+    expect(resolved).toEqual(resolution)
+    expect(preview).toMatchObject({ visibleNodeCount: 1, embeddingCostExact: false })
+    for (const privateValue of [
+      'access-token',
+      'refresh-token',
+      'app-secret',
+      'credentialReference',
+      'providerPayload'
+    ]) {
+      expect(JSON.stringify([resolved, preview])).not.toContain(privateValue)
+    }
+  })
+
+  it('rejects renderer-supplied provider origins and credentials before scope resolution', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    const input = {
+      connectionId: '01960000-0000-7000-8000-000000000001',
+      url: 'https://acme.feishu.cn/wiki/root'
+    }
+
+    await expect(
+      router.dispatch(
+        'knowledge.feishu.scope.resolve',
+        { ...input, apiOrigin: 'https://attacker.invalid', accessToken: 'secret' },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(knowledgeService.resolveFeishuScope).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['invalid-scope-url', 'KNOWLEDGE_FEISHU_INVALID_SCOPE_URL'],
+    ['resource-permission-denied', 'KNOWLEDGE_FEISHU_RESOURCE_PERMISSION_DENIED'],
+    ['scope-not-found', 'KNOWLEDGE_FEISHU_SCOPE_NOT_FOUND'],
+    ['unsupported-resource', 'KNOWLEDGE_FEISHU_UNSUPPORTED_RESOURCE'],
+    ['transient', 'KNOWLEDGE_FEISHU_PROVIDER_UNAVAILABLE'],
+    ['invalid-provider-response', 'KNOWLEDGE_FEISHU_INVALID_PROVIDER_RESPONSE']
+  ] as const)('maps scope read failure %s to a stable renderer error', async (runtimeCode, ipcCode) => {
+    knowledgeService.previewFeishuScope.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
+
+    const error = await knowledgeHandlers['knowledge.feishu.scope.preview'](
+      {
+        connectionId: '01960000-0000-7000-8000-000000000001',
+        url: 'https://acme.feishu.cn/wiki/root'
+      },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toMatchObject({ code: ipcCode })
+    expect(JSON.stringify(error)).not.toContain('provider-payload')
   })
 
   it('maps referenced connection removal to a stable IPC error', async () => {

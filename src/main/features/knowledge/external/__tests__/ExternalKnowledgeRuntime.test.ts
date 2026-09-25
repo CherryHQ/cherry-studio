@@ -175,6 +175,9 @@ function createProvider(overrides: Record<string, unknown> = {}) {
       }
     }),
     revokeUserToken: vi.fn(),
+    getWikiNode: vi.fn(),
+    listWikiChildNodes: vi.fn(),
+    getDocxMarkdown: vi.fn(),
     ...overrides
   }
 }
@@ -192,6 +195,146 @@ function validCredential(id: string, now = 1_000): ExternalKnowledgeCredential {
 }
 
 describe('ExternalKnowledgeRuntime', () => {
+  it('rejects an untrusted scope URL before reading credentials or making a provider request', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider()
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    credentials.read.mockClear()
+
+    await expect(runtime.resolveFeishuScope(value.id, 'https://acme.larksuite.com/wiki/root')).rejects.toMatchObject({
+      code: 'invalid-scope-url'
+    })
+    expect(credentials.read).not.toHaveBeenCalled()
+    expect(provider.getUserIdentity).not.toHaveBeenCalled()
+    expect(provider.getWikiNode).not.toHaveBeenCalled()
+  })
+
+  it('applies the verified Wiki endpoint budget between individual page requests', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    let now = 1_000
+    const waits: number[] = []
+    const pageRequestTimes: number[] = []
+    const provider = createProvider({
+      getWikiNode: vi.fn(async () => ({
+        spaceId: 'space-1',
+        nodeToken: 'root',
+        objToken: 'doc-root',
+        objType: 'docx',
+        parentNodeToken: null,
+        nodeType: 'origin',
+        originNodeToken: null,
+        originSpaceId: null,
+        title: 'Root',
+        hasChild: true,
+        objEditTime: '42'
+      })),
+      listWikiChildNodes: vi.fn(async () => {
+        pageRequestTimes.push(now)
+        return pageRequestTimes.length === 1 ? { nodes: [], nextPageToken: 'page-2' } : { nodes: [] }
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        waits.push(milliseconds)
+        now += milliseconds
+      }
+    })
+    await runtime.start()
+
+    await expect(runtime.previewFeishuScope(value.id, 'https://acme.feishu.cn/wiki/root')).resolves.toMatchObject({
+      visibleNodeCount: 1,
+      supportedDocxCount: 1
+    })
+    expect(pageRequestTimes).toEqual([1_000, 1_600])
+    expect(waits).toEqual([600])
+  })
+
+  it('retries only the failing provider call instead of replaying completed traversal work', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    let listAttempts = 0
+    const getWikiNode = vi.fn(async () => ({
+      spaceId: 'space-1',
+      nodeToken: 'root',
+      objToken: 'doc-root',
+      objType: 'docx',
+      parentNodeToken: null,
+      nodeType: 'origin' as const,
+      originNodeToken: null,
+      originSpaceId: null,
+      title: 'Root',
+      hasChild: true,
+      objEditTime: '42'
+    }))
+    const provider = createProvider({
+      getWikiNode,
+      listWikiChildNodes: vi.fn(async () => {
+        listAttempts++
+        if (listAttempts === 1) throw new FeishuProviderError('transient', false, 1)
+        return { nodes: [] }
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => 1_000,
+      sleep: async () => {}
+    })
+    await runtime.start()
+
+    await expect(runtime.previewFeishuScope(value.id, 'https://acme.feishu.cn/wiki/root')).resolves.toMatchObject({
+      visibleNodeCount: 1
+    })
+    expect(getWikiNode).toHaveBeenCalledOnce()
+    expect(listAttempts).toBe(2)
+  })
+
+  it('keeps resource ACL failures local while terminal authentication still requires reauthorization', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const aclConnection = connection('acl', 'ref-acl')
+    const authConnection = connection('auth', 'ref-auth')
+    connections.values.set(aclConnection.id, aclConnection)
+    connections.values.set(authConnection.id, authConnection)
+    credentials.values.set('ref-acl', { status: 'ok', credential: validCredential('acl') })
+    credentials.values.set('ref-auth', { status: 'ok', credential: validCredential('auth') })
+    const provider = createProvider({
+      getWikiNode: vi
+        .fn()
+        .mockRejectedValueOnce(new FeishuProviderError('resource-permission-denied', false))
+        .mockRejectedValueOnce(new FeishuProviderError('reauthorization-required', true))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.resolveFeishuScope(aclConnection.id, 'https://acme.feishu.cn/wiki/acl')).rejects.toMatchObject(
+      { code: 'resource-permission-denied' }
+    )
+    expect(connections.values.get(aclConnection.id)?.authorizationStatus).toBe('connected')
+
+    await expect(
+      runtime.resolveFeishuScope(authConnection.id, 'https://acme.feishu.cn/wiki/auth')
+    ).rejects.toMatchObject({ code: 'reauthorization-required' })
+    expect(connections.values.get(authConnection.id)?.authorizationStatus).toBe('reauthorization-required')
+  })
+
   it('merges concurrent refreshes for one credential and persists one token rotation', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
