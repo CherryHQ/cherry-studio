@@ -50,7 +50,7 @@ export const REGISTRY_SCHEMA_VERSION = 2
  * the current remote catalog. Bump when data starts using a new adapter family,
  * endpoint type, wire behavior, or other value that older runtime code cannot execute.
  */
-export const REGISTRY_MIN_APP_VERSION = '2.0.13'
+export const REGISTRY_MIN_APP_VERSION = '2.1.3'
 
 /**
  * The three JSON data files this package emits (`packages/provider-registry/data/`).

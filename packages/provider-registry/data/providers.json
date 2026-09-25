@@ -2555,13 +2555,33 @@
           "baseUrl": "http://localhost:8188"
         }
       },
-      "modelListIsAuthoritative": true,
       "id": "comfyui",
       "metadata": {
         "website": {
           "docs": "https://docs.comfy.org",
           "official": "https://www.comfy.org"
         }
+      },
+      "modelResolution": {
+        "defaults": {
+          "capabilities": ["image-generation"],
+          "endpointTypes": ["openai-image-generation"],
+          "imageGeneration": {
+            "modes": {
+              "generate": {
+                "supports": {
+                  "seed": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          },
+          "inputModalities": ["text"],
+          "outputModalities": ["image"],
+          "supportsStreaming": false
+        },
+        "source": "provider"
       },
       "name": "ComfyUI"
     },
@@ -2656,5 +2676,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "9e38932f162dd1e6"
+  "version": "dbca1ba38bf86df7"
 }

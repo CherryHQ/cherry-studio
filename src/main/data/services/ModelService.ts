@@ -147,6 +147,7 @@ function assertProvidersAvailable(providerIds: Iterable<string>): void {
  * Defined explicitly (not via ReturnType) to avoid a circular import.
  */
 type CreateModelRegistryData = ModelLookupResult & {
+  providerModel?: Model
   reasoningProfile: ResolvedReasoningProfile
   serviceTierControl?: ResolvedServiceTierControl
 }
@@ -484,8 +485,9 @@ function createPresetFallback(
 
 class ModelService {
   private getRegistryBaseline(providerContext: ReasoningProviderContext, modelId: string): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+    const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
       providerRegistryService.resolveModel(providerContext, modelId)
+    if (providerModel) return providerModel
     if (!presetModel) return null
     return mergePresetModel(
       presetModel,
@@ -498,6 +500,9 @@ class ModelService {
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+    if (registryData?.providerModel) {
+      return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+    }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
 
@@ -632,18 +637,7 @@ class ModelService {
       })
     }
 
-    // A provider whose fetched list is its own model set (ComfyUI: a model is a saved
-    // workflow) can only be reconciled against that list if its rows are removable at
-    // all, and they carry no preset id — the custom-model guard would keep every
-    // workflow deleted upstream forever. Every other provider keeps the guard.
-    // A provider whose fetched list is its own model set (ComfyUI: a model is a saved
-    // workflow) can only be reconciled against that list if its rows are removable at
-    // all, and they carry no preset id — the custom-model guard would keep every
-    // workflow deleted upstream forever. Every other provider keeps the guard.
-    const listIsAuthoritative = providerService.getByProviderId(providerId).modelListIsAuthoritative === true
-    const removableCustomModelIds = new Set(
-      listIsAuthoritative ? [] : [...customModelIds].filter((id) => !userDefaultIds.has(id))
-    )
+    const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
 
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
@@ -729,8 +723,11 @@ class ModelService {
       if (!providerContext) return []
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
+          if (providerModel) {
+            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          }
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -760,8 +757,11 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+        const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
+        if (providerModel) {
+          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+        }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(

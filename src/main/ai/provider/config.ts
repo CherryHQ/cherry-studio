@@ -53,6 +53,7 @@ import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
@@ -70,6 +71,7 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  resolvedBaseUrl: string
   apiKeyOverride?: string
   endpointType?: EndpointType
   endpoint?: string
@@ -114,15 +116,6 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   // Provider-driven formatting (for providers without endpoint type info)
   if (isOllamaProvider(provider)) return formatOllamaApiHost(baseURL)
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
-
-  // An endpoint whose API sits at the ROOT of the host: ComfyUI serves `/prompt`,
-  // `/queue` and `/view` there, so an appended OpenAI `/v1` would 404 every call.
-  // The endpoint declares that itself (`adapterFamily`), rather than this formatter
-  // growing another provider id.
-  const family =
-    (endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined) ??
-    (provider.defaultChatEndpoint ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.adapterFamily : undefined)
-  if (family === 'comfyui') return formatApiHost(baseURL, false)
 
   // Providers that don't append API version
   const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
@@ -216,6 +209,7 @@ export async function resolveProviderAiSdkConfig(
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
+    resolvedBaseUrl: baseUrl,
     // Credential selection is intentionally deferred until a key-backed builder
     // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
     // for a key they never serve with.
@@ -629,7 +623,11 @@ function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
   return {
     providerId: 'comfyui',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers: headersWithoutCredentials(ctx.actualProvider) }
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: normalizeComfyuiBaseUrl(ctx.resolvedBaseUrl),
+      headers: headersWithoutCredentials(ctx.actualProvider)
+    }
   }
 }
 

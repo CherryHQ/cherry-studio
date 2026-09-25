@@ -8,7 +8,7 @@ import { defineProvider } from './types'
  * with the bespoke `comfyui` adapter family, which is what routes the model to the
  * app's ComfyUI extension/provider (`extensions.ts`) instead of a generic
  * OpenAI-compatible adapter that would receive the server's web UI HTML. The host
- * takes no `/v1` namespace: `formatBaseURL` keys that off this adapter family.
+ * takes no `/v1` namespace: its config builder normalizes the server root.
  *
  * Only the paintings (image generation) surface exists; chat and embeddings have no
  * endpoint here and the provider throws rather than guessing a host that answers them.
@@ -24,11 +24,17 @@ export default defineProvider({
       baseUrl: 'http://localhost:8188'
     }
   },
-  // A model *is* a saved workflow here, so the fetched list is the complete set:
-  // delete the workflow in ComfyUI and the row is a leftover the user cannot
-  // otherwise remove (it has no remote counterpart and no registry preset).
-  // The model-management drawer reconciles those away when it opens.
-  modelListIsAuthoritative: true,
+  modelResolution: {
+    source: 'provider',
+    defaults: {
+      capabilities: ['image-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation'],
+      supportsStreaming: false,
+      imageGeneration: { modes: { generate: { supports: { seed: { type: 'text' } } } } }
+    }
+  },
   metadata: {
     website: {
       docs: 'https://docs.comfy.org',

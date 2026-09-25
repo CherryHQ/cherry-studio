@@ -15,7 +15,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
-import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -2522,34 +2521,21 @@ describe('ModelService.reconcileForProvider', () => {
     resolveModelMock.mockClear()
   })
 
-  it('removes a null-preset row only when the provider declares its list authoritative', async () => {
-    // ComfyUI's rows carry no preset id, so the custom-model guard would keep every
-    // workflow the user deleted upstream and report it as skipped.
-    await dbh.db.insert(userProviderTable).values([providerRow('comfyui', 'ComfyUI'), providerRow('openai', 'OpenAI')])
-    const workflow = createUniqueModelId('comfyui', 'sample_workflow_removed')
-    const handAdded = createUniqueModelId('openai', 'hand-added')
-    await dbh.db
-      .insert(userModelTable)
-      .values([
-        modelRow('comfyui', 'sample_workflow_removed', { id: workflow }),
-        modelRow('openai', 'hand-added', { id: handAdded })
-      ])
-
-    const real = providerService.getByProviderId.bind(providerService)
-    const spy = vi.spyOn(providerService, 'getByProviderId').mockImplementation((id: string) => {
-      const provider = real(id)
-      return id === 'comfyui' ? { ...provider, modelListIsAuthoritative: true } : provider
-    })
-    try {
-      const authoritative = modelService.reconcileForProvider('comfyui', { toAdd: [], toRemove: [workflow] })
-      expect(authoritative.find((model) => model.id === workflow)).toBeUndefined()
-
-      const guarded = modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [handAdded] })
-      expect(guarded.find((model) => model.id === handAdded)).toBeDefined()
-    } finally {
-      spy.mockRestore()
+  it.each(['comfyui', 'ollama', 'openai'])(
+    'preserves custom %s models during reconcile but allows explicit deletion',
+    (providerId) => {
+      dbh.db.insert(userProviderTable).values(providerRow(providerId, providerId)).run()
+      const id = createUniqueModelId(providerId, 'saved-model')
+      dbh.db
+        .insert(userModelTable)
+        .values(modelRow(providerId, 'saved-model', { id }))
+        .run()
+      const remaining = modelService.reconcileForProvider(providerId, { toAdd: [], toRemove: [id] })
+      expect(remaining.map((model) => model.id)).toEqual([id])
+      modelService.delete(providerId, 'saved-model')
+      expect(dbh.db.select().from(userModelTable).all()).toEqual([])
     }
-  })
+  )
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer

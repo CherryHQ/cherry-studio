@@ -3,12 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import {
-  fetchProviderCatalogModels,
-  fetchResolvedProviderModels,
-  resolveCreateModelEndpointTypes,
-  toCreateModelDto
-} from '../modelSync'
+import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
 
 const { dataApiGetMock } = vi.hoisted(() => ({ dataApiGetMock: vi.fn() }))
 
@@ -173,18 +168,6 @@ describe('fetchResolvedProviderModels', () => {
     const { models } = await fetchResolvedProviderModels('custom')
 
     expect(models[0].name).toBe('Provider Display Name')
-  })
-})
-
-describe('fetchProviderCatalogModels', () => {
-  it('reads models from the canonical provider preset projection', async () => {
-    const models = [{ id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o' }]
-    dataApiGetMock.mockResolvedValueOnce({ models })
-
-    await expect(fetchProviderCatalogModels('openai')).resolves.toBe(models)
-    expect(dataApiGetMock).toHaveBeenCalledWith('/providers/openai/preset', {
-      query: { fields: 'models' }
-    })
   })
 })
 

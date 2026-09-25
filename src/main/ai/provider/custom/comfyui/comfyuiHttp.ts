@@ -28,7 +28,7 @@ export interface ComfyuiRequestOptions {
  * fragment leaves a doubled separator behind.
  */
 export function normalizeComfyuiBaseUrl(baseURL: string): string {
-  return baseURL.split('#')[0].replace(/\/+$/, '')
+  return baseURL.split('#')[0].trim().replace(/\/+$/, '')
 }
 
 /**

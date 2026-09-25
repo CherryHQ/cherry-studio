@@ -515,6 +515,7 @@ const comfyuiFetcher: ModelFetcher = {
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,
         ownedBy: 'comfyui',
+        supportsStreaming: false,
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
         inputModalities: [MODALITY.TEXT],

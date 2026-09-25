@@ -275,8 +275,6 @@ export const ProviderSchema = z.object({
   modelListSource: z.enum(['api', 'registry']).optional(),
   /** Registry-owned opt-in to append models missing from the API list. Absent means API-only. */
   supplementModelsFromRegistry: z.boolean().optional(),
-  /** Registry-owned claim that the fetched list is the provider's whole model set. */
-  modelListIsAuthoritative: z.boolean().optional(),
   /** Provider-native (server-executed) built-in tools resolved from the registry. */
   serverTools: z.array(ServerToolConfigSchema).optional(),
   /**

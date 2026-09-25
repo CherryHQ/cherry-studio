@@ -7,7 +7,6 @@ import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import {
-  fetchProviderCatalogModels,
   fetchResolvedProviderModels,
   resolveCreateModelEndpointTypes,
   toCreateModelDto
@@ -37,8 +36,6 @@ function uniqueById(models: Model[]): Model[] {
 interface ProviderModelLoadResult {
   models: Model[]
   error: unknown | null
-  /** The rows that were on screen when this load started. */
-  knownModelIds: Set<UniqueModelId>
 }
 
 async function deleteModelsSkippingDefaults(
@@ -75,7 +72,6 @@ async function deleteModelsSkippingDefaults(
 export function useProviderModelPullReconcile(providerId: string) {
   const { t } = useTranslation()
   const [pullReconcileDrawerOpen, setPullReconcileDrawerOpen] = useState(false)
-  const [catalogModels, setCatalogModels] = useState<Model[]>([])
   const [fetchedModels, setFetchedModels] = useState<Model[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
@@ -86,11 +82,6 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  // The reconcile below runs after an await, and a row the user added while the
-  // list was loading only exists in the newest `models`: read it from a ref, and
-  // keep rows that were created after the load started out of the deletion set.
-  const modelsRef = useRef(models)
-  modelsRef.current = models
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
@@ -98,14 +89,8 @@ export function useProviderModelPullReconcile(providerId: string) {
     { refresh: ['/models'] }
   )
 
-  const allModels = useMemo(
-    () => uniqueById([...fetchedModels, ...catalogModels, ...models]),
-    [catalogModels, fetchedModels, models]
-  )
-  const remoteModelIds = useMemo(
-    () => new Set([...catalogModels, ...fetchedModels].map((model) => model.id)),
-    [catalogModels, fetchedModels]
-  )
+  const allModels = useMemo(() => uniqueById([...fetchedModels, ...models]), [fetchedModels, models])
+  const remoteModelIds = useMemo(() => new Set(fetchedModels.map((model) => model.id)), [fetchedModels])
   const defaultModelIds = useMemo(
     () =>
       new Set(
@@ -115,27 +100,9 @@ export function useProviderModelPullReconcile(providerId: string) {
       ),
     [defaultModelId, quickAssistantModelId, translateModelId]
   )
-  // A provider whose fetched list is its whole model set — ComfyUI, where a model
-  // *is* a saved workflow — can be reconciled against that list: a local row the
-  // list no longer contains is a leftover, not a model the user typed in. Without
-  // this the row is neither removable nor stale and the drawer keeps showing it.
-  const listIsAuthoritative = provider?.modelListIsAuthoritative === true
-  const isVanished = useCallback(
-    (model: Model) => listIsAuthoritative && hasLoadedCompleteRemoteModels && !remoteModelIds.has(model.id),
-    [hasLoadedCompleteRemoteModels, listIsAuthoritative, remoteModelIds]
-  )
   const removableModelIds = useMemo(
-    () =>
-      models
-        .filter(
-          (model) =>
-            !defaultModelIds.has(model.id) &&
-            (isVanished(model) ||
-              remoteModelIds.has(model.id) ||
-              (model.presetModelId != null && model.presetModelId !== ''))
-        )
-        .map((model) => model.id),
-    [defaultModelIds, isVanished, models, remoteModelIds]
+    () => models.filter((model) => !defaultModelIds.has(model.id)).map((model) => model.id),
+    [defaultModelIds, models]
   )
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
@@ -143,163 +110,54 @@ export function useProviderModelPullReconcile(providerId: string) {
     }
 
     return models.filter(
-      (model) =>
-        !remoteModelIds.has(model.id) &&
-        (isVanished(model) || (model.presetModelId != null && model.presetModelId !== ''))
+      (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
-  }, [hasLoadedCompleteRemoteModels, isVanished, models, remoteModelIds])
+  }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
-  const loadModels = useCallback(async () => {
+  const loadModels = useCallback(async (): Promise<ProviderModelLoadResult | null> => {
     const sequence = ++loadModelsSequenceRef.current
     const isLatestLoad = () => sequence === loadModelsSequenceRef.current
-    // Rows already on screen when the fetch starts. Anything created while it is
-    // in flight may legitimately be missing from a list the provider built
-    // before the create landed, so it is not the reconcile's to judge.
-    const knownModelIds = new Set(modelsRef.current.map((model) => model.id))
-
     setIsLoadingModels(true)
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const [catalogResult, fetchedResult] = await Promise.allSettled([
-        fetchProviderCatalogModels(providerId),
-        fetchResolvedProviderModels(providerId)
-      ])
-      if (!isLatestLoad()) {
-        return null
-      }
+      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+      if (!isLatestLoad()) return null
 
-      const catalog = (catalogResult.status === 'fulfilled' ? catalogResult.value : []).filter((model) =>
-        model.name?.trim()
-      )
-      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value.models : []).filter((model) =>
-        model.name?.trim()
-      )
-      // A provider that lists its own files can hold entries that cannot become
-      // models; silence there reads as a row that vanished, so name them.
-      const skippedModels = fetchedResult.status === 'fulfilled' ? (fetchedResult.value.skippedModels ?? []) : []
+      const fetched = models.filter((model) => model.name?.trim())
       if (skippedModels.length > 0) {
-        toast.warning(t('settings.models.manage.workflows_not_listed', { count: skippedModels.length }))
-      }
-      const hasLoadedAllModels = catalogResult.status === 'fulfilled' && fetchedResult.status === 'fulfilled'
-      const loadError =
-        fetchedResult.status === 'rejected'
-          ? fetchedResult.reason
-          : catalogResult.status === 'rejected'
-            ? catalogResult.reason
-            : null
-
-      setCatalogModels(catalog)
-      setFetchedModels(fetched)
-      setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
-
-      if (!hasLoadedAllModels) {
-        // A bare "failed to pull models" hides the one failure the user can actually act on
-        // — a TLS/proxy interception (`error.diagnosis.proxy`) or an unreachable network —
-        // so show the classified diagnosis instead when there is one.
-        const classification = classifyError(serializeHealthCheckError(loadError), providerId)
-        logger.error('Failed to load provider models for manage drawer', {
-          providerId,
-          catalogFailed: catalogResult.status === 'rejected',
-          upstreamFailed: fetchedResult.status === 'rejected',
-          category: classification.category
+        toast.warning({
+          title: t('settings.models.manage.models_not_listed', { count: skippedModels.length }),
+          description: skippedModels.join(', ')
         })
-        setLoadErrorMessage(
-          t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
-        )
       }
+      setFetchedModels(fetched)
+      setHasLoadedCompleteRemoteModels(true)
+      return { models: uniqueById(fetched), error: null }
+    } catch (error) {
+      if (!isLatestLoad()) return null
 
-      return {
-        models: uniqueById([...fetched, ...catalog]),
-        error: loadError,
-        knownModelIds
-      } satisfies ProviderModelLoadResult
+      const classification = classifyError(serializeHealthCheckError(error), providerId)
+      logger.error('Failed to load provider models for manage drawer', {
+        providerId,
+        category: classification.category
+      })
+      setFetchedModels([])
+      setLoadErrorMessage(
+        t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
+      )
+      return { models: [], error }
     } finally {
-      if (isLatestLoad()) {
-        setIsLoadingModels(false)
-      }
+      if (isLatestLoad()) setIsLoadingModels(false)
     }
   }, [providerId, t])
 
-  /**
-   * Drop the local rows the freshly loaded list no longer contains. Runs when the
-   * drawer opens, so a workflow deleted in ComfyUI stops being an unremovable
-   * leftover the next time the user looks at the list (see
-   * `modelListIsAuthoritative`). A model the user picked as their default is left
-   * alone: it cannot be deleted, and the warning names it.
-   */
-  /**
-   * Drop the given rows through the one API both callers use, and report what
-   * happened: a model that is in use as a default cannot be deleted, so the
-   * difference between what was asked for and what stayed is the skipped count.
-   * `onError` stays with the caller — the sweep below runs unasked and only logs,
-   * while the explicit Clean stale action also tells the user.
-   */
-  const removeReconciledModels = useCallback(
-    async (ids: UniqueModelId[], onError: (error: unknown, count: number) => void) => {
-      const uniqueIds = Array.from(new Set(ids))
-      if (uniqueIds.length === 0) {
-        return
-      }
-
-      try {
-        const reconciled = await reconcileModels({
-          params: { providerId },
-          body: { toAdd: [], toRemove: uniqueIds }
-        })
-        const survivors = new Set(reconciled.map((model) => model.id))
-        const removedCount = uniqueIds.filter((id) => !survivors.has(id)).length
-        const skippedCount = uniqueIds.length - removedCount
-        if (removedCount > 0) {
-          toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
-        }
-        if (skippedCount > 0) {
-          toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
-        }
-      } catch (error) {
-        onError(error, uniqueIds.length)
-      }
-    },
-    [providerId, reconcileModels, t]
-  )
-
-  const reconcileVanishedModels = useCallback(
-    async (remoteModels: Model[], knownModelIds: Set<UniqueModelId>) => {
-      if (!listIsAuthoritative) {
-        return
-      }
-
-      const remoteIds = new Set(remoteModels.map((model) => model.id))
-      // The newest rows, not the ones loadModels captured: a workflow added in
-      // this drawer while the list was loading is in `remoteIds`, so filtering
-      // over the stale snapshot would mark the row the user just created as
-      // vanished and delete it.
-      const vanishedIds = modelsRef.current
-        .filter((model) => knownModelIds.has(model.id) && !remoteIds.has(model.id))
-        .map((model) => model.id)
-
-      await removeReconciledModels(vanishedIds, (error, count) => {
-        logger.error('Failed to reconcile models missing from the provider list', { providerId, count, error })
-      })
-    },
-    [listIsAuthoritative, providerId, removeReconciledModels]
-  )
-
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)
-    void (async () => {
-      const result = await loadModels()
-      // A newer load superseded this one, and an incomplete list is not the
-      // provider's model set: with ComfyUI unreachable every row would look
-      // vanished and the reconciliation would drop the whole library.
-      if (!result || result.error) {
-        return
-      }
-      await reconcileVanishedModels(result.models, result.knownModelIds)
-    })()
-  }, [loadModels, reconcileVanishedModels])
+    void loadModels()
+  }, [loadModels])
 
   const closePullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(false)
@@ -393,14 +251,32 @@ export function useProviderModelPullReconcile(providerId: string) {
   )
 
   const cleanStaleModels = useCallback(async () => {
-    await removeReconciledModels(
-      staleModels.map((model) => model.id),
-      (error, count) => {
-        logger.error('Failed to clean stale provider models from manage drawer', { providerId, count, error })
-        toast.error(t('settings.models.manage.operation_failed'))
+    const uniqueIds = Array.from(new Set(staleModels.map((model) => model.id)))
+    if (uniqueIds.length === 0) return
+
+    try {
+      const reconciled = await reconcileModels({
+        params: { providerId },
+        body: { toAdd: [], toRemove: uniqueIds }
+      })
+      const survivors = new Set(reconciled.map((model) => model.id))
+      const removedCount = uniqueIds.filter((id) => !survivors.has(id)).length
+      const skippedCount = uniqueIds.length - removedCount
+      if (removedCount > 0) {
+        toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
       }
-    )
-  }, [providerId, removeReconciledModels, staleModels, t])
+      if (skippedCount > 0) {
+        toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
+      }
+    } catch (error) {
+      logger.error('Failed to clean stale provider models from manage drawer', {
+        providerId,
+        count: uniqueIds.length,
+        error
+      })
+      toast.error(t('settings.models.manage.operation_failed'))
+    }
+  }, [providerId, reconcileModels, staleModels, t])
 
   return {
     allModels,

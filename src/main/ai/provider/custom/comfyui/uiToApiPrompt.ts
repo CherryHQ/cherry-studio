@@ -617,7 +617,12 @@ export function findPromptTarget(
   // over conditioning transformers that merely forward a positive stream, so
   // the per-run seed is written where the graph samples, not into a side
   // branch.
-  const withPositive = Object.entries(prompt).filter(([, node]) => isReference(node.inputs.positive))
+  const conditioningInputs = (node: ApiPromptNode): Record<string, unknown> =>
+    isReference(node.inputs.guider) ? (prompt[node.inputs.guider[0]]?.inputs ?? {}) : node.inputs
+  const withPositive = Object.entries(prompt).filter(([, node]) => {
+    const inputs = conditioningInputs(node)
+    return isReference(inputs.positive) || (isReference(node.inputs.guider) && isReference(inputs.conditioning))
+  })
   const isSampler = ([, node]): boolean =>
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
   const ordered = [...withPositive.filter(isSampler), ...withPositive.filter((entry) => !isSampler(entry))]
@@ -640,13 +645,14 @@ export function findPromptTarget(
   }
 
   for (const [samplerId, node] of ordered) {
-    const positive = node.inputs.positive
+    const inputs = conditioningInputs(node)
+    const positive = inputs.positive ?? inputs.conditioning
     if (!isReference(positive)) continue
     // Only the negative-exclusive part of the graph is out of bounds: the
     // classic zero-out chain hangs a ConditioningZeroOut off the negative
     // encode, and crossing into it would replace the negative prompt. Nodes
     // shared with the positive branch stay reachable.
-    const negative = node.inputs.negative
+    const negative = inputs.negative
     const negativeOnly = isReference(negative)
       ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
       : new Set<string>()
@@ -725,6 +731,20 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
       writeSeed(graph, sampler.inputs, key, value)
       return
     }
+    const seen = new Set<string>()
+    let noise = sampler.inputs.noise
+    while (isReference(noise) && !seen.has(noise[0])) {
+      seen.add(noise[0])
+      const source = graph[noise[0]]
+      if (!source) break
+      const key = seedInputKey(source.inputs)
+      if (key) {
+        writeSeed(graph, source.inputs, key, value)
+        return
+      }
+      noise = source.inputs.noise
+    }
+    return
   }
   for (const node of Object.values(graph)) {
     const key = seedInputKey(node.inputs)

@@ -81,8 +81,6 @@ export interface ProviderDisplayMetadata {
   modelListSource?: 'api' | 'registry'
   /** Registry-owned opt-in for incomplete API model lists. */
   supplementModelsFromRegistry?: boolean
-  /** Registry-owned claim that the fetched list is the provider's whole model set. */
-  modelListIsAuthoritative?: boolean
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
@@ -792,7 +790,6 @@ class ProviderRegistryService {
         availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
         supplementModelsFromRegistry: provider?.supplementModelsFromRegistry,
-        modelListIsAuthoritative: provider?.modelListIsAuthoritative,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
         serverTools: provider?.serverTools,
@@ -979,6 +976,8 @@ class ProviderRegistryService {
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
+    if (profileProvider?.modelResolution?.source === 'provider')
+      return resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
     const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
@@ -1089,6 +1088,7 @@ class ProviderRegistryService {
     providerContext: ReasoningProviderContext,
     modelId: string
   ): {
+    providerModel?: Model
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
     reasoningProfile: ResolvedReasoningProfile
@@ -1096,6 +1096,24 @@ class ProviderRegistryService {
   } {
     const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
+    if (presetProvider?.modelResolution?.source === 'provider') {
+      return {
+        presetModel: null,
+        registryOverride: null,
+        providerModel: {
+          ...presetProvider.modelResolution.defaults,
+          id: createUniqueModelId(providerContext.id, modelId),
+          providerId: providerContext.id,
+          apiModelId: modelId,
+          presetModelId: null,
+          name: modelId.split('/').pop() ?? modelId,
+          ownedBy: presetProvider.id,
+          isEnabled: true,
+          isHidden: false
+        },
+        reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
+      }
+    }
     const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
@@ -1137,12 +1155,14 @@ class ProviderRegistryService {
       if (!modelId || seen.has(modelId)) continue
       seen.add(modelId)
 
-      const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = this.resolveModel(
+      const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } = this.resolveModel(
         providerContext,
         modelId
       )
 
-      if (presetModel) {
+      if (providerModel) {
+        results.push(providerModel)
+      } else if (presetModel) {
         const model = mergePresetModel(
           presetModel,
           registryOverride,
@@ -1303,7 +1323,8 @@ class ProviderRegistryService {
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
     getDataService('ProviderService').assertAvailable(providerId)
-    const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
+    const { providerModel, presetModel, registryOverride } = this.lookupModel(providerId, modelId)
+    if (providerModel) return providerModel.imageGeneration ?? null
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.
     if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
