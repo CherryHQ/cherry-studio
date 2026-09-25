@@ -2,6 +2,22 @@ import * as z from 'zod'
 
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 
+import type { IntegrationOperation } from './integrationOperation'
+
+export {
+  integrationActionSchema,
+  type IntegrationAction,
+  type IntegrationDiagnostic,
+  type IntegrationOperation,
+  type IntegrationOperationEvent,
+  type IntegrationOperationEventPage,
+  type IntegrationOperationLogExport,
+  type IntegrationOperationLogPage,
+  type IntegrationOperationProgress,
+  type IntegrationOperationStage,
+  type IntegrationOperationStatus
+} from './integrationOperation'
+
 const endpoint = z
   .string()
   .url()
@@ -737,39 +753,6 @@ export const uarProviderMutationSchema = z
   })
   .strict()
 export type UarProviderMutation = z.infer<typeof uarProviderMutationSchema>
-export const integrationActionSchema = z.enum([
-  'pull',
-  'start',
-  'stop',
-  'restart',
-  'status',
-  'logs',
-  'index',
-  'refresh',
-  'install-skills',
-  'repair-path',
-  'diagnose',
-  'uar-check',
-  'uar-apply',
-  'uar-restart',
-  'discover-services'
-])
-export type IntegrationAction = z.infer<typeof integrationActionSchema>
-export type IntegrationDiagnostic = {
-  id: string
-  state: 'operational' | 'listening' | 'authenticated' | 'failed' | 'disabled'
-  detail?: string
-}
-export type IntegrationOperation = {
-  id: string
-  action: IntegrationAction
-  workspacePath?: string
-  status: 'running' | 'done' | 'failed' | 'cancelled'
-  output: string
-  error?: string
-  startedAt: number
-  diagnostics?: IntegrationDiagnostic[]
-}
 export type WorkspaceIntegration = {
   path: string
   id: string

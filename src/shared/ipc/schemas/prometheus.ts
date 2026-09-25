@@ -20,6 +20,10 @@ import {
   uarProviderMutationSchema,
   uarSkillToggleSchema,
   type IntegrationOperation,
+  type IntegrationOperationEvent,
+  type IntegrationOperationEventPage,
+  type IntegrationOperationLogExport,
+  type IntegrationOperationLogPage,
   type IntegrationSnapshot
 } from '@shared/types/prometheusIntegration'
 import {
@@ -63,6 +67,35 @@ export const prometheusRequestSchemas = {
     output: z.custom<IntegrationOperation>()
   }),
   'prometheus.integration.cancel': defineRoute({ input: z.object({ id: z.uuid() }).strict(), output: z.void() }),
+  'prometheus.integration.operation_events': defineRoute({
+    input: z
+      .object({
+        id: z.uuid(),
+        after: z.number().int().nonnegative().optional(),
+        limit: z.number().int().positive().max(500).optional()
+      })
+      .strict(),
+    output: z.custom<IntegrationOperationEventPage>()
+  }),
+  'prometheus.integration.operation_log': defineRoute({
+    input: z
+      .object({
+        id: z.uuid(),
+        offset: z.number().int().nonnegative().optional(),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(1024 * 1024)
+          .optional()
+      })
+      .strict(),
+    output: z.custom<IntegrationOperationLogPage>()
+  }),
+  'prometheus.integration.export_log': defineRoute({
+    input: z.object({ id: z.uuid() }).strict(),
+    output: z.custom<IntegrationOperationLogExport>()
+  }),
   'prometheus.uar.admin.snapshot': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarAdministrationSnapshot>()
@@ -255,4 +288,8 @@ export const prometheusRequestSchemas = {
     input: z.object({}).strict(),
     output: z.custom<PrometheusPushState>()
   })
+}
+
+export type PrometheusEventSchemas = {
+  'prometheus.integration.operation_progress': IntegrationOperationEvent
 }
