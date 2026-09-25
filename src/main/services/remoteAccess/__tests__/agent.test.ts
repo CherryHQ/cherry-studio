@@ -740,6 +740,8 @@ describe('remote agent access', () => {
           agentType: 'claude-code',
           agentName: 'Agent',
           uniqueModelId: 'revision-provider::model',
+          agentModel: 'revision-provider::model',
+          sessionModelId: null,
           reasoningEffort: 'default',
           serviceTier: 'standard',
           headless: false,
@@ -825,14 +827,21 @@ describe('remote agent access', () => {
       remoteCommandService.admit(key, { method: 'agent.messages.send', identityDigest: 'digest', sessionId })
       const provider = new AgentChatContextProvider()
       const userMessageId = randomUUID()
+      const [agentRow] = dbh.db
+        .select({ updatedAt: agentTable.updatedAt, model: agentTable.model, type: agentTable.type })
+        .from(agentTable)
+        .where(eq(agentTable.id, 'agent-1'))
+        .all()
       vi.spyOn(provider, 'validateDispatch').mockResolvedValue({
         sessionId,
         topicId: `agent-session:${sessionId}`,
         agentId: 'agent-1',
-        agentUpdatedAt: new Date().toISOString(),
-        agentType: 'claude-code',
+        agentUpdatedAt: new Date(agentRow.updatedAt).toISOString(),
+        agentType: agentRow.type === 'cherry-claw' ? 'claude-code' : agentRow.type,
         agentName: 'Agent',
         uniqueModelId: 'reservation-provider::model',
+        agentModel: agentRow.model ?? null,
+        sessionModelId: null,
         reasoningEffort: 'default',
         serviceTier: 'standard',
         headless: false,
