@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
 import { videoTable } from '@main/data/db/schemas/video'
 import type { ListVideosQuery, VideoListResponse } from '@shared/data/api/schemas/videos'
 import type { Video } from '@shared/data/types/video'
+
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+
+const videoOrdering = keysetOrdering(videoTable.createdAt, videoTable.id, { major: 'desc', tie: 'desc' })
 
 function toVideo(row: typeof videoTable.$inferSelect): Video {
   return {
@@ -63,29 +67,33 @@ class VideoService {
 
   list(query: ListVideosQuery): VideoListResponse {
     const db = application.get('DbService').getDb()
-    const conditions: SQL[] = []
-    if (query.providerId) conditions.push(eq(videoTable.providerId, query.providerId))
-    if (query.status) conditions.push(eq(videoTable.status, query.status))
+    const filters: SQL[] = []
+    if (query.providerId) filters.push(eq(videoTable.providerId, query.providerId))
+    if (query.status) filters.push(eq(videoTable.status, query.status))
+    const filterWhere: SQL | undefined = filters.length > 0 ? and(...filters) : undefined
 
-    const where: SQL | undefined = conditions.length > 0 ? and(...conditions) : undefined
+    const cursor = decodeListCursor(query.cursor, asNumericKey, 'videos')
+    const pageConditions = cursor ? [...filters, videoOrdering.where(cursor)] : filters
+    const where: SQL | undefined = pageConditions.length > 0 ? and(...pageConditions) : undefined
     const limit = query.limit
 
     const rows = db
       .select()
       .from(videoTable)
       .where(where)
-      .orderBy(desc(videoTable.createdAt))
+      .orderBy(...videoOrdering.orderBy)
       .limit(limit + 1)
       .all()
 
     const hasMore = rows.length > limit
     const items = hasMore ? rows.slice(0, limit) : rows
-    const nextCursor = hasMore ? items[items.length - 1]?.id : undefined
+    const lastItem = items[items.length - 1]
+    const nextCursor = hasMore && lastItem ? encodeCursor(lastItem.createdAt, lastItem.id) : undefined
 
     const countResult = db
       .select({ count: sql<number>`count(*)` })
       .from(videoTable)
-      .where(where)
+      .where(filterWhere)
       .all()
     const total = countResult[0]?.count ?? 0
 

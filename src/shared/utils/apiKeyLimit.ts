@@ -108,8 +108,13 @@ export function usageAgainstLimit(
   return counts.truncated ? undefined : 0
 }
 
+/** `/ai-usage-records/stats` rejects a range wider than this — see `AI_USAGE_RECORD_MAX_RANGE_DAYS`. */
+const TOTAL_PERIOD_LOOKBACK_DAYS = 366
+
 export function periodStartOf(period: ApiKeyLimitPeriod, anchor?: string, tz: string = 'UTC'): number {
-  if (period === 'total') return 0
+  // 'total' never resets, but epoch-0 exceeds the stats endpoint's max query range and the
+  // request is rejected outright — clamp to the widest range the endpoint actually accepts.
+  if (period === 'total') return Date.now() - TOTAL_PERIOD_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
 
   const nowInTz = zonedDate(Date.now(), tz)
 

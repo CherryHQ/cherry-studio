@@ -8,12 +8,15 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod, ServiceUsageMap } from '@shared/data/preference/preferenceTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { RuntimeApiKey } from '@shared/data/types/provider'
 import {
+  collectKeyUsage,
   forecastQuotaExhaustion,
   periodRenewsAt,
   periodStartOf,
   type QuotaForecast,
+  usageAgainstLimit,
   usageStatsFrom
 } from '@shared/utils/apiKeyLimit'
 
@@ -101,6 +104,9 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
       period: ApiKeyLimitPeriod
       renewalAnchor?: string
       renewalTimezone?: string
+      // Present only for a model-scoped entry (`apiKeyModelLimitId`) — its usage must be read
+      // against this one model, never the key's traffic across every model.
+      modelId?: UniqueModelId
     }> = []
 
     for (const [limitKey, value] of Object.entries(safeLimits)) {
@@ -108,6 +114,9 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
       if (parts.length < 2) continue
       const providerId = parts[0]
       const keyId = parts[1]
+      // `apiKeyModelLimitId` appends a full UniqueModelId (`providerId::modelId`), so a
+      // model-scoped key has 4 parts; anything beyond 2 is the model id, rejoined verbatim.
+      const modelId = parts.length > 2 ? (parts.slice(2).join('::') as UniqueModelId) : undefined
 
       const provider = providers.find((p) => p.id === providerId)
       const providerName = provider?.name ?? providerId
@@ -125,58 +134,52 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
         limit: value.limit,
         period: value.period,
         renewalAnchor: key?.renewalAnchor,
-        renewalTimezone: key?.renewalTimezone
+        renewalTimezone: key?.renewalTimezone,
+        modelId
       })
     }
 
     return entries
   }, [safeLimits, providers])
 
+  // Keyed by limitKey, not period: two entries can share a period yet renew on different
+  // anchors/timezones, and a shared per-period start would read one of them off the wrong window.
   const periodStarts = useMemo(() => {
-    const starts = new Map<ApiKeyLimitPeriod, number>()
+    const starts = new Map<string, number>()
     for (const entry of allKeyEntries) {
-      if (!starts.has(entry.period)) {
-        starts.set(entry.period, periodStartOf(entry.period, entry.renewalAnchor, entry.renewalTimezone))
-      }
+      starts.set(entry.limitKey, periodStartOf(entry.period, entry.renewalAnchor, entry.renewalTimezone))
     }
     return starts
   }, [allKeyEntries])
 
-  const periods = useMemo(() => [...new Set(allKeyEntries.map((e) => e.period))], [allKeyEntries])
-
   const statsParams = useMemo(() => {
     // Absent options mean "enabled" to `useQuery`, so an empty table must opt out explicitly
     // instead of firing a query-less request the endpoint rejects.
-    if (periods.length === 0) return { enabled: false }
-    const minFrom = usageStatsFrom(periods.map((p) => periodStarts.get(p) ?? 0))
+    if (allKeyEntries.length === 0) return { enabled: false }
+    const minFrom = usageStatsFrom([...periodStarts.values()])
     return {
       query: {
-        groupBy: 'apiKey' as const,
+        // (key, model) pairs so a model-scoped ceiling reads that model's own traffic, not the
+        // key's traffic across every model it's used for.
+        groupBy: 'apiKeyModel' as const,
         metric: 'requests' as const,
         from: minFrom,
         to: Date.now(),
         limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
-  }, [periods, periodStarts])
+  }, [allKeyEntries, periodStarts])
 
   const { data: usageData } = useQuery('/ai-usage-records/stats', statsParams)
 
-  const usageCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    if (!usageData) return counts
-    for (const bucket of usageData.buckets) {
-      if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) {
-        counts.set(bucket.apiKeyId, bucket.requestCount)
-      }
-    }
-    return counts
-  }, [usageData])
+  const usageCounts = useMemo(() => collectKeyUsage(usageData?.buckets, usageData?.other), [usageData])
 
   const rows: QuotaRow[] = useMemo(
     () =>
       allKeyEntries.map((entry) => {
-        const used = usageCounts.get(entry.keyId) ?? 0
+        // A response truncated past its bucket limit reads as unknown, not zero — this table
+        // shows what was counted rather than promising more headroom than can be proven.
+        const used = usageAgainstLimit(usageCounts, entry.keyId, entry.modelId) ?? 0
         const renewMs = periodRenewsAt(entry.period, entry.renewalAnchor, entry.renewalTimezone)
         return {
           limitKey: entry.limitKey,

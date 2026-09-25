@@ -71,9 +71,10 @@ class CourseService {
   }
 
   delete(id: string): void {
-    const db = application.get('DbService').getDb()
-    db.delete(courseLessonTable).where(eq(courseLessonTable.courseId, id)).run()
-    db.delete(courseTable).where(eq(courseTable.id, id)).run()
+    application.get('DbService').withWriteTx((db) => {
+      db.delete(courseLessonTable).where(eq(courseLessonTable.courseId, id)).run()
+      db.delete(courseTable).where(eq(courseTable.id, id)).run()
+    })
   }
 
   getLessons(courseId: string): CourseLesson[] {
@@ -91,48 +92,50 @@ class CourseService {
     courseId: string,
     lessons: Array<{ title: string; sortOrder: number; pageStart?: number; pageEnd?: number }>
   ): void {
-    const db = application.get('DbService').getDb()
-    db.delete(courseLessonTable).where(eq(courseLessonTable.courseId, courseId)).run()
-    if (lessons.length === 0) return
-    db.insert(courseLessonTable)
-      .values(
-        lessons.map((l, i) => ({
-          courseId,
-          sortOrder: l.sortOrder,
-          title: l.title,
-          pageStart: l.pageStart ?? null,
-          pageEnd: l.pageEnd ?? null,
-          status: i === 0 ? 'ready' : 'locked'
-        }))
-      )
-      .run()
+    application.get('DbService').withWriteTx((db) => {
+      db.delete(courseLessonTable).where(eq(courseLessonTable.courseId, courseId)).run()
+      if (lessons.length === 0) return
+      db.insert(courseLessonTable)
+        .values(
+          lessons.map((l, i) => ({
+            courseId,
+            sortOrder: l.sortOrder,
+            title: l.title,
+            pageStart: l.pageStart ?? null,
+            pageEnd: l.pageEnd ?? null,
+            status: i === 0 ? 'ready' : 'locked'
+          }))
+        )
+        .run()
+    })
   }
 
   completeLesson(lessonId: string): { nextLessonId: string | null } {
-    const db = application.get('DbService').getDb()
-    const lesson = db.select().from(courseLessonTable).where(eq(courseLessonTable.id, lessonId)).get()
-    if (!lesson) throw new Error(`Lesson not found: ${lessonId}`)
+    return application.get('DbService').withWriteTx((db) => {
+      const lesson = db.select().from(courseLessonTable).where(eq(courseLessonTable.id, lessonId)).get()
+      if (!lesson) throw new Error(`Lesson not found: ${lessonId}`)
 
-    db.update(courseLessonTable).set({ status: 'completed' }).where(eq(courseLessonTable.id, lessonId)).run()
+      db.update(courseLessonTable).set({ status: 'completed' }).where(eq(courseLessonTable.id, lessonId)).run()
 
-    const next = db
-      .select()
-      .from(courseLessonTable)
-      .where(eq(courseLessonTable.courseId, lesson.courseId))
-      .orderBy(asc(courseLessonTable.sortOrder))
-      .all()
-      .find((l) => l.sortOrder > lesson.sortOrder && l.status === 'locked')
+      const next = db
+        .select()
+        .from(courseLessonTable)
+        .where(eq(courseLessonTable.courseId, lesson.courseId))
+        .orderBy(asc(courseLessonTable.sortOrder))
+        .all()
+        .find((l) => l.sortOrder > lesson.sortOrder && l.status === 'locked')
 
-    if (next) {
-      db.update(courseLessonTable).set({ status: 'ready' }).where(eq(courseLessonTable.id, next.id)).run()
-      db.update(courseTable).set({ currentLessonId: next.id }).where(eq(courseTable.id, lesson.courseId)).run()
-    }
+      if (next) {
+        db.update(courseLessonTable).set({ status: 'ready' }).where(eq(courseLessonTable.id, next.id)).run()
+        db.update(courseTable).set({ currentLessonId: next.id }).where(eq(courseTable.id, lesson.courseId)).run()
+      }
 
-    const all = db.select().from(courseLessonTable).where(eq(courseLessonTable.courseId, lesson.courseId)).all()
-    const completed = all.filter((l) => l.status === 'completed').length
-    db.update(courseTable).set({ completedLessons: completed }).where(eq(courseTable.id, lesson.courseId)).run()
+      const all = db.select().from(courseLessonTable).where(eq(courseLessonTable.courseId, lesson.courseId)).all()
+      const completed = all.filter((l) => l.status === 'completed').length
+      db.update(courseTable).set({ completedLessons: completed }).where(eq(courseTable.id, lesson.courseId)).run()
 
-    return { nextLessonId: next?.id ?? null }
+      return { nextLessonId: next?.id ?? null }
+    })
   }
 }
 

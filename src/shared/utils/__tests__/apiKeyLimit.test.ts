@@ -16,9 +16,11 @@ describe('periodStartOf', () => {
     vi.useFakeTimers()
   })
 
-  it('total always returns 0', () => {
-    vi.setSystemTime(new Date('2026-09-18T14:30:00Z'))
-    expect(periodStartOf('total')).toBe(0)
+  it('total clamps to the stats endpoint max range instead of epoch 0', () => {
+    const now = new Date('2026-09-18T14:30:00Z')
+    vi.setSystemTime(now)
+    const expected = now.getTime() - AI_USAGE_RECORD_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000
+    expect(periodStartOf('total')).toBe(expected)
   })
 
   it('daily returns midnight UTC today', () => {
