@@ -61,5 +61,20 @@ export function useSkillMutationsById(id: string) {
     }
   }, [id, invalidate])
 
-  return { uninstallSkill, updateGlobalEnabled, isUpdating }
+  /** Toggle whether the skill is projected into ~/.agents/skills for external agents. */
+  const setMirrorEnabled = useCallback(
+    async (mirrorEnabled: boolean): Promise<InstalledSkill> => {
+      const result = await ipcApi.request('skill.set_mirror_enabled', { skillId: id, mirrorEnabled })
+      const updated = unwrapSkillResult(result, 'Failed to update skill mirroring')
+      try {
+        await invalidate()
+      } catch (error) {
+        logger.warn('Failed to refresh skills cache after IPC mutation', { error })
+      }
+      return updated
+    },
+    [id, invalidate]
+  )
+
+  return { uninstallSkill, updateGlobalEnabled, setMirrorEnabled, isUpdating }
 }

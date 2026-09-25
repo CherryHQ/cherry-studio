@@ -54,13 +54,41 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <Switch
-      size="sm"
-      checked={resource.raw.isGlobalEnabled}
-      disabled={isUpdating}
-      aria-label={t('settings.skills.globalToggle', { name: resource.name })}
-      onCheckedChange={handleCheckedChange}
-    />
+    <span title={t('settings.skills.globalToggle', { name: resource.name })}>
+      <Switch
+        size="sm"
+        checked={resource.raw.isGlobalEnabled}
+        disabled={isUpdating}
+        aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+        onCheckedChange={handleCheckedChange}
+      />
+    </span>
+  )
+}
+
+/** Controls whether the skill is exported to ~/.agents/skills for external agents. */
+function SkillMirrorToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
+  const { t } = useTranslation()
+  const { setMirrorEnabled, isUpdating } = useSkillMutationsById(resource.id)
+
+  const handleCheckedChange = async (checked: boolean) => {
+    try {
+      await setMirrorEnabled(checked)
+    } catch {
+      toast.error(t('settings.skills.mirrorToggleFailed', { name: resource.name }))
+    }
+  }
+
+  return (
+    <span title={t('settings.skills.mirrorToggle', { name: resource.name })}>
+      <Switch
+        size="sm"
+        checked={resource.raw.mirrorEnabled}
+        disabled={isUpdating}
+        aria-label={t('settings.skills.mirrorToggle', { name: resource.name })}
+        onCheckedChange={handleCheckedChange}
+      />
+    </span>
   )
 }
 
@@ -161,6 +189,7 @@ export function ResourceCard({
                     {t('settings.skills.tryNow')}
                   </Button>
                 ) : null}
+                <SkillMirrorToggle resource={r} />
                 <SkillGlobalToggle resource={r} />
                 <ResourceCardMenu
                   resource={r}
