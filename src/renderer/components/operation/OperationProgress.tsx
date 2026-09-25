@@ -132,7 +132,7 @@ export function OperationProgress({
 
       {operation.output && (
         <details>
-          <summary className="cursor-pointer text-muted-foreground text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+          <summary className="cursor-pointer text-muted-foreground text-sm focus-visible:outline focus-visible:outline-2">
             {labels.tail}
           </summary>
           <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-background-soft p-3 font-mono text-xs leading-relaxed select-text">

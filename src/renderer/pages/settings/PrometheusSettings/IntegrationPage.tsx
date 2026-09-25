@@ -133,7 +133,6 @@ export function IntegrationPage({ children }: { children: (controller: Integrati
       <SettingGroup theme={theme}>
         <IntegrationOperations
           operations={controller.snapshot.operations}
-          cancel={(id) => void controller.cancel(id)}
           retry={(operation) => void controller.start(operation.action, operation.workspacePath)}
         />
       </SettingGroup>

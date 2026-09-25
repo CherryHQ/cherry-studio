@@ -66,7 +66,13 @@ export function useIntegrationOperation(id?: string, initialOperation?: Integrat
     setOperation(initialOperation ?? null)
     setError(null)
     void replay()
-  }, [id, initialOperation, replay])
+  }, [id, replay])
+
+  useEffect(() => {
+    if (!initialOperation || initialOperation.id !== id || initialOperation.cursor <= cursorRef.current) return
+    cursorRef.current = initialOperation.cursor
+    setOperation(initialOperation)
+  }, [id, initialOperation])
 
   useIpcOn('prometheus.integration.operation_progress', (event) => {
     if (event.operationId !== id || event.sequence <= cursorRef.current) return
