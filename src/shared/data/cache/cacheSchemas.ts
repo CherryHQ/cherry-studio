@@ -547,7 +547,6 @@ export type MainPersistCacheSchema = {
   // a @main enum (no reverse import), so the key type is `string`; the
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
-  // Teardown-orphaned detached-flow chunks, restart-safe so a reopen can still deliver them.
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {

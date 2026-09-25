@@ -2659,7 +2659,8 @@ describe('AgentSessionRuntimeService', () => {
     it('recovers the flow host row from the database after the entry was rebuilt', async () => {
       // A fresh entry (restart / session reopen) has no in-memory anchor; the resumed chunks
       // stream under the original launch tool-call id and must re-anchor to the persisted row.
-      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      // The host row belongs to the launch's own (older) turn, never to the live turn's new row.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-launch')
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2683,7 +2684,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(mocks.findFlowHostMessageId).toHaveBeenCalledWith('session-1', 'task-root')
         expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
           'session-1',
-          'assistant-1',
+          'assistant-launch',
           expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
         )
       })
@@ -2987,17 +2988,18 @@ describe('AgentSessionRuntimeService', () => {
     it('keeps chunks through a transient lookup error and delivers them on the retry', async () => {
       // A failed look-up must not retire the root: the row can still appear, and dropping this
       // chunk while delivering later ones would abort the accumulator on a start it never saw.
+      // The host row belongs to the launch's own (older) turn, never to the live turn's new row.
       let lookupCalls = 0
       mocks.findFlowHostMessageId.mockImplementation(() => {
         lookupCalls += 1
         if (lookupCalls === 1) throw new Error('db busy')
-        return 'assistant-1'
+        return 'assistant-launch'
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       entry.currentTurn.controller = { enqueue: vi.fn() } as never
-      mocks.getSessionMessage.mockReturnValue({ id: 'assistant-1', role: 'assistant', data: { parts: [] } })
+      mocks.getSessionMessage.mockReturnValue({ id: 'assistant-launch', role: 'assistant', data: { parts: [] } })
       mocks.replaceMessageParts.mockClear()
 
       const sendChunk = (id: string, text: string) => {
@@ -3025,7 +3027,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(lookupCalls).toBeGreaterThanOrEqual(2)
         expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
           'session-1',
-          'assistant-1',
+          'assistant-launch',
           expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'First findings' })])
         )
       })

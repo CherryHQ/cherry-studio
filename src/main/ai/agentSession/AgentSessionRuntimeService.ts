@@ -2211,6 +2211,15 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  /**
+   * A detached chunk for a row the live turn is already streaming into must join that turn: a flow
+   * accumulator for the same row would be a second writer and clobber it.
+   */
+  private liveTurnOwningMessage(entry: AgentSessionRuntimeEntry, messageId: string): AgentSessionTurn | undefined {
+    const turn = this.liveTurn(entry)
+    return turn?.controller && turn.assistantMessageId === messageId ? turn : undefined
+  }
+
   private handleBackgroundFlowChunk(
     entry: AgentSessionRuntimeEntry,
     rootToolCallId: string,
@@ -2255,9 +2264,9 @@ export class AgentSessionRuntimeService extends BaseService {
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
     }
 
-    const turn = this.liveTurn(entry)
-    if (turn?.assistantMessageId === messageId && turn.controller) {
-      this.enqueueTurnChunk(entry, turn, chunk)
+    const owner = this.liveTurnOwningMessage(entry, messageId)
+    if (owner) {
+      this.enqueueTurnChunk(entry, owner, chunk)
       return
     }
 
@@ -2299,7 +2308,9 @@ export class AgentSessionRuntimeService extends BaseService {
         if ((replayed.type === 'tool-input-start' || replayed.type === 'tool-input-available') && replayed.toolCallId) {
           ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(replayed.toolCallId, hostMessageId)
         }
-        if (entry.persistedFlowMessageIds?.has(hostMessageId))
+        const owner = this.liveTurnOwningMessage(entry, hostMessageId)
+        if (owner) this.enqueueTurnChunk(entry, owner, replayed)
+        else if (entry.persistedFlowMessageIds?.has(hostMessageId))
           this.enqueueBackgroundFlowChunk(entry, hostMessageId, replayed)
         else this.bufferByMessageId(entry, hostMessageId, replayed)
       }
