@@ -5,18 +5,16 @@ Each entry records the exact source commit, artifact checksum, size, and signing
 
 <!-- releases:newest-first -->
 
-## v2.2.1 — 2026-09-25T13:32:33.084Z
+## v2.2.1 — 2026-09-25T15:50:21.073Z
 
 Profile: non-uar
 
 | Installer | Size | Download | SHA-256 | Signing | Source |
 |---|---|---|---|---|---|
-| `The-Boss-2.2.1-mac-arm64.dmg` | 458.7 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-mac-arm64.dmg) | `b4812f88764401716685e16f058439353cd8b26681b46ac22ad36fc96340c77d` | Apple Development (not notarized) | [`aa9a02236`](https://github.com/Prometheus-AGS/the-boss/commit/aa9a022364ca4de8483e67385e2ef740edc70e26) |
+| `The-Boss-2.2.1-mac-arm64.dmg` | 458.7 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-mac-arm64.dmg) | `1808ed9e4d42a4fd606cfe1cfa2727c6faf0085413be11843e495c85ccaf5064` | Developer ID (notarized) | [`60cfc7ba3`](https://github.com/Prometheus-AGS/the-boss/commit/60cfc7ba3d12571c1a273c5172d6954740a19ea9) |
 | `The-Boss-2.2.1-mac-x64.dmg` | 481.8 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-mac-x64.dmg) | `f18d591b9ec88f270b383e0e808f25426fcab77df69d58f13bc015884ec5cefa` | unsigned (not notarized) | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
 | `The-Boss-2.2.1-win-arm64-setup.exe` | 337.3 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-win-arm64-setup.exe) | `800ff483d9dfb7943ffa89531971fba2071cdb7448709836897d529ca8e16eaf` | unsigned | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
 | `The-Boss-2.2.1-win-x64-setup.exe` | 361.8 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-win-x64-setup.exe) | `91b0a71cc98e01575917d68c1cf9f1e6b425f864c59ada0e81ba77b8d3b3b421` | unsigned | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
-
-
 
 ## v2.2.0 — 2026-09-25T06:44:58.522Z
 
