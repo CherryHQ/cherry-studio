@@ -1,71 +1,70 @@
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDescription,
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingSubtitle,
-  SettingTitle
-} from '@renderer/components/SettingsPrimitives'
+import { SettingDescription, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 
-import { IntegrationField } from './IntegrationFields'
-import { IntegrationPage, IntegrationSecretField, integrationText } from './IntegrationPage'
+import { IntegrationPage, IntegrationSecretField } from './IntegrationPage'
+import { LiterConfigPanel } from './LiterConfigPanel'
+import { LiterDiagnosticsPanel } from './LiterDiagnosticsPanel'
+import { LiterGatewayPanel } from './LiterGatewayPanel'
+import { LiterModelAliasesPanel } from './LiterModelAliasesPanel'
+import { LiterProviderConnectionsPanel } from './LiterProviderConnectionsPanel'
+import { LiterRoleAssignmentsPanel } from './LiterRoleAssignmentsPanel'
+import type { IntegrationSettingsController } from './useIntegrationSettings'
+import { useLiterGatewayAdministration } from './useLiterGatewayAdministration'
 
-export default function LiterLlmSettings() {
+function LiterAdministration({ integration }: { integration: IntegrationSettingsController }) {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const controller = useLiterGatewayAdministration()
+  const tr = (key: string, options?: Record<string, unknown>) =>
+    t(`settings.prometheus.integration.literAdmin.${key}`, options)
+
   return (
-    <IntegrationPage>
-      {(controller) => (
-        <SettingGroup theme={theme}>
-          <SettingTitle>{integrationText(t, 'literTitle')}</SettingTitle>
-          <SettingDescription>{integrationText(t, 'literDescription')}</SettingDescription>
-          <SettingDivider />
-          <div className="space-y-5">
-            <div id={getSettingDomId('/settings/liter-llm', 'gateway-connection')} className="scroll-mt-6">
-              <SettingSubtitle>{integrationText(t, 'gatewayConnection')}</SettingSubtitle>
-              <p className="mt-2 break-all text-sm text-foreground-secondary">
-                {controller.draft.services.liter.endpoint}
-              </p>
-              <SettingHelpText className="mt-1">
-                {integrationText(t, `source.${controller.draft.services.liter.source}`)}
-              </SettingHelpText>
-            </div>
-            <IntegrationSecretField controller={controller} secret="literKey" />
-            <div id={getSettingDomId('/settings/liter-llm', 'model-roles')} className="scroll-mt-6 space-y-5">
-              {(['judge', 'critic'] as const).map((role) => (
-                <fieldset key={role} className="space-y-3 rounded-md border border-border p-4">
-                  <legend className="px-1 text-sm font-medium">{integrationText(t, role)}</legend>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <IntegrationField
-                      label={integrationText(t, 'providerModel')}
-                      value={controller.draft.services[role].name}
-                      onChange={(name) =>
-                        controller.update('services', { [role]: { ...controller.draft.services[role], name } })
-                      }
-                    />
-                    <IntegrationField
-                      label={integrationText(t, 'providerEndpoint')}
-                      value={controller.draft.services[role].baseUrl}
-                      onChange={(baseUrl) =>
-                        controller.update('services', { [role]: { ...controller.draft.services[role], baseUrl } })
-                      }
-                    />
-                    <IntegrationSecretField
-                      controller={controller}
-                      secret={role === 'judge' ? 'judgeKey' : 'criticKey'}
-                    />
-                  </div>
-                </fieldset>
-              ))}
-            </div>
-            <SettingHelpText>{integrationText(t, 'modelCatalogPreview')}</SettingHelpText>
+    <>
+      <SettingGroup theme={theme}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SettingTitle>{tr('title')}</SettingTitle>
+            <SettingDescription>{tr('description')}</SettingDescription>
           </div>
-        </SettingGroup>
-      )}
-    </IntegrationPage>
+          {controller.busy && (
+            <span className="flex items-center gap-2 text-sm text-foreground-secondary" role="status">
+              <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden="true" />
+              {tr(`actions.${controller.action}`)}
+            </span>
+          )}
+        </div>
+        {controller.error && (
+          <p className="mt-3 break-words text-sm text-error" role="alert">
+            {controller.error}
+          </p>
+        )}
+        {controller.status && (
+          <p className="mt-3 text-sm text-success" role="status">
+            {controller.status}
+          </p>
+        )}
+      </SettingGroup>
+
+      <LiterGatewayPanel controller={controller} tr={tr} />
+      <SettingGroup theme={theme}>
+        <SettingTitle>{tr('credentials.title')}</SettingTitle>
+        <SettingDescription>{tr('credentials.description')}</SettingDescription>
+        <div className="mt-4 max-w-xl">
+          <IntegrationSecretField controller={integration} secret="literKey" />
+        </div>
+      </SettingGroup>
+      <LiterProviderConnectionsPanel controller={controller} tr={tr} />
+      <LiterModelAliasesPanel controller={controller} tr={tr} />
+      <LiterRoleAssignmentsPanel controller={controller} tr={tr} />
+      <LiterConfigPanel controller={controller} tr={tr} />
+      <LiterDiagnosticsPanel controller={integration} tr={tr} />
+    </>
   )
+}
+
+export default function LiterLlmSettings() {
+  return <IntegrationPage>{(controller) => <LiterAdministration integration={controller} />}</IntegrationPage>
 }
