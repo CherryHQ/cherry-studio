@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react'
-
 import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -108,7 +107,9 @@ export function AgentToolCallCard({
             title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
-  if (openToolFlow) {
+  // A card whose flow lives elsewhere — a resume receipt pointing at its launch root — keeps the
+  // disclosure header: that header carries the resume presentation and still opens the target flow.
+  if (openToolFlow && !flowTargetToolCallId) {
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
