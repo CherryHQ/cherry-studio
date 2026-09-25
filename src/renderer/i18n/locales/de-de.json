@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Keine UAR-eigenen Anbieteranmeldeinformationen",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "In dieser Wissensdatenbank sind keine Dokumente gespeichert.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Gesprächsinhaber",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Ressourcenbereich",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Gemeinsame Installation",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Die Konversationsrichtlinie muss ein JSON-Objekt sein.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Konversationsrichtlinie zurückgesetzt.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Konversationsrichtlinie für die nächste Runde gespeichert.",

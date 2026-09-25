@@ -22,6 +22,7 @@ import type {
 } from '@shared/types/prometheusIntegration'
 
 type OperationalSurface = 'runs' | 'knowledge' | 'tools' | 'security' | 'protocols'
+const SHARED_INSTALLATION_OWNER_ID = '__unattributed__'
 
 function message(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -51,8 +52,19 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
     try {
       const next = await ipcApi.request('prometheus.uar.operations.read', {})
       setSnapshot(next)
-      setOwnerId((current) => current || next.owners[0]?.sessionId || '')
-      setSelectedKb((current) => current || next.knowledgeBases[0]?.id || '')
+      setOwnerId((current) => {
+        const availableScopes = new Set([
+          SHARED_INSTALLATION_OWNER_ID,
+          ...next.knowledgeBases.map((kb) => kb.ownerSessionId)
+        ])
+        return availableScopes.has(current) ? current : SHARED_INSTALLATION_OWNER_ID
+      })
+      setSelectedKb(
+        (current) =>
+          current ||
+          next.knowledgeBases.find((kb) => kb.ownerSessionId === SHARED_INSTALLATION_OWNER_ID)?.id ||
+          ''
+      )
     } catch (loadError) {
       setError(message(loadError))
     } finally {
@@ -64,10 +76,30 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
     void load()
   }, [load])
 
-  const ownerNames = useMemo(
-    () => new Map(snapshot?.owners.map((owner) => [owner.sessionId, `${owner.agentName} · ${owner.sessionName}`])),
-    [snapshot]
-  )
+  const sharedInstallationLabel = tr('sharedInstallation')
+  const ownerNames = useMemo(() => {
+    const names = new Map([[SHARED_INSTALLATION_OWNER_ID, sharedInstallationLabel]])
+    for (const owner of snapshot?.owners ?? []) names.set(owner.sessionId, `${owner.agentName} · ${owner.sessionName}`)
+    return names
+  }, [sharedInstallationLabel, snapshot])
+  const knowledgeScopes = useMemo(() => {
+    const attributed = new Set(snapshot?.knowledgeBases.map((kb) => kb.ownerSessionId) ?? [])
+    return [
+      { id: SHARED_INSTALLATION_OWNER_ID, label: sharedInstallationLabel },
+      ...(snapshot?.owners ?? [])
+        .filter((owner) => attributed.has(owner.sessionId))
+        .map((owner) => ({ id: owner.sessionId, label: `${owner.agentName} · ${owner.sessionName}` }))
+    ]
+  }, [sharedInstallationLabel, snapshot])
+  const credentialScopes = useMemo(() => {
+    const attributed = new Set(Object.keys(snapshot?.security.credentialProvidersBySession ?? {}))
+    return [
+      { id: SHARED_INSTALLATION_OWNER_ID, label: sharedInstallationLabel },
+      ...(snapshot?.owners ?? [])
+        .filter((owner) => attributed.has(owner.sessionId))
+        .map((owner) => ({ id: owner.sessionId, label: `${owner.agentName} · ${owner.sessionName}` }))
+    ]
+  }, [sharedInstallationLabel, snapshot])
   const selectedKnowledge = useMemo(
     () => snapshot?.knowledgeBases.find((kb) => kb.ownerSessionId === ownerId && kb.id === selectedKb),
     [ownerId, selectedKb, snapshot]
@@ -115,29 +147,30 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
   }
 
   const createKnowledge = async () => {
-    if (!ownerId || !kbName.trim()) return
+    if (!kbName.trim()) return
     await mutate(
       () =>
         ipcApi.request('prometheus.uar.knowledge.create', {
-          sessionId: ownerId,
+          sessionId: SHARED_INSTALLATION_OWNER_ID,
           name: kbName,
           ...(kbDescription.trim() ? { description: kbDescription } : {})
         }),
       tr('knowledgeCreated')
     )
+    setOwnerId(SHARED_INSTALLATION_OWNER_ID)
     setKbName('')
     setKbDescription('')
   }
 
   const searchKnowledge = async () => {
-    if (!ownerId || !selectedKb || !query.trim()) return
+    if (!selectedKnowledge || !query.trim()) return
     setBusy(true)
     setError(undefined)
     try {
       setResults(
         await ipcApi.request('prometheus.uar.knowledge.search', {
-          sessionId: ownerId,
-          knowledgeBaseId: selectedKb,
+          sessionId: selectedKnowledge.ownerSessionId,
+          knowledgeBaseId: selectedKnowledge.id,
           query
         })
       )
@@ -323,13 +356,13 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
                 setOwnerId(value)
                 setSelectedKb('')
               }}>
-              <SelectTrigger aria-label={tr('owner')}>
-                <SelectValue placeholder={tr('owner')} />
+              <SelectTrigger aria-label={tr('resourceScope')}>
+                <SelectValue placeholder={tr('resourceScope')} />
               </SelectTrigger>
               <SelectContent>
-                {snapshot.owners.map((owner) => (
-                  <SelectItem key={owner.sessionId} value={owner.sessionId}>
-                    {owner.agentName} · {owner.sessionName}
+                {knowledgeScopes.map((scope) => (
+                  <SelectItem key={scope.id} value={scope.id}>
+                    {scope.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -345,7 +378,11 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
               placeholder={tr('knowledgeDescription')}
               className="sm:col-span-2"
             />
-            <Button onClick={() => void createKnowledge()} disabled={busy || !ownerId || !kbName.trim()}>
+            <Button
+              onClick={() => void createKnowledge()}
+              disabled={
+                busy || snapshot.owners.length === 0 || ownerId !== SHARED_INSTALLATION_OWNER_ID || !kbName.trim()
+              }>
               {tr('createKnowledge')}
             </Button>
           </div>
@@ -393,7 +430,7 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
                 {snapshot.knowledgeBases
                   .filter((kb) => !ownerId || kb.ownerSessionId === ownerId)
                   .map((kb) => (
-                    <SelectItem key={kb.id} value={kb.id}>
+                    <SelectItem key={`${kb.ownerSessionId}:${kb.id}`} value={kb.id}>
                       {kb.name}
                     </SelectItem>
                   ))}
@@ -402,13 +439,13 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
             <Button
               variant="outline"
               onClick={async () => {
-                if (!ownerId || !selectedKb) return
+                if (!selectedKnowledge) return
                 setBusy(true)
                 setError(undefined)
                 try {
                   const result = await ipcApi.request('prometheus.uar.knowledge.upload', {
-                    sessionId: ownerId,
-                    knowledgeBaseId: selectedKb
+                    sessionId: selectedKnowledge.ownerSessionId,
+                    knowledgeBaseId: selectedKnowledge.id
                   })
                   setSnapshot(result.snapshot)
                   if (!result.cancelled) setStatus(tr('uploadComplete', { filename: result.filename }))
@@ -561,18 +598,16 @@ export function UarOperationalPanel({ surface }: { surface: OperationalSurface }
             <span className="font-medium">{tr('governance')}</span>
             <Badge variant="outline">{tr(`governanceStatus.${snapshot.security.governance}`)}</Badge>
           </div>
-          {snapshot.owners.map((owner) => (
-            <div key={owner.sessionId} className="rounded-lg border border-border p-3">
-              <div className="font-medium">
-                {owner.agentName} · {owner.sessionName}
-              </div>
+          {credentialScopes.map((scope) => (
+            <div key={scope.id} className="rounded-lg border border-border p-3">
+              <div className="font-medium">{scope.label}</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {(snapshot.security.credentialProvidersBySession[owner.sessionId] ?? []).map((provider) => (
+                {(snapshot.security.credentialProvidersBySession[scope.id] ?? []).map((provider) => (
                   <Badge key={provider} variant="outline">
                     {provider}
                   </Badge>
                 ))}
-                {(snapshot.security.credentialProvidersBySession[owner.sessionId] ?? []).length === 0 && (
+                {(snapshot.security.credentialProvidersBySession[scope.id] ?? []).length === 0 && (
                   <span className="text-sm text-muted-foreground">{tr('noCredentials')}</span>
                 )}
               </div>

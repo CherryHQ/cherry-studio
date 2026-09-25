@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "No UAR-owned provider credentials",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "No documents are stored in this knowledge base.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Conversation owner",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Resource scope",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Shared installation",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Conversation policy must be a JSON object.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Conversation policy reset.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Conversation policy saved for the next turn.",

@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "没有 UAR 拥有的提供商凭证",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "该知识库中未存储任何文档。",
   "settings.prometheus.integration.uarAdmin.operations.owner": "对话所有者",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "资源范围",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "共享安装",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "对话策略必须是 JSON 对象。",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "对话策略重置。",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "对话策略已保存以供下一回合使用。",

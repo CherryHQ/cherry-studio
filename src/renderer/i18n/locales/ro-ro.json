@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Nu există acreditări ale furnizorului deținut de UAR",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "Nu sunt stocate documente în această bază de cunoștințe.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Proprietarul conversației",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Domeniul resurselor",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Instalare partajată",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Politica de conversație trebuie să fie un obiect JSON.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Politica de conversație resetată.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Politica de conversație a fost salvată pentru rândul următor.",

@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Không có thông tin xác thực của nhà cung cấp thuộc sở hữu của UAR",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "Không có tài liệu nào được lưu trữ trong cơ sở kiến ​​thức này.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Chủ sở hữu cuộc trò chuyện",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Phạm vi tài nguyên",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Bản cài đặt dùng chung",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Chính sách hội thoại phải là một đối tượng JSON.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Đặt lại chính sách hội thoại.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Chính sách hội thoại đã được lưu cho lượt tiếp theo.",

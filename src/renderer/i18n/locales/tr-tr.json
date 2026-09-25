@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "UAR'a ait sağlayıcı kimlik bilgileri yok",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "Bu bilgi tabanında hiçbir belge saklanmaz.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Görüşme sahibi",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Kaynak kapsamı",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Paylaşılan kurulum",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Konuşma politikası bir JSON nesnesi olmalıdır.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Konuşma politikası sıfırlandı.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Konuşma politikası bir sonraki tur için kaydedildi.",

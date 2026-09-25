@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Δεν υπάρχουν διαπιστευτήρια παρόχου που ανήκουν σε UAR",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "Δεν αποθηκεύονται έγγραφα σε αυτήν τη γνωσιακή βάση.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Κάτοχος συνομιλίας",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Πεδίο πόρων",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Κοινόχρηστη εγκατάσταση",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Η πολιτική συνομιλίας πρέπει να είναι αντικείμενο JSON.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Επαναφορά πολιτικής συνομιλίας.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Η πολιτική συνομιλίας αποθηκεύτηκε για την επόμενη στροφή.",

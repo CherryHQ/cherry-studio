@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "UAR 管理のプロバイダー認証情報はありません",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "このナレッジ ベースにはドキュメントは保存されません。",
   "settings.prometheus.integration.uarAdmin.operations.owner": "会話のオーナー",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "リソースのスコープ",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "共有インストール",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "会話ポリシーは JSON オブジェクトである必要があります。",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "会話ポリシーがリセットされました。",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "会話ポリシーは次のターンのために保存されました。",

@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Нет учетных данных поставщика, принадлежащих UAR.",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "В этой базе знаний не хранятся никакие документы.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Владелец беседы",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Область ресурсов",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Общая установка",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "Политика диалога должна быть объектом JSON.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Сброс политики разговоров.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Политика разговора сохранена для следующего хода.",

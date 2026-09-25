@@ -5204,6 +5204,8 @@
   "settings.prometheus.integration.uarAdmin.operations.noCredentials": "Sin credenciales de proveedor propiedad de la UAR",
   "settings.prometheus.integration.uarAdmin.operations.noDocuments": "No se almacenan documentos en esta base de conocimientos.",
   "settings.prometheus.integration.uarAdmin.operations.owner": "Propietario de la conversación",
+  "settings.prometheus.integration.uarAdmin.operations.resourceScope": "Ámbito de recursos",
+  "settings.prometheus.integration.uarAdmin.operations.sharedInstallation": "Instalación compartida",
   "settings.prometheus.integration.uarAdmin.operations.policyObject": "La política de conversación debe ser un objeto JSON.",
   "settings.prometheus.integration.uarAdmin.operations.policyReset": "Restablecimiento de la política de conversación.",
   "settings.prometheus.integration.uarAdmin.operations.policySaved": "Política de conversación guardada para el siguiente turno.",
