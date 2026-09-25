@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ErrorCode } from '@shared/data/api/errors'
 
@@ -13,7 +13,8 @@ const {
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock
+  getSkillByIdMock,
+  deleteAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
@@ -25,7 +26,8 @@ const {
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn()
+  getSkillByIdMock: vi.fn(),
+  deleteAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -33,6 +35,7 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
+    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -183,6 +186,25 @@ describe('agentHandlers', () => {
 
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('delegates DELETE and returns deletion result', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({
+        params: { agentId: AGENT_ID }
+      })
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID)
+      expect(result).toEqual({ deleted: true })
+    })
+
+    it('throws notFound when agent does not exist on DELETE', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })

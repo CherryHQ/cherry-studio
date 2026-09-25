@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Agents domain API Schema definitions
  *
  * Covers agents and scheduled tasks.
@@ -287,7 +287,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
+  /** Get, update, or delete a specific agent. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -297,6 +297,10 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+    DELETE: {
+      params: { agentId: string }
+      response: { deleted: boolean; deletedSessionIds?: string[] }
     }
   }
 
