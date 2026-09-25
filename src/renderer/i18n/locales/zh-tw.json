@@ -4908,8 +4908,6 @@
   "settings.provider.add.name.required": "請輸入供應商名稱",
   "settings.provider.add.title": "新增供應商",
   "settings.provider.add.type": "供應商類型",
-  "settings.provider.anthropic_api_host": "Anthropic API 主機位址",
-  "settings.provider.anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
   "settings.provider.anthropic_api_host_tooltip": "僅在供應商提供 Claude 相容的基礎網址時設定。",
   "settings.provider.api.key.check.latency": "耗時",
   "settings.provider.api.key.error.duplicate": "API 金鑰已存在",

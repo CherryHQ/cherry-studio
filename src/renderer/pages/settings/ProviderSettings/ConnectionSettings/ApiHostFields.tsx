@@ -61,6 +61,7 @@ export function AzureApiVersionField({
 interface ApiHostFieldProps {
   providerIdForSettings: string
   apiHost: string
+  hostPreview: string
   isCherryIN: boolean
   isChineseUser: boolean
   isVertexAI: boolean
@@ -74,6 +75,7 @@ interface ApiHostFieldProps {
 export function ApiHostField({
   providerIdForSettings,
   apiHost,
+  hostPreview,
   isCherryIN,
   isChineseUser,
   isVertexAI,
@@ -85,13 +87,18 @@ export function ApiHostField({
 }: ApiHostFieldProps) {
   const { t } = useTranslation()
   const trimmedApiHost = apiHost.trim()
-  const help = isVertexAI ? (
+  const help = (
     <div className="space-y-1 pt-1">
-      <div className="text-[12px] leading-[1.35] text-muted-foreground">
-        {t('settings.provider.vertex_ai.api_host_help')}
+      <div className="break-all text-[12px] text-muted-foreground leading-[1.35]">
+        {t('settings.provider.api_host_preview', { url: trimmedApiHost ? hostPreview : '—' })}
       </div>
+      {isVertexAI && (
+        <div className="text-[12px] text-muted-foreground leading-[1.35]">
+          {t('settings.provider.vertex_ai.api_host_help')}
+        </div>
+      )}
     </div>
-  ) : undefined
+  )
 
   return (
     <ProviderField
@@ -179,83 +186,6 @@ export function ApiHostField({
           </Tooltip>
         </div>
       )}
-    </ProviderField>
-  )
-}
-
-interface AnthropicApiHostFieldProps {
-  anthropicApiHost: string
-  anthropicHostPreview: string
-  onAnthropicApiHostChange: (value: string) => void
-  onAnthropicApiHostCommit: () => void
-  onOpenRequestConfig: () => void
-}
-
-export function AnthropicApiHostField({
-  anthropicApiHost,
-  anthropicHostPreview,
-  onAnthropicApiHostChange,
-  onAnthropicApiHostCommit,
-  onOpenRequestConfig
-}: AnthropicApiHostFieldProps) {
-  const { t } = useTranslation()
-  const trimmedAnthropicApiHost = anthropicApiHost.trim()
-
-  return (
-    <ProviderField
-      title={
-        <span className={fieldClasses.titleWithHelp}>
-          <span>{t('settings.provider.anthropic_api_host')}</span>
-          <ApiHostEndpointButton onClick={onOpenRequestConfig} />
-        </span>
-      }
-      help={
-        <div className="pt-1 text-[12px] leading-[1.35] break-all text-muted-foreground">
-          {t('settings.provider.anthropic_api_host_preview', { url: anthropicHostPreview || '—' })}
-        </div>
-      }>
-      <div className={cn(fieldClasses.inputRow, 'group')}>
-        <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
-          <InputGroupInput
-            className={cn(fieldClasses.input, 'font-mono tabular-nums')}
-            value={anthropicApiHost}
-            placeholder={t('settings.provider.api_host_placeholder')}
-            aria-label={t('settings.provider.anthropic_api_host')}
-            title={trimmedAnthropicApiHost}
-            onChange={(event) => onAnthropicApiHostChange(event.target.value)}
-            onBlur={onAnthropicApiHostCommit}
-            autoComplete="off"
-          />
-          {trimmedAnthropicApiHost ? (
-            <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
-              <Tooltip content={t('common.copy')}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity group-hover:opacity-100 hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100"
-                  aria-label={t('common.copy')}
-                  onClick={() => {
-                    void copyApiKeyToClipboard(trimmedAnthropicApiHost, t)
-                  }}>
-                  <Copy className="size-2.5" />
-                </Button>
-              </Tooltip>
-            </InputGroupAddon>
-          ) : null}
-        </InputGroup>
-        <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
-          <span className="inline-flex shrink-0">
-            <button
-              type="button"
-              className={fieldClasses.inputActionButton}
-              aria-label={t('settings.provider.request_configuration_tooltip')}
-              onClick={onOpenRequestConfig}>
-              <Settings size={14} aria-hidden />
-            </button>
-          </span>
-        </Tooltip>
-      </div>
     </ProviderField>
   )
 }

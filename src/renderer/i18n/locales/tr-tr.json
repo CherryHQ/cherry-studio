@@ -4908,8 +4908,6 @@
   "settings.provider.add.name.required": "Sağlayıcı adını girin",
   "settings.provider.add.title": "Sağlayıcı Ekle",
   "settings.provider.add.type": "Sağlayıcı Türü",
-  "settings.provider.anthropic_api_host": "Anthropic API Sunucusu",
-  "settings.provider.anthropic_api_host_preview": "Anthropic önizlemesi: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Yalnızca sağlayıcının Claude uyumlu bir temel URL sunduğu durumlarda kullanılmalıdır.",
   "settings.provider.api.key.check.latency": "Gecikme",
   "settings.provider.api.key.error.duplicate": "API anahtarı zaten mevcut",
