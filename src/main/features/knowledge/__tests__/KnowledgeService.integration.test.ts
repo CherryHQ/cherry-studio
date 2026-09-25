@@ -329,6 +329,27 @@ describe('KnowledgeService integration', () => {
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
+  it('renames a Source without changing its connection, scope, or sync revision', async () => {
+    await seedExternalItem({ owned: true })
+    const service = new KnowledgeService()
+
+    const renamed = service.renameExternalKnowledgeSource({ sourceId: EXTERNAL_SOURCE_ID, name: 'Team Wiki' })
+
+    expect(renamed).toMatchObject({
+      id: EXTERNAL_SOURCE_ID,
+      name: 'Team Wiki',
+      connectionId: EXTERNAL_CONNECTION_ID,
+      scope: { kind: 'space' },
+      revision: 0
+    })
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      name: 'Team Wiki',
+      connectionId: EXTERNAL_CONNECTION_ID,
+      scope: { kind: 'space' },
+      revision: 0
+    })
+  })
+
   it('keeps active document ownership blocking while the source is paused', async () => {
     await seedExternalItem({ owned: true, sourceState: 'paused' })
     const service = new KnowledgeService()

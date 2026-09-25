@@ -630,6 +630,14 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
+  it('does not offer deletion for an item owned by an external source', () => {
+    render(<KnowledgeItemRow item={{ ...createUrlItem({ id: 'owned-1' }), canDelete: false }} {...defaultHandlers} />)
+
+    fireEvent.contextMenu(screen.getByRole('row'))
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+  })
+
   it('shows a failure toast when delete rejects', async () => {
     const handleDelete = vi.fn().mockRejectedValue(new Error('delete failed'))
 

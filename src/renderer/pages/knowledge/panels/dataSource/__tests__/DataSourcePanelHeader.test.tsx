@@ -39,7 +39,8 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.bulk.cancel': '取消',
             'knowledge.data_source.bulk.reindex': '重新索引',
             'knowledge.data_source.bulk.delete': '删除',
-            'knowledge.data_source.toolbar.add': '添加'
+            'knowledge.data_source.toolbar.add': '添加',
+            'knowledge.data_source.add_dialog.sources.feishu_wiki': '飞书知识库'
           } as Record<string, string>
         )[key] ?? key
       )
@@ -54,7 +55,8 @@ const baseProps = {
   updatedAt: '2026-06-16T00:00:00.000Z',
   onBulkReindex: vi.fn(),
   onBulkDelete: vi.fn(),
-  onAdd: vi.fn()
+  onAdd: vi.fn(),
+  onAddFeishuWiki: vi.fn()
 }
 
 describe('DataSourcePanelHeader', () => {
@@ -105,5 +107,14 @@ describe('DataSourcePanelHeader', () => {
 
     expect(onBulkReindex).toHaveBeenCalledTimes(1)
     expect(onBulkDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the Feishu Wiki flow from the Add menu at the base root', () => {
+    const onAddFeishuWiki = vi.fn()
+    render(<DataSourcePanelHeader {...baseProps} onAddFeishuWiki={onAddFeishuWiki} />)
+
+    fireEvent.click(screen.getByRole('menuitem', { name: '飞书知识库' }))
+
+    expect(onAddFeishuWiki).toHaveBeenCalledOnce()
   })
 })

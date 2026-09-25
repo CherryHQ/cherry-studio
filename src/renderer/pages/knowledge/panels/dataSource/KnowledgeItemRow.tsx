@@ -12,14 +12,14 @@ import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/e
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItemListItem } from '@shared/data/api/schemas/knowledges'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
-  item: KnowledgeItem
+  item: KnowledgeItemListItem
   selected: boolean
   onToggleSelect: (next: boolean) => void
   onClick: () => void
@@ -175,22 +175,24 @@ const KnowledgeItemRow = ({
       })
     }
 
-    items.push({ type: 'separator' })
-    items.push({
-      type: 'item',
-      id: 'delete',
-      label: t('knowledge.data_source.actions.delete'),
-      icon: <Trash2 className="size-3.5" />,
-      destructive: true,
-      onSelect: () => {
-        void Promise.resolve(onDelete()).catch((error) => {
-          toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
-        })
-      }
-    })
+    if (item.canDelete) {
+      items.push({ type: 'separator' })
+      items.push({
+        type: 'item',
+        id: 'delete',
+        label: t('knowledge.data_source.actions.delete'),
+        icon: <Trash2 className="size-3.5" />,
+        destructive: true,
+        onSelect: () => {
+          void Promise.resolve(onDelete()).catch((error) => {
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+          })
+        }
+      })
+    }
 
     return items
-  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+  }, [canReindex, canViewChunks, item.canDelete, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
 
   // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
   // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.

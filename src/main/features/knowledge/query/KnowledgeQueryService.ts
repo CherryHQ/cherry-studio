@@ -137,11 +137,11 @@ export class KnowledgeQueryService {
     return knowledgeItemService.getRootItemsByBaseId(baseId)
   }
 
-  /** Absolute on-disk path of a file/url item's stored source bytes, for previewing the original source. */
+  /** Absolute on-disk path of a file, URL, or external item's stored source bytes. */
   getFilePath(itemId: string): AbsoluteFilePath {
     const item = knowledgeItemService.getById(itemId)
 
-    if (item.type === 'file') {
+    if (item.type === 'file' || item.type === 'external') {
       return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
     }
 
@@ -158,7 +158,7 @@ export class KnowledgeQueryService {
 
     throw DataApiErrorFactory.invalidOperation(
       'getFilePath',
-      `Knowledge item '${itemId}' must be a file or URL to preview its source`
+      `Knowledge item '${itemId}' must be a file, URL, or external snapshot to preview its source`
     )
   }
 

@@ -72,3 +72,26 @@ export const ExternalKnowledgeScopePreviewSchema = z.strictObject({
   warnings: z.array(ExternalKnowledgePreviewWarningSchema)
 })
 export type ExternalKnowledgeScopePreview = z.infer<typeof ExternalKnowledgeScopePreviewSchema>
+
+export const FeishuWikiSpaceSchema = z.strictObject({
+  spaceId: NonBlankStringSchema,
+  name: NonBlankStringSchema,
+  description: z.string().nullable()
+})
+export type FeishuWikiSpace = z.infer<typeof FeishuWikiSpaceSchema>
+
+export const FeishuWikiSpacePageSchema = z.strictObject({
+  spaces: z.array(FeishuWikiSpaceSchema),
+  nextPageToken: NonBlankStringSchema.optional()
+})
+export type FeishuWikiSpacePage = z.infer<typeof FeishuWikiSpacePageSchema>
+
+export const FeishuWikiSpacePreviewSchema = z.strictObject({
+  space: FeishuWikiSpaceSchema,
+  visibleNodeCount: z.number().int().nonnegative(),
+  supportedDocxCount: z.number().int().nonnegative(),
+  unsupportedOrSkippedCount: z.number().int().nonnegative(),
+  embeddingCostExact: z.literal(false),
+  warnings: z.array(ExternalKnowledgePreviewWarningSchema)
+})
+export type FeishuWikiSpacePreview = z.infer<typeof FeishuWikiSpacePreviewSchema>

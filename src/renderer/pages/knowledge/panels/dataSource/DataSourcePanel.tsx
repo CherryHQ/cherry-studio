@@ -9,6 +9,7 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { KnowledgeItemListItem } from '@shared/data/api/schemas/knowledges'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
@@ -18,13 +19,15 @@ import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
 import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
+import ExternalSourcesSection from './ExternalSourcesSection'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  baseId: string
   embeddingModelId?: string | null
-  items: KnowledgeItem[]
+  items: KnowledgeItemListItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
   total?: number
   isLoading: boolean
@@ -34,6 +37,7 @@ export interface DataSourcePanelProps {
   onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  onAddFeishuWiki: () => void
   onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
   /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
@@ -149,6 +153,7 @@ interface DataSourcePanelContentProps extends DataSourcePanelProps {
 }
 
 const DataSourcePanelContent = ({
+  baseId,
   items,
   total = items.length,
   isLoading,
@@ -157,6 +162,7 @@ const DataSourcePanelContent = ({
   onLoadMore = () => undefined,
   updatedAt,
   onAdd,
+  onAddFeishuWiki,
   onPreviewFile,
   onItemClick,
   onViewNoteContent,
@@ -177,6 +183,7 @@ const DataSourcePanelContent = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
+  const deletableSelectedIds = items.filter((item) => selectedIds.has(item.id) && item.canDelete).map((item) => item.id)
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -199,7 +206,7 @@ const DataSourcePanelContent = ({
         onDrillIntoDirectory?.(item)
         return
       }
-      if (item.type === 'file' || item.type === 'url') {
+      if (item.type === 'file' || item.type === 'url' || item.type === 'external') {
         void previewSource(item)
         return
       }
@@ -258,7 +265,7 @@ const DataSourcePanelContent = ({
   }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+    const itemIds = items.filter((item) => selectedIds.has(item.id) && item.canDelete).map((item) => item.id)
     try {
       await onDeleteItems(itemIds)
     } catch (error) {
@@ -319,8 +326,12 @@ const DataSourcePanelContent = ({
             selectedCount={selectedIds.size}
             updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
-            onBulkDelete={() => setIsBulkDeleteOpen(true)}
+            onBulkDelete={() => {
+              if (deletableSelectedIds.length > 0) setIsBulkDeleteOpen(true)
+              else toast.warning(t('knowledge.data_source.bulk.delete_none_eligible'))
+            }}
             onAdd={handleAddSource}
+            onAddFeishuWiki={onAddFeishuWiki}
             canAddSource={canAddSource}
             localModelStatus={localModelStatus}
           />
@@ -357,6 +368,7 @@ const DataSourcePanelContent = ({
             </span>
           </div>
         )}
+        {!currentDirectory ? <ExternalSourcesSection baseId={baseId} /> : null}
         {localEmbeddingState && items.length === 0 && !currentDirectory ? (
           <LocalEmbeddingStatus {...localEmbeddingState} />
         ) : !isLoading && items.length === 0 ? (
@@ -403,7 +415,7 @@ const DataSourcePanelContent = ({
         open={isBulkDeleteOpen}
         onOpenChange={setIsBulkDeleteOpen}
         title={t('knowledge.data_source.bulk.delete_confirm_title')}
-        description={t('knowledge.data_source.bulk.delete_confirm_description', { count: selectedIds.size })}
+        description={t('knowledge.data_source.bulk.delete_confirm_description', { count: deletableSelectedIds.length })}
         confirmText={t('common.delete')}
         cancelText={t('common.cancel')}
         destructive

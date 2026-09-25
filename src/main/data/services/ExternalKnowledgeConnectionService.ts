@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -12,6 +12,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
 import {
   type ExternalKnowledgeConnection,
   ExternalKnowledgeConnectionSchema,
@@ -92,6 +93,20 @@ export class ExternalKnowledgeConnectionService {
       .orderBy(desc(externalKnowledgeConnectionTable.updatedAt), desc(externalKnowledgeConnectionTable.id))
       .all()
       .map(rowToEntity)
+  }
+
+  listWithSourceCount(): ExternalKnowledgeConnectionListItem[] {
+    return this.db
+      .select({ connection: externalKnowledgeConnectionTable, sourceCount: count(externalKnowledgeSourceTable.id) })
+      .from(externalKnowledgeConnectionTable)
+      .leftJoin(
+        externalKnowledgeSourceTable,
+        eq(externalKnowledgeConnectionTable.id, externalKnowledgeSourceTable.connectionId)
+      )
+      .groupBy(externalKnowledgeConnectionTable.id)
+      .orderBy(desc(externalKnowledgeConnectionTable.updatedAt), desc(externalKnowledgeConnectionTable.id))
+      .all()
+      .map(({ connection, sourceCount }) => ({ ...rowToEntity(connection), sourceCount }))
   }
 
   getById(id: string): ExternalKnowledgeConnection | null {

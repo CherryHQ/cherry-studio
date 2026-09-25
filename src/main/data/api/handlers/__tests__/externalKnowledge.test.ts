@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { ErrorCode } from '@shared/data/api/errors'
 
@@ -66,6 +67,54 @@ describe('externalKnowledgeHandlers', () => {
 
     expect(sources).toEqual([expect.objectContaining({ id: SOURCE_ID, scope: { kind: 'space' } })])
     expect(sources[0]).not.toHaveProperty('credentialReference')
+    expect(sources[0]).toMatchObject({ schedule: { policy: { kind: 'manual' }, nextRunAt: null } })
+  })
+
+  it('projects only the linked daily policy and next run while preserving the entity detail', async () => {
+    seedSource()
+    const scheduleId = '0198f3f2-7d1a-7abc-8def-123456789ab3'
+    const nextRun = Date.parse('2026-09-24T01:30:00.000Z')
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: scheduleId,
+        type: 'knowledge.sync-external-source',
+        name: `external-knowledge-source-${SOURCE_ID}`,
+        trigger: { kind: 'cron', expr: '30 9 * * *', timezone: 'Asia/Shanghai' },
+        jobInputTemplate: { sourceId: SOURCE_ID },
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+        nextRun
+      })
+      .run()
+    dbh.db.update(externalKnowledgeSourceTable).set({ scheduleId }).run()
+
+    const listItem = (
+      await externalKnowledgeHandlers['/knowledge-bases/:id/external-knowledge-sources'].GET({
+        params: { id: BASE_ID }
+      })
+    )[0]
+    const detail = await externalKnowledgeHandlers['/external-knowledge-sources/:id'].GET({
+      params: { id: SOURCE_ID }
+    })
+
+    expect(listItem.schedule).toEqual({
+      policy: { kind: 'daily', time: '09:30', timezone: 'Asia/Shanghai' },
+      nextRunAt: new Date(nextRun).toISOString()
+    })
+    expect(listItem).not.toHaveProperty('trigger')
+    expect(listItem).not.toHaveProperty('jobInputTemplate')
+    expect(detail).not.toHaveProperty('schedule')
+
+    dbh.db.update(jobScheduleTable).set({ enabled: false }).run()
+    const paused = (
+      await externalKnowledgeHandlers['/knowledge-bases/:id/external-knowledge-sources'].GET({
+        params: { id: BASE_ID }
+      })
+    )[0]
+    expect(paused.schedule).toEqual({
+      policy: { kind: 'daily', time: '09:30', timezone: 'Asia/Shanghai' },
+      nextRunAt: null
+    })
   })
 
   it('maps missing source and document details to not-found', async () => {

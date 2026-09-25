@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -8,7 +9,9 @@ import type { ExternalKnowledgeSchedulePolicy, ExternalKnowledgeSource } from '@
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeScopePreview,
-  ExternalKnowledgeScopeResolution
+  ExternalKnowledgeScopeResolution,
+  FeishuWikiSpacePage,
+  FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
 import type {
   CreateKnowledgeBaseDto,
@@ -26,6 +29,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import { notifyExternalKnowledgeSourceChange } from './external/externalKnowledgeDataChange'
 import {
   type DisconnectExternalKnowledgeSourceCommand,
   ExternalKnowledgeDisconnect
@@ -274,10 +278,11 @@ export class KnowledgeService extends BaseService {
 
   async reconnectFeishuConnection(
     connectionId: string,
-    replacement?: BeginUserAuthorizationInput
+    replacement?: BeginUserAuthorizationInput,
+    includeSpaceDiscovery?: boolean
   ): Promise<BeginAuthorizationResult> {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement)
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, includeSpaceDiscovery)
   }
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
@@ -295,8 +300,24 @@ export class KnowledgeService extends BaseService {
     return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
   }
 
+  async listFeishuSpaces(connectionId: string, pageToken?: string): Promise<FeishuWikiSpacePage> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.listFeishuSpaces(connectionId, pageToken)
+  }
+
+  async previewFeishuSpace(connectionId: string, spaceId: string): Promise<FeishuWikiSpacePreview> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.previewFeishuSpace(connectionId, spaceId)
+  }
+
   async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
     return await this.externalKnowledgeSyncAdmission.create(input)
+  }
+
+  renameExternalKnowledgeSource(input: { sourceId: string; name: string }): ExternalKnowledgeSource {
+    const source = externalKnowledgeSourceService.rename(input.sourceId, input.name)
+    notifyExternalKnowledgeSourceChange(source.baseId, source.id, 'projection')
+    return source
   }
 
   async requestExternalKnowledgeSourceSync(
