@@ -45,6 +45,46 @@ describe('useProviderModelList', () => {
     deleteModelsMock.mockResolvedValue(undefined)
   })
 
+  it('orders groups by model order rather than by group name', () => {
+    // `vision` sorts last alphabetically but comes first in the persisted
+    // model order, and group order is derived from model order so a group can
+    // be moved by reordering its models.
+    const ordered = [
+      {
+        id: 'openai::v1',
+        name: 'V1',
+        capabilities: ['vision'],
+        isEnabled: true,
+        providerId: 'openai',
+        group: 'vision'
+      },
+      {
+        id: 'openai::c1',
+        name: 'C1',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai',
+        group: 'chat'
+      },
+      { id: 'openai::r1', name: 'R1', capabilities: ['rerank'], isEnabled: true, providerId: 'openai', group: 'rerank' }
+    ] as any
+    useModelsMock.mockReturnValue({ models: ordered, isLoading: false, refetch: refetchModelsMock })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual([
+      'vision',
+      'chat',
+      'rerank'
+    ])
+  })
+
+  it('exposes the full ordered model list for block moves', () => {
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.sections.orderedModels.map((model) => model.id)).toEqual(models.map((model) => model.id))
+  })
+
   it('opens local edit drawer state when editing a model', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 

@@ -12,6 +12,7 @@ import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
 import ModelListSections from './ModelListSections'
+import { reorderModelGroups } from './reorderModelGroups'
 import { useProviderModelList } from './useProviderModelList'
 
 interface ProviderModelListProps {
@@ -43,7 +44,11 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   const toolbarDisabled = disabled
   // `GET /models` is cached per provider, and a `UniqueModelId` can contain
   // `/`, so the reorder hook needs both the query and the greedy id param.
-  const { move: moveModel, isPending: isReorderingModels } = useReorder('/models', {
+  const {
+    move: moveModel,
+    applyReorderedList: applyModelOrder,
+    isPending: isReorderingModels
+  } = useReorder('/models', {
     query: providerId ? { providerId } : undefined,
     itemIdParam: 'uniqueModelId*'
   })
@@ -58,6 +63,23 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
       })
     },
     [disabled, moveModel, t]
+  )
+
+  const handleReorderGroups = useCallback(
+    (activeGroupName: string, overGroupName: string) => {
+      if (disabled) return
+      const next = reorderModelGroups({
+        models: modelList.sections.orderedModels,
+        activeGroupName,
+        overGroupName
+      })
+      if (next === modelList.sections.orderedModels) return
+
+      void applyModelOrder(next as unknown as Array<Record<string, unknown>>).catch(() => {
+        toast.error(t('settings.models.reorder_failed'))
+      })
+    },
+    [applyModelOrder, disabled, modelList.sections.orderedModels, t]
   )
 
   const toggleGroupsExpanded = useCallback(() => {
@@ -120,6 +142,8 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           expansionCommand={groupExpansionCommand}
           onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
           onReorderModel={disabled || isReorderingModels ? undefined : handleReorderModel}
+          orderedModels={modelList.sections.orderedModels}
+          onReorderGroups={disabled || isReorderingModels ? undefined : handleReorderGroups}
         />
       </div>
       <EditModelDrawer

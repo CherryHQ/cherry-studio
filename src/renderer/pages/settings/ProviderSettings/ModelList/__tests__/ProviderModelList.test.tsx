@@ -54,13 +54,14 @@ vi.mock('@renderer/components/VirtualList', () => ({
   }
 }))
 
-const { moveModelMock, toastErrorMock } = vi.hoisted(() => ({
+const { moveModelMock, applyReorderedListMock, toastErrorMock } = vi.hoisted(() => ({
   moveModelMock: vi.fn().mockResolvedValue(undefined),
+  applyReorderedListMock: vi.fn().mockResolvedValue(undefined),
   toastErrorMock: vi.fn()
 }))
 
 vi.mock('@renderer/data/hooks/useReorder', () => ({
-  useReorder: () => ({ move: moveModelMock, isPending: false })
+  useReorder: () => ({ move: moveModelMock, applyReorderedList: applyReorderedListMock, isPending: false })
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -112,6 +113,11 @@ vi.mock('../useProviderModelList', () => ({
       hasVisibleModels: modelListStateMock.hasVisibleModels,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
+      orderedModels: [
+        { id: 'openai::a1', providerId: 'openai', group: 'chat' },
+        { id: 'openai::b1', providerId: 'openai', group: 'vision' },
+        { id: 'openai::d1', providerId: 'openai', group: 'rerank' }
+      ],
       disabled: false,
       pendingModelIds: new Set<string>(),
       defaultModelIds: new Set<string>(),
@@ -249,6 +255,7 @@ describe('ProviderModelList', () => {
     render(<ProviderModelList providerId="openai" disabled={false} />)
 
     expect(virtualListPropsRef.current.dragCapabilities).toMatchObject({
+      groups: true,
       items: true,
       itemSameGroup: true,
       itemCrossGroup: false
@@ -257,7 +264,28 @@ describe('ProviderModelList', () => {
 
     render(<ProviderModelList providerId="openai" disabled />)
 
-    expect(virtualListPropsRef.current.dragCapabilities).toEqual({ items: false })
+    expect(virtualListPropsRef.current.dragCapabilities).toEqual({ groups: false, items: false })
+  })
+
+  it('moves a whole group when a group header is dropped on another group', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    // Group names here come from each model's own `group` value, which is what
+    // `reorderModelGroups` groups by — the same rule the list renders with.
+    virtualListPropsRef.current.onDragEnd({
+      type: 'group',
+      activeGroup: { groupName: 'vision' },
+      activeGroupId: 'vision',
+      overGroup: { groupName: 'chat' },
+      overGroupId: 'chat',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    expect(applyReorderedListMock).toHaveBeenCalledTimes(1)
+    const nextIds = (applyReorderedListMock.mock.calls[0][0] as Array<{ id: string }>).map((m) => m.id)
+    expect(nextIds.indexOf('openai::b1')).toBeLessThan(nextIds.indexOf('openai::a1'))
   })
 
   it('shows guidance to get models when the provider has no models', () => {

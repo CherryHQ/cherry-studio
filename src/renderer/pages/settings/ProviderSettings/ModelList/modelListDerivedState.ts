@@ -65,7 +65,7 @@ function getModelIdGroupName(model: Model): string | undefined {
 }
 
 export const groupModels = (
-  models: Model[],
+  models: readonly Model[],
   preserveGroupOrder = false,
   options: GroupModelsOptions = {}
 ): ModelGroups => {

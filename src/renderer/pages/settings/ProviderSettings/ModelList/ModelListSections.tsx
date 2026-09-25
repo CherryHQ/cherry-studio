@@ -52,6 +52,13 @@ interface ModelListSectionsProps {
   onContinueApiSetup?: () => void
   /** Persist a same-group model move. Omitted when the list is not reorderable. */
   onReorderModel?: (uniqueModelId: UniqueModelId, anchor: OrderRequest) => void
+  /**
+   * The provider's full model list in persisted order. Group reordering needs
+   * it to move every member of a group, including rows a filter is hiding.
+   */
+  orderedModels?: readonly Model[]
+  /** Persist a whole-group move. Omitted when the list is not reorderable. */
+  onReorderGroups?: (activeGroupName: string, overGroupName: string) => void
 }
 
 /**
@@ -60,9 +67,12 @@ interface ModelListSectionsProps {
  * entity. Moving a model across groups would rewrite the flat order and the
  * grouped view would immediately re-sort the row back into its original
  * group, so cross-group drops stay disabled instead of silently doing nothing.
+ *
+ * Group headers are draggable because group order is derived from model order:
+ * a group move is a block move of its members.
  */
 const MODEL_LIST_DRAG_CAPABILITIES: GroupedSortableVirtualListDragCapabilities = {
-  groups: false,
+  groups: true,
   items: true,
   itemSameGroup: true,
   itemCrossGroup: false
@@ -91,7 +101,9 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   bulkActionDisabled,
   expansionCommand,
   onContinueApiSetup,
-  onReorderModel
+  onReorderModel,
+  orderedModels,
+  onReorderGroups
 }) => {
   const { t } = useTranslation()
   const { apiKeyEntries, savingKeyId, toggleApiKey } = useModelListHealthRun()
@@ -132,8 +144,13 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
   const handleDragEnd = useCallback(
     (payload: GroupedSortableVirtualListDragPayload<ModelListGroupData, Model>) => {
+      if (payload.type === 'group') {
+        if (!onReorderGroups || !orderedModels) return
+        onReorderGroups(payload.activeGroup.groupName, payload.overGroup.groupName)
+        return
+      }
+
       if (!onReorderModel) return
-      if (payload.type !== 'item') return
       // Redundant with `itemCrossGroup: false`, but a stray cross-group write
       // would persist an order the grouped view immediately contradicts.
       if (payload.sourceGroupId !== payload.targetGroupId) return
@@ -144,7 +161,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
       onReorderModel(payload.activeId as UniqueModelId, anchor)
     },
-    [onReorderModel]
+    [onReorderModel, onReorderGroups, orderedModels]
   )
 
   if (isLoading) {
@@ -186,7 +203,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       estimateItemSize={() => MODEL_LIST_MODEL_ROW_ESTIMATE}
       estimateGroupFooterSize={() => MODEL_LIST_GROUP_SEPARATOR_HEIGHT}
       overscan={10}
-      dragCapabilities={onReorderModel ? MODEL_LIST_DRAG_CAPABILITIES : { items: false }}
+      dragCapabilities={
+        onReorderModel
+          ? { ...MODEL_LIST_DRAG_CAPABILITIES, groups: Boolean(onReorderGroups) }
+          : { groups: false, items: false }
+      }
       canDragItem={(model) => !disabled && !bulkActionDisabled && !pendingModelIds.has(model.id)}
       onDragEnd={handleDragEnd}
       renderGroupHeader={(_header, group) => (
