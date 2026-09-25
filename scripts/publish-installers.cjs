@@ -48,7 +48,7 @@ async function main() {
     let signing = platform === 'darwin' ? 'unsigned (not notarized)' : 'unsigned'
     if (platform === 'win32' && process.env.HAS_SIGNING === 'true') {
       const output = execFileSync(
-        'powershell.exe',
+        'pwsh.exe',
         [
           '-NoProfile',
           '-NonInteractive',

@@ -54,7 +54,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     env:
-      HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
+      HAS_MAC_SIGNING: ${{ secrets.CSC_LINK != '' }}
+      HAS_WINDOWS_SIGNING: ${{ secrets.WIN_CSC_LINK != '' }}
+      HAS_SIGNING: ${{ (matrix.platform == 'darwin' && secrets.CSC_LINK != '') || (matrix.platform == 'win32' && secrets.WIN_CSC_LINK != '') }}
       HAS_NOTARIZATION: ${{ secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}
     permissions:
       contents: write
@@ -94,7 +96,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          if [ "$HAS_SIGNING" != "true" ] || [ "$HAS_NOTARIZATION" != "true" ]; then
+          if [ "$HAS_MAC_SIGNING" != "true" ] || [ "$HAS_NOTARIZATION" != "true" ]; then
             echo "macOS releases require Developer ID signing and App Store Connect notarization credentials" >&2
             exit 1
           fi
@@ -115,8 +117,8 @@ jobs:
             choco install nsis --no-progress -y
           }
           node scripts/nsis-preflight.cjs
-      - name: Enable configured signing
-        if: env.HAS_SIGNING == 'true'
+      - name: Enable configured macOS signing
+        if: runner.os == 'macOS' && env.HAS_MAC_SIGNING == 'true'
         shell: bash
         env:
           SIGN_LINK: ${{ secrets.CSC_LINK }}
@@ -130,6 +132,15 @@ jobs:
           echo "APPLE_ID=$SIGN_APPLE_ID" >> "$GITHUB_ENV"
           echo "APPLE_APP_SPECIFIC_PASSWORD=$SIGN_APPLE_PASSWORD" >> "$GITHUB_ENV"
           echo "APPLE_TEAM_ID=$SIGN_APPLE_TEAM" >> "$GITHUB_ENV"
+      - name: Enable configured Windows signing
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_SIGNING == 'true'
+        shell: bash
+        env:
+          SIGN_LINK: ${{ secrets.WIN_CSC_LINK }}
+          SIGN_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          echo "CSC_LINK=$SIGN_LINK" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=$SIGN_PASSWORD" >> "$GITHUB_ENV"
       - name: Enable App Store Connect notarization
         if: runner.os == 'macOS' && env.HAS_NOTARIZATION == 'true'
         shell: bash
