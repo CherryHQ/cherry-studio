@@ -827,7 +827,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.modelId = effectiveModel
-    if (agent) await this.reconcileEntryConnection(entry, agent)
+    if (!agent) return
+    if (isAgentSessionRuntimeAutonomous(entry.runtimeState) || isAgentSessionRuntimeTransitioning(entry.runtimeState)) {
+      return
+    }
+
+    await this.reconcileEntryConnection(entry, agent)
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
