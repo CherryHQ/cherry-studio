@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -18,7 +19,7 @@ import { compassEnvironment, compassRemoteReady } from './surrealConnection'
 
 export const MANAGED_TAG = 'the-boss:workspace-managed'
 export function workspaceIdentity(workspace: string): string {
-  const normalized = path.resolve(workspace)
+  const normalized = realpathSync.native(path.resolve(workspace))
   return createHash('sha256')
     .update(process.platform === 'win32' ? normalized.toLowerCase() : normalized)
     .digest('hex')
