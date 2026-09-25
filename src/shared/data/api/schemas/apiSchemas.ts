@@ -30,6 +30,7 @@ import type { ArchiveSchemas } from './archives'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
 import type { FileSchemas } from './files'
+import type { FollowupQueueSchemas } from './followupQueues'
 import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
@@ -72,6 +73,7 @@ export type ApiSchemas = AssertValidSchemas<
     PaintingsSchemas &
     TranslateSchemas &
     FileSchemas &
+    FollowupQueueSchemas &
     McpServerSchemas &
     KnowledgeSchemas &
     MiniAppSchemas &

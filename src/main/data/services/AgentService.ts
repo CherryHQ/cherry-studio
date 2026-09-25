@@ -14,6 +14,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
@@ -37,6 +38,7 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -822,6 +824,12 @@ export class AgentService {
   deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
     const impact = application.get('DbService').withWriteTx((tx) => this.deleteAgentStateTx(tx, id, options))
     this.notifyDeleted(id, impact)
+    if (impact.deleted && options.permanent === true) {
+      // Queue scopes were purged in the transaction: deleted sessions purge
+      // through their own path, surviving sessions through the detach purge.
+      const purgedScopeIds = impact.deletedSessionIds ?? impact.affectedSessionIds
+      if (purgedScopeIds.length > 0) followupQueueService.notifyPurged()
+    }
     return {
       deleted: impact.deleted,
       ...(impact.deletedSessionIds ? { deletedSessionIds: impact.deletedSessionIds } : {})
@@ -860,6 +868,13 @@ export class AgentService {
         const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
           deleteSessions
         })
+        if (!deleteSessions) {
+          // Sessions survive with the agent row gone, but their queued
+          // follow-ups can never drain — purge those scopes here. Deleted
+          // sessions purge through their own path instead.
+          for (const sessionId of sessionImpact.sessionIds)
+            followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(sessionId))
+        }
         return {
           ...this.deleteAgentTx(tx, id),
           sessionImpact: {
