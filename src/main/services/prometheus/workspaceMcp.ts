@@ -26,6 +26,8 @@ export function workspaceIdentity(workspace: string): string {
 }
 export const workspaceDirectory = (id: string) => path.join(integrationDirectory(), 'workspaces', id)
 export const workspaceDatabase = (id: string) => `workspace_${id}`
+const workspaceGraph = (id: string, remote: boolean) =>
+  path.join(workspaceDirectory(id), remote ? 'remote' : 'local', 'compass-out', 'graph.json')
 const exists = async (filename: string) =>
   fs.access(filename).then(
     () => true,
@@ -81,12 +83,12 @@ export async function loadWorkspaceState(workspace: string): Promise<WorkspaceIn
     const saved = JSON.parse(
       await fs.readFile(path.join(workspaceDirectory(id), 'workspace.json'), 'utf8')
     ) as Partial<WorkspaceIntegration>
-    const indexed =
-      saved.indexed ?? (await exists(saved.graph ?? path.join(workspaceDirectory(id), 'local', 'graph.json')))
+    const graph = workspaceGraph(id, saved.backend === 'remote')
+    const indexed = saved.indexed ?? (await exists(graph))
     return {
       path: workspace,
       id,
-      graph: saved.graph ?? path.join(workspaceDirectory(id), 'local', 'graph.json'),
+      graph,
       backend: saved.backend ?? 'sqlite',
       serverIds: saved.serverIds ?? [],
       enabled: saved.enabled ?? true,
@@ -98,7 +100,7 @@ export async function loadWorkspaceState(workspace: string): Promise<WorkspaceIn
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    const graph = path.join(workspaceDirectory(id), 'local', 'graph.json')
+    const graph = workspaceGraph(id, false)
     const indexed = await exists(graph)
     return {
       path: workspace,
@@ -126,7 +128,7 @@ export async function describeWorkspace(
     return {
       path: workspace,
       id,
-      graph: path.join(workspaceDirectory(id), 'remote', 'graph.json'),
+      graph: workspaceGraph(id, true),
       backend: 'remote',
       serverIds: [],
       enabled: saved.enabled,
@@ -138,7 +140,7 @@ export async function describeWorkspace(
     }
   }
   const backend = remote ? 'remote' : config.compass.storage === 'json' ? 'json' : 'sqlite'
-  const graph = path.join(workspaceDirectory(id), remote ? 'remote' : 'local', 'graph.json')
+  const graph = workspaceGraph(id, remote)
   const projectionExists = await hasProjection(graph, backend)
   const indexed = projectionExists && (await matchesProjection(path.dirname(graph), projectionProfile(config, backend)))
   const freshness: CompassFreshness = !projectionExists
@@ -257,7 +259,7 @@ export async function indexWorkspace(
     COMPASS_STORE: workspace.backend === 'json' ? 'json' : 'sqlite'
   })
   await fs.writeFile(
-    path.join(local, 'boss-projection.json'),
+    path.join(local, 'compass-out', 'boss-projection.json'),
     projectionProfile(config, workspace.backend === 'json' ? 'json' : 'sqlite')
   )
   if (workspace.backend === 'remote') {
@@ -268,7 +270,7 @@ export async function indexWorkspace(
       '--force',
       '--reuse-cache-on-force'
     ])
-    await fs.writeFile(path.join(remote, 'boss-projection.json'), projectionProfile(config, 'remote'))
+    await fs.writeFile(path.join(remote, 'compass-out', 'boss-projection.json'), projectionProfile(config, 'remote'))
   }
   return checkWorkspaceFreshness(workspace, config, signal, onOutput)
 }
