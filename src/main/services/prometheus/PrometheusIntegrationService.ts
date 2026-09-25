@@ -313,7 +313,7 @@ export class PrometheusIntegrationService extends BaseService {
     await this.ensureInitialized()
     if (!path.isAbsolute(workspacePath) || !(await fs.stat(workspacePath)).isDirectory())
       throw new Error('prometheus.error.workspaceDirectory')
-    const resolved = await fs.realpath(workspacePath)
+    const resolved = path.resolve(workspacePath)
     const workspace = await describeWorkspace(resolved)
     workspace.enabled = enabled
     const servers = await registerWorkspaceServers(workspace, readIntegrationConfig())
@@ -443,7 +443,7 @@ export class PrometheusIntegrationService extends BaseService {
         }
         if (!workspacePath || !path.isAbsolute(workspacePath) || !(await fs.stat(workspacePath)).isDirectory())
           throw new Error('prometheus.error.workspaceDirectory')
-        const workspace = await describeWorkspace(await fs.realpath(workspacePath), config)
+        const workspace = await describeWorkspace(path.resolve(workspacePath), config)
         this.workspaces.set(workspace.id, workspace)
         if (action === 'install-skills') {
           output(await installCompassProjectSkills(workspace.path, signal, output))
