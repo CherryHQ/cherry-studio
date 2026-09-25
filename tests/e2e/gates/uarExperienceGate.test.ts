@@ -23,6 +23,7 @@ type IntegrationSnapshot = {
   config: {
     filesystem: { enabled: boolean; allowWrite: boolean; additionalRoots: string[] }
   }
+  servers: Array<{ id: string; name: string; workspace?: string }>
 }
 type OperationSnapshot = {
   runs: Array<{ runId: string; ownerSessionId: string; status: string; agentRevision?: string }>
@@ -163,7 +164,7 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
 
     launched = await launch(profile)
     app = launched.app
-    const page = launched.page
+    let page = launched.page
     const integration = await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})
     await ipc<IntegrationSnapshot>(page, 'prometheus.integration.configure', {
       updates: [
@@ -175,6 +176,18 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       ],
       secrets: {}
     })
+    const workspaceEntity = await data<{ id: string }>(page, 'POST', '/agent-workspaces', { path: workspace })
+    await closeApp(app)
+
+    launched = await launch(profile)
+    app = launched.app
+    page = launched.page
+    const configuredIntegration = await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})
+    const filesystem = configuredIntegration.servers.find(
+      (server) => server.name.startsWith('Rust Filesystem') && server.workspace === workspace
+    )
+    if (!filesystem) throw new Error(`Managed Rust Filesystem server was not registered for ${workspace}`)
+
     const bossProviderId = `gate-v-boss-${Date.now()}`
     const bossModelId = `${bossProviderId}::gate-v-model`
     await data(page, 'POST', '/providers', {
@@ -233,18 +246,6 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       applicationStatus: 'effective'
     })
 
-    const workspaceEntity = await data<{ id: string }>(page, 'POST', '/agent-workspaces', { path: workspace })
-    const filesystem = await data<{ id: string }>(page, 'POST', '/mcp-servers', {
-      name: '@cherry/filesystem',
-      type: 'inMemory',
-      args: [workspace],
-      reference: `filesystem:${workspace}`,
-      isActive: true,
-      installSource: 'builtin',
-      isTrusted: true,
-      trustedAt: Date.now()
-    })
-
     let presentations = await ipc<PresentationSnapshot>(page, 'prometheus.uar.presentations.save', {
       title: 'Gate V presentation',
       description: 'A real A2UI template selected by the Gate V agent.',
@@ -275,7 +276,7 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
       'uar.run_policy': {
         version: 1,
         tools: { mode: 'all', ids: [], denied_ids: [] },
-        mcp_servers: { mode: 'all', ids: [], denied_ids: [] },
+        mcp_servers: { mode: 'selected', ids: [filesystem.id], denied_ids: [] },
         tool_approval: 'ask',
         presentations: { mode: 'selected', ids: [presentation!.id], denied_ids: [] }
       }
