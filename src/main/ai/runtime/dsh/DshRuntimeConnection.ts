@@ -914,7 +914,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         return
       case 'error': {
         const message = reason.error.message.trim() || 'dsh agent turn failed'
-        this.eventQueue.push({ type: 'error', error: new Error(message) })
+        // `reason.error` is the structured `LlmFailure`; carry its status/code so downstream retry
+        // routing keeps them. A bare Error(message) drops them before the fallback classifier reads.
+        const error = Object.assign(new Error(message), {
+          status: reason.error.status,
+          code: reason.error.code
+        })
+        this.eventQueue.push({ type: 'error', error })
         return
       }
       default:

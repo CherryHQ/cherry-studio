@@ -43,7 +43,12 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type {
+  CherryProviderMetadata,
+  ComposerMessageSnapshot,
+  ComposerMessageToken,
+  ModelFallbackPartData
+} from '@shared/data/types/uiParts'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
@@ -88,6 +93,7 @@ import {
 } from './messagePartLayouts'
 import { useMessageParts } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
+import ModelFallbackBlock from './ModelFallbackBlock'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
@@ -666,6 +672,9 @@ function renderPart(
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
+
+    case 'data-model-fallback':
+      return <ModelFallbackBlock key={partId} data={(part as { data?: ModelFallbackPartData }).data} />
 
     case 'data-agent-session-fork':
       return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />

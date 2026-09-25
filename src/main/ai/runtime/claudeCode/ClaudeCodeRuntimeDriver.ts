@@ -47,6 +47,7 @@ import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
+import { readRetryPolicy } from '../aiSdk'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -60,6 +61,7 @@ import type {
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
+  type ClaudeCodeAgentSessionQueryRequest,
   type ConnectionConfig,
   deriveConnectionConfig,
   toolPolicyFactsEqual
@@ -68,6 +70,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { resolveAgentSessionFallback } from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -327,6 +330,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
+  private lastSdkUserMessage?: SDKUserMessage
+  /** Source input of {@link lastSdkUserMessage}, retained so a fallback can re-materialize it. */
+  private lastUserInput?: AgentRuntimeUserInput
+  /** Image capability {@link lastSdkUserMessage} was materialized for, i.e. the primary model's. */
+  private lastSdkUserMessageSupportsImages = true
+  /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
+  private fallbackAttempted = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -380,6 +390,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
+    await this.installQuery(request)
+    void this.runQueryLoop()
+    return this
+  }
+
+  /**
+   * Installs a freshly materialized request onto this connection: query options, warm-query
+   * consumption, session-scoped state, and the session-scoped adapter. `start()` uses it for the
+   * primary model; the model-fallback restart reuses it with a request rebuilt for the fallback.
+   */
+  private async installQuery(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
@@ -455,8 +476,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.input.onSteerInjected?.(inputs)
       }
     }
-    void this.runQueryLoop()
-    return this
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -475,12 +494,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     this.adapter?.beginTurn()
+    this.fallbackAttempted = false
 
+    const supportsImages = resolveModelImageSupport(this.input.modelId)
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages
     })
     this.sdkInputQueue.push(sdkMessage)
+    this.lastSdkUserMessage = sdkMessage
+    this.lastUserInput = input
+    this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -753,6 +777,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           })
           const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
           this.lastMainAssistantUuid = undefined
+          this.clearReplayInput()
           this.eventQueue.push({ type: 'turn-complete', forkAnchor })
         }
       }
@@ -768,6 +793,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
           : error
       const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
+      if (!salvaged && (await this.tryFallbackModel(surfacedError))) {
+        // `await` is load-bearing: without it the finally below closes the event queue while the
+        // restarted loop is still streaming (same contract as the resume recovery above).
+        return await this.runQueryLoop()
+      }
       this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
@@ -783,12 +813,126 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
+      if (salvaged) this.clearReplayInput()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfacedError })
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
       this.eventQueue.close()
     }
+  }
+
+  /**
+   * Turn-level model fallback. When the turn terminally failed on a retryable provider error
+   * (429 / 5x) before producing any content, restart the SAME host turn once on the first
+   * configured fallback model (`chat.retry.*`). The host turn stays live — like the resume
+   * recovery above, the replayed user message re-enters a freshly built query — and the
+   * transcript carries a persisted `data-model-fallback` part so the swap is visible. The
+   * fallback is turn-scoped: the next fresh turn reconciles against the agent's model as usual.
+   */
+  private async tryFallbackModel(error: unknown): Promise<boolean> {
+    try {
+      if (this.fallbackAttempted || this.abortController.signal.aborted) return false
+      // Only an in-flight host turn has a replay to re-open. A completed turn clears its input, so a
+      // failure arriving later — an autonomous generation, or one between turns — must not re-send a
+      // prompt the host already finished with.
+      const input = this.lastUserInput
+      const previousMessage = this.lastSdkUserMessage
+      if (!input || !previousMessage) return false
+      const decision = resolveAgentSessionFallback({
+        error,
+        currentModelId: this.input.modelId,
+        hasTurnActivity: this.adapter?.hasTurnActivity === true,
+        policy: this.readFallbackPolicy()
+      })
+      if (!decision) return false
+      this.fallbackAttempted = true
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        this.input.sessionId,
+        this.resumeToken,
+        decision.fallbackModelId,
+        this.input.reasoningEffort ?? 'default',
+        this.input.fastMode === true,
+        this.input.knowledgeBaseIds
+      ).catch((cause) => {
+        logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
+          sessionId: this.input.sessionId,
+          fallbackModelId: decision.fallbackModelId,
+          cause
+        })
+        return undefined
+      })
+      if (!request) return false
+      // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
+      // abandoned with no trace in the transcript and the original error surfaces.
+      const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId, input, previousMessage)
+      logger.warn('Agent session turn fell back to the next configured model', {
+        sessionId: this.input.sessionId,
+        from: this.input.modelId,
+        to: decision.fallbackModelId,
+        reason: decision.reason
+      })
+      // Rebind before the host can observe the fallback chunk: it re-reads `usageCapture` on it,
+      // and the capture must already describe the fallback model (installQuery may still refine
+      // it with a consumed warm query's receipt — same fallback model either way).
+      this._usageCapture = request.usageCapture
+      this.sdkInputQueue.close()
+      this.sdkInputQueue = new SdkInputQueue()
+      if (replayedMessage) {
+        this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
+      }
+      await this.installQuery(request)
+      // Tell the user in the transcript itself — persisted with the turn like any other data part.
+      // Announced only now: a swap that never installed must leave no notice claiming it did, and
+      // installQuery is pure setup, so nothing of the fallback turn can precede this.
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'data-model-fallback',
+          id: crypto.randomUUID(),
+          data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
+        }
+      })
+      // installQuery swapped the adapter; the replayed message must land inside an open turn.
+      this.adapter?.beginTurn()
+      return true
+    } catch (cause) {
+      // A fallback decision must never break error surfacing — degrade to the ordinary error path.
+      logger.warn('Model fallback attempt failed; surfacing the original turn error', {
+        sessionId: this.input.sessionId,
+        cause
+      })
+      return false
+    }
+  }
+
+  /** The retained replay belongs to the in-flight host turn; drop it once that turn is over. */
+  private clearReplayInput(): void {
+    this.lastUserInput = undefined
+    this.lastSdkUserMessage = undefined
+  }
+
+  /**
+   * The message the fallback re-opens the turn with. Image parts were routed for the primary
+   * model's capability, so a fallback that reads images differently must rebuild them.
+   */
+  private async buildReplayUserMessage(
+    fallbackModelId: UniqueModelId,
+    input: AgentRuntimeUserInput,
+    message: SDKUserMessage
+  ): Promise<SDKUserMessage> {
+    const supportsImages = resolveModelImageSupport(fallbackModelId)
+    if (supportsImages === this.lastSdkUserMessageSupportsImages) return message
+    return toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages
+    })
+  }
+
+  private readFallbackPolicy() {
+    const global = readRetryPolicy()
+    const configured = agentService.getAgent(this.input.agentId)?.configuration?.fallback_model_ids
+    return configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
@@ -810,6 +954,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             })
             return
           }
+          // An autonomous generation owns its own turn; the retained replay belonged to the host
+          // turn that just ended and must not be re-sent if this one fails (same rule as the
+          // Pi/DSH wrapper).
+          if (event.type === 'autonomous-turn-state' && event.state === 'started') this.clearReplayInput()
           this.eventQueue.push(event)
         }
       },
