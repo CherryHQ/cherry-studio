@@ -180,7 +180,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
     return [
       {
         ...DICTATION_TOOLBAR_MANIFEST.toolbar,
-        sources: ['popover', 'root-panel'] as const,
+        sources: ['root-panel'] as const,
         label: actionLabel,
         description: status,
         tooltip: actionLabel,

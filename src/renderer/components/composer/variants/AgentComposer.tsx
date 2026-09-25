@@ -119,6 +119,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
@@ -1716,7 +1717,7 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model ? (
         <ModelSpeedControl
@@ -1730,6 +1731,7 @@ const AgentComposerInner = ({
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
+      <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
 

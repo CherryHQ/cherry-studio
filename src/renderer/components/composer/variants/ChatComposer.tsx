@@ -93,6 +93,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   buildComposerQueuedPayload,
@@ -1841,7 +1842,7 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {speedControlModel ? (
         <ModelSpeedControl
@@ -1857,6 +1858,7 @@ const ChatComposerInner = ({
         />
       ) : null}
       <ChatComposerContextUsage usage={contextUsage} />
+      <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
 
