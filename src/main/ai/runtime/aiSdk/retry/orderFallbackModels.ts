@@ -45,10 +45,14 @@ function qualityOf(id: RetryFallbackModelId): number {
  * Sorts fallbacks by last probed health, then by the cheapest tier still reachable on that
  * provider, then by quality score. Nothing is dropped — a failed probe or a paid-only provider only
  * loses priority, because the provider may have recovered, or a free key may get added, later.
+ *
+ * @param escalationEnabled When true, prioritizes cheap tiers (free > trial > paid) over health,
+ *   so simple tasks get cheap models first and only escalate if they fail.
  */
 export function orderFallbackModels(
   ids: readonly RetryFallbackModelId[],
-  health: ModelHealthMemory
+  health: ModelHealthMemory,
+  escalationEnabled: boolean = false
 ): RetryFallbackModelId[] {
   const tierRanks = new Map<string, number>()
   const tierRankOf = (id: RetryFallbackModelId): number => {
@@ -62,8 +66,13 @@ export function orderFallbackModels(
     return rank
   }
 
-  return [...ids].sort(
-    (a, b) =>
-      healthRank(a, health) - healthRank(b, health) || tierRankOf(a) - tierRankOf(b) || qualityOf(b) - qualityOf(a)
-  )
+  return [...ids].sort((a, b) => {
+    if (escalationEnabled) {
+      // Escalation mode: prefer cheap tiers first (free < trial < paid),
+      // then quality for same tier
+      return tierRankOf(a) - tierRankOf(b) || qualityOf(b) - qualityOf(a)
+    }
+    // Normal mode: health first, then tier, then quality
+    return healthRank(a, health) - healthRank(b, health) || tierRankOf(a) - tierRankOf(b) || qualityOf(b) - qualityOf(a)
+  })
 }

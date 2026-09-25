@@ -23,13 +23,15 @@ export function readRetryPolicy(): RetryPolicy {
   const configuredFallbacks = preferences.get('chat.retry.fallback_model_ids')
   const healthPriority = preferences.get('chat.retry.health_priority_enabled')
   const health = preferences.get('chat.retry.model_health')
+  const escalationEnabled = preferences.get('chat.routing.escalation_enabled')
 
   // With health priority on and no hand-picked list, fall back to whatever passed its last probe —
   // otherwise a failing model just fails for anyone who never configured a chain.
   const orderedFallbacks = healthPriority
     ? orderFallbackModels(
         configuredFallbacks.length > 0 ? configuredFallbacks : buildAutoFallbackModelIds(health),
-        health
+        health,
+        escalationEnabled
       )
     : configuredFallbacks
 

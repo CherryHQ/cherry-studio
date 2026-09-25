@@ -28,6 +28,7 @@ export const TaskRoutingSettings = () => {
   const [autoEnabled, setAutoEnabled] = usePreference('chat.routing.auto_enabled')
   const [categoryModels, setCategoryModels] = usePreference('chat.routing.category_models')
   const [pinnedModelId, setPinnedModelId] = usePreference('chat.routing.pinned_model')
+  const [escalationEnabled, setEscalationEnabled] = usePreference('chat.routing.escalation_enabled')
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
   const derivedTable = useSharedCacheValue('routing.derived_table') ?? EMPTY_DERIVED_ROUTING_TABLE
   const { models } = useModels()
@@ -49,6 +50,20 @@ export const TaskRoutingSettings = () => {
           </SettingDescription>
         </div>
         <Switch checked={autoEnabled} onCheckedChange={(checked) => void setAutoEnabled(checked)} aria-label={label} />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow className="items-start gap-6">
+        <div className="min-w-0 flex-1">
+          <SettingRowTitle>{t('settings.models.routing.escalation_enabled')}</SettingRowTitle>
+          <SettingDescription className="mt-1.5 leading-5">
+            {t('settings.models.routing.escalation_description')}
+          </SettingDescription>
+        </div>
+        <Switch
+          checked={escalationEnabled}
+          onCheckedChange={(checked) => void setEscalationEnabled(checked)}
+          aria-label={t('settings.models.routing.escalation_enabled')}
+        />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
