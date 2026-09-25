@@ -202,6 +202,7 @@ export function buildPathRegistry() {
     'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
+    'feature.agents.orphaned_message_parts': path.join(appUserDataData, 'Agents', '.orphaned-message-parts'), // detached-flow parts no row accepted yet; replayed until the database takes them
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
     'feature.agents.assistant.manifest.file': path.join(

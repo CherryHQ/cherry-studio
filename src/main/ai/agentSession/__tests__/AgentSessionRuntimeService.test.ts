@@ -15,18 +15,26 @@ import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@m
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type * as ForkResourcesModule from '../fork/resources'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
+  // Only the writes that carry workflow statistics take this one; tests without statistics keep
+  // asserting the plain whole-row write through `replaceMessageParts`.
+  replaceMessagePartsWithWorkflowCheckpoints: vi.fn(),
+  checkpointWorkflowTaskEvent: vi.fn(),
   getSessionMessage: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
+  findSettledRunTaskIds: vi.fn(() => new Map<string, Set<string>>()),
+  findStaleRunTaskMessages: vi.fn(),
+  settleStaleRunTaskMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
   transitionSessionDelivery: vi.fn(),
   finalizeSessionDelivery: vi.fn(),
@@ -54,7 +62,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const forkRecoveryMocks = vi.hoisted(() => ({
-  getPath: vi.fn<(key: string) => string>(),
+  getPath: vi.fn<(key: string, filename?: string) => string>(),
   journals: vi.fn<() => AgentSessionForkResources[]>(() => []),
   hasPublishedSession: vi.fn(() => false),
   writeJournal: vi.fn<(journal: AgentSessionForkResources) => void>(),
@@ -98,6 +106,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
+    replaceMessagePartsWithWorkflowCheckpoints: mocks.replaceMessagePartsWithWorkflowCheckpoints,
+    checkpointWorkflowTaskEvent: mocks.checkpointWorkflowTaskEvent,
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
@@ -105,6 +115,9 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
+    findSettledRunTaskIds: mocks.findSettledRunTaskIds,
+    findStaleRunTaskMessages: mocks.findStaleRunTaskMessages,
+    settleStaleRunTaskMessages: mocks.settleStaleRunTaskMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
     transitionSessionDelivery: mocks.transitionSessionDelivery,
     finalizeSessionDelivery: mocks.finalizeSessionDelivery,
@@ -475,6 +488,9 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
+    // The real service reports whether the checkpoint reached a message row; tests that need the
+    // "parent row is gone" branch override this with false.
+    mocks.checkpointWorkflowTaskEvent.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
       id: message.id ?? 'generated-message-id',
@@ -499,6 +515,8 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
+    mocks.findStaleRunTaskMessages.mockReturnValue([])
+    mocks.settleStaleRunTaskMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
     mocks.closeWarmQueries.mockResolvedValue(undefined)
@@ -521,6 +539,7 @@ describe('AgentSessionRuntimeService', () => {
         return {
           setShared: mocks.cacheSetShared,
           getShared: mocks.cacheGetShared,
+          hasShared: (key: string) => mocks.cacheGetShared(key) !== undefined,
           deleteShared: mocks.cacheDeleteShared
         }
       if (name === 'ClaudeCodeWarmQueryManager')
@@ -1429,6 +1448,27 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    it('does not fabricate an interruption for a task a sibling row already settled', async () => {
+      const started = {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'task-done', status: 'in_progress' }
+      }
+      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
+        { id: 'stale-1', sessionId: 'session-a', data: { parts: [started] } }
+      ])
+      mocks.findSettledRunTaskIds.mockReturnValue(new Map([['session-a', new Set(['task-done'])]]))
+
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      // The row keeps its stale progress edge: the Session settled this task in another row.
+      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+        [{ id: 'stale-1', data: { parts: [started] } }],
+        ['session-a']
+      )
+      expect(mocks.findSettledRunTaskIds).toHaveBeenCalledWith(['session-a'])
+    })
+
     it('does not resolve anything when there are no stale messages', async () => {
       mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
       const service = new AgentSessionRuntimeService()
@@ -1452,6 +1492,40 @@ describe('AgentSessionRuntimeService', () => {
         'Failed to reconcile stale pending agent-session messages',
         { error: failure }
       )
+    })
+  })
+
+  describe('reconcileInterruptedRunTasks — boot crash recovery', () => {
+    it('settles the dead run tasks of a previous process without touching resume tokens', async () => {
+      mocks.findStaleRunTaskMessages.mockReturnValue([
+        { id: 'stale-1', sessionId: 'session-a', data: { parts: [] } },
+        { id: 'stale-2', sessionId: 'session-b', data: { parts: [] } }
+      ])
+      const service = new AgentSessionRuntimeService()
+
+      await (service as any).onInit()
+
+      expect(mocks.settleStaleRunTaskMessages).toHaveBeenCalledWith([
+        { id: 'stale-1', sessionId: 'session-a', data: { parts: [] } },
+        { id: 'stale-2', sessionId: 'session-b', data: { parts: [] } }
+      ])
+      // A completed turn's token stays usable: only the interrupted tasks are rewritten.
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
+    })
+
+    it('leaves rows alone when no task outlived a runtime and when the lookup fails', async () => {
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+      expect(mocks.settleStaleRunTaskMessages).not.toHaveBeenCalled()
+
+      const failure = new Error('db down')
+      mocks.findStaleRunTaskMessages.mockImplementation(() => {
+        throw failure
+      })
+      await expect((service as any).onInit()).resolves.toBeUndefined()
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to reconcile stale run tasks', {
+        error: failure
+      })
     })
   })
 
@@ -2533,6 +2607,1098 @@ describe('AgentSessionRuntimeService', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
     const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
 
+    beforeEach(() => {
+      const cacheStore: Record<string, unknown> = {}
+      mocks.cacheSetShared.mockImplementation((key: string, value: unknown) => {
+        cacheStore[key] = value
+      })
+      mocks.cacheGetShared.mockImplementation((key: string) => cacheStore[key])
+      mocks.cacheDeleteShared.mockImplementation((key: string) => {
+        delete cacheStore[key]
+      })
+    })
+
+    it('persists a turn-out terminal event beside detached flow content on the spawning message', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'task-root',
+          status: 'in_progress',
+          title: 'Audit the codebase',
+          taskType: 'subagent'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+
+      for (const chunk of [
+        {
+          type: 'text-start',
+          id: 'subagent-text',
+          providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+        },
+        { type: 'text-delta', id: 'subagent-text', delta: 'Found the regression' },
+        { type: 'text-end', id: 'subagent-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'Audit complete',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: 'Found the regression' }),
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({
+                taskId: 'bg-1',
+                status: 'completed',
+                title: 'Audit the codebase'
+              })
+            })
+          ])
+        )
+      })
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-2', expect.anything())
+    })
+
+    it('keeps a prior task completion out of a later foreground turn stream', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'task-root',
+          status: 'in_progress',
+          title: 'Audit the codebase'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      const enqueueSuccessor = vi.fn()
+      entry.currentTurn.controller = { enqueue: enqueueSuccessor } as never
+      const completion = {
+        event: 'notification' as const,
+        taskId: 'bg-1',
+        status: 'completed' as const,
+        summary: 'Audit complete'
+      }
+
+      // The adapter reports the same native edge through the session status sink and the active
+      // turn stream. Ownership must keep the persisted copy on assistant-1 only.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: completion })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'data-agent-task-event',
+          id: 'task-bg-1-notification',
+          data: completion
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(enqueueSuccessor).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'data-agent-task-event', data: expect.objectContaining({ taskId: 'bg-1' }) })
+      )
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('waits for a reordered task anchor and parent message persistence before appending the terminal edge', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn(), close: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'late-tool-root',
+          status: 'in_progress',
+          title: 'Audit the codebase'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'late-tool-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'Audit complete'
+        }
+      })
+
+      expect(mocks.getSessionMessage).not.toHaveBeenCalled()
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('preserves a pending-only terminal handoff across connection reset until its parent persists', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      const terminalChunk = {
+        type: 'data-agent-task-event',
+        id: 'task-bg-1-notification',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed' }
+      }
+      entry.connection = connection
+      entry.flowMessageIdsByToolCallId = new Map([['task-root', 'assistant-1']])
+      entry.taskToolCallIdsByTaskId = new Map([['bg-1', 'task-root']])
+      entry.taskMessageIdsByTaskId = new Map([['bg-1', 'assistant-1']])
+      entry.pendingBackgroundFlowChunks = new Map([['assistant-1', [terminalChunk]]])
+
+      await (service as any).resetConnectionRuntimeState(entry, connection)
+
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      ;(service as any).markFlowMessagePersisted(entry, 'assistant-1')
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('persists the latest orphan edge and drops the oldest task after the handoff cap', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      mocks.getSessionMessage.mockImplementation((_sessionId: string, messageId: string) => ({
+        id: messageId,
+        role: 'assistant',
+        data: { parts: [] }
+      }))
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'orphan-0',
+          toolUseId: 'orphan-root-0',
+          status: 'in_progress',
+          title: 'Original title'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'orphan-0', status: 'completed', summary: 'Done' }
+      })
+      const lastIndex = 1024
+      for (let index = 1; index <= lastIndex; index += 1) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: {
+            event: 'started',
+            taskId: `orphan-${index}`,
+            ...(index === lastIndex ? { toolUseId: `orphan-root-${lastIndex}` } : {}),
+            status: 'in_progress'
+          }
+        })
+      }
+
+      entry.flowMessageIdsByToolCallId = new Map([
+        ['orphan-root-0', 'assistant-oldest'],
+        [`orphan-root-${lastIndex}`, 'assistant-latest']
+      ])
+      entry.persistedFlowMessageIds = new Set(['assistant-oldest', 'assistant-latest'])
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'orphan-root-0', 'assistant-oldest')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, `orphan-root-${lastIndex}`, 'assistant-latest')
+      await (service as any).finishBackgroundFlows(entry)
+
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-oldest', expect.anything())
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-latest',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ taskId: `orphan-${lastIndex}`, status: 'in_progress' })
+          })
+        ])
+      )
+    })
+
+    it('keeps one terminal workflow snapshot when late progress arrives before the parent anchor', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const workflow = (totalTokens: number) => ({
+        runId: 'wf-pending',
+        taskId: 'workflow-pending',
+        totalTokens,
+        phases: [{ title: 'Review' }],
+        workflowProgress: []
+      })
+      for (const data of [
+        {
+          event: 'notification' as const,
+          taskId: 'workflow-pending',
+          toolUseId: 'workflow-root',
+          status: 'completed' as const,
+          workflow: workflow(400)
+        },
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-pending',
+          status: 'in_progress' as const,
+          workflow: workflow(200)
+        }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
+      }
+
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'workflow-root', 'assistant-1')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalled())
+      const persistedParts = mocks.replaceMessagePartsWithWorkflowCheckpoints.mock.calls.at(-1)?.[2] ?? []
+      const workflowEvents = persistedParts.filter(
+        (part: any) => part.type === 'data-agent-task-event' && part.data.taskId === 'workflow-pending'
+      )
+      expect(workflowEvents).toHaveLength(1)
+      expect(workflowEvents[0]).toMatchObject({
+        data: {
+          status: 'completed',
+          workflow: { totalTokens: 400 }
+        }
+      })
+      // The late progress arrives as statistics the same write merges in, not as a second snapshot.
+      expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.any(Array),
+        [expect.objectContaining({ status: 'completed', workflow: expect.objectContaining({ totalTokens: 400 }) })]
+      )
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+    })
+
+    it('persists the first terminal snapshot and checkpoints a later terminal notification', async () => {
+      let persistedParts: any[] = [
+        {
+          type: 'tool-Workflow',
+          toolCallId: 'workflow-root',
+          state: 'input-available',
+          input: { workflow: 'review' }
+        }
+      ]
+      mocks.getSessionMessage.mockImplementation(() => ({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: structuredClone(persistedParts) }
+      }))
+      const mergeCheckpoint = (event: any) => {
+        const terminalIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined &&
+            ['completed', 'stopped', 'error'].includes(part.data.status)
+        )
+        const fallbackIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined
+        )
+        const index = terminalIndex >= 0 ? terminalIndex : fallbackIndex
+        const checkpoint = {
+          type: 'data-agent-task-event',
+          id: index >= 0 ? persistedParts[index].id : `task-${event.taskId}-workflow-checkpoint`,
+          data: event
+        }
+        if (index >= 0) persistedParts[index] = checkpoint
+        else persistedParts.push(checkpoint)
+      }
+      // The whole-row write carries the statistics it merges in the same transaction.
+      mocks.replaceMessagePartsWithWorkflowCheckpoints
+        .mockReset()
+        .mockImplementation((_sessionId, _messageId, parts, events) => {
+          persistedParts = structuredClone(parts ?? [])
+          for (const event of events ?? []) mergeCheckpoint(event)
+          return { data: { parts: persistedParts } }
+        })
+      mocks.replaceMessageParts.mockImplementation((_sessionId, _messageId, parts) => {
+        persistedParts = structuredClone(parts)
+      })
+      mocks.checkpointWorkflowTaskEvent.mockImplementation((_sessionId, _messageId, event) => {
+        mergeCheckpoint(event)
+        return true
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'workflow-root',
+          toolName: 'Workflow',
+          input: { workflow: 'review' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-root',
+          status: 'in_progress',
+          taskType: 'local_workflow'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const workflow = (totalTokens: number) => ({
+        runId: 'wf-1',
+        taskId: 'workflow-1',
+        totalTokens,
+        phases: [{ title: 'Review' }],
+        workflowProgress: []
+      })
+      for (const data of [
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          status: 'in_progress' as const,
+          workflow: workflow(100)
+        },
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          status: 'in_progress' as const,
+          workflow: workflow(200)
+        },
+        {
+          event: 'updated' as const,
+          taskId: 'workflow-1',
+          status: 'completed' as const,
+          workflow: workflow(300)
+        }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
+      }
+
+      await Promise.resolve()
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+      expect(entry.taskMessageIdsByTaskId?.get('workflow-1')).toBe('assistant-1')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'workflow-1',
+          status: 'completed',
+          workflow: workflow(400)
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalled())
+      const writtenParts = mocks.replaceMessagePartsWithWorkflowCheckpoints.mock.calls.at(-1)?.[2] ?? []
+      const workflowEvents = writtenParts.filter(
+        (part: any) => part.type === 'data-agent-task-event' && part.data.taskId === 'workflow-1'
+      )
+      const workflowSnapshots = workflowEvents.filter((part: any) => part.data.workflow)
+      expect(workflowSnapshots).toHaveLength(2)
+      // The streamed content keeps one snapshot per task; the later terminal revision rides with the same
+      // write as the statistics it merges in, instead of arriving from a second persistence call.
+      expect(workflowSnapshots.map((part: any) => part.data.workflow?.totalTokens)).toEqual([100, 300])
+      expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.any(Array),
+        [expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })]
+      )
+      expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+      )
+      expect(persistedParts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ])
+      )
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ]),
+        60_000
+      )
+    })
+
+    it('checkpoints the latest workflow statistics and flushes terminal data immediately', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+
+        const event = (totalTokens: number, status: 'in_progress' | 'completed' = 'in_progress') => ({
+          event: status === 'completed' ? ('updated' as const) : ('progress' as const),
+          taskId: 'workflow-checkpoint',
+          toolUseId: 'workflow-root',
+          status,
+          title: 'Review',
+          workflow: {
+            runId: 'run-checkpoint',
+            taskId: 'workflow-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 10 }) })
+        )
+
+        vi.runOnlyPendingTimers()
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(30, 'completed') })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(3)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 30 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    const terminalCheckpointEvent = (taskId: string, totalTokens: number) => ({
+      event: 'updated' as const,
+      taskId,
+      toolUseId: 'workflow-root',
+      status: 'completed' as const,
+      title: 'Review',
+      workflow: {
+        runId: `run-${taskId}`,
+        taskId,
+        totalTokens,
+        totalCumulativeTokens: totalTokens + 10,
+        totalToolCalls: 2,
+        phases: [{ title: 'Inspect' }],
+        workflowProgress: []
+      }
+    })
+
+    const beginCheckpointTurn = () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+      return { service, entry, checkpoints: () => entry.workflowCheckpoints }
+    }
+
+    it('retries a failed terminal workflow checkpoint instead of dropping its statistics', () => {
+      vi.useFakeTimers()
+      try {
+        const { service, entry, checkpoints } = beginCheckpointTurn()
+        mocks.checkpointWorkflowTaskEvent.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('workflow-retry', 30)
+        })
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+        expect(checkpoints()?.has('workflow-retry')).toBe(true)
+
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 30 }) })
+        )
+        expect(checkpoints()?.has('workflow-retry')).toBe(false)
+      } finally {
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        vi.useRealTimers()
+      }
+    })
+
+    it('skips the overlay refresh when a retried checkpoint finds its message row deleted', () => {
+      vi.useFakeTimers()
+      try {
+        const { service, entry, checkpoints } = beginCheckpointTurn()
+        mocks.checkpointWorkflowTaskEvent.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+        // The row is deleted while the retry waits: the retried write reports it gone, and the overlay
+        // read that follows it finds nothing to republish.
+        mocks.checkpointWorkflowTaskEvent.mockReturnValueOnce(false)
+        mocks.getSessionMessage.mockImplementation(() => {
+          throw DataApiErrorFactory.notFound('Message', 'assistant-1')
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('workflow-deleted-row', 30)
+        })
+        mocks.cacheSetShared.mockClear()
+
+        // A deleted row is a race the retry timer must survive, not an exception it throws.
+        expect(() => vi.runOnlyPendingTimers()).not.toThrow()
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(checkpoints()?.has('workflow-deleted-row')).toBe(false)
+        expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+          'agent.session.flow_parts.session-1.assistant-1',
+          expect.anything(),
+          expect.any(Number)
+        )
+      } finally {
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps retrying a workflow checkpoint that keeps failing, more slowly', () => {
+      vi.useFakeTimers()
+      try {
+        const { service, entry, checkpoints } = beginCheckpointTurn()
+        mocks.checkpointWorkflowTaskEvent.mockImplementation(() => {
+          throw new Error('database is locked')
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('workflow-stuck', 50)
+        })
+        for (let attempt = 0; attempt < 5; attempt++) vi.runOnlyPendingTimers()
+
+        // The terminal checkpoint is the task's last statistics write, so it must outlive the bounded retries.
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(6)
+        expect(checkpoints()?.has('workflow-stuck')).toBe(true)
+        vi.advanceTimersByTime(1_000)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(6)
+
+        mocks.checkpointWorkflowTaskEvent.mockReturnValue(true)
+        vi.runOnlyPendingTimers()
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(7)
+        expect(checkpoints()?.has('workflow-stuck')).toBe(false)
+      } finally {
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        vi.useRealTimers()
+      }
+    })
+
+    it('releases a workflow checkpoint whose message row is gone instead of retrying it', () => {
+      vi.useFakeTimers()
+      try {
+        const { service, entry, checkpoints } = beginCheckpointTurn()
+        // A deleted parent row cannot come back, so the checkpoint must be dropped visibly.
+        mocks.checkpointWorkflowTaskEvent.mockImplementation(() => false)
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('workflow-orphan', 70)
+        })
+        for (let attempt = 0; attempt < 5; attempt++) vi.runOnlyPendingTimers()
+        const writesWhenSettled = mocks.checkpointWorkflowTaskEvent.mock.calls.length
+
+        // A target that cannot come back must not be retried: further timer runs add no writes.
+        vi.runOnlyPendingTimers()
+        expect(mocks.checkpointWorkflowTaskEvent.mock.calls.length).toBe(writesWhenSettled)
+        expect(checkpoints()?.has('workflow-orphan')).toBe(false)
+        expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+          'Dropped workflow statistics for a missing agent session message',
+          expect.objectContaining({ taskId: 'workflow-orphan' })
+        )
+      } finally {
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the latest workflow checkpoint after parent persistence and close finalization', async () => {
+      vi.useFakeTimers()
+      try {
+        const persistedParts: any[] = [
+          {
+            type: 'tool-Workflow',
+            toolCallId: 'workflow-root',
+            state: 'input-available',
+            input: { workflow: 'review' }
+          }
+        ]
+        mocks.getSessionMessage.mockImplementation(() => ({
+          id: 'assistant-1',
+          role: 'assistant',
+          data: { parts: structuredClone(persistedParts) }
+        }))
+        mocks.saveMessage.mockImplementation(({ message }) => ({ ...message, id: message.id ?? 'assistant-1' }))
+
+        const service = new AgentSessionRuntimeService()
+        const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { close: vi.fn(), enqueue: vi.fn() } as never
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          taskType: 'local_workflow',
+          workflow: {
+            runId: 'run-1',
+            taskId: 'workflow-1',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId: 'workflow-root',
+            toolName: 'Workflow',
+            input: { workflow: 'review' }
+          }
+        })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        await persistenceListener(handle).onDone({
+          status: 'success',
+          isTopicDone: true,
+          finalMessage: {
+            id: 'assistant-1',
+            role: 'assistant',
+            parts: [
+              persistedParts[0],
+              { type: 'data-agent-task-event', id: 'task-workflow-1-progress', data: event(10) }
+            ]
+          }
+        })
+        terminalListener(handle).onDone()
+
+        const closing = service.closeSession('session-1')
+        await entry.backgroundFlowFlush
+        await closing
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({
+            workflow: expect.objectContaining({ totalTokens: 20, totalCumulativeTokens: 30, totalToolCalls: 2 })
+          })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before pruning settled task state', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-pruned-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          workflow: {
+            runId: 'run-pruned-checkpoint',
+            taskId: 'workflow-pruned-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        ;(service as any).pruneSettledBackgroundFlowState(entry)
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before releasing settled message state', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-released-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          workflow: {
+            runId: 'run-released-checkpoint',
+            taskId: 'workflow-released-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        ;(service as any).releaseBackgroundFlowMessageState(entry, 'assistant-1')
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+        expect(entry.workflowCheckpoints?.has('workflow-released-checkpoint')).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before connection reset', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+        entry.connection = connection
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-reset-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          workflow: {
+            runId: 'run-reset-checkpoint',
+            taskId: 'workflow-reset-checkpoint',
+            totalTokens,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        await (service as any).resetConnectionRuntimeState(entry, connection)
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('checkpoints the latest workflow statistics when its message anchor arrives late', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'workflow-late-anchor',
+          toolUseId: 'workflow-root',
+          status: 'in_progress',
+          title: 'Review',
+          workflow: {
+            runId: 'run-late-anchor',
+            taskId: 'workflow-late-anchor',
+            totalTokens: 55,
+            totalCumulativeTokens: 89,
+            totalToolCalls: 5,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        }
+      })
+      expect(mocks.checkpointWorkflowTaskEvent).not.toHaveBeenCalled()
+
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'workflow-root', 'assistant-1')
+
+      expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.objectContaining({
+          taskId: 'workflow-late-anchor',
+          workflow: expect.objectContaining({ totalTokens: 55, totalCumulativeTokens: 89, totalToolCalls: 5 })
+        })
+      )
+    })
+
+    it('finalizes a task_updated terminal flow while another background task remains live', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.getSessionMessage.mockImplementation((_sessionId: string, messageId: string) => {
+        const toolCallId = messageId === 'assistant-1' ? 'long-root' : 'short-root'
+        return {
+          id: messageId,
+          role: 'assistant',
+          data: {
+            parts: [{ type: 'tool-Bash', toolCallId, state: 'input-available', input: { command: toolCallId } }]
+          }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+      for (const [toolCallId, taskId] of [
+        ['long-root', 'long-task'],
+        ['short-root', 'short-task']
+      ] as const) {
+        if (toolCallId === 'short-root') {
+          service.markTurnTerminal('session-1', 'success')
+          service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2', userMessage: userMessage('user-2') })
+          entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        }
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: { type: 'tool-input-available', toolCallId, toolName: 'Bash', input: { command: toolCallId } }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'started', taskId, toolUseId: toolCallId, status: 'in_progress', taskType: 'local_bash' }
+        })
+      }
+      service.markTurnTerminal('session-1', 'success')
+      entry.flowMessageIdsByToolCallId = new Map([
+        ['long-root', 'assistant-1'],
+        ['short-root', 'assistant-2']
+      ])
+      entry.taskToolCallIdsByTaskId = new Map([
+        ['long-task', 'long-root'],
+        ['short-task', 'short-root']
+      ])
+      entry.taskMessageIdsByTaskId = new Map([
+        ['long-task', 'assistant-1'],
+        ['short-task', 'assistant-2']
+      ])
+      entry.persistedFlowMessageIds = new Set(['assistant-1', 'assistant-2'])
+
+      for (const toolCallId of ['long-root', 'short-root']) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: toolCallId,
+          chunk: {
+            type: 'tool-output-available',
+            toolCallId,
+            output: `${toolCallId} output`,
+            dynamic: true,
+            providerExecuted: true
+          }
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'updated', taskId: 'short-task', status: 'completed' }
+      })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-2',
+          expect.arrayContaining([expect.objectContaining({ toolCallId: 'short-root', output: 'short-root output' })])
+        )
+      })
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-1', expect.any(Array))
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'long-task', status: 'completed' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ toolCallId: 'long-root', output: 'long-root output' })])
+        )
+      })
+    })
+
     it('patches detached subagent chunks onto the spawning message after a new foreground turn starts', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -2631,6 +3797,723 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts, 60_000)
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
+    })
+
+    it('retries a failed detached flow parts write instead of dropping the streamed output', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const parts = [{ type: 'text', text: 'Streamed flow' }]
+        entry.backgroundFlowAccumulators = new Map([
+          [
+            'assistant-1',
+            {
+              messageId: 'assistant-1',
+              controller: { close: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: { parts }
+            }
+          ]
+        ])
+        mocks.replaceMessageParts.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+
+        await (service as any).finishBackgroundFlows(entry)
+
+        expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(1)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(1_000)
+
+        expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(2)
+        expect(mocks.replaceMessageParts).toHaveBeenLastCalledWith('session-1', 'assistant-1', parts)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(false)
+
+        // The retry is bounded: a write that landed schedules nothing further.
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps retrying a parts write that outlives the fast budget instead of dropping it', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const parts = [{ type: 'text', text: 'Streamed flow' }]
+        entry.backgroundFlowAccumulators = new Map([
+          [
+            'assistant-1',
+            {
+              messageId: 'assistant-1',
+              controller: { close: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: { parts }
+            }
+          ]
+        ])
+        mocks.replaceMessageParts.mockImplementation(() => {
+          throw new Error('database is locked')
+        })
+
+        await (service as any).finishBackgroundFlows(entry)
+        await vi.advanceTimersByTimeAsync(1_000)
+        await vi.advanceTimersByTimeAsync(1_000)
+
+        // Three attempts is the fast budget; the streamed parts are still the only copy of this output.
+        expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(3)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+
+        // Past the budget the write keeps being retried slowly instead of being dropped.
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(4)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+
+        // It lands as soon as the database accepts writes again.
+        mocks.replaceMessageParts.mockImplementation(() => undefined)
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(false)
+      } finally {
+        mocks.replaceMessageParts.mockReset()
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
+    })
+
+    describe('parts a closing session could not write', () => {
+      const OVERLAY_KEY = 'agent.session.flow_parts.session-1.assistant-1'
+      const partsOf = (messageId: string) => [{ type: 'text', text: `Late flow of ${messageId}` }]
+      let outbox: string
+
+      beforeEach(async () => {
+        outbox = await mkdtemp(path.join(tmpdir(), 'agent-session-orphaned-parts-'))
+        forkRecoveryMocks.getPath.mockImplementation((key, filename) => {
+          if (key !== 'feature.agents.orphaned_message_parts') throw new Error(`Unexpected path: ${key}`)
+          return filename ? path.join(outbox, filename) : outbox
+        })
+      })
+
+      afterEach(async () => {
+        forkRecoveryMocks.getPath.mockReset()
+        mocks.replaceMessageParts.mockReset()
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        await realFs.rm(outbox, { recursive: true, force: true })
+      })
+
+      async function closeWithUnwritableFlows(messageIds = ['assistant-1']) {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        getEntry(service).backgroundFlowAccumulators = new Map(
+          messageIds.map((messageId) => [
+            messageId,
+            {
+              messageId,
+              controller: { close: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: { parts: partsOf(messageId) }
+            }
+          ])
+        )
+        mocks.replaceMessageParts.mockImplementation(() => {
+          throw new Error('database is locked')
+        })
+        await service.closeSession('session-1')
+        return service
+      }
+
+      it('keeps every write it could not land until a sweep lands it', async () => {
+        const messageIds = Array.from({ length: 70 }, (_, index) => `assistant-${index}`)
+        const service = await closeWithUnwritableFlows(messageIds)
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // Each held write is the only copy of its output, so none may make room for the others.
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(messageIds.length)
+        for (const messageId of messageIds) {
+          expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledWith(
+            'session-1',
+            messageId,
+            partsOf(messageId),
+            []
+          )
+        }
+        // A landed write is released, so a later sweep cannot replay it over newer row content.
+        await (service as any).flushOrphanedMessagePartsWrites()
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(messageIds.length)
+      })
+
+      it('never deletes a newer copy held while a sweep lands an older one', async () => {
+        const service = await closeWithUnwritableFlows()
+        const newer = { sessionId: 'session-1', messageId: 'assistant-1', parts: partsOf('newer'), events: [] }
+        // The newer hold lands between the sweep reading the old copy and removing it.
+        vi.mocked(rm).mockImplementationOnce(async (target, options) => {
+          await (service as any).holdOrphanedMessagePartsWrite(newer)
+          return realFs.rm(target, options)
+        })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
+      it('lands only the newest held copy of a message', async () => {
+        const service = await closeWithUnwritableFlows()
+        await (service as any).holdOrphanedMessagePartsWrite({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          parts: partsOf('newer'),
+          events: []
+        })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // Replaying the replaced copy would briefly roll the row back to older output.
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(1)
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
+      it('keeps a held copy whose older copies could not be removed', async () => {
+        const service = await closeWithUnwritableFlows()
+        vi.mocked(rm).mockRejectedValueOnce(new Error('EBUSY'))
+
+        await (service as any).holdOrphanedMessagePartsWrite({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          parts: partsOf('newer'),
+          events: []
+        })
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // The new copy reached the disk, so nothing was dropped and it still has the last word.
+        expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
+          'Dropped detached flow message parts that neither the database nor the disk accepted',
+          expect.anything()
+        )
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
+      it('retries a held write on the next sweep while the database still refuses it', async () => {
+        const service = await closeWithUnwritableFlows()
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+        await (service as any).flushOrphanedMessagePartsWrites()
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(2)
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('assistant-1'),
+          []
+        )
+      })
+
+      it('lands what a previous process held before boot settles the rows', async () => {
+        await closeWithUnwritableFlows()
+        mocks.replaceMessageParts.mockReset()
+        // The overlay closing seeded lived in the previous process's memory.
+        mocks.cacheDeleteShared(OVERLAY_KEY)
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReturnValue({ data: { parts: partsOf('assistant-1') } })
+
+        BaseService.resetInstances()
+        const restarted = new AgentSessionRuntimeService()
+        await (restarted as any).onInit()
+
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('assistant-1'),
+          []
+        )
+        // Boot rewrites the interrupted parts of the rows, so the held parts must be in them first,
+        // and no overlay may shadow the row it is about to settle.
+        const [landedAt] = mocks.replaceMessagePartsWithWorkflowCheckpoints.mock.invocationCallOrder
+        expect(landedAt).toBeLessThan(mocks.findCrashOrphanedAssistantMessages.mock.invocationCallOrder[0])
+        expect(landedAt).toBeLessThan(mocks.findStaleRunTaskMessages.mock.invocationCallOrder[0])
+        expect(mocks.cacheGetShared(OVERLAY_KEY)).toBeUndefined()
+      })
+
+      it('republishes the overlay from the row a sweep lands', async () => {
+        const service = await closeWithUnwritableFlows()
+        expect(mocks.cacheGetShared(OVERLAY_KEY)).toEqual(partsOf('assistant-1'))
+        const landedParts = [
+          ...partsOf('assistant-1'),
+          { type: 'data-agent-task-event', data: { taskId: 'task-1', status: 'completed' } }
+        ]
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReturnValue({ data: { parts: landedParts } })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // The renderer prefers the overlay to the row, so it must now carry what the row holds.
+        expect(mocks.cacheGetShared(OVERLAY_KEY)).toEqual(landedParts)
+      })
+
+      it('drops the overlay when a sweep finds the row deleted', async () => {
+        const service = await closeWithUnwritableFlows()
+        expect(mocks.cacheGetShared(OVERLAY_KEY)).toEqual(partsOf('assistant-1'))
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReturnValue(null)
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        expect(mocks.cacheGetShared(OVERLAY_KEY)).toBeUndefined()
+      })
+
+      describe('workflow checkpoints', () => {
+        const event = {
+          event: 'updated' as const,
+          taskId: 'workflow-stuck',
+          toolUseId: 'workflow-root',
+          status: 'completed' as const,
+          workflow: { runId: 'run-1', taskId: 'workflow-stuck', totalTokens: 90, phases: [], workflowProgress: [] }
+        }
+
+        async function closeWithUnwritableCheckpoint() {
+          const service = new AgentSessionRuntimeService()
+          service.beginTurn(baseTurnInput)
+          // The terminal checkpoint already failed its bounded retries and has no parts write to ride on.
+          getEntry(service).workflowCheckpoints = new Map([
+            ['workflow-stuck', { messageId: 'assistant-1', event, lastWrittenAt: 0, failedAttempts: 3 }]
+          ])
+          mocks.checkpointWorkflowTaskEvent.mockImplementation(() => {
+            throw new Error('database is locked')
+          })
+          await service.closeSession('session-1')
+          mocks.checkpointWorkflowTaskEvent.mockReset()
+          return service
+        }
+
+        afterEach(() => {
+          mocks.checkpointWorkflowTaskEvent.mockReset()
+        })
+
+        it('keeps a checkpoint closing could not merge until a sweep lands it', async () => {
+          const service = await closeWithUnwritableCheckpoint()
+          mocks.checkpointWorkflowTaskEvent.mockImplementationOnce(() => {
+            throw new Error('database is locked')
+          })
+          mocks.checkpointWorkflowTaskEvent.mockReturnValue(true)
+
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+
+          // Refused once, landed once, then released so a later sweep cannot replay it over newer stats.
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith('session-1', 'assistant-1', event)
+        })
+
+        it('releases a held checkpoint whose message row is gone, overlay included', async () => {
+          const service = await closeWithUnwritableCheckpoint()
+          mocks.cacheSetShared(OVERLAY_KEY, partsOf('assistant-1'))
+          mocks.checkpointWorkflowTaskEvent.mockReturnValue(false)
+
+          await (service as any).flushOrphanedMessagePartsWrites()
+          await (service as any).flushOrphanedMessagePartsWrites()
+
+          expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+          // An overlay left behind would keep showing a message that no longer exists.
+          expect(mocks.cacheGetShared(OVERLAY_KEY)).toBeUndefined()
+        })
+      })
+    })
+
+    it('drops the flow overlay instead of publishing parts for a deleted message', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Streamed flow' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+      mocks.replaceMessageParts.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Message', 'assistant-1')
+      })
+      mocks.cacheSetShared.mockClear()
+      mocks.cacheDeleteShared.mockClear()
+
+      await (service as any).finishBackgroundFlows(entry)
+
+      // A row that is gone has no live view to serve, and retrying the write could never land it.
+      expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1')
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.anything(),
+        expect.anything()
+      )
+      expect(entry.pendingMessagePartsWrites?.has('assistant-1') ?? false).toBe(false)
+    })
+
+    it('persists the last accumulated parts when the flow reader rejects', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Reader failed mid-flow' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.reject(new Error('reader failed')),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      await (service as any).finishBackgroundFlows(entry)
+
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts)
+    })
+
+    it('republishes the detached flow overlay with the statistics a landed retry re-merged', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const streamed = [{ type: 'text', text: 'Streamed flow' }]
+        const merged = [
+          ...streamed,
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'updated', taskId: 'wf-1', status: 'completed', workflow: { totalTokens: 30 } }
+          }
+        ]
+        entry.backgroundFlowAccumulators = new Map([
+          [
+            'assistant-1',
+            {
+              messageId: 'assistant-1',
+              controller: { close: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: { parts: streamed }
+            }
+          ]
+        ])
+        // The message owns a workflow checkpoint, so the retry write carries its statistics and the
+        // overlay has to follow the row that write produced.
+        ;(entry.workflowCheckpoints ??= new Map()).set('wf-1', {
+          messageId: 'assistant-1',
+          event: {
+            event: 'updated',
+            taskId: 'wf-1',
+            status: 'completed',
+            workflow: { totalTokens: 30 }
+          } as any
+        })
+        mocks.getSessionMessage.mockReturnValue({ data: { parts: merged } })
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+
+        await (service as any).finishBackgroundFlows(entry)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+
+        mocks.cacheSetShared.mockClear()
+        await vi.advanceTimersByTimeAsync(1_000)
+
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(2)
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+          expect.stringContaining('assistant-1'),
+          merged,
+          expect.any(Number)
+        )
+      } finally {
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        mocks.getSessionMessage.mockReset()
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the streamed statistics when the final checkpoint write fails', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const streamed = [
+        {
+          type: 'data-agent-task-event',
+          data: { event: 'updated', taskId: 'wf-1', status: 'completed', workflow: { totalTokens: 30 } }
+        }
+      ]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts: streamed }
+          }
+        ]
+      ])
+      ;(entry.workflowCheckpoints ??= new Map()).set('wf-1', {
+        messageId: 'assistant-1',
+        event: {
+          event: 'updated',
+          taskId: 'wf-1',
+          status: 'completed',
+          workflow: { totalTokens: 30 }
+        } as any
+      })
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementationOnce(() => {
+        throw new Error('database is locked')
+      })
+
+      await (service as any).finishBackgroundFlows(entry)
+
+      // The row still holds the statistics the failed write could not update, so publishing it would
+      // hand the renderer stale numbers; the streamed parts are the newest statistics there are.
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        expect.stringContaining('assistant-1'),
+        streamed,
+        expect.any(Number)
+      )
+      expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+    })
+
+    /**
+     * The runtime's contract for the detached-flow write paths: the whole-row write carries this
+     * message's workflow statistics in the same call, so a landed checkpoint cannot be reverted by the
+     * snapshot it replaces. Merging them into the row is the service's job and is covered there.
+     */
+    const expectStatisticsCarriedBy = (totalTokens: number) =>
+      expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.any(Array),
+        [expect.objectContaining({ workflow: expect.objectContaining({ totalTokens }) })]
+      )
+
+    it('carries a retried checkpoint into the final overlay write', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+
+        const streamed = [
+          {
+            type: 'data-agent-task-event',
+            id: 'task-wf-1-progress',
+            data: { event: 'progress', taskId: 'wf-1', status: 'in_progress', workflow: { totalTokens: 10 } }
+          }
+        ]
+        const rowAfterWrite = [...streamed]
+        entry.backgroundFlowAccumulators = new Map([
+          [
+            'assistant-1',
+            {
+              messageId: 'assistant-1',
+              controller: { close: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: { parts: streamed }
+            }
+          ]
+        ])
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset().mockImplementation(() => ({
+          data: { parts: rowAfterWrite }
+        }))
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        mocks.checkpointWorkflowTaskEvent.mockImplementation(() => true)
+        mocks.checkpointWorkflowTaskEvent.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+
+        // The task the flow carries is still live, so its terminal edge defers the accumulator finalize.
+        const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+        entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+        ;(service as any).handleBackgroundWorkState(entry, true)
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('wf-1', 30)
+        })
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).not.toHaveBeenCalled()
+
+        // The transient failure is retried and lands, so the checkpoint holds the terminal statistics.
+        await vi.advanceTimersByTimeAsync(1_000)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(entry.workflowCheckpoints?.has('wf-1')).toBe(true)
+
+        // Releasing background work is what finalizes the accumulator in production.
+        mocks.cacheSetShared.mockClear()
+        ;(service as any).handleBackgroundWorkState(entry, false)
+        await (service as any).finishBackgroundFlows(entry)
+
+        expectStatisticsCarriedBy(30)
+        // The overlay publishes the row the write produced, statistics included.
+        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(
+          'agent.session.flow_parts.session-1.assistant-1',
+          rowAfterWrite,
+          60_000
+        )
+        expect(entry.workflowCheckpoints?.has('wf-1')).toBe(false)
+      } finally {
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        mocks.checkpointWorkflowTaskEvent.mockReset()
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
+    })
+
+    it('carries a landed checkpoint into the reader-reject fallback write', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const rowAfterWrite = [
+        {
+          type: 'data-agent-task-event',
+          id: 'task-wf-1-workflow-checkpoint',
+          data: { event: 'updated', taskId: 'wf-1', status: 'completed', workflow: { totalTokens: 30 } }
+        }
+      ]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.reject(new Error('reader failed')),
+            closed: false,
+            latest: {
+              parts: [
+                {
+                  type: 'data-agent-task-event',
+                  id: 'task-wf-1-progress',
+                  data: { event: 'progress', taskId: 'wf-1', status: 'in_progress', workflow: { totalTokens: 10 } }
+                }
+              ]
+            }
+          }
+        ]
+      ])
+      ;(entry.workflowCheckpoints ??= new Map()).set('wf-1', {
+        messageId: 'assistant-1',
+        event: terminalCheckpointEvent('wf-1', 30)
+      })
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset().mockImplementation(() => ({
+        data: { parts: rowAfterWrite }
+      }))
+      mocks.getSessionMessage.mockImplementation(() => ({ data: { parts: rowAfterWrite } }))
+      mocks.cacheSetShared.mockClear()
+
+      await (service as any).finishBackgroundFlows(entry)
+
+      // The fallback write carries the checkpoint statistics instead of dropping them.
+      expectStatisticsCarriedBy(30)
+      expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        rowAfterWrite,
+        expect.any(Number)
+      )
+      mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+      mocks.getSessionMessage.mockReset()
+    })
+
+    it('keeps a message checkpoints while its parts write is still retrying', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        ;(entry.persistedFlowMessageIds ??= new Set()).add('assistant-1')
+        entry.backgroundFlowAccumulators = new Map([
+          [
+            'assistant-1',
+            {
+              messageId: 'assistant-1',
+              controller: { close: vi.fn(), enqueue: vi.fn() },
+              done: Promise.resolve(),
+              closed: false,
+              latest: {
+                parts: [
+                  {
+                    type: 'data-agent-task-event',
+                    id: 'task-wf-1-progress',
+                    data: { event: 'progress', taskId: 'wf-1', status: 'in_progress', workflow: { totalTokens: 10 } }
+                  }
+                ]
+              }
+            }
+          ]
+        ])
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementationOnce(() => {
+          throw new Error('database is locked')
+        })
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementation(() => ({ data: { parts: [] } }))
+
+        ;(service as any).handleBackgroundWorkState(entry, true)
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: terminalCheckpointEvent('wf-1', 30)
+        })
+        expect([...(entry.workflowCheckpoints?.keys() ?? [])]).toEqual(['wf-1'])
+        expect([...(entry.taskMessageIdsByTaskId?.keys() ?? [])]).toEqual(['wf-1'])
+
+        // Releasing background work finalizes the flow (whose parts write fails) and then prunes state.
+        ;(service as any).handleBackgroundWorkState(entry, false)
+        await (service as any).finishBackgroundFlows(entry)
+        expect(entry.pendingMessagePartsWrites?.has('assistant-1')).toBe(true)
+        expect([...(entry.workflowCheckpoints?.keys() ?? [])]).toEqual(['wf-1'])
+
+        await vi.advanceTimersByTimeAsync(1_000)
+
+        // The retried write carries the statistics again instead of replacing them with the stale snapshot.
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(2)
+        expectStatisticsCarriedBy(30)
+      } finally {
+        mocks.replaceMessagePartsWithWorkflowCheckpoints.mockReset()
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
     })
 
     it('does not finish closing while detached flow parts can still write', async () => {
@@ -2864,10 +4747,59 @@ describe('AgentSessionRuntimeService', () => {
       await expect(service.stopBackgroundTask('session-1', 'bg-1')).resolves.toBe(false)
     })
 
+    it('coalesces progress cache broadcasts and publishes terminal task state immediately', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const taskEventWrites = () =>
+          mocks.cacheSetShared.mock.calls.filter(([key]) => key === 'agent.session.task_events.session-1')
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'started', taskId: 'bg-throttled', status: 'in_progress', description: 'Starting' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 1' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 2' }
+        })
+
+        expect(taskEventWrites()).toHaveLength(1)
+        vi.runOnlyPendingTimers()
+        expect(taskEventWrites()).toHaveLength(2)
+        expect(taskEventWrites().at(-1)?.[1]).toMatchObject({
+          'bg-throttled': { status: 'in_progress', description: 'Step 2' }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 3' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'updated', taskId: 'bg-throttled', status: 'completed', summary: 'Done' }
+        })
+
+        expect(taskEventWrites()).toHaveLength(3)
+        expect(taskEventWrites().at(-1)?.[1]).toMatchObject({
+          'bg-throttled': { status: 'completed', description: 'Step 3', summary: 'Done' }
+        })
+        vi.runOnlyPendingTimers()
+        expect(taskEventWrites()).toHaveLength(3)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     // `task_type` and the row title exist only on `task_started` (SDK-verified); a completion event
     // replacing the cache entry wholesale would strip both, dropping a finished bash task into the
     // subagent bucket with no name.
-    it('merges late task events per task instead of letting the completion displace the start', () => {
+    it('merges late task identity without letting progress mutate a completed task', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2896,6 +4828,15 @@ describe('AgentSessionRuntimeService', () => {
           outputFile: '/tmp/o'
         }
       })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          lastToolName: 'Read'
+        }
+      })
 
       const key = 'agent.session.task_events.session-1'
       expect(cacheStore[key]['bg-1']).toMatchObject({
@@ -2905,6 +4846,7 @@ describe('AgentSessionRuntimeService', () => {
         taskType: 'local_bash',
         summary: 'long prose…'
       })
+      expect(cacheStore[key]['bg-1']).not.toHaveProperty('lastToolName')
     })
 
     it('drops the level when the session closes, since it is scoped to the CLI process', () => {
@@ -2918,7 +4860,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
     })
 
-    it('ignores task-state resets from a stale connection', () => {
+    it('ignores task-state resets from a stale connection', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2937,7 +4879,7 @@ describe('AgentSessionRuntimeService', () => {
       }
       mocks.cacheSetShared.mockClear()
 
-      ;(service as any).resetConnectionRuntimeState(entry, staleConnection)
+      await (service as any).resetConnectionRuntimeState(entry, staleConnection)
 
       expect(entry.runtimeState.background).toEqual({ kind: 'active', responder: 'interactive' })
       expect(entry.runtimeState.execution).toMatchObject({
@@ -3124,6 +5066,37 @@ describe('AgentSessionRuntimeService', () => {
         void service.closeSession('session-1')
       }
     )
+
+    it('keeps another message task event out of an admitted turn before its stream reopens', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, admission: 'admitted' }
+      entry.connection = { send: vi.fn(), close: vi.fn(), events: [] }
+      entry.taskMessageIdsByTaskId = new Map([['prior-task', 'prior-assistant']])
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'data-agent-task-event',
+          id: 'task-prior-task-notification',
+          data: { event: 'notification', taskId: 'prior-task', status: 'completed', summary: 'Prior task done' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'text-delta', id: 'reply', delta: 'Current reply' }
+      })
+
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'Current reply' } })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      await service.closeSession('session-1')
+    })
 
     it('keeps an admitted turn approval pending until its stream reopens', async () => {
       const service = new AgentSessionRuntimeService()
@@ -3522,7 +5495,7 @@ describe('AgentSessionRuntimeService', () => {
 
       // Model the connection-loop finalizer: connection-local ownership is released, but the pending
       // stream outcome must survive until openTurnStream installs the receive-only controller.
-      ;(service as any).resetConnectionRuntimeState(entry, connection)
+      await (service as any).resetConnectionRuntimeState(entry, connection)
       entry.connection = undefined
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'autonomous-turn',

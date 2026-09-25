@@ -196,7 +196,8 @@ const capabilities = [
       id: 'second',
       instanceKey: 'second',
       title: 'Second',
-      readiness: scope.secondReadiness
+      readiness: scope.secondReadiness,
+      backPanelId: 'first'
     })
   }
 ] satisfies readonly RightPanelCapability<TestScope>[]
@@ -223,6 +224,9 @@ function ControllerProbe() {
       </button>
       <button type="button" onClick={() => actions.tryOpen('second')}>
         open second
+      </button>
+      <button type="button" onClick={() => actions.tryOpen('second', { transition: 'forward' })}>
+        open second forward
       </button>
     </>
   )
@@ -293,6 +297,28 @@ describe('RightPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open first' }))
     expect(screen.getByText('first:1')).toBe(first)
+  })
+
+  it('offers generic back navigation with directional panel transitions', async () => {
+    const user = userEvent.setup()
+    render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open second forward' }))
+    const secondPanel = screen.getByText('second:0').closest('[data-panel-transition]')
+    expect(secondPanel).toHaveAttribute('data-panel-transition', 'forward')
+    fireEvent.animationEnd(secondPanel!)
+    expect(secondPanel).toHaveAttribute('data-panel-transition', 'replace')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('first')
+    const firstPanel = screen.getByText('first:0').closest('[data-panel-transition]')
+    expect(firstPanel).toHaveAttribute('data-panel-transition', 'backward')
+    fireEvent.animationEnd(firstPanel!)
+    expect(firstPanel).toHaveAttribute('data-panel-transition', 'replace')
   })
 
   it('replaces state when a panel identity changes', () => {
