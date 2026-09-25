@@ -327,6 +327,12 @@ describe('feishuKnowledgeProvider', () => {
     )
   })
 
+  it('accepts an empty Wiki root list when Feishu omits items', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { has_more: false, page_token: '0' } }))
+
+    await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
+  })
+
   it('rejects pagination responses that claim another page without a token', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
 

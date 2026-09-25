@@ -85,7 +85,7 @@ const wikiNodePageResponseSchema = z
   .object({
     code: z.literal(0),
     data: z.object({
-      items: z.array(wikiNodeSchema).max(50),
+      items: z.array(wikiNodeSchema).max(50).default([]),
       has_more: z.boolean(),
       page_token: z.string().trim().min(1).optional()
     })
