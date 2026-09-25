@@ -306,6 +306,87 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('reports schema timeouts without suggesting an incompatible binary and kills the command', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.useFakeTimers()
+
+      const pending = (service as any).assertSchemaCapability({
+        path: '/mock/bin/openclaw',
+        env: { PATH: '/mock/bin' }
+      })
+      const caught = pending.catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(30000)
+
+      const error = await caught
+      expect(error).toMatchObject({
+        kind: 'preflight_timeout',
+        message: expect.stringContaining('did not return its configuration schema within 30 seconds')
+      })
+      expect(error.message).not.toMatch(/incompatible|Upgrade OpenClaw/i)
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    })
+
+    it('keeps waiting for a slow schema command past 12.5 seconds and times out at 30 seconds', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.useFakeTimers()
+
+      const pending = (service as any).assertSchemaCapability({
+        path: '/mock/bin/openclaw',
+        env: { PATH: '/mock/bin' }
+      })
+      let settled = false
+      void pending.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      const caught = pending.catch((error: unknown) => error)
+
+      await vi.advanceTimersByTimeAsync(12500)
+      expect(settled).toBe(false)
+      expect(child.kill).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(17500)
+      expect(await caught).toMatchObject({ kind: 'preflight_timeout' })
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    })
+
+    it('returns the schema timeout message from syncProviderConfig', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.useFakeTimers()
+
+      const provider = {
+        id: 'openai',
+        type: 'openai',
+        name: 'OpenAI',
+        apiKey: 'sk-test',
+        apiHost: 'https://api.openai.com',
+        models: [{ id: 'gpt-4o', name: 'GPT-4o' }]
+      } as any
+      const model = { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o' } as any
+      const pending = service.syncProviderConfig(provider, model)
+      await vi.advanceTimersByTimeAsync(30000)
+
+      const result = await pending
+      expect(result.success).toBe(false)
+      const message = 'message' in result ? result.message : ''
+      expect(message).toContain('did not return its configuration schema within 30 seconds')
+      expect(message).not.toMatch(/incompatible|Upgrade OpenClaw/i)
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    })
+
     it('returns the runtime schema reported by the resolved OpenClaw binary', async () => {
       runOpenClawCommandSpy.mockRestore()
       schemaCapabilitySpy.mockRestore()
@@ -345,7 +426,11 @@ describe('OpenClawService gateway status state machine', () => {
           PATH: '/mock/bin',
           OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
         },
-        { stdoutLimitBytes: 32 * 1024 * 1024 }
+        {
+          stdoutLimitBytes: 32 * 1024 * 1024,
+          timeoutMs: 30000,
+          timeoutFailureKind: 'preflight_timeout'
+        }
       )
     })
 
@@ -1602,6 +1687,81 @@ describe('OpenClawService gateway status state machine', () => {
           apiHost: 'http://127.0.0.1:8080/v1'
         }),
         expect.objectContaining({ id: 'qwen3' })
+      )
+    })
+
+    it('syncs a keyless provider with no dedicated placeholder by authOptional', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'ovms',
+          name: 'OVMS',
+          presetProviderId: 'ovms',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000/v3' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'ovms::qwen3',
+        providerId: 'ovms',
+        apiModelId: 'qwen3',
+        name: 'Qwen3'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('ovms::qwen3')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'ovms',
+          apiKey: 'no-key-required'
+        }),
+        expect.objectContaining({ id: 'qwen3' })
+      )
+    })
+
+    it('allows keyless oMLX providers during sync', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'omlx',
+          name: 'oMLX',
+          presetProviderId: 'omlx',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'omlx::qwen3-coder-30b',
+        providerId: 'omlx',
+        apiModelId: 'qwen3-coder-30b',
+        name: 'Qwen3 Coder 30B'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('omlx::qwen3-coder-30b')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'omlx',
+          apiKey: 'no-key-required',
+          apiHost: 'http://127.0.0.1:8000'
+        }),
+        expect.objectContaining({ id: 'qwen3-coder-30b' })
       )
     })
 

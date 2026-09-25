@@ -3,7 +3,7 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -13,6 +13,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
+import { t } from '@main/i18n'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -20,6 +21,7 @@ import {
   isAllowedAgentDevPreviewEntryUrl,
   isAllowedAgentHtmlArtifactEntryUrl
 } from '@main/utils/agentWebviewRequest'
+import { getAppEdition } from '@main/utils/appEdition'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -60,6 +62,7 @@ export class MainWindowService extends BaseService {
    * window. Runtime rebuilds (showMainWindow with init data) always show.
    */
   private suppressInitialLaunchShow = false
+  private architectureWarningShown = false
 
   constructor() {
     super()
@@ -312,6 +315,9 @@ export class MainWindowService extends BaseService {
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
       logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      // A window being torn down can report its renderer gone after the webContents is
+      // destroyed, where reload() throws and hides the real crash behind a dialog.
+      if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -484,7 +490,33 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  private async showArchitectureWarning(mainWindow: BrowserWindow) {
+    if (!isMac || !app.runningUnderARM64Translation || this.architectureWarningShown) return
+    this.architectureWarningShown = true
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      message: t('dialog.architecture_mismatch.title'),
+      detail: t('dialog.architecture_mismatch.detail'),
+      buttons: [t('dialog.architecture_mismatch.download'), t('dialog.architecture_mismatch.later')],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true
+    })
+    if (response === 0) {
+      await shell.openExternal(
+        getAppEdition() === 'cn' ? 'https://cherryai.com.cn/download' : 'https://cherryai.com/download'
+      )
+    }
+  }
+
   private setupWindowEvents(mainWindow: BrowserWindow) {
+    mainWindow.once('show', () => {
+      void this.showArchitectureWarning(mainWindow).catch((error) => {
+        logger.error('Failed to show architecture warning or open download page', error)
+      })
+    })
+
     mainWindow.once('ready-to-show', () => {
       const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))

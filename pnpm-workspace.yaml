@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
 
+engineStrict: true
+
 packageExtensions:
   # The published development export imports these but lists them only as devDependencies.
   "micromark-extension-definition-list@2.0.1":
@@ -60,12 +62,6 @@ overrides:
   "@napi-rs/canvas": "0.1.97"
   # transformers 4.2.0 pins 1.24.3; keep every inference path on the patched lifecycle-safe build.
   onnxruntime-node: "1.25.1"
-  # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
-  # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
-  # Windows bindings, but use the legacy Accurate macOS implementation until
-  # upstream adds cycle/depth guards.
-  "@napi-rs/system-ocr-darwin-arm64": "1.0.2"
-  "@napi-rs/system-ocr-darwin-x64": "1.0.2"
   # Keep exactly one @ai-sdk/provider + provider-utils so `instanceof APICallError` holds
   # across every provider package; 3.0.15 / 4.0.50 is what the current provider set declares.
   "@ai-sdk/provider": "3.0.15"
@@ -83,7 +79,7 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
-  "@napi-rs/system-ocr@1.1.0": patches/@napi-rs-system-ocr-npm-1.1.0-59e7a78e8b.patch
+  "@napi-rs/system-ocr@1.2.0": patches/@napi-rs__system-ocr@1.2.0.patch
   "tesseract.js@6.0.1": patches/tesseract.js-npm-6.0.1-2562a7e46d.patch
   "electron-updater@6.7.0": patches/electron-updater-npm-6.7.0-47b11bb0d4.patch
   "atomically@1.7.0": patches/atomically-npm-1.7.0-e742e5293b.patch
@@ -117,6 +113,7 @@ patchedDependencies:
   "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
   "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1": patches/@deepseek-ai__dsh-sdk-client@0.1.2-rc.1.patch
   docx-preview@0.3.7: patches/docx-preview@0.3.7.patch
+  "@elysia/node@1.4.6": patches/@elysia__node@1.4.6.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true
@@ -251,6 +248,6 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/togetherai@2.0.78"
   - "@ai-sdk/xai@3.0.126"
   - "@ai-sdk/provider-utils@4.0.50"
-  - "@cherrystudio/analytics-client@1.3.1"
+  - "@cherrystudio/analytics-client@1.4.0"
   - "@ai-sdk/openai@3.0.109"
   - "@ai-sdk/azure@3.0.116"

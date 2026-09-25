@@ -34,7 +34,7 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
-import { useActiveComposerOverride } from './ComposerContext'
+import { useComposerLayerActive } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
@@ -125,6 +125,9 @@ export interface ComposerSurfaceActions {
 }
 
 export interface ComposerSurfaceEditingState {
+  description?: string
+  sendLabel?: string
+  cancelDisabled?: boolean
   messageId: string
   highlightKey?: number
   onCancel: () => void
@@ -508,7 +511,7 @@ export default function ComposerSurfaceRuntime({
   filesCount,
   isExpanded,
   onExpandedChange,
-  quickPanelEnabled,
+  quickPanelEnabled: enableQuickPanel,
   enableDragDrop,
   enableSpellCheck,
   editable = true,
@@ -553,9 +556,10 @@ export default function ComposerSurfaceRuntime({
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const composerOverridden = useActiveComposerOverride() !== null
-  const closeQuickPanel = quickPanel.close
-  const isQuickPanelVisible = quickPanel.isVisible
+  const layerActive = useComposerLayerActive()
+  const quickPanelEnabled = enableQuickPanel && layerActive
+  const suggestionPanelActiveRef = useRef(quickPanelEnabled)
+  const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
@@ -618,10 +622,17 @@ export default function ComposerSurfaceRuntime({
   ])
 
   useLayoutEffect(() => {
-    if (composerOverridden && isQuickPanelVisible) {
-      closeQuickPanel('composer_override')
+    suggestionPanelActiveRef.current = quickPanelEnabled
+    return () => {
+      suggestionPanelActiveRef.current = false
     }
-  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
+  }, [quickPanelEnabled])
+
+  useLayoutEffect(() => {
+    if (previousLayerActiveRef.current === layerActive) return
+    previousLayerActiveRef.current = layerActive
+    if (quickPanelRef.current.isVisible) quickPanelRef.current.close('composer_override')
+  }, [layerActive])
 
   useEffect(() => {
     textRef.current = text
@@ -1192,6 +1203,7 @@ export default function ComposerSurfaceRuntime({
         allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
         items: () => [],
         onActiveChange: ({ editor, query, range, text }) => {
+          if (!suggestionPanelActiveRef.current) return
           const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             editor,
@@ -1262,9 +1274,11 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: ({ event }) => {
+          if (!suggestionPanelActiveRef.current) return false
           return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
         },
         onExit: () => {
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
           // Read this pluginKey's own last-active generation. @tiptap/suggestion
           // only fires onExit when prev.active was true, so this should be at
           // least 1; ?? 0 is a defensive fallback for the type system, not a
@@ -1300,7 +1314,12 @@ export default function ComposerSurfaceRuntime({
             }
 
             const { quickPanel } = rootSuggestionStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === ComposerPanelSymbol.Root
+            ) {
               quickPanel.close()
             }
           }, 0)
@@ -1321,6 +1340,7 @@ export default function ComposerSurfaceRuntime({
         ...source,
         renderMode: 'headless',
         onActiveChange: (options) => {
+          if (!suggestionPanelActiveRef.current) return
           source.onActiveChange?.(options)
 
           const { quickPanel } = suggestionPanelStateRef.current
@@ -1367,16 +1387,23 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: (props) => {
+          if (!suggestionPanelActiveRef.current) return false
           const handledByQuickPanel = suggestionPanelStateRef.current.quickPanel.dispatchKeyDown(props.event)
           if (handledByQuickPanel) return true
           return source.onKeyDown?.(props) ?? false
         },
         onExit: (options) => {
           source.onExit?.(options)
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
 
           window.setTimeout(() => {
             const { quickPanel } = suggestionPanelStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === source.char) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === source.char
+            ) {
               quickPanel.close()
             }
           }, 0)
@@ -1386,8 +1413,9 @@ export default function ComposerSurfaceRuntime({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
-    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
+    // Tiptap installs plugins at editor creation, including when the composer starts hidden.
+    () => (enableQuickPanel ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
@@ -1682,10 +1710,10 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const shouldPreferClipboardImage = hasSupportedClipboardImage(
-        Array.from(event.clipboardData?.files ?? []),
-        supportedExts
-      )
+      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
+      const shouldPreferClipboardImage =
+        !hasTextualClipboardRepresentation &&
+        hasSupportedClipboardImage(Array.from(event.clipboardData?.files ?? []), supportedExts)
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
@@ -2174,18 +2202,23 @@ export default function ComposerSurfaceRuntime({
       </button>
     </Tooltip>
   ) : (
-    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+    <SendMessageButton
+      sendMessage={sendDraft}
+      disabled={sendDisabled}
+      onDisabledClick={showBlockedSendReason}
+      label={editingState?.sendLabel}
+    />
   )
   const editingModeHeader = editingState ? (
     <div
       role="status"
       aria-live="polite"
-      aria-label={t('chat.input.editing_message')}
+      aria-label={editingState.description ?? t('chat.input.editing_message')}
       data-composer-editing-header=""
       className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+        <span className="min-w-0 font-medium">{editingState.description ?? t('chat.input.editing')}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {editingState.onLocate ? (
@@ -2218,6 +2251,7 @@ export default function ComposerSurfaceRuntime({
           <Button
             type="button"
             onClick={editingState.onCancel}
+            disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
             className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
