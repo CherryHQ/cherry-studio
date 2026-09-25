@@ -1,7 +1,6 @@
 import type { Context, ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
-import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import {
   buildCitationPartsRegistry,
@@ -11,7 +10,7 @@ import {
 } from '@renderer/utils/message/citations'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { AgentLaunchIndexProvider, PartsProvider } from './blocks/MessagePartsContext'
+import { PartsProvider } from './blocks/MessagePartsContext'
 import type {
   MessageListActions,
   MessageListItem,
@@ -117,16 +116,7 @@ function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistr
   }, [messageIds, partsSource])
 }
 
-export const MessageListProvider = ({
-  value,
-  children,
-  buildLaunchIndex
-}: {
-  value: MessageListProviderValue
-  children: ReactNode
-  /** Agent launch-identity index builder — only agent-hosting pages opt in. */
-  buildLaunchIndex?: (partsByMessageId: Record<string, CherryMessagePart[]> | null) => AgentLaunchIndex
-}) => {
+export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
   const { state, actions, meta } = value
   const citationRegistry = useCitationPartsRegistry(state)
 
@@ -201,40 +191,30 @@ export const MessageListProvider = ({
     [state.getMessageActivityState, state.messageActivityStore]
   )
 
-  // The launch index is derived once per parts-map version so streaming chunks rebuild it a
-  // single time instead of once per mounted resume-receipt consumer. A page that does not host
-  // agents simply omits the builder and skips the index entirely.
-  const launchIndex = useMemo(
-    () => (buildLaunchIndex ? buildLaunchIndex(state.partsByMessageId) : null),
-    [buildLaunchIndex, state.partsByMessageId]
-  )
-
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
-        <AgentLaunchIndexProvider value={launchIndex}>
-          <PartsProvider value={state.partsByMessageId}>
-            <MessageListCitationRegistryContext value={citationRegistry}>
-              <MessageListActionsContext value={actions}>
-                <MessageListMetaContext value={meta}>
-                  <MessageListRenderConfigContext value={state.renderConfig}>
-                    <MessageListSelectionContext value={state.selection}>
-                      <MessageListUiStaticContext value={uiStatic}>
-                        <MessageListUiSelectorsContext value={uiSelectors}>
-                          <MessageListActivityContext value={activity}>
-                            <MessageListEditingContext value={state.editingMessageId ?? null}>
-                              {children}
-                            </MessageListEditingContext>
-                          </MessageListActivityContext>
-                        </MessageListUiSelectorsContext>
-                      </MessageListUiStaticContext>
-                    </MessageListSelectionContext>
-                  </MessageListRenderConfigContext>
-                </MessageListMetaContext>
-              </MessageListActionsContext>
-            </MessageListCitationRegistryContext>
-          </PartsProvider>
-        </AgentLaunchIndexProvider>
+        <PartsProvider value={state.partsByMessageId}>
+          <MessageListCitationRegistryContext value={citationRegistry}>
+            <MessageListActionsContext value={actions}>
+              <MessageListMetaContext value={meta}>
+                <MessageListRenderConfigContext value={state.renderConfig}>
+                  <MessageListSelectionContext value={state.selection}>
+                    <MessageListUiStaticContext value={uiStatic}>
+                      <MessageListUiSelectorsContext value={uiSelectors}>
+                        <MessageListActivityContext value={activity}>
+                          <MessageListEditingContext value={state.editingMessageId ?? null}>
+                            {children}
+                          </MessageListEditingContext>
+                        </MessageListActivityContext>
+                      </MessageListUiSelectorsContext>
+                    </MessageListUiStaticContext>
+                  </MessageListSelectionContext>
+                </MessageListRenderConfigContext>
+              </MessageListMetaContext>
+            </MessageListActionsContext>
+          </MessageListCitationRegistryContext>
+        </PartsProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
   )
