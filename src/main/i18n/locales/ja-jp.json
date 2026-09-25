@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw は、Cherry Studio の管理対象プロバイダーセクション外の設定を拒否しました。その設定を修正するか、OpenClaw をアップグレードしてください。{{details}}",
   "openclaw.errors.more_issues": "ほか {{count}} 件の問題",
   "openclaw.errors.preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。",
+  "openclaw.errors.preflight_timeout": "OpenClaw が {{seconds}} 秒以内に設定スキーマを返さなかったため、Cherry Studio は待機を終了しました。ディスクが遅い場合や負荷が高い場合、OpenClaw の起動に時間がかかることがあります。もう一度お試しください。",
   "paintings.generate_failed": "画像の生成に失敗しました",
   "paintings.image_mix_failed": "画像の混合に失敗しました",
   "selection.name": "テキスト選択ツール",

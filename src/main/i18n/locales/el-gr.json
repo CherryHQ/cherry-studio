@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "Το OpenClaw απέρριψε διαμόρφωση εκτός της ενότητας παρόχων που διαχειρίζεται το Cherry Studio. Διορθώστε αυτή τη διαμόρφωση ή αναβαθμίστε το OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "και {{count}} ακόμη ζητήματα",
   "openclaw.errors.preflight_failed": "Το Cherry Studio δεν μπόρεσε να επικυρώσει τη διαμόρφωση του OpenClaw.",
+  "openclaw.errors.preflight_timeout": "Το OpenClaw δεν επέστρεψε το σχήμα διαμόρφωσης μέσα σε {{seconds}} δευτερόλεπτα. Το Cherry Studio σταμάτησε να περιμένει. Σε αργό δίσκο ή με υψηλό φόρτο, η εκκίνηση του OpenClaw μπορεί να καθυστερήσει. Δοκιμάστε ξανά.",
   "paintings.generate_failed": "Αποτυχία δημιουργίας εικόνας",
   "paintings.image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
   "selection.name": "Βοηθός Επιλογής Λέξεων",

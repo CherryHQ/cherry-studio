@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw đã từ chối cấu hình nằm ngoài phần nhà cung cấp do Cherry Studio quản lý. Hãy sửa cấu hình đó hoặc nâng cấp OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "và {{count}} vấn đề khác",
   "openclaw.errors.preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw.",
+  "openclaw.errors.preflight_timeout": "OpenClaw không trả về lược đồ cấu hình trong vòng {{seconds}} giây. Cherry Studio đã ngừng chờ. OpenClaw có thể khởi động chậm trên ổ đĩa chậm hoặc khi hệ thống tải cao. Hãy thử lại.",
   "paintings.generate_failed": "Không thể tạo hình ảnh",
   "paintings.image_mix_failed": "Không thể trộn các hình ảnh",
   "selection.name": "Trợ lý lựa chọn",

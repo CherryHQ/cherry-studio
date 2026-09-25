@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw 拒绝了 Cherry Studio 管理区之外的配置，请修正该配置或升级 OpenClaw。{{details}}",
   "openclaw.errors.more_issues": "另有 {{count}} 个问题",
   "openclaw.errors.preflight_failed": "Cherry Studio 无法验证 OpenClaw 配置。",
+  "openclaw.errors.preflight_timeout": "OpenClaw 在 {{seconds}} 秒内未返回配置 schema，Cherry Studio 已停止等待。磁盘较慢或系统负载较高时，OpenClaw 启动可能需要更久，请重试。",
   "paintings.generate_failed": "生成图像失败",
   "paintings.image_mix_failed": "图像混合失败",
   "selection.name": "划词助手",
