@@ -45,22 +45,46 @@ import { prometheusErrorCodes } from '@shared/ipc/errors/prometheus'
 import type { prometheusRequestSchemas } from '@shared/ipc/schemas/prometheus'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas> = {
-  'prometheus.integration.snapshot': async () => application.get('PrometheusIntegrationService').snapshot(),
-  'prometheus.integration.configure': async ({ updates, secrets }) => {
-    try {
-      return await application.get('PrometheusIntegrationService').configure(updates, secrets)
-    } catch (error) {
-      if (error instanceof StaleIntegrationRevisionError) {
-        throw new IpcError(prometheusErrorCodes.STALE_INTEGRATION_REVISION, error.message, {
-          feature: error.feature,
-          expected: error.expected,
-          current: error.current
-        })
-      }
-      throw error
+async function withIntegrationRevision<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    if (error instanceof StaleIntegrationRevisionError) {
+      throw new IpcError(prometheusErrorCodes.STALE_INTEGRATION_REVISION, error.message, {
+        feature: error.feature,
+        expected: error.expected,
+        current: error.current
+      })
     }
-  },
+    throw error
+  }
+}
+
+export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas> = {
+  'prometheus.liter.catalog.read': async () => application.get('PrometheusIntegrationService').readLiterCatalog(),
+  'prometheus.liter.catalog.refresh': async () =>
+    application.get('PrometheusIntegrationService').readLiterCatalog(true),
+  'prometheus.liter.gateway.select': async (selection) =>
+    withIntegrationRevision(() => application.get('PrometheusIntegrationService').selectLiterGateway(selection)),
+  'prometheus.liter.connections.save': async (mutation) =>
+    withIntegrationRevision(() => application.get('PrometheusIntegrationService').saveLiterConnection(mutation)),
+  'prometheus.liter.connections.delete': async ({ providerConnectionId, expectedRevision }) =>
+    withIntegrationRevision(() =>
+      application
+        .get('PrometheusIntegrationService')
+        .deleteLiterConnection(providerConnectionId, expectedRevision)
+    ),
+  'prometheus.liter.aliases.save': async (mutation) =>
+    withIntegrationRevision(() => application.get('PrometheusIntegrationService').saveLiterAlias(mutation)),
+  'prometheus.liter.aliases.delete': async ({ gatewayConnectionId, alias, expectedRevision }) =>
+    withIntegrationRevision(() =>
+      application
+        .get('PrometheusIntegrationService')
+        .deleteLiterAlias(gatewayConnectionId, alias, expectedRevision)
+    ),
+  'prometheus.integration.snapshot': async () => application.get('PrometheusIntegrationService').snapshot(),
+  'prometheus.integration.configure': async ({ updates, secrets }) =>
+    withIntegrationRevision(() => application.get('PrometheusIntegrationService').configure(updates, secrets)),
   'prometheus.integration.workspace_enabled': async ({ workspacePath, enabled }) =>
     application.get('PrometheusIntegrationService').setWorkspaceEnabled(workspacePath, enabled),
   'prometheus.integration.start': async ({ action, workspacePath }) =>

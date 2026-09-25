@@ -2,6 +2,12 @@ import * as z from 'zod'
 
 import type { PrometheusDoctorReport, PrometheusFixOutcome, PrometheusPushState } from '@shared/types/prometheus'
 import {
+  literAliasMutationSchema,
+  literConnectionMutationSchema,
+  literGatewaySelectionSchema,
+  type LiterGatewayCatalogSnapshot
+} from '@shared/types/literGateway'
+import {
   integrationActionSchema,
   integrationUpdateSchema,
   secretPatchSchema,
@@ -55,6 +61,45 @@ import { defineRoute } from '../define'
  * process cannot report.
  */
 export const prometheusRequestSchemas = {
+  'prometheus.liter.catalog.read': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.catalog.refresh': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.gateway.select': defineRoute({
+    input: literGatewaySelectionSchema,
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.connections.save': defineRoute({
+    input: literConnectionMutationSchema,
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.connections.delete': defineRoute({
+    input: z
+      .object({
+        providerConnectionId: z.string().min(1).max(128),
+        expectedRevision: z.number().int().nonnegative()
+      })
+      .strict(),
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.aliases.save': defineRoute({
+    input: literAliasMutationSchema,
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.aliases.delete': defineRoute({
+    input: z
+      .object({
+        gatewayConnectionId: z.string().min(1).max(128),
+        alias: z.string().min(1).max(256),
+        expectedRevision: z.number().int().nonnegative()
+      })
+      .strict(),
+    output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
   'prometheus.integration.snapshot': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<IntegrationSnapshot>()
