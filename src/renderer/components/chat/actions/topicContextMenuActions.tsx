@@ -81,6 +81,7 @@ export interface TopicActionContext {
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
+  sidebarAvailable?: boolean
   sidebarPinned?: boolean
   t: TFunction
   topic: Topic
@@ -140,7 +141,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.toggle-sidebar',
-  availability: ({ onToggleSidebar }) => ({ visible: !!onToggleSidebar, enabled: !!onToggleSidebar }),
+  availability: ({ onToggleSidebar, sidebarAvailable }) => ({
+    visible: sidebarAvailable !== false && !!onToggleSidebar,
+    enabled: !!onToggleSidebar
+  }),
   run: ({ onToggleSidebar, topic }) => onToggleSidebar?.(topic)
 })
 

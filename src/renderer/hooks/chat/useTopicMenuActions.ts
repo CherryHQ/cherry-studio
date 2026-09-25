@@ -9,6 +9,7 @@ import {
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
@@ -183,12 +184,14 @@ export function useTopicMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => TopicActionContext
 }): TopicMenuPreset<TItem> {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const getActionContextWithOverride = useCallback(
     (item: TItem, contextOverride?: TopicMenuActionContextOverride) => ({
       ...getActionContext(item),
-      ...contextOverride
+      ...contextOverride,
+      sidebarAvailable
     }),
-    [getActionContext]
+    [getActionContext, sidebarAvailable]
   )
   const getActions = useCallback(
     (item: TItem, contextOverride?: TopicMenuActionContextOverride) =>
@@ -206,6 +209,7 @@ export function useTopicMenuPreset<TItem>({
 }
 
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const {
     exportMenuOptions,
     isArchiveBlocked,
@@ -284,7 +288,10 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       topicsLength
     ]
   )
-  const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
+  const getMenuActions = useCallback(
+    () => getTopicMenuActions({ ...actionContext, sidebarAvailable }),
+    [actionContext, sidebarAvailable]
+  )
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)

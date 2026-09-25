@@ -24,6 +24,7 @@ export interface AgentGroupActionContext {
   onToggleSidebar: (agentId: string) => void
   pinDisabled?: boolean
   pinned: boolean
+  sidebarAvailable?: boolean
   sidebarPinned: boolean
   t: TFunction
 }
@@ -47,6 +48,7 @@ agentGroupActionRegistry.registerCommand({
 
 agentGroupActionRegistry.registerCommand({
   id: 'agent-group.toggle-sidebar',
+  availability: ({ sidebarAvailable }) => sidebarAvailable !== false,
   run: ({ agentId, onToggleSidebar }) => onToggleSidebar(agentId)
 })
 

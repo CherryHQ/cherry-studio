@@ -13,6 +13,7 @@ import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPe
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -60,6 +61,7 @@ const MiniApp: FC<Props> = ({
   variant = 'default',
   disabled = false
 }) => {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const { t } = useTranslation()
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)
@@ -186,12 +188,16 @@ const MiniApp: FC<Props> = ({
 
   const contextMenuItems: CommandContextMenuExtraItem[] = [
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
-    {
-      type: 'item',
-      id: 'mini-app.toggle-sidebar-favorite',
-      label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
-      onSelect: handleToggleSidebarFavorite
-    },
+    ...(sidebarAvailable
+      ? [
+          {
+            type: 'item' as const,
+            id: 'mini-app.toggle-sidebar-favorite',
+            label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+            onSelect: handleToggleSidebarFavorite
+          }
+        ]
+      : []),
     ...(!isPinned
       ? ([
           { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }

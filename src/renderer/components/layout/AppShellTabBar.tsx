@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import {
   cloneElement,
   isValidElement,
@@ -12,6 +12,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { BackButton } from '@renderer/components/BackButton'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -161,7 +162,6 @@ type FocusedTabButtonProps = {
 } & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown'>
 
 const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTabButtonProps) => {
-  const { t } = useTranslation()
   const setRefs = useCallback(
     (el: HTMLButtonElement | null) => {
       tabRef(el)
@@ -172,13 +172,12 @@ const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTa
   )
 
   return (
-    <button
+    <BackButton
       {...rest}
       ref={setRefs}
       data-tab-id={tab.id}
       data-ui="app.focused-tab-button"
       type="button"
-      aria-label={t('common.back')}
       onPointerDown={drag.onPointerDown}
       onClick={onBack}
       style={{
@@ -187,14 +186,8 @@ const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTa
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 150ms ease',
         opacity: drag.isGhost ? 0.3 : 1
       }}
-      className={cn(
-        'group nodrag flex h-8 w-auto shrink-0 appearance-none items-center gap-1.5 border-0 bg-transparent px-2.5 text-muted-foreground text-sm shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-foreground',
-        drag.isDragging ? 'cursor-grabbing' : 'cursor-pointer',
-        rest.className
-      )}>
-      <ArrowLeft className="transition-colors group-hover:text-foreground" size={16} strokeWidth={1.7} aria-hidden />
-      <span>{t('common.back')}</span>
-    </button>
+      className={cn(drag.isDragging ? 'cursor-grabbing' : 'cursor-pointer', rest.className)}
+    />
   )
 }
 

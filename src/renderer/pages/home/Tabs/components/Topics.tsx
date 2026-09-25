@@ -55,6 +55,7 @@ import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssi
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -224,7 +225,9 @@ function AssistantGroupMoreMenu({
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const actionContext: AssistantGroupActionContext = {
+    sidebarAvailable,
     assistantId,
     assistantIconType,
     deleteAssistantDisabled,
@@ -428,6 +431,7 @@ export function Topics({
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -1168,6 +1172,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -1181,6 +1186,7 @@ export function Topics({
       if (!assistantId || !assistantById.has(assistantId)) return null
 
       const actionContext: AssistantGroupActionContext = {
+        sidebarAvailable,
         assistantId,
         assistantIconType,
         deleteAssistantDisabled: deletingAssistantId !== null,
@@ -1222,6 +1228,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]

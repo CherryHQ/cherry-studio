@@ -6,6 +6,7 @@ import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 
@@ -23,6 +24,7 @@ const KnowledgeBaseRow = ({
   onToggleSidebar,
   sidebarPinned
 }: KnowledgeBaseRowProps) => {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const availableGroups = useMemo(() => groups.filter((group) => group.id !== base.groupId), [base.groupId, groups])
@@ -109,13 +111,14 @@ const KnowledgeBaseRow = ({
       })
     }
 
-    items.push({
-      type: 'item',
-      id: 'toggle-sidebar',
-      label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-      icon: <SidebarShortcutIcon pinned={sidebarPinned} className="size-3.5" />,
-      onSelect: () => onToggleSidebar(base)
-    })
+    if (sidebarAvailable)
+      items.push({
+        type: 'item',
+        id: 'toggle-sidebar',
+        label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+        icon: <SidebarShortcutIcon pinned={sidebarPinned} className="size-3.5" />,
+        onSelect: () => onToggleSidebar(base)
+      })
     items.push({ type: 'separator' })
     items.push({
       type: 'item',
@@ -136,6 +139,7 @@ const KnowledgeBaseRow = ({
     handleRenameBase,
     handleRequestDelete,
     onToggleSidebar,
+    sidebarAvailable,
     sidebarPinned,
     t
   ])

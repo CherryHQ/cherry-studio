@@ -12,7 +12,6 @@ import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -30,6 +29,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import { MainWindowShell } from './MainWindowShell'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
@@ -120,7 +120,7 @@ export function MainWindowContent(): React.ReactElement {
               <OnboardingPage />
             </Suspense>
           ) : (
-            <AppShell />
+            <MainWindowShell />
           )}
           <MainWindowRuntime />
           <ConversationNotificationRuntime />

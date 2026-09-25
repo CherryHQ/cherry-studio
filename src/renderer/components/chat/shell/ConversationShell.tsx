@@ -14,8 +14,10 @@ export interface ConversationShellProps {
   id?: string
   className?: string
   pane?: ReactNode
+  transparentNavigation?: boolean
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  renderMainHeader?: (topBar: ReactNode) => ReactNode
   topBar?: ReactNode
   topRightTool?: ReactNode
   showTopRightToolWhenPaneOpen?: boolean
@@ -38,8 +40,10 @@ export default function ConversationShell({
   id,
   className,
   pane,
+  transparentNavigation = false,
   paneOpen,
   panePosition,
+  renderMainHeader,
   topBar,
   topRightTool,
   showTopRightToolWhenPaneOpen = false,
@@ -71,17 +75,20 @@ export default function ConversationShell({
       id={id}
       data-ui="chat.view"
       className={cn(
-        'relative flex h-full min-h-0 flex-1 overflow-hidden bg-background',
+        'relative flex h-full min-h-0 flex-1 overflow-hidden',
+        transparentNavigation ? 'bg-transparent' : 'bg-background',
         !isWindow && 'rounded-tl-[10px] rounded-bl-[10px]',
         className
       )}>
       <QuickPanelProvider>
         <ConversationTopBarPortalProvider>
           <ChatAppShell
+            mainRegionClassName={transparentNavigation ? 'bg-background' : undefined}
+            mainHeader={renderMainHeader?.(resolvedTopBar)}
             pane={pane}
             paneOpen={paneOpen}
             panePosition={panePosition}
-            topBar={resolvedTopBar}
+            topBar={renderMainHeader ? undefined : resolvedTopBar}
             centerContent={center}
             sidePanel={sidePanel}
             centerOverlay={centerOverlay}

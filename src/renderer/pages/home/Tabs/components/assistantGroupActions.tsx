@@ -27,6 +27,7 @@ export interface AssistantGroupActionContext {
   onTogglePin: (assistantId: string) => void | Promise<void>
   onToggleSidebar: (assistantId: string) => void
   pinned: boolean
+  sidebarAvailable?: boolean
   sidebarPinned: boolean
   t: TFunction
 }
@@ -50,6 +51,7 @@ assistantGroupActionRegistry.registerCommand({
 
 assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.toggle-sidebar',
+  availability: ({ sidebarAvailable }) => sidebarAvailable !== false,
   run: ({ assistantId, onToggleSidebar }) => onToggleSidebar(assistantId)
 })
 
