@@ -420,7 +420,7 @@ export class PrometheusIntegrationService extends BaseService {
             if (progress) controls.progress(progress)
           })
           if (action === 'status') {
-            const status = JSON.parse(result) as {
+            const status = JSON.parse(result.trim().split(/\r?\n/).at(-1)!) as {
               docker: { state: string; compose: boolean; detail?: string }
               endpoints: Record<string, { reached: boolean; status?: number; detail?: string }>
             }
