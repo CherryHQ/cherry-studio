@@ -12,6 +12,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { ensureManagedSecrets } from '@main/services/prometheus/integrationConfig'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
@@ -354,10 +355,12 @@ export class UarSidecarService extends BaseService {
   private async resolveExecutable(): Promise<string> {
     const override = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
     if (override) return override
-    const bundled = path.join(
-      application.getPath('app.root.resources.binaries'),
-      `${process.platform}-${process.arch}`,
-      `uar-sidecar${isWin ? '.exe' : ''}`
+    const bundled = toAsarUnpackedPath(
+      path.join(
+        application.getPath('app.root.resources.binaries'),
+        `${process.platform}-${process.arch}`,
+        `uar-sidecar${isWin ? '.exe' : ''}`
+      )
     )
     if (existsSync(bundled)) return bundled
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
