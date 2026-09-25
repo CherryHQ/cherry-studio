@@ -22,6 +22,7 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import {
+  type BackgroundTaskRecord,
   type CompletedBackgroundTask,
   getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
@@ -875,14 +876,11 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
         cwd: ctx.workspacePath,
         name: args.name,
         onExit: (task) => {
-          saveBackgroundTaskRecord(ctx.agentId, task.record)
+          indexBackgroundTask(ctx, task.record)
           notifyBackgroundTaskCompletion(ctx, task)
         }
       })
-      saveBackgroundTaskRecord(
-        ctx.agentId,
-        (await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), record.id)) ?? record
-      )
+      indexBackgroundTask(ctx, (await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), record.id)) ?? record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
     case 'status': {
@@ -890,12 +888,12 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
       if (!taskId) throw new Error("'task_id' is required for status")
       const record = await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId)
       if (!record) throw new Error(`Task "${taskId}" not found`)
-      saveBackgroundTaskRecord(ctx.agentId, record)
+      indexBackgroundTask(ctx, record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
     case 'list': {
       const tasks = await listDetachedBackgroundTasks(backgroundTaskStorageDir(ctx))
-      for (const task of tasks) saveBackgroundTaskRecord(ctx.agentId, task)
+      for (const task of tasks) indexBackgroundTask(ctx, task)
       return { content: [{ type: 'text', text: JSON.stringify({ tasks }, null, 2) }] }
     }
     case 'stop':
@@ -904,9 +902,22 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
       if (!taskId) throw new Error("'task_id' is required for stop/kill")
       const record = await stopDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId, args.action === 'kill')
       if (!record) throw new Error(`Task "${taskId}" is not running or cannot be verified`)
-      saveBackgroundTaskRecord(ctx.agentId, record)
+      indexBackgroundTask(ctx, record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
+  }
+}
+
+/**
+ * Index a task for the panel. Best-effort by design: the disk record is the source of truth and
+ * the side effect has already happened, so a DB failure must not be reported as a tool failure —
+ * for `start` that invites a retry and duplicates work that is in fact running.
+ */
+function indexBackgroundTask(ctx: AutonomyToolsContext, record: BackgroundTaskRecord): void {
+  try {
+    saveBackgroundTaskRecord(ctx.agentId, record)
+  } catch (error) {
+    logger.error('Failed to index detached background task', { taskId: record.id, error })
   }
 }
 
