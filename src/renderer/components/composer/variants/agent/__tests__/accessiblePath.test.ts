@@ -168,4 +168,34 @@ describe('getPathComparisonKey', () => {
 
     expect(isWithin(nested, [workspace])).toBe(true)
   })
+
+  it('matches drive-letter workspace paths case-insensitively on Windows', async () => {
+    vi.resetModules()
+    vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: true, isLinux: false }))
+    const { isPathWithinAccessiblePath: isWithin } = await import('../accessiblePath')
+    const workspace = AbsoluteFilePathSchema.parse('C:\\Workspace')
+    const nested = AbsoluteFilePathSchema.parse('c:\\workspace\\notes.md')
+
+    expect(isWithin(nested, [workspace])).toBe(true)
+  })
+
+  it('rejects UNC paths that escape the workspace through .. segments', () => {
+    const workspace = AbsoluteFilePathSchema.parse('\\\\server\\share\\workspace')
+    const escaped = AbsoluteFilePathSchema.parse('\\\\server\\share\\workspace\\..\\outside\\secret.txt')
+
+    expect(isPathWithinAccessiblePath(escaped, [workspace])).toBe(false)
+  })
+
+  it('keeps forward-slash UNC references out of POSIX canonicalization', () => {
+    const nested = AbsoluteFilePathSchema.parse('//server/share/workspace/notes.md')
+
+    expect(accessibleFileReference(nested)).toBe('//server/share/workspace/notes.md')
+  })
+
+  it('treats forward-slash UNC files under the same workspace as accessible', () => {
+    const workspace = AbsoluteFilePathSchema.parse('\\\\server\\share\\workspace')
+    const nested = AbsoluteFilePathSchema.parse('//server/share/workspace/notes.md')
+
+    expect(isPathWithinAccessiblePath(nested, [workspace])).toBe(true)
+  })
 })

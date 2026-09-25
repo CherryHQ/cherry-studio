@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -6,6 +7,7 @@ import { canonicalizeFilePath, createFilePathHandle, sanitizeFilename } from '@s
 
 const WINDOWS_PATH = /^([A-Za-z]:[/\\]|\\\\)/
 const MAX_DESTINATION_ATTEMPTS = 100
+const logger = loggerService.withContext('copyAttachmentToWorkspace')
 
 function joinWorkspacePath(workspacePath: AbsoluteFilePath, filename: string): AbsoluteFilePath {
   const separator = WINDOWS_PATH.test(workspacePath) ? '\\' : '/'
@@ -59,8 +61,8 @@ export async function rollbackWorkspaceCopies(sessionId: string, paths: readonly
   for (const path of paths) {
     try {
       await ipcApi.request('file.unlink', { path, sessionId })
-    } catch {
-      // Preserve the original send failure; cleanup is best-effort.
+    } catch (error) {
+      logger.warn('rollbackWorkspaceCopies: failed to unlink workspace copy', { path, sessionId, error })
     }
   }
 }
