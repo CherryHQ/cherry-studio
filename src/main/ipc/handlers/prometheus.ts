@@ -49,6 +49,12 @@ import {
   readLiterConfig,
   selectLocalLiterConfig
 } from '@main/services/prometheus/literConfig'
+import {
+  applySavedLiterRoles,
+  exportSavedLiterRoles,
+  readLiterRoleDocument,
+  selectLocalLiterRoleDocument
+} from '@main/services/prometheus/literRoleAssignments'
 import { applyPrometheusFix, runPrometheusDoctor } from '@main/services/prometheus/prometheusDoctor'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { prometheusErrorCodes } from '@shared/ipc/errors/prometheus'
@@ -102,6 +108,15 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
     withIntegrationRevision(() =>
       application.get('PrometheusIntegrationService').deleteLiterAlias(gatewayConnectionId, alias, expectedRevision)
     ),
+  'prometheus.liter.roles.read': async () => application.get('PrometheusIntegrationService').readLiterRoles(),
+  'prometheus.liter.roles.save': async (mutation) =>
+    withIntegrationRevision(() => application.get('PrometheusIntegrationService').saveLiterRoles(mutation)),
+  'prometheus.liter.roles.select_local': async () => selectLocalLiterRoleDocument(),
+  'prometheus.liter.roles.read_document': async ({ source }) => readLiterRoleDocument(source),
+  'prometheus.liter.roles.apply': async ({ source, expectedRevision }) =>
+    applySavedLiterRoles(source, expectedRevision),
+  'prometheus.liter.roles.export': async ({ source, expectedRevision }) =>
+    exportSavedLiterRoles(source, expectedRevision),
   'prometheus.integration.snapshot': async () => application.get('PrometheusIntegrationService').snapshot(),
   'prometheus.integration.configure': async ({ updates, secrets }) =>
     withIntegrationRevision(() => application.get('PrometheusIntegrationService').configure(updates, secrets)),

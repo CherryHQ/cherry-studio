@@ -5,12 +5,19 @@ import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { readAppliedUarStorage, type UarSidecarEndpoint } from '@main/ai/runtime/uar'
+import { readAppliedUarStorage, readUarModelSources, type UarSidecarEndpoint } from '@main/ai/runtime/uar'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { installPrometheusPack } from '@main/utils/prometheusPack'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type {
+  LiterAliasMutation,
+  LiterConnectionMutation,
+  LiterGatewayCatalogSnapshot,
+  LiterGatewaySelection
+} from '@shared/types/literGateway'
+import type { LiterRoleMutation, LiterRoleSnapshot } from '@shared/types/literRoles'
 import {
   integrationConfigSchema,
   secretNames,
@@ -26,12 +33,6 @@ import {
   type IntegrationUpdate,
   type WorkspaceIntegration
 } from '@shared/types/prometheusIntegration'
-import type {
-  LiterAliasMutation,
-  LiterConnectionMutation,
-  LiterGatewayCatalogSnapshot,
-  LiterGatewaySelection
-} from '@shared/types/literGateway'
 
 import { commandPathInstalled, installCommandPath } from './commandPath'
 import {
@@ -45,11 +46,7 @@ import {
 } from './integrationConfig'
 import { StaleIntegrationRevisionError } from './integrationErrors'
 import { IntegrationOperationRunner, type IntegrationOperationControls } from './integrationOperationRunner'
-import {
-  fetchLiterLiveModels,
-  reconcileLiterCatalog,
-  type LiterLiveModel
-} from './literGatewayCatalog'
+import { fetchLiterLiveModels, reconcileLiterCatalog, type LiterLiveModel } from './literGatewayCatalog'
 import { runManagedServiceAction, serviceDirectory } from './managedServices'
 import { writeMiniConfiguration } from './miniCommands'
 import { discoverServiceCandidates } from './serviceDiscovery'
@@ -224,6 +221,37 @@ export class PrometheusIntegrationService extends BaseService {
     )
   }
 
+  async readLiterRoles(): Promise<LiterRoleSnapshot> {
+    await this.ensureInitialized()
+    const document = readIntegrationDocument()
+    return {
+      revision: document.revisions.services,
+      ...(document.config.services.literRoles ? { assignments: document.config.services.literRoles } : {})
+    }
+  }
+
+  async saveLiterRoles(mutation: LiterRoleMutation): Promise<LiterRoleSnapshot> {
+    await this.ensureInitialized()
+    return this.serializeConfigurationMutation(async () => {
+      const document = readIntegrationDocument()
+      if (document.revisions.services !== mutation.expectedRevision) {
+        throw new StaleIntegrationRevisionError('services', mutation.expectedRevision, document.revisions.services)
+      }
+      const config = integrationConfigSchema.parse({
+        ...document.config,
+        services: { ...document.config.services, literRoles: mutation.assignments }
+      })
+      await writeIntegrationDocument({
+        schemaVersion: 4,
+        revisions: { ...document.revisions, services: document.revisions.services + 1 },
+        config
+      })
+      await writeMiniConfiguration()
+      await readUarModelSources()
+      return { revision: document.revisions.services + 1, assignments: mutation.assignments }
+    })
+  }
+
   async selectLiterGateway(selection: LiterGatewaySelection): Promise<LiterGatewayCatalogSnapshot> {
     await this.ensureInitialized()
     return this.serializeConfigurationMutation(async () => {
@@ -240,8 +268,7 @@ export class PrometheusIntegrationService extends BaseService {
             entry.id === selection.candidateId &&
             entry.service === 'liter' &&
             entry.provenance.some(
-              (provenance) =>
-                provenance.source === selection.source && provenance.ownership === selection.ownership
+              (provenance) => provenance.source === selection.source && provenance.ownership === selection.ownership
             )
         )
         if (!candidate) throw new Error('prometheus.error.gatewayCandidateUnavailable')

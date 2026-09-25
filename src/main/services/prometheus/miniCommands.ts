@@ -8,6 +8,21 @@ import { readIntegrationConfig, readSecrets, integrationDirectory } from './inte
 export async function writeMiniConfiguration(): Promise<void> {
   const config = readIntegrationConfig()
   const secrets = await readSecrets()
+  const literRoles = config.services.literRoles
+  const roleEnvironment = literRoles
+    ? Object.fromEntries(
+        (['critic', 'judge', 'backup'] as const).flatMap((role) => {
+          const prefix = `PROMETHEUS_KBD_${role.toUpperCase()}`
+          const assignment = literRoles[role]
+          return [
+            [`${prefix}_MODEL`, assignment.servedAlias.alias],
+            [`${prefix}_PROVIDER_CONNECTION_ID`, assignment.model.providerConnectionId],
+            [`${prefix}_PROVIDER_ID`, assignment.model.providerId],
+            [`${prefix}_MODEL_ID`, assignment.model.modelId]
+          ]
+        })
+      )
+    : {}
   await fs.mkdir(integrationDirectory(), { recursive: true, mode: 0o700 })
   await fs.writeFile(
     path.join(integrationDirectory(), 'mini-runtime.json'),
@@ -23,8 +38,8 @@ export async function writeMiniConfiguration(): Promise<void> {
       LITER_LLM_BASE_URL: `${config.services.liter.endpoint.replace(/\/$/, '')}/v1`,
       LITER_LLM_MASTER_KEY: secrets.literKey ?? '',
       LITER_LLM_CONFIG: path.join(integrationDirectory(), 'services', 'liter-llm-proxy.toml'),
-      PROMETHEUS_KBD_JUDGE_MODEL: 'kbd-judge',
-      PROMETHEUS_KBD_CRITIC_MODEL: 'kbd-critic'
+      PROMETHEUS_KBD_MODELS_CONFIG: path.join(integrationDirectory(), 'models.toml'),
+      ...roleEnvironment
     }),
     { mode: 0o600 }
   )

@@ -15,6 +15,15 @@ import {
   literGatewaySelectionSchema,
   type LiterGatewayCatalogSnapshot
 } from '@shared/types/literGateway'
+import {
+  literRoleMutationSchema,
+  literRoleSourceSchema,
+  type LiterRoleApplyResult,
+  type LiterRoleDocumentSnapshot,
+  type LiterRoleExportResult,
+  type LiterRoleSnapshot,
+  type LiterRoleSourceSelection
+} from '@shared/types/literRoles'
 import type { PrometheusDoctorReport, PrometheusFixOutcome, PrometheusPushState } from '@shared/types/prometheus'
 import {
   integrationActionSchema,
@@ -170,6 +179,30 @@ export const prometheusRequestSchemas = {
       })
       .strict(),
     output: z.custom<LiterGatewayCatalogSnapshot>()
+  }),
+  'prometheus.liter.roles.read': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<LiterRoleSnapshot>()
+  }),
+  'prometheus.liter.roles.save': defineRoute({
+    input: literRoleMutationSchema,
+    output: z.custom<LiterRoleSnapshot>()
+  }),
+  'prometheus.liter.roles.select_local': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<LiterRoleSourceSelection>()
+  }),
+  'prometheus.liter.roles.read_document': defineRoute({
+    input: z.object({ source: literRoleSourceSchema }).strict(),
+    output: z.custom<LiterRoleDocumentSnapshot>()
+  }),
+  'prometheus.liter.roles.apply': defineRoute({
+    input: z.object({ source: literRoleSourceSchema, expectedRevision: z.string().length(64) }).strict(),
+    output: z.custom<LiterRoleApplyResult>()
+  }),
+  'prometheus.liter.roles.export': defineRoute({
+    input: z.object({ source: literRoleSourceSchema, expectedRevision: z.string().length(64) }).strict(),
+    output: z.custom<LiterRoleExportResult>()
   }),
   'prometheus.integration.snapshot': defineRoute({
     input: z.object({}).strict(),

@@ -4,6 +4,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 
 import type { IntegrationDiagnostic, IntegrationOperation } from './integrationOperation'
 import { literAliasConfigSchema, literConnectionConfigSchema } from './literGateway'
+import { literRoleAssignmentsSchema } from './literRoles'
 
 export {
   integrationActionSchema,
@@ -102,6 +103,7 @@ const servicesConfigSchema = z
     memoryEnabled: z.boolean().default(false),
     literConnections: z.array(literConnectionConfigSchema).max(256).default([]),
     literAliases: z.array(literAliasConfigSchema).max(2048).default([]),
+    literRoles: literRoleAssignmentsSchema.optional(),
     judge: model.prefault({}),
     critic: model.prefault({})
   })
@@ -126,6 +128,28 @@ const servicesConfigSchema = z
           path: ['literAliases', index, 'target'],
           message: 'Alias target must reference a matching provider connection'
         })
+      }
+    }
+    if (services.literRoles) {
+      for (const role of ['critic', 'judge', 'backup'] as const) {
+        const assignment = services.literRoles[role]
+        const configuredAlias = services.literAliases.find(
+          (alias) =>
+            alias.gatewayConnectionId === assignment.servedAlias.gatewayConnectionId &&
+            alias.alias === assignment.servedAlias.alias
+        )
+        if (
+          !configuredAlias ||
+          configuredAlias.target.providerConnectionId !== assignment.model.providerConnectionId ||
+          configuredAlias.target.providerId !== assignment.model.providerId ||
+          configuredAlias.target.modelId !== assignment.model.modelId
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: ['literRoles', role],
+            message: 'Role assignment must reference a resolved configured alias'
+          })
+        }
       }
     }
   })
