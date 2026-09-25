@@ -51,7 +51,12 @@ const catalogModelSchema = z
     id: z.string().min(1),
     name: z.string().min(1),
     mode: z.string().optional(),
-    limit: z.object({ context: z.number().positive().optional(), output: z.number().positive().optional() }).optional(),
+    limit: z
+      .object({
+        context: z.number().int().nonnegative().optional(),
+        output: z.number().int().nonnegative().optional()
+      })
+      .optional(),
     capabilities: capabilitiesSchema.optional()
   })
   .passthrough()
