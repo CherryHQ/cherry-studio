@@ -343,20 +343,32 @@ describe('GroupedSortableVirtualList', () => {
       expect(onDragEnd).not.toHaveBeenCalled()
     })
 
-    it('registers items as enabled sortables when item dragging is on', () => {
+    /**
+     * `useSortable` accepts `disabled` as a boolean or as
+     * `{ draggable, droppable }`, and the mock records whichever form the
+     * component passed. A row can only be picked up when it is not disabled
+     * for dragging.
+     */
+    const isDraggable = (id: string) => {
+      const state = dndMocks.sortableDisabled.get(id)
+      if (state === undefined) {
+        throw new Error(`Expected a sortable state for ${id}`)
+      }
+      return typeof state === 'boolean' ? !state : state.draggable === false
+    }
+
+    it('registers items as draggable when item dragging is on', () => {
       renderList(vi.fn(), { dragCapabilities: SAME_GROUP_ONLY })
 
-      // A row that is not draggable cannot be picked up at all, so the items
-      // must reach `useSortable` with `draggable: false` (i.e. not disabled).
       for (const id of ['item:a', 'item:b', 'item:c']) {
-        expect(dndMocks.sortableDisabled.get(id)?.draggable).toBe(false)
+        expect(isDraggable(id)).toBe(true)
       }
     })
 
-    it('registers items as disabled sortables when item dragging is off', () => {
+    it('registers items as not draggable when item dragging is off', () => {
       renderList(vi.fn(), { dragCapabilities: { items: false } })
 
-      expect(dndMocks.sortableDisabled.get('item:a')?.draggable).toBe(true)
+      expect(isDraggable('item:a')).toBe(false)
     })
   })
 
