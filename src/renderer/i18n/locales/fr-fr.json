@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Seuls les fichiers ZIP et les répertoires sont pris en charge",
   "settings.skills.launchDraft": "Utilise la compétence {{name}} pour m’aider dans cette tâche.",
   "settings.skills.launchFailed": "Impossible d’essayer {{name}}",
+  "settings.skills.mirrorToggle": "Synchroniser la compétence {{name}} vers le répertoire agents",
+  "settings.skills.mirrorToggleFailed": "Échec de la synchronisation de la compétence {{name}}",
   "settings.skills.notFound": "Compétence introuvable",
   "settings.skills.readOnly": "Lecture seule",
   "settings.skills.remote.applyFailed": "Échec de la mise à jour du Skill",

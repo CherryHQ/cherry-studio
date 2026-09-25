@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Apenas ficheiros ZIP e pastas são suportados",
   "settings.skills.launchDraft": "Usa a competência {{name}} para me ajudar nesta tarefa.",
   "settings.skills.launchFailed": "Não foi possível experimentar {{name}}",
+  "settings.skills.mirrorToggle": "Sincronizar a habilidade {{name}} com o diretório agents",
+  "settings.skills.mirrorToggleFailed": "Falha ao sincronizar a habilidade {{name}}",
   "settings.skills.notFound": "Competência não encontrada",
   "settings.skills.readOnly": "Só de leitura",
   "settings.skills.remote.applyFailed": "Falha ao atualizar o Skill",

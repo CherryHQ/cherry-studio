@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "仅支持 ZIP 文件和文件夹",
   "settings.skills.launchDraft": "请使用 {{name}} 技能帮我完成这项任务。",
   "settings.skills.launchFailed": "无法试用 {{name}}",
+  "settings.skills.mirrorToggle": "同步技能 {{name}} 到 agents 目录",
+  "settings.skills.mirrorToggleFailed": "同步技能 {{name}} 失败",
   "settings.skills.notFound": "未找到技能",
   "settings.skills.readOnly": "只读",
   "settings.skills.remote.applyFailed": "技能更新失败",

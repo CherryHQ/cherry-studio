@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Nur ZIP-Dateien und Verzeichnisse werden unterstützt",
   "settings.skills.launchDraft": "Verwende den Skill {{name}}, um mir bei dieser Aufgabe zu helfen.",
   "settings.skills.launchFailed": "{{name}} konnte nicht ausprobiert werden",
+  "settings.skills.mirrorToggle": "Fähigkeit {{name}} mit dem agents-Verzeichnis synchronisieren",
+  "settings.skills.mirrorToggleFailed": "Synchronisieren der Fähigkeit {{name}} fehlgeschlagen",
   "settings.skills.notFound": "Skill nicht gefunden",
   "settings.skills.readOnly": "Schreibgeschützt",
   "settings.skills.remote.applyFailed": "Skill konnte nicht aktualisiert werden",

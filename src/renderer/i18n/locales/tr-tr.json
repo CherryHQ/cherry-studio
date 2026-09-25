@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Yalnızca ZIP dosyaları ve dizinler desteklenir",
   "settings.skills.launchDraft": "Bu görevde bana yardımcı olması için {{name}} becerisini kullan.",
   "settings.skills.launchFailed": "{{name}} denenemedi",
+  "settings.skills.mirrorToggle": "{{name}} becerisini agents diziniyle eşitle",
+  "settings.skills.mirrorToggleFailed": "{{name}} becerisi eşitlemesi başarısız oldu",
   "settings.skills.notFound": "Beceri bulunamadı",
   "settings.skills.readOnly": "Salt okunur",
   "settings.skills.remote.applyFailed": "Beceri güncellenemedi",

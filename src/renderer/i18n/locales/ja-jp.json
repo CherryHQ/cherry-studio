@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "ZIPファイルとフォルダーのみがサポートされています",
   "settings.skills.launchDraft": "{{name}} スキルを使って、このタスクを手伝ってください。",
   "settings.skills.launchFailed": "{{name}} を試せませんでした",
+  "settings.skills.mirrorToggle": "スキル {{name}} を agents ディレクトリへ同期",
+  "settings.skills.mirrorToggleFailed": "スキル {{name}} の同期に失敗しました",
   "settings.skills.notFound": "スキルが見つかりません",
   "settings.skills.readOnly": "読み取り専用",
   "settings.skills.remote.applyFailed": "Skill の更新に失敗しました",

@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Chỉ hỗ trợ các tập tin ZIP và thư mục",
   "settings.skills.launchDraft": "Hãy dùng kỹ năng {{name}} để giúp tôi thực hiện tác vụ này.",
   "settings.skills.launchFailed": "Không thể dùng thử {{name}}",
+  "settings.skills.mirrorToggle": "Đồng bộ kỹ năng {{name}} vào thư mục agents",
+  "settings.skills.mirrorToggleFailed": "Đồng bộ kỹ năng {{name}} thất bại",
   "settings.skills.notFound": "Không tìm thấy kỹ năng",
   "settings.skills.readOnly": "Chỉ đọc",
   "settings.skills.remote.applyFailed": "Không thể cập nhật Skill",

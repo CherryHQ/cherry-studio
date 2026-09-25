@@ -5372,6 +5372,8 @@
   "settings.skills.invalidFormat": "Sunt acceptate doar fișiere ZIP și directoare.",
   "settings.skills.launchDraft": "Folosește abilitatea {{name}} pentru a mă ajuta cu această sarcină.",
   "settings.skills.launchFailed": "Nu s-a putut încerca {{name}}",
+  "settings.skills.mirrorToggle": "Sincronizează abilitatea {{name}} în directorul agents",
+  "settings.skills.mirrorToggleFailed": "Sincronizarea abilității {{name}} a eșuat",
   "settings.skills.notFound": "Abilitatea nu a fost găsită",
   "settings.skills.readOnly": "Doar în citire",
   "settings.skills.remote.applyFailed": "Actualizarea Skill-ului a eșuat",
