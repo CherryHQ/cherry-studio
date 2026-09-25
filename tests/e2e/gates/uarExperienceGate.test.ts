@@ -454,12 +454,15 @@ test('Gate V: a configured catalog agent runs through Boss with A2UI, approval r
         .filter((element) => {
           const id = element.getAttribute('id')
           const label = id ? root.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent?.trim() : ''
+          const wrappingLabel = element.closest('label')?.textContent?.trim()
           return !(
             element.getAttribute('aria-label')?.trim() ||
             element.getAttribute('aria-labelledby')?.trim() ||
             element.getAttribute('title')?.trim() ||
+            element.getAttribute('placeholder')?.trim() ||
             element.textContent?.trim() ||
-            label
+            label ||
+            wrappingLabel
           )
         })
         .map((element) => element.outerHTML.slice(0, 180))
