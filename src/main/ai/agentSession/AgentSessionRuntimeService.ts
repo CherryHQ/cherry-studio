@@ -340,7 +340,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
 // ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+@DependsOn(['ClaudeCodeProcessManager', 'RuntimeActivityService'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
@@ -406,7 +406,7 @@ export class AgentSessionRuntimeService extends BaseService {
     persist: (tx: DbOrTx, nativeSessionId: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
-    return this.forks.edit(
+    const editing = this.forks.edit(
       sessionId,
       target,
       async () => {
@@ -418,12 +418,16 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       persist
     )
+    this.syncRuntimeActivity()
+    return editing.finally(() => this.syncRuntimeActivity())
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
-    return this.forks.fork(sourceSessionId, messageId)
+    const forking = this.forks.fork(sourceSessionId, messageId)
+    this.syncRuntimeActivity()
+    return forking.finally(() => this.syncRuntimeActivity())
   }
 
   cancelSessionForks(sourceSessionId: string): Promise<void> {
@@ -440,6 +444,7 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
+  private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
@@ -544,7 +549,21 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
+    this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+  }
+
+  private syncRuntimeActivity(): void {
+    if (
+      this.hasBusySessions() ||
+      this.forks.pending.size > 0 ||
+      [...this.entries.values()].some((entry) => hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+    ) {
+      this.runtimeActivity ??= application.get('RuntimeActivityService').begin('agent:runtime')
+    } else {
+      this.runtimeActivity?.dispose()
+      this.runtimeActivity = undefined
+    }
   }
 
   private applyRuntimeStateEffect(
@@ -648,6 +667,7 @@ export class AgentSessionRuntimeService extends BaseService {
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
+    this.syncRuntimeActivity()
 
     return {
       listeners: [
@@ -1084,10 +1104,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
         if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+        this.syncRuntimeActivity()
       }),
       resumeToken: resumeToken ?? priorClosing?.resumeToken
     }
     this.closingSessions.set(sessionId, barrier)
+    this.syncRuntimeActivity()
     return barrier.promise
   }
 
@@ -2402,7 +2424,11 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
-    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
+    this.syncRuntimeActivity()
+    void flush.finally(() => {
+      this.inFlightBackgroundFlowFlushes.delete(flush)
+      this.syncRuntimeActivity()
+    })
     return flush
   }
 
@@ -3400,7 +3426,10 @@ export class AgentSessionRuntimeService extends BaseService {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
-          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+          if (this.failedClosures.get(sessionId) === connection) {
+            this.failedClosures.delete(sessionId)
+            this.syncRuntimeActivity()
+          }
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
