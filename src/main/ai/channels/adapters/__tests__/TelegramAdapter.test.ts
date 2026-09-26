@@ -69,6 +69,7 @@ vi.mock('grammy', () => {
 })
 
 import { GrammyError, HttpError, InputFile } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import { createTelegramAdapter } from '../telegram/TelegramAdapter'
 
@@ -91,7 +92,7 @@ describe('TelegramAdapter', () => {
     mockBot.command.mockClear()
     mockBot.on.mockClear()
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
-    mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendMessage.mockReset().mockResolvedValue(undefined)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendDocument.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
@@ -207,6 +208,60 @@ describe('TelegramAdapter', () => {
     expect(call[2]).toEqual({ parse_mode: 'MarkdownV2' })
     // The library converts the text — special chars should be escaped
     expect(call[1]).not.toBe('Price is 10.5!')
+  })
+
+  // #20643: special characters stay under the plain budget, but MarkdownV2 escaping
+  // exceeds 4096. Deliver that chunk as plain text instead of dropping it.
+  it('sendMessage() falls back to plain text when escaped MarkdownV2 exceeds 4096 (REGRESSION #20643)', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const plain = '.'.repeat(2500)
+    expect(plain.length).toBeLessThanOrEqual(4096)
+    expect(toMarkdownV2(plain).trimEnd().length).toBeGreaterThan(4096)
+
+    mockBot.api.sendMessage.mockImplementation(async (...args: [string, string]) => {
+      const text = args[1]
+      if (text.length > 4096) {
+        throw new GrammyError(
+          "Call to 'sendMessage' failed!",
+          { ok: false, error_code: 400, description: 'Bad Request: message is too long' },
+          'sendMessage',
+          {}
+        )
+      }
+    })
+
+    await adapter.sendMessage('123', plain)
+
+    const payloadCalls = mockBot.api.sendMessage.mock.calls.filter(
+      (call) => call[1] !== 'common.channel_message_dropped'
+    )
+    expect(payloadCalls).toContainEqual(['123', plain, {}])
+    expect(payloadCalls.every((call) => call[1].length <= 4096)).toBe(true)
+    expect(mockBot.api.sendMessage.mock.calls.some((call) => call[1] === 'common.channel_message_dropped')).toBe(false)
+  })
+
+  // Length rejections are not parse errors. A MarkdownV2 400 "message is too long"
+  // must still downgrade to the plain chunk instead of the drop notice.
+  it('sendMessage() falls back to plain text when Telegram reports message is too long (REGRESSION #20643)', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage.mockRejectedValueOnce(
+      new GrammyError(
+        "Call to 'sendMessage' failed!",
+        { ok: false, error_code: 400, description: 'Bad Request: message is too long' },
+        'sendMessage',
+        {}
+      )
+    )
+
+    await adapter.sendMessage('123', 'Hello')
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
+    expect(mockBot.api.sendMessage.mock.calls[1]).toEqual(['123', 'Hello', {}])
+    expect(mockBot.api.sendMessage.mock.calls.some((call) => call[1] === 'common.channel_message_dropped')).toBe(false)
   })
 
   it('sendMessage() falls back to plain text on MarkdownV2 error', async () => {

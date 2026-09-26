@@ -15,12 +15,9 @@ import { splitMessage } from '../../utils'
 
 const TELEGRAM_MAX_LENGTH = 4096
 /**
- * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
- * chunk has an index-aligned plain fallback) and then escape it; escaping only
- * grows length, so this headroom keeps the formatted chunk within the 4096 hard
- * limit for normal prose. A pathological all-special-char chunk could still
- * overflow — Telegram then rejects it and the catch sends the plain chunk, which
- * is always within budget.
+ * Plain-text chunk budget under MarkdownV2. Escaping only grows length, so this
+ * headroom keeps normal prose within Telegram's 4096-character limit. A chunk
+ * whose escaped form still exceeds that limit is sent as plain text instead.
  */
 const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
 
@@ -58,6 +55,22 @@ function isMarkdownParseError(error: unknown): boolean {
   }
   const message = error instanceof Error ? error.message : String(error)
   return /can'?t parse|parse entities|Bad Request.*markdown/i.test(message)
+}
+
+/** Telegram rejects an over-4096 payload with 400 "message is too long", which is not a parse error. */
+function isTelegramMessageTooLong(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'error_code' in error && 'description' in error) {
+    const grammy = error
+    if (
+      grammy.error_code === 400 &&
+      typeof grammy.description === 'string' &&
+      /message is too long/i.test(grammy.description)
+    ) {
+      return true
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return /message is too long/i.test(message)
 }
 
 function isTransientNetworkError(error: unknown): boolean {
@@ -397,23 +410,37 @@ class TelegramAdapter extends ChannelAdapter {
           ? { reply_parameters: { message_id: opts.replyToMessageId } }
           : {}
 
-      try {
-        await this.sendWithNetworkRetry(chatId, () =>
-          bot.api.sendMessage(chatId, formatted, {
-            parse_mode: parseMode,
-            ...replyParams
-          })
-        )
-      } catch (error) {
-        // Format downgrade is only for MarkdownV2 parse rejections — never for network errors.
-        if (isMarkdown && isMarkdownParseError(error)) {
-          this.log.warn('MarkdownV2 send failed, falling back to plain text', {
-            chatId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          await this.sendWithNetworkRetry(chatId, () => bot.api.sendMessage(chatId, plain, replyParams))
-        } else {
-          throw error
+      const sendPlainText = () =>
+        this.sendWithNetworkRetry(chatId, () => bot.api.sendMessage(chatId, plain, replyParams))
+
+      // Escaping can exceed 4096. That 400 is not a parse error, so send the plain chunk
+      // instead of letting the rejection drop the message.
+      if (isMarkdown && formatted.length > TELEGRAM_MAX_LENGTH) {
+        this.log.warn('MarkdownV2 payload exceeds Telegram length limit, falling back to plain text', {
+          chatId,
+          length: formatted.length
+        })
+        await sendPlainText()
+      } else {
+        try {
+          await this.sendWithNetworkRetry(chatId, () =>
+            bot.api.sendMessage(chatId, formatted, {
+              parse_mode: parseMode,
+              ...replyParams
+            })
+          )
+        } catch (error) {
+          // Format downgrade is only for MarkdownV2 parse rejections and length
+          // rejections — never for network errors.
+          if (isMarkdown && (isMarkdownParseError(error) || isTelegramMessageTooLong(error))) {
+            this.log.warn('MarkdownV2 send failed, falling back to plain text', {
+              chatId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            await sendPlainText()
+          } else {
+            throw error
+          }
         }
       }
 
