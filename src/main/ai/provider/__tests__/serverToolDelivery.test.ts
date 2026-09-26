@@ -11,14 +11,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import { describe, expect, it } from 'vitest'
 
-import { extensionRegistry, type ToolCapability } from '@cherrystudio/ai-core/provider'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { coreExtensions, extensionRegistry, type ToolCapability } from '@cherrystudio/ai-core/provider'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isBuiltinWebSearchAvailable, resolveWebToolRoutes } from '@shared/utils/provider'
+import { isBuiltinWebSearchAvailable, isWebSearchDeliveryEndpoint, resolveWebToolRoutes } from '@shared/utils/provider'
 
+import { createNewApi } from '../custom/newapiProvider'
 import { extensions } from '../extensions'
 
 // Same idempotent registration as `provider/factory.ts`, without importing its
@@ -163,6 +165,67 @@ describe('registry serverTools declarations have a runtime delivery path', () =>
   // A gateway delivers the underlying vendor's native tool, so a model whose
   // vendor owns no factory injects nothing while the client tools stay withheld.
   // `vendors` is what keeps such a model off the server route (and off the tag).
+  it('resolves endpoint-routed gateway model providers through a core webSearch factory', () => {
+    const settings = { apiKey: 'sk-test' }
+    const anthropic = createNewApi({ ...settings, endpointType: 'anthropic' }).languageModel('company-assistant')
+    const gemini = createNewApi({ ...settings, endpointType: 'gemini' }).languageModel('company-assistant')
+    const responses = createNewApi({ ...settings, endpointType: 'openai-response' }).languageModel('company-assistant')
+    const chat = createNewApi({ ...settings, endpointType: 'openai' }).languageModel('company-assistant')
+    const openResponses = createOpenResponses({
+      url: 'https://example.invalid/v1/responses',
+      name: 'openai',
+      apiKey: 'sk-test'
+    })('private-model')
+
+    expect(anthropic.provider).toBe('newapi.anthropic')
+    expect(extensionRegistry.hasResolvableToolFactory('newapi', 'webSearch', anthropic.provider)).toBe(true)
+    expect(gemini.provider).toBe('newapi.google')
+    expect(extensionRegistry.hasResolvableToolFactory('newapi', 'webSearch', gemini.provider)).toBe(true)
+    expect(responses.provider).toBe('newapi.openai-response')
+    expect(extensionRegistry.hasResolvableToolFactory('newapi', 'webSearch', responses.provider)).toBe(true)
+    expect(chat.provider).toBe('newapi.chat')
+    expect(extensionRegistry.hasResolvableToolFactory('newapi', 'webSearch', chat.provider)).toBe(false)
+    expect(openResponses.provider).toBe('openai.responses')
+    expect(extensionRegistry.hasResolvableToolFactory('open-responses', 'webSearch', openResponses.provider)).toBe(true)
+  })
+
+  it('keeps app-extension webSearch factories deliverable on the endpoint that selects them', () => {
+    const declaresWebSearch = (extension: (typeof extensions)[number]): boolean => {
+      const config = extension.config as {
+        name: string
+        toolFactories?: { webSearch?: unknown }
+        variants?: readonly { toolFactories?: { webSearch?: unknown } }[]
+      }
+      return Boolean(
+        config.toolFactories?.webSearch || config.variants?.some((variant) => variant.toolFactories?.webSearch)
+      )
+    }
+    const coreNames = new Set(coreExtensions.map((extension) => extension.config.name))
+    const appFamilies = extensions
+      .filter((extension) => declaresWebSearch(extension) && !coreNames.has(extension.config.name))
+      .map((extension) => extension.config.name)
+      .sort()
+    const endpointByFamily: Record<string, EndpointType> = {
+      bedrock: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      'google-vertex': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      'google-vertex-anthropic': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      // Kimi search is selected by the serverTools declaration. The catalog stores
+      // adapterFamily openai-compatible and config.ts rewrites the runtime id.
+      moonshot: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    }
+
+    expect(appFamilies).toEqual(Object.keys(endpointByFamily).sort())
+    for (const family of appFamilies) {
+      if (family === 'moonshot') continue
+      const endpointType = endpointByFamily[family]
+      expect(
+        isWebSearchDeliveryEndpoint(endpointType, {
+          endpointConfigs: { [endpointType]: { adapterFamily: family } }
+        })
+      ).toBe(true)
+    }
+  })
+
   it('narrows every gateway-mapped declaration to servable vendors', () => {
     const unnarrowed = declared
       .filter(({ providerId, toolId }) => DELIVERY[providerId]?.[toolId]?.kind === 'gateway-mapped')

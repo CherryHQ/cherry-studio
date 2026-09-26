@@ -1,3 +1,4 @@
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
@@ -224,11 +225,64 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
   return provider.serverTools?.find((tool) => tool.id === id)
 }
 
-// Keep this aligned with the registered webSearch toolFactories and endpoint variant resolution.
-const WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES: Partial<Record<EndpointType, readonly string[]>> = {
-  [ENDPOINT_TYPE.OPENAI_RESPONSES]: ['openai', 'azure', 'azure-responses', 'xai', 'xai-responses'],
-  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: ['anthropic', 'azure-anthropic', 'google-vertex-anthropic', 'bedrock'],
-  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: ['google', 'google-vertex']
+// App extensions register in the main process only. Their webSearch factories are real,
+// but the renderer registry never loads them, so the override gate names them here.
+const APP_EXTENSION_WEB_SEARCH_ENDPOINTS: Partial<Record<string, readonly EndpointType[]>> = {
+  bedrock: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+  'google-vertex': [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+  'google-vertex-anthropic': [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+}
+
+function resolveRegisteredAdapterId(adapterFamily: string, endpointType: EndpointType): string {
+  if (!extensionRegistry.has(adapterFamily) || extensionRegistry.isVariant(adapterFamily)) return adapterFamily
+
+  const baseId = extensionRegistry.getBaseProviderId(adapterFamily) ?? adapterFamily
+  const variants = extensionRegistry.getVariants(baseId)
+  if (
+    (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) &&
+    variants.includes(`${baseId}-chat`)
+  ) {
+    return `${baseId}-chat`
+  }
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && variants.includes(`${baseId}-responses`)) {
+    return `${baseId}-responses`
+  }
+  return baseId
+}
+
+/** `provider` string stamped on endpoint-routed gateway language models. */
+function endpointRoutedGatewayModelProvider(adapterFamily: string, endpointType: EndpointType): string | undefined {
+  if (adapterFamily === 'newapi') {
+    switch (endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+        return 'newapi.anthropic'
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+        return 'newapi.google'
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
+        return 'newapi.openai-response'
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+        return 'newapi.chat'
+      default:
+        return undefined
+    }
+  }
+
+  if (adapterFamily === 'cherryin') {
+    switch (endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+        return 'cherryin.anthropic'
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+        return 'cherryin.google'
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
+        return 'cherryin.openai'
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+        return 'cherryin.openai-chat'
+      default:
+        return undefined
+    }
+  }
+
+  return undefined
 }
 
 /** Whether this endpoint's actual runtime adapter can inject native search. */
@@ -237,11 +291,24 @@ export function isWebSearchDeliveryEndpoint(
   provider: Pick<Provider, 'endpointConfigs'>
 ): boolean {
   if (!endpointType) return false
+
   const adapterFamily = provider.endpointConfigs?.[endpointType]?.adapterFamily
-  return (
-    adapterFamily !== undefined &&
-    (WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES[endpointType]?.includes(adapterFamily) ?? false)
-  )
+  if (adapterFamily && APP_EXTENSION_WEB_SEARCH_ENDPOINTS[adapterFamily]?.includes(endpointType)) {
+    return true
+  }
+
+  const gatewayModelProvider = adapterFamily
+    ? endpointRoutedGatewayModelProvider(adapterFamily, endpointType)
+    : undefined
+  const runtimeId =
+    adapterFamily && (extensionRegistry.has(adapterFamily) || gatewayModelProvider)
+      ? resolveRegisteredAdapterId(adapterFamily, endpointType)
+      : endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+        ? 'open-responses'
+        : 'openai-compatible'
+  const modelProvider = gatewayModelProvider ?? (runtimeId === 'open-responses' ? 'openai.responses' : undefined)
+
+  return extensionRegistry.hasResolvableToolFactory(runtimeId, 'webSearch', modelProvider)
 }
 
 /** Deliverable web-search endpoints from a model/provider endpoint set. */

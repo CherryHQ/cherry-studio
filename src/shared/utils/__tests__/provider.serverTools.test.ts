@@ -71,6 +71,12 @@ describe('server-tool model eligibility', () => {
         [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
       }
     })
+    const gemini = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] }
+      }
+    })
 
     expect(
       isBuiltinWebSearchAvailable(custom, {
@@ -81,19 +87,86 @@ describe('server-tool model eligibility', () => {
     ).toBe(false)
     expect(
       isBuiltinWebSearchAvailable(custom, {
+        id: 'custom',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'openai-compatible' } }
+      })
+    ).toBe(false)
+    expect(
+      isBuiltinWebSearchAvailable(gemini, {
+        id: 'custom',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'openai-compatible' } }
+      })
+    ).toBe(false)
+    expect(
+      isBuiltinWebSearchAvailable(custom, {
         id: 'third-party',
         serverTools: [],
         endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
       })
     ).toBe(true)
+    expect(
+      isBuiltinWebSearchAvailable(gemini, {
+        id: 'third-party',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+      })
+    ).toBe(true)
+  })
 
+  it('follows runtime tool resolution for an endpoint-routed gateway private alias', () => {
+    const enabled = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
+      model('company-assistant', {
+        endpointTypes: [endpointType],
+        serverToolOverrides: {
+          [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [endpointType] }
+        }
+      })
+    const newApi = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
+      ({
+        id: 'my-new-api',
+        presetProviderId: 'new-api',
+        serverTools: [],
+        endpointConfigs: { [endpointType]: { adapterFamily: 'newapi' } }
+      }) as unknown as Provider
+
+    expect(
+      isBuiltinWebSearchAvailable(enabled(ENDPOINT_TYPE.ANTHROPIC_MESSAGES), newApi(ENDPOINT_TYPE.ANTHROPIC_MESSAGES))
+    ).toBe(true)
+    expect(
+      isBuiltinWebSearchAvailable(
+        enabled(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT),
+        newApi(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+      )
+    ).toBe(true)
+    expect(
+      isBuiltinWebSearchAvailable(enabled(ENDPOINT_TYPE.OPENAI_RESPONSES), newApi(ENDPOINT_TYPE.OPENAI_RESPONSES))
+    ).toBe(true)
+    expect(
+      isBuiltinWebSearchAvailable(
+        enabled(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+        newApi(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      )
+    ).toBe(false)
+    expect(
+      isBuiltinWebSearchAvailable(enabled(ENDPOINT_TYPE.ANTHROPIC_MESSAGES), {
+        id: 'my-cherryin',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'cherryin' } }
+      } as unknown as Provider)
+    ).toBe(true)
+  })
+
+  it('routes a responses endpoint without an adapter family through the OpenAI search factory', () => {
     const responsesModel = model('private-model', {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
       serverToolOverrides: {
         [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
       }
     })
-    expect(isBuiltinWebSearchAvailable(responsesModel, { id: 'custom', serverTools: [] })).toBe(false)
+
+    expect(isBuiltinWebSearchAvailable(responsesModel, { id: 'custom', serverTools: [] })).toBe(true)
   })
 
   it('ignores a stale override for an endpoint the model no longer supports', () => {
