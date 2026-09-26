@@ -509,6 +509,8 @@ export class ClaudeCodeStreamAdapter {
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
   private turnHasActivity = false
+  /** Runtime compaction prose is internal state transfer and must not land in visible transcript text. */
+  private runtimeCompactionActive = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -630,6 +632,7 @@ export class ClaudeCodeStreamAdapter {
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
+    if (this.isCompactionInternalContent(message, parentToolUseId)) return { type: 'continue' }
 
     // A resumed CLI replays pending background-task notifications as their own zero-turn query before
     // pulling the host's input (claude-agent-sdk#383); that result belongs to the task, not the turn.
@@ -1302,6 +1305,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     this.finalizeToolCalls(ctx)
+    this.runtimeCompactionActive = false
 
     ctx.sink.enqueue({
       type: 'finish',
@@ -1322,10 +1326,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleTaskSystemMessage(message, ctx)
         return
       case 'status':
-        this.handleStatusSystemMessage(message)
+        this.handleStatusSystemMessage(message, ctx)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage(message)
+        this.handleCompactBoundarySystemMessage(message, ctx)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -1518,20 +1522,23 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+  private handleStatusSystemMessage(message: SDKStatusMessage, ctx: StreamContext): void {
     if (message.status === 'compacting') {
+      this.closeActiveTextPart(ctx)
+      this.runtimeCompactionActive = true
       this.statusSink.emit({ type: 'compaction-start' })
       return
     }
     if (message.compact_result === 'failed' || message.compact_error) {
+      this.runtimeCompactionActive = false
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
       this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
       return
     }
     if (message.compact_result === 'success') {
-      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
-      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
-      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      // Success ends suppression: the SDK does not guarantee a boundary, so content after
+      // success is post-compaction output and must stay visible. A later boundary still wins.
+      this.runtimeCompactionActive = false
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
@@ -1557,7 +1564,13 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 
-  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
+    this.runtimeCompactionActive = false
+    // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
+    // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
+    this.closeActiveTextPart(ctx)
+    ctx.accumulatedText = ''
+    ctx.streamedTextLength = 0
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
       status: 'done',
@@ -1656,6 +1669,18 @@ export class ClaudeCodeStreamAdapter {
       toolUses: value.tool_uses,
       durationMs: value.duration_ms
     }
+  }
+
+  private isCompactionInternalContent(message: SDKMessage, parentToolUseId: string | null | undefined): boolean {
+    if (parentToolUseId != null || !this.runtimeCompactionActive) return false
+    if (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user') {
+      logger.debug('Suppressing runtime compaction content from transcript stream', {
+        type: message.type,
+        sessionId: this.sessionId
+      })
+      return true
+    }
+    return false
   }
 
   private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {
