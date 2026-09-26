@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "Επιτρέπει τη συγχρονη ελεγχος",
   "settings.models.check.failed": "Αποτυχία",
   "settings.models.check.failed_to_start": "Αποτυχία έναρξης ελέγχου υγείας",
+  "settings.models.check.filter_failed": "Απέτυχε",
   "settings.models.check.generation_output_audio": "ήχος",
   "settings.models.check.generation_output_image": "μια εικόνα",
   "settings.models.check.generation_output_video": "ένα βίντεο",

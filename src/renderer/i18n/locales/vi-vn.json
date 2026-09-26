@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "Đồng thời",
   "settings.models.check.failed": "Thất bại",
   "settings.models.check.failed_to_start": "Không thể khởi động kiểm tra sức khỏe",
+  "settings.models.check.filter_failed": "Thất bại",
   "settings.models.check.generation_output_audio": "âm thanh",
   "settings.models.check.generation_output_image": "một hình ảnh",
   "settings.models.check.generation_output_video": "một video",

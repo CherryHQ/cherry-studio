@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "並行チェック",
   "settings.models.check.failed": "失敗",
   "settings.models.check.failed_to_start": "ヘルスチェックの開始に失敗しました",
+  "settings.models.check.filter_failed": "失敗",
   "settings.models.check.generation_output_audio": "オーディオ",
   "settings.models.check.generation_output_image": "画像",
   "settings.models.check.generation_output_video": "動画",

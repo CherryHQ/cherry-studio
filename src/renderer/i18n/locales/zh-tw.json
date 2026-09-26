@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "並行檢查",
   "settings.models.check.failed": "失敗",
   "settings.models.check.failed_to_start": "健康檢查啟動失敗",
+  "settings.models.check.filter_failed": "檢測失敗",
   "settings.models.check.generation_output_audio": "音訊",
   "settings.models.check.generation_output_image": "圖片",
   "settings.models.check.generation_output_video": "影片",

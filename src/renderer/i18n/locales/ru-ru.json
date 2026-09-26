@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "Параллельная проверка",
   "settings.models.check.failed": "Не прошло",
   "settings.models.check.failed_to_start": "Не удалось запустить проверку работоспособности",
+  "settings.models.check.filter_failed": "Ошибка",
   "settings.models.check.generation_output_audio": "аудио",
   "settings.models.check.generation_output_image": "изображение",
   "settings.models.check.generation_output_video": "видео",

@@ -4759,6 +4759,7 @@
   "settings.models.check.enable_concurrent": "Parallele Erkennung",
   "settings.models.check.failed": "Fehlgeschlagen",
   "settings.models.check.failed_to_start": "Fehler beim Start der Gesundheitsprüfung",
+  "settings.models.check.filter_failed": "Fehlgeschlagen",
   "settings.models.check.generation_output_audio": "Audio",
   "settings.models.check.generation_output_image": "ein Bild",
   "settings.models.check.generation_output_video": "ein Video",
