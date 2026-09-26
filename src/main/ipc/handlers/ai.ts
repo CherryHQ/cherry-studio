@@ -5,6 +5,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { listAgentBackgroundTasks, stopAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
@@ -288,6 +289,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.background_task.list': ({ agentId }) => listAgentBackgroundTasks(agentId),
+  'ai.agent.background_task.stop': ({ agentId, taskId, force }) =>
+    stopAgentBackgroundTask(agentId, taskId, force === true),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),

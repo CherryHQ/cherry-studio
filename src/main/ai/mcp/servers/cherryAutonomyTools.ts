@@ -8,6 +8,8 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import path from 'node:path'
+
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import QRCode from 'qrcode'
@@ -20,6 +22,20 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
+import {
+  type BackgroundTaskRecord,
+  type CompletedBackgroundTask,
+  getDetachedBackgroundTask,
+  listDetachedBackgroundTasks,
+  stopDetachedBackgroundTask
+} from '@main/ai/agents/backgroundTasks'
+import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
+import {
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand
+} from '@main/ai/agents/builtin/assistantCommandSafety'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -48,13 +64,18 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { BUILTIN_AGENT_ROLE, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+/** Mirrors the guard table's assistant-feedback row: feedback submits externally under the user's identity. */
+const isExternalSubmission = (command: string): boolean =>
+  isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command)
 
 const AGENT_LIST_TOOL_NAME = 'agent_list'
 
@@ -409,10 +430,44 @@ const SESSION_SEND_TOOL: Tool = {
   }
 }
 
+const BACKGROUND_TASK_TOOL: Tool = {
+  name: BACKGROUND_TASK_TOOL_NAME,
+  description: [
+    'Run, inspect, or list fully detached background tasks. Unlike the runtime-native background shell (run_in_background-style), whose processes live inside the agent CLI process tree and are killed when the CLI session exits, the user aborts, or the app quits, a task started here is spawned into its own process session (setsid) and keeps running across turns, CLI exits, and app restarts. ',
+    "Completion handling is best-effort: while the app is running, the task's exit notifies configured channels and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
+    'stdout and stderr stream to a task log file; every task is registered with PID, log path, and start time. ',
+    'Use the runtime-native background shell for short work that should report back inside this session; use this tool when the task must outlive the session or the app. Commands run with shell semantics in the session workspace and require user approval.'
+  ].join(''),
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['start', 'status', 'list', 'stop', 'kill'],
+        description: 'The action to perform'
+      },
+      command: {
+        type: 'string',
+        description: "Shell command to run detached (required for 'start')."
+      },
+      name: {
+        type: 'string',
+        description: "Optional short label used in records and completion notifications (for 'start')."
+      },
+      task_id: {
+        type: 'string',
+        description: "Task id returned by start (required for 'status', 'stop', and 'kill')."
+      }
+    },
+    required: ['action']
+  }
+}
+
 const AUTONOMY_TOOLS: readonly Tool[] = [
   CRON_TOOL,
   NOTIFY_TOOL,
   CONFIG_TOOL,
+  BACKGROUND_TASK_TOOL,
   SESSION_LIST_TOOL,
   AGENT_LIST_TOOL,
   SESSION_SEARCH_TOOL,
@@ -483,6 +538,25 @@ export class CherryAutonomyTools {
             )
           }
           return await this.sendNotification(args)
+        case BACKGROUND_TASK_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'start':
+              return await this.startBackgroundTask(args)
+            case 'status':
+              return await this.backgroundTaskStatus(args)
+            case 'list':
+              return await this.listBackgroundTasks()
+            case 'stop':
+            case 'kill':
+              return await this.stopBackgroundTask(args, action === 'kill')
+            default:
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Unknown action "${action}", expected start/status/list/stop/kill`
+              )
+          }
+        }
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
         case AGENT_LIST_TOOL_NAME:
@@ -931,6 +1005,121 @@ export class CherryAutonomyTools {
 
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }]
+    }
+  }
+
+  // ── Background task handlers ──────────────────────────────────────
+
+  private get backgroundTaskStorageDir(): string {
+    return path.join(application.getPath('feature.agents.data'), this.agentId, 'background-tasks')
+  }
+
+  private async startBackgroundTask(args: Record<string, unknown>) {
+    const command = typeof args.command === 'string' ? args.command : ''
+    if (!command.trim()) throw new McpError(ErrorCode.InvalidParams, "'command' is required for start")
+    const agent = agentService.getAgent(this.agentId)
+    const builtinRole = agent?.configuration?.builtin_role
+    if (isProtectedBuiltinAgentRole(builtinRole)) {
+      const reason = detectDestructiveAssistantCommand(command)
+      if (reason) throw new McpError(ErrorCode.InvalidRequest, `This built-in Agent blocked ${reason}`)
+      // A detached command is a shell command: mirror the guard table's headless Bash denials so
+      // they hold on every runtime, not just Claude Code's PreToolUse plane (#18898 gap).
+      const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
+      const headless = interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
+      if (headless && (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT || isExternalSubmission(command))) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+            ? 'Headless channel or scheduled turns cannot run shell commands for Cherry Support.'
+            : 'Headless channel or scheduled turns cannot submit Cherry Studio feedback.'
+        )
+      }
+    }
+    const record = await startAgentBackgroundTask({
+      agentId: this.agentId,
+      storageDir: this.backgroundTaskStorageDir,
+      command,
+      cwd: this.workspacePath,
+      name: typeof args.name === 'string' ? args.name : undefined,
+      onExit: (task) => {
+        this.indexBackgroundTask(task.record)
+        this.notifyBackgroundTaskCompletion(task)
+      }
+    })
+    this.indexBackgroundTask((await getDetachedBackgroundTask(this.backgroundTaskStorageDir, record.id)) ?? record)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
+    }
+  }
+
+  private async backgroundTaskStatus(args: Record<string, unknown>) {
+    const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : ''
+    if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for status")
+    const record = await getDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId)
+    if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" not found`)
+    this.indexBackgroundTask(record)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
+    }
+  }
+
+  private async listBackgroundTasks() {
+    const tasks = await listDetachedBackgroundTasks(this.backgroundTaskStorageDir)
+    for (const task of tasks) this.indexBackgroundTask(task)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ tasks }, null, 2) }]
+    }
+  }
+
+  private async stopBackgroundTask(args: Record<string, unknown>, force: boolean) {
+    const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : ''
+    if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for stop/kill")
+    const record = await stopDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId, force)
+    if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" is not running or cannot be verified`)
+    this.indexBackgroundTask(record)
+    return { content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }] }
+  }
+
+  /**
+   * Index a task for the panel. Best-effort by design: the disk record is the source of truth and
+   * the side effect has already happened, so a DB failure must not be reported as a tool failure —
+   * for `start` that invites a retry and duplicates work that is in fact running.
+   */
+  private indexBackgroundTask(record: BackgroundTaskRecord): void {
+    try {
+      saveBackgroundTaskRecord(this.agentId, record)
+    } catch (error) {
+      logger.error('Failed to index detached background task', { taskId: record.id, error })
+    }
+  }
+
+  /**
+   * Out-of-band completion delivery — the app's ordinary notify authority does
+   * not exist this long after the starting turn, so this mirrors scheduled-task
+   * delivery: every live channel adapter of the agent, best-effort.
+   */
+  private notifyBackgroundTaskCompletion(task: CompletedBackgroundTask): void {
+    try {
+      const adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+      for (const adapter of adapters) {
+        for (const chatId of adapter.notifyChatIds) {
+          adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
+            logger.warn('Failed to deliver background task completion notification', {
+              agentId: this.agentId,
+              taskId: task.record.id,
+              channelId: adapter.channelId,
+              chatId,
+              error: err
+            })
+          })
+        }
+      }
+    } catch (err) {
+      logger.warn('Error while building background task completion notification', {
+        agentId: this.agentId,
+        taskId: task.record.id,
+        error: err
+      })
     }
   }
 

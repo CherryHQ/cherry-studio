@@ -104,6 +104,7 @@ import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
+import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -1724,6 +1725,96 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
   )
 }
 
+function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: boolean }) {
+  const { t } = useTranslation()
+  // Carries its own identity: on an agent switch the previous agent's rows must not stay on screen
+  // (their Stop/Kill would be sent under the new agent id) while the refetch is still in flight.
+  const [loaded, setLoaded] = useState<{ agentId?: string; tasks: BackgroundTaskRecord[] }>({ tasks: [] })
+  const tasks = loaded.agentId === agentId ? loaded.tasks : []
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const setTasks = (update: (current: BackgroundTaskRecord[]) => BackgroundTaskRecord[]) =>
+    setLoaded((current) => (current.agentId === agentId ? { ...current, tasks: update(current.tasks) } : current))
+
+  useEffect(() => {
+    if (!agentId) return
+    let active = true
+    const refresh = () => {
+      void ipcApi.request('ai.agent.background_task.list', { agentId }).then(
+        (records) => {
+          if (active && Array.isArray(records)) setLoaded({ agentId, tasks: records })
+        },
+        (error) => logger.warn('Failed to list detached background tasks', { agentId, error })
+      )
+    }
+    refresh()
+    const timer = setInterval(refresh, 3_000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [agentId])
+
+  if (!agentId || tasks.length === 0) return null
+
+  const stop = async (taskId: string, force: boolean) => {
+    setBusyId(taskId)
+    try {
+      const record = await ipcApi.request('ai.agent.background_task.stop', { agentId, taskId, force })
+      if (!record) throw new Error('Task is no longer running or its process identity could not be verified')
+      setTasks((current) => current.map((task) => (task.id === taskId ? record : task)))
+    } catch (error) {
+      logger.warn('Failed to stop detached background task', { agentId, taskId, error })
+      toast.error(t('agent.right_pane.detached_task.stop_failed'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <AgentRightPaneHighlightSection
+      title={t('agent.right_pane.detached_task.title')}
+      icon={<Terminal size={14} className="text-muted-foreground" />}
+      compact={compact}>
+      <div className="space-y-1.5">
+        {tasks.map((task) => (
+          <div
+            key={task.id}
+            className="rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium" title={task.command}>
+                {task.name}
+              </span>
+              <span className="text-muted-foreground">{task.status}</span>
+              {task.status === 'running' && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === task.id}
+                    onClick={() => void stop(task.id, false)}>
+                    {t('agent.right_pane.detached_task.stop')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === task.id}
+                    onClick={() => void stop(task.id, true)}>
+                    {t('agent.right_pane.detached_task.kill')}
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="mt-1 truncate text-muted-foreground" title={task.logFile}>
+              {task.logFile}
+            </div>
+            {task.note && <div className="mt-1 text-muted-foreground">{task.note}</div>}
+          </div>
+        ))}
+      </div>
+    </AgentRightPaneHighlightSection>
+  )
+}
+
 function AgentRightPaneHighlights({
   status,
   compact = false,
@@ -1742,11 +1833,12 @@ function AgentRightPaneHighlights({
   const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
   const hasHighlights = status.runTasks.length > 0 || artifacts.length > 0
 
-  if (!hasHighlights) return null
+  if (!hasHighlights && !meta.agentId) return null
 
   return (
     <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
+      <DetachedTaskSection agentId={meta.agentId} compact={compact} />
 
       {workflowRunTasks.length > 0 && (
         <AgentRightPaneHighlightSection
