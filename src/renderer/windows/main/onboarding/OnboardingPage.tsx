@@ -88,13 +88,13 @@ export default function OnboardingPage(_props: OnboardingPageProps) {
   )
   const isProviderSetupLoading = isProvidersLoading || isModelsLoading
   const canContinueProviderSetup = !isProviderSetupLoading && hasEligibleProvider && hasEligibleModel
-  const providerSetupHint = !isProviderSetupLoading
-    ? !hasEligibleProvider
+  const providerSetupHint = isProviderSetupLoading
+    ? t('common.loading')
+    : !hasEligibleProvider
       ? t('onboarding.provider_setup.missing_provider')
       : !hasEligibleModel
         ? t('onboarding.provider_setup.missing_model')
         : null
-    : null
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
   const displayLanguage = isAppLanguage(language)
     ? language
@@ -316,6 +316,7 @@ export default function OnboardingPage(_props: OnboardingPageProps) {
                     }}>
                     <Button
                       type="button"
+                      loading={isProviderSetupLoading}
                       aria-disabled={!canContinueProviderSetup}
                       className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                       onClick={() => canContinueProviderSetup && setStep('select-model')}>

@@ -110,8 +110,12 @@ function CapabilitySurface({ surface }: { surface: SurfaceProjection }) {
 }
 
 function LoadingWorkspace() {
+  const { t } = useTranslation()
   return (
     <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]" aria-busy="true">
+      <span className="sr-only" role="status">
+        {t('common.loading')}
+      </span>
       <div className="hidden space-y-2 lg:block">
         {Array.from({ length: 8 }, (_, index) => (
           <Skeleton key={index} className="h-8 rounded-md" />
@@ -151,7 +155,11 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
   const selectedId = surfaces.some((surface) => surface.id === requestedPanel) ? requestedPanel! : 'overview'
   const selected = surfaces.find((surface) => surface.id === selectedId)
   const grouped = useMemo(
-    () => GROUPS.map((group) => ({ group, surfaces: surfaces.filter((surface) => surface.group === group) })),
+    () =>
+      GROUPS.map((group) => ({
+        group,
+        surfaces: surfaces.filter((surface) => surface.group === group && surface.id !== 'overview')
+      })),
     [surfaces]
   )
   const selectSurface = (panel: string) => {
@@ -180,6 +188,7 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="overview">{navText(t, 'surface.overview')}</SelectItem>
             {grouped.flatMap(({ group, surfaces: groupSurfaces }) =>
               groupSurfaces.map((surface) => (
                 <SelectItem key={surface.id} value={surface.id}>
@@ -192,6 +201,17 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
       </div>
       <div className="grid min-w-0 gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <nav className="hidden min-w-0 border-r border-border pr-3 lg:block" aria-label={navText(t, 'destination')}>
+          <button
+            type="button"
+            aria-current={selectedId === 'overview' ? 'page' : undefined}
+            onClick={() => selectSurface('overview')}
+            className={`mb-4 flex min-h-9 w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+              selectedId === 'overview'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            }`}>
+            {navText(t, 'surface.overview')}
+          </button>
           {grouped.map(({ group, surfaces: groupSurfaces }) => (
             <div key={group} className="mb-5 last:mb-0">
               <div className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">

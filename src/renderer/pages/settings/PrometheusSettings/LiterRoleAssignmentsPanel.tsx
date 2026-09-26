@@ -1,7 +1,13 @@
+import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Badge, Button } from '@cherrystudio/ui'
-import { SettingDescription, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingGroup,
+  SettingHelpText,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { literRoleAssignmentsApi } from '@renderer/ipc'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 import { literResolvedModelIdentityKey, type LiterServedAlias } from '@shared/types/literGateway'
@@ -33,6 +39,7 @@ export function LiterRoleAssignmentsPanel({
   const [assignments, setAssignments] = useState<Partial<LiterRoleAssignments>>({})
   const [source, setSource] = useState<LiterRoleSource>({ ownership: 'managed' })
   const [document, setDocument] = useState<LiterRoleDocumentSnapshot>()
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
@@ -62,6 +69,9 @@ export function LiterRoleAssignmentsPanel({
       })
       .catch((cause) => {
         if (!disposed) setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        if (!disposed) setLoading(false)
       })
     return () => {
       disposed = true
@@ -112,9 +122,16 @@ export function LiterRoleAssignmentsPanel({
           <SettingTitle>{tr('roles.title')}</SettingTitle>
           <SettingDescription>{tr('roles.description')}</SettingDescription>
         </div>
-        <Badge variant={complete ? 'secondary' : 'outline'}>
-          {complete ? tr('roles.complete') : tr('roles.incomplete')}
-        </Badge>
+        {loading ? (
+          <span className="flex items-center gap-2 text-sm text-foreground-secondary" role="status">
+            <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden="true" />
+            {tr('status.loading')}
+          </span>
+        ) : (
+          <Badge variant={complete ? 'secondary' : 'outline'}>
+            {complete ? tr('roles.complete') : tr('roles.incomplete')}
+          </Badge>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4">
@@ -130,7 +147,7 @@ export function LiterRoleAssignmentsPanel({
                 label={tr(`roles.${role}`)}
                 value={value}
                 onChange={(next) => selectRole(role, next)}
-                disabled={busy || controller.busy}
+                disabled={loading || busy || controller.busy}
                 options={[
                   { value: UNASSIGNED, label: tr('roles.chooseModel') },
                   ...availableAliases.map((alias) => ({ value: aliasKey(alias), label: alias.displayName }))
@@ -148,7 +165,7 @@ export function LiterRoleAssignmentsPanel({
         )}
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={!complete || busy || controller.busy}
+            disabled={loading || !complete || busy || controller.busy}
             onClick={() =>
               void run(async () => {
                 const next = await literRoleAssignmentsApi.save({
@@ -164,13 +181,13 @@ export function LiterRoleAssignmentsPanel({
           </Button>
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={loading || busy}
             onClick={() => void run(async () => readDocument({ ownership: 'managed' }))}>
             {tr('actions.useManagedRoles')}
           </Button>
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={loading || busy}
             onClick={() =>
               void run(async () => {
                 const selected = await literRoleAssignmentsApi.selectLocal()
@@ -182,14 +199,14 @@ export function LiterRoleAssignmentsPanel({
           {document?.assignments && (
             <Button
               variant="outline"
-              disabled={busy}
+              disabled={loading || busy}
               onClick={() => setAssignments(document.assignments ?? {})}>
               {tr('actions.loadRoleFile')}
             </Button>
           )}
           <Button
             variant="outline"
-            disabled={!document || !complete || busy}
+            disabled={loading || !document || !complete || busy}
             onClick={() =>
               void run(async () => {
                 const result = await literRoleAssignmentsApi.apply(source, document!.revision)
@@ -203,7 +220,7 @@ export function LiterRoleAssignmentsPanel({
           </Button>
           <Button
             variant="outline"
-            disabled={!document || !complete || busy}
+            disabled={loading || !document || !complete || busy}
             onClick={() =>
               void run(async () => {
                 const result = await literRoleAssignmentsApi.export(source, document!.revision)
@@ -219,8 +236,16 @@ export function LiterRoleAssignmentsPanel({
             {source.ownership === 'managed' ? tr('roles.managedFile') : tr('roles.localFile')}: {document.path}
           </SettingHelpText>
         )}
-        {message && <p className="text-sm text-success" role="status">{message}</p>}
-        {error && <p className="break-words text-sm text-error" role="alert">{error}</p>}
+        {message && (
+          <p className="text-sm text-success" role="status">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p className="break-words text-sm text-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </SettingGroup>
   )
