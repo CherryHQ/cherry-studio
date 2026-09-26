@@ -3081,7 +3081,7 @@ describe('AiStreamManager', () => {
 
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({ message: 'Unknown error' })
+      expect(listener.errorResults[0].error).toMatchObject({ message: null, i18nKey: 'unknown' })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })

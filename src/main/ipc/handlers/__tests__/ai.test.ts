@@ -392,14 +392,14 @@ describe('aiHandlers', () => {
     )
   })
 
-  it('redacts a non-Error throw in an AI_REQUEST_FAILED IpcError', async () => {
+  it('preserves a safe string throw in an AI_REQUEST_FAILED IpcError', async () => {
     aiService.checkModel.mockRejectedValue('boom')
 
     const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
-    expect(error.message).toBe('Unknown error')
+    expect(error.message).toBe('boom')
   })
 
   it('does not expose a RetryError wrapper payload through the AI IPC error', async () => {
