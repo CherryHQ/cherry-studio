@@ -33,7 +33,18 @@ describe('backgroundTasks', () => {
   })
 
   afterEach(async () => {
-    await rm(storageDir, { recursive: true, force: true })
+    // A force-killed detached child releases its log fd and cwd handle a beat
+    // after taskkill returns, which surfaces as EBUSY on Windows.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await rm(storageDir, { recursive: true, force: true })
+        break
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (attempt >= 20 || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
   })
 
   describe('buildDetachedBackgroundTaskSpawn', () => {
@@ -173,6 +184,8 @@ describe('backgroundTasks', () => {
         expect(status?.pid).toBe(running.pid)
       } finally {
         await stopDetachedBackgroundTask(storageDir, running.id, true)
+        // Wait out the kill so the child cannot hold handles into storageDir.
+        await vi.waitFor(() => expect(isPidAlive(running.pid)).toBe(false), { timeout: 10_000 })
       }
     })
 
