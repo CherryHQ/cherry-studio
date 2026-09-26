@@ -409,6 +409,28 @@ export class ExtensionRegistry {
   }
 
   /**
+   * Provider ids that declare this capability, direct id first, then model.provider
+   * segments from the vendor end (`newapi.anthropic` → `anthropic`).
+   */
+  private toolFactoryOwnerIds(providerId: string, capability: ToolCapability, modelProvider?: string): string[] {
+    const owners: string[] = []
+    const push = (id: string) => {
+      if (!owners.includes(id) && this.getToolFactory(id, capability)) owners.push(id)
+    }
+
+    push(providerId)
+    if (typeof modelProvider === 'string') {
+      const segments = modelProvider.split('.')
+      for (let i = segments.length - 1; i >= 0; i--) push(segments[i])
+    }
+    return owners
+  }
+
+  hasResolvableToolFactory(providerId: string, capability: ToolCapability, modelProvider?: string): boolean {
+    return this.toolFactoryOwnerIds(providerId, capability, modelProvider).length > 0
+  }
+
+  /**
    * 解析工具能力：返回 factory + provider 实例
    *
    * 1. Direct — provider 自己有 toolFactories
@@ -419,27 +441,12 @@ export class ExtensionRegistry {
     capability: ToolCapability,
     modelProvider?: string
   ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
-    // 1. Direct: provider 自己有 toolFactories
-    const directFactory = this.getToolFactory(providerId, capability)
-    if (directFactory) {
-      const provider = await this.getToolProvider(providerId)
-      if (provider) return { factory: directFactory, provider }
+    for (const ownerId of this.toolFactoryOwnerIds(providerId, capability, modelProvider)) {
+      const factory = this.getToolFactory(ownerId, capability)
+      if (!factory) continue
+      const provider = await this.getToolProvider(ownerId)
+      if (provider) return { factory, provider }
     }
-
-    // 2. Aggregator fallback: 从 model.provider 段解析真实 provider
-    //    e.g., "aihubmix.google" → try "google" → found via google extension
-    //    e.g., "cherryin.gemini" → try "gemini" → found via alias → google extension
-    if (typeof modelProvider === 'string') {
-      const segments = modelProvider.split('.')
-      for (let i = segments.length - 1; i >= 0; i--) {
-        const factory = this.getToolFactory(segments[i], capability)
-        if (factory) {
-          const provider = await this.getToolProvider(segments[i])
-          if (provider) return { factory, provider }
-        }
-      }
-    }
-
     return undefined
   }
 
