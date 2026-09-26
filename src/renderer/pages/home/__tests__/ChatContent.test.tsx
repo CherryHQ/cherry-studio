@@ -211,7 +211,9 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  RefreshProvider: ({ children }: { children: ReactNode }) => children,
+  // The home list hosts agents, so it mounts the launch index around the list.
+  AgentLaunchIndexProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
