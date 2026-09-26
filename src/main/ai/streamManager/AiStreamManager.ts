@@ -198,6 +198,20 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
   return status === 'pending' || status === 'streaming'
 }
 
+// Generous, but bounded: a terminal loop that never settles must not hold the retry IPC — and so the
+// renderer's spinner — open forever.
+const RETRY_LOOP_SETTLE_TIMEOUT_MS = 60_000
+
+function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs)
+    void Promise.allSettled([promise]).then(() => {
+      clearTimeout(timer)
+      resolve(true)
+    })
+  })
+}
+
 function isPersistedReplyGroupAnchor(
   messageId: string,
   topicId: string,
@@ -342,6 +356,16 @@ export class AiStreamManager extends BaseService {
       serviceTier?: ServiceTierSelection
       fastMode: boolean
     }>
+  >()
+  /** Per-topic head-controller merge owed once the worker turn settles cleanly. At most one:
+   *  a turn is divided once, so a second would be answering a question nobody asked. */
+  private readonly pendingMerges = new Map<
+    string,
+    {
+      parentAnchorId: string
+      controllerModelId: UniqueModelId
+      workers: Array<{ messageId: string; name: string; instruction: string }>
+    }
   >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's explicit launch state. */
@@ -1044,7 +1068,9 @@ export class AiStreamManager extends BaseService {
 
     // Do not reset the row or replace the listener id until the old loop has completed every
     // terminal listener.
-    await execution.loopPromise
+    if (!(await settlesWithin(execution.loopPromise, RETRY_LOOP_SETTLE_TIMEOUT_MS))) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_NOT_READY)
+    }
 
     const current = this.activeStreams.get(topicId)
     if (!current) return { mode: 'start-new' }
@@ -1091,6 +1117,26 @@ export class AiStreamManager extends BaseService {
    *  running turn stops at the next safe step boundary. */
   hasPendingSteer(topicId: string): boolean {
     return (this.pendingSteers.get(topicId)?.length ?? 0) > 0
+  }
+
+  /** A steer or a controller merge is owed — either way the topic is not finished yet. */
+  private hasPendingChain(topicId: string): boolean {
+    return this.hasPendingSteer(topicId) || this.pendingMerges.has(topicId)
+  }
+
+  /**
+   * Record the merge a divided turn owes. Unlike a steer this is never started here: the workers
+   * are live by definition at this point, and `onExecutionDone` chains it when they all settle.
+   */
+  enqueuePendingMerge(
+    topicId: string,
+    merge: {
+      parentAnchorId: string
+      controllerModelId: UniqueModelId
+      workers: Array<{ messageId: string; name: string; instruction: string }>
+    }
+  ): void {
+    this.pendingMerges.set(topicId, merge)
   }
 
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
@@ -1415,7 +1461,7 @@ export class AiStreamManager extends BaseService {
     // Agent sessions chain their own follow-ups (terminal listener -> markTurnTerminal -> startNextTurn):
     // when the runtime will continue this topic, keep the stream alive so the next turn reaches the
     // carried renderer listeners, but let the runtime drive the continuation.
-    const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
+    const chatChaining = stream.status === 'done' && this.hasPendingChain(topicId)
     const agentChaining =
       topicDone &&
       !chatChaining &&
@@ -1565,6 +1611,11 @@ export class AiStreamManager extends BaseService {
       })
     }
     this.pendingSteers.delete(topicId)
+    // A merge over replies that errored or were stopped would fold half a turn into a confident
+    // answer. The worker replies stay on screen as they are.
+    if (this.pendingMerges.delete(topicId)) {
+      logger.info('Dropping the controller merge — the worker turn did not finish cleanly', { topicId, reason })
+    }
   }
 
   /**
@@ -1702,7 +1753,10 @@ export class AiStreamManager extends BaseService {
     }
     const queue = this.pendingSteers.get(topicId)
     const pending = queue?.[0]
-    if (!pending) {
+    // A steer outranks a merge: the user typed it and is waiting on it, while the merge is
+    // bookkeeping over replies already on screen.
+    const merge = pending ? undefined : this.pendingMerges.get(topicId)
+    if (!pending && !merge) {
       this.pendingSteers.delete(topicId)
       return
     }
@@ -1714,21 +1768,27 @@ export class AiStreamManager extends BaseService {
     if (previous && isLiveStatus(previous.status)) return
 
     // Commit to consuming the head only now that we're actually going to dispatch it.
-    queue.shift()
-    if (queue.length === 0) this.pendingSteers.delete(topicId)
+    if (pending) {
+      queue?.shift()
+      if (queue?.length === 0) this.pendingSteers.delete(topicId)
+    } else {
+      this.pendingMerges.delete(topicId)
+    }
 
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
-    const req: MainDispatchRequest = {
-      trigger: 'steer-continuation',
-      topicId,
-      userMessageId,
-      reasoningEffort,
-      serviceTier,
-      fastMode
-    }
+    const userMessageId = pending?.userMessageId
+    const req: MainDispatchRequest = pending
+      ? {
+          trigger: 'steer-continuation',
+          topicId,
+          userMessageId: pending.userMessageId,
+          reasoningEffort: pending.reasoningEffort,
+          serviceTier: pending.serviceTier,
+          fastMode: pending.fastMode
+        }
+      : { trigger: 'controller-merge', topicId, ...merge! }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
@@ -1737,7 +1797,7 @@ export class AiStreamManager extends BaseService {
       // prior stream, so the topic would otherwise stay `streaming` forever (Stop becomes a no-op,
       // every window spins). Surface the failure and write a terminal status. Don't re-queue — a
       // retry just re-fails, mirroring the agent runtime's `startNextTurn` failure path.
-      logger.error('Chat steer continuation failed to launch', { topicId, userMessageId, error })
+      logger.error('Chained chat turn failed to launch', { topicId, trigger: req.trigger, userMessageId, error })
       if (previous) this.failChatContinuation(previous, carried, serializeError(error))
       return
     }

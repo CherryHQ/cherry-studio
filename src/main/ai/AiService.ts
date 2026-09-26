@@ -29,12 +29,14 @@ import {
 import { assistantDataService } from '@data/services/AssistantService'
 import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { videoService } from '@data/services/VideoService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { buildSyllabusJobHandler } from '@main/services/course/buildSyllabusJobHandler'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -67,6 +69,7 @@ import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import { videoGenerationJobHandler } from './provider/custom/tasks/videoGenerationJobHandler'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
@@ -79,7 +82,8 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
-  readRetryPolicy
+  readRetryPolicy,
+  recordModelHealth
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
@@ -399,6 +403,8 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    application.get('JobManager').registerHandler('video-generation.generate', videoGenerationJobHandler)
+    application.get('JobManager').registerHandler('course.build-syllabus', buildSyllabusJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -665,6 +671,9 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
+        // Real conversations are the only honest health signal; an explicit probe from settings is
+        // rare, so without this the routing table never learns which models actually answer.
+        onModelOutcome: (ok) => void recordModelHealth(model.id, ok),
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -828,6 +837,7 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
+        onModelOutcome: (ok) => void recordModelHealth(model.id, ok),
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
@@ -1133,6 +1143,33 @@ export class AiService extends BaseService {
     throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
+  // ── Video generation ──
+
+  async runVideoRequest(payload: {
+    uniqueModelId: string
+    prompt: string
+    duration?: number
+    resolution?: string
+  }): Promise<{ videoId: string; jobId: string }> {
+    const { providerId, modelId } = parseUniqueModelId(payload.uniqueModelId as `${string}::${string}`)
+    const video = videoService.create({
+      providerId,
+      modelId,
+      prompt: payload.prompt,
+      duration: payload.duration,
+      resolution: payload.resolution
+    })
+    const jobManager = application.get('JobManager')
+    const handle = jobManager.enqueue('video-generation.generate', {
+      uniqueModelId: payload.uniqueModelId as `${string}::${string}`,
+      prompt: payload.prompt,
+      duration: payload.duration,
+      resolution: payload.resolution,
+      videoId: video.id
+    })
+    return { videoId: video.id, jobId: handle.id }
+  }
+
   // ── Embedding ──
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
@@ -1422,7 +1459,12 @@ export class AiService extends BaseService {
 
       await Promise.race([probe, aborted])
       signal.throwIfAborted()
-      return { latency: performance.now() - start }
+      const latency = performance.now() - start
+      await recordModelHealth(request.uniqueModelId, true, latency)
+      return { latency }
+    } catch (error) {
+      await recordModelHealth(request.uniqueModelId, false)
+      throw error
     } finally {
       clearTimeout(timeoutHandle)
       signal.removeEventListener('abort', onAbort)

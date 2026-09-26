@@ -127,7 +127,14 @@ export const MessageStatsSchema = z.strictObject({
   // ── Historical scalar timing compatibility (rows without runtimeTiming) ──
   timeFirstTokenMs: z.number().optional(),
   timeCompletionMs: z.number().optional(),
-  timeThinkingMs: z.number().optional()
+  timeThinkingMs: z.number().optional(),
+
+  /**
+   * Why the model stopped on its final step. `'length'` means the reply was cut off at the output
+   * cap rather than finished — common on free tiers — and is what lets the UI offer to continue it
+   * instead of leaving a truncated answer that merely looks complete.
+   */
+  finishReason: z.string().optional()
 })
 export type MessageStats = z.infer<typeof MessageStatsSchema>
 export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming' | 'contextTokens'>>

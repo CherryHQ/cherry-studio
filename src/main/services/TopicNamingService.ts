@@ -411,6 +411,11 @@ export class TopicNamingService {
   private resolveNamingModelId(): UniqueModelId {
     const preferenceService = application.get('PreferenceService')
 
+    // Naming a topic is a chore, not a judgement call. A configured local worker does it for free
+    // and keeps rate-limited remote quota for real answers.
+    const localWorkerId = this.toUsableNamingModelId(preferenceService.get('chat.routing.local_worker_model'))
+    if (localWorkerId) return localWorkerId
+
     const configured =
       preferenceService.get('feature.quick_assistant.model_id') ?? preferenceService.get('chat.default_model_id')
     const quickModelId = this.toUsableNamingModelId(configured)

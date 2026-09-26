@@ -20,6 +20,7 @@ import {
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
+import { ControllerModelTrigger } from './ControllerModelTrigger'
 
 export interface ChatConversationControlsProps {
   assistantId: string | null
@@ -169,6 +170,7 @@ export function ChatConversationControls({
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
           filter={chatModelFilter}
+          showDisabledModels
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -194,6 +196,7 @@ export function ChatConversationControls({
           value={model}
           onSelect={onModelSelect}
           filter={chatModelFilter}
+          showDisabledModels
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -213,6 +216,15 @@ export function ChatConversationControls({
           }
         />
       )}
+      {useMentionedModelSelector ? (
+        <ControllerModelTrigger
+          workerCount={selectedMentionedModels.length}
+          filter={chatModelFilter}
+          side={side}
+          disabled={modelPending}
+          className={mentionedModelTriggerClassName}
+        />
+      ) : null}
     </>
   )
 }

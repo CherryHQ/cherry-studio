@@ -221,6 +221,20 @@ export type AiStreamOpenRequest = {
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
     } & AiStreamRegenerateTarget)
+  | {
+      /**
+       * Extend an assistant reply the provider cut off at its token cap
+       * (`stats.finishReason === 'length'`). Reuses the row rather than
+       * answering beside it, so the reply reads as one message.
+       */
+      trigger: 'continue-truncated'
+      /** The truncated assistant message to extend. */
+      parentAnchorId: string
+      userMessageParts?: never
+      targetMode?: never
+      retryMessageId?: never
+      appendToLiveGroupMessageId?: never
+    }
 )
 
 /**

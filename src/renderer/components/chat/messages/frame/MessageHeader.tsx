@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, Bot, EyeOff, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -198,6 +198,11 @@ const MessageHeader: FC<Props> = memo(
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
                 <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
+              </Tooltip>
+            )}
+            {message.isExcludedFromContext && (
+              <Tooltip content={t('chat.message.exclude_context.badge_tip')}>
+                <EyeOff className="shrink-0 text-foreground-tertiary" size={14} />
               </Tooltip>
             )}
             <div

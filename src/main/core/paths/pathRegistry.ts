@@ -45,6 +45,7 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const sysHome = os.homedir()
+  const sysDocuments = getUserSystemPath('documents', path.join(sysHome, 'Documents'))
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
@@ -69,7 +70,7 @@ export function buildPathRegistry() {
     'sys.home': sysHome,
     'sys.temp': sysTemp, // OS-wide; prefer app.temp for Cherry-specific temp
     'sys.downloads': getUserSystemPath('downloads', path.join(sysHome, 'Downloads')),
-    'sys.documents': getUserSystemPath('documents', path.join(sysHome, 'Documents')),
+    'sys.documents': sysDocuments,
     'sys.desktop': getUserSystemPath('desktop', path.join(sysHome, 'Desktop')),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
@@ -202,6 +203,7 @@ export function buildPathRegistry() {
     'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
+    'feature.agents.checkpoints': path.join(appUserDataData, 'Agents', '.checkpoints'), // pre-turn workspace snapshots for non-git sessions (O1)
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
     'feature.agents.assistant.manifest.file': path.join(
@@ -249,6 +251,11 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
+    // Where automatic local backups land when the user has not chosen a folder. Deliberately OUTSIDE
+    // userData: AutoBackupService refuses a directory inside it, and a backup kept there would be
+    // swallowed by the next backup and lost with the profile it was meant to survive.
+    'feature.backup.auto_local': path.join(sysDocuments, 'CherryStudio Backups'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),

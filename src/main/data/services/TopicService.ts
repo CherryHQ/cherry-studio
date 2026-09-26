@@ -58,7 +58,8 @@ function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
-  const clean = nullsToUndefined(row)
+  const { deletedAt: _deletedAt, ...restRow } = row
+  const clean = nullsToUndefined(restRow)
   return {
     ...clean,
     lastActivityAt: timestampToISO(row.lastActivityAt),
@@ -463,7 +464,6 @@ export class TopicService {
     return topic
   }
 
-  /** Move an active topic to the Recycle Bin by default; permanently remove only a topic already there. */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) =>

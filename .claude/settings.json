@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/vitest *)",
+      "Bash(pnpm exec vitest *)",
+      "Bash(pnpm run typecheck*)",
+      "Bash(pnpm typecheck*)",
+      "Bash(./node_modules/.bin/oxfmt *)",
+      "Bash(pnpm format*)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm db:migrations:check*)",
+      "Bash(pnpm i18n:*)",
+      "Bash(pnpm docs:check*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "PowerShell(./node_modules/.bin/vitest *)",
+      "PowerShell(pnpm exec vitest *)",
+      "PowerShell(pnpm run typecheck*)",
+      "PowerShell(./node_modules/.bin/oxfmt *)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)",
+      "PowerShell(git show*)",
+      "PowerShell(node scripts/generate-all.js)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(Remove-Item -Recurse -Force *)"
+    ]
+  }
+}

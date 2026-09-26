@@ -49,6 +49,14 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     if (req.trigger === 'continue-conversation') {
       throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
     }
+    if (req.trigger === 'continue-truncated') {
+      throw new Error('continue-truncated is not supported for temporary chats (immutable append-only)')
+    }
+    if (req.trigger === 'controller-merge') {
+      // Never reached: only a persistent turn can record a merge. Refuse rather than fall through
+      // to the submit path, which would answer a prompt nobody wrote.
+      throw new Error('controller-merge is not supported for temporary chats')
+    }
     if (req.trigger === 'steer-continuation') {
       // Never reached: steers are only enqueued for persistent topics (provider-gated in dispatch).
       throw new Error('steer-continuation is not supported for temporary chats')

@@ -43,11 +43,15 @@ const LocalBackupSettings: React.FC = () => {
     void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
 
+  // Backups still run without a chosen folder — they land in the app's own Backups directory — so
+  // the effective path has to be shown, otherwise the screen looks idle while it is working.
   useEffect(() => {
     if (localBackupDir) {
       void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
+      return
     }
-  }, [localBackupDir])
+    setResolvedLocalBackupDir(appInfo?.defaultBackupPath)
+  }, [localBackupDir, appInfo?.defaultBackupPath])
 
   useEffect(() => {
     setLocalBackupDirDraft(localBackupDir)
@@ -151,8 +155,6 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const renderSyncStatus = () => {
-    if (!localBackupDir) return null
-
     if (!localBackupSync.lastSyncTime && !localBackupSync.syncing && !localBackupSync.lastSyncError) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.local.noSync')}</span>
     }
@@ -197,7 +199,7 @@ const LocalBackupSettings: React.FC = () => {
             value={localBackupDirDraft}
             onChange={(e) => setLocalBackupDirDraft(e.target.value)}
             onBlur={(e) => void handleLocalBackupDirChange(e.target.value)}
-            placeholder={t('settings.data.local.directory.placeholder')}
+            placeholder={resolvedLocalBackupDir ?? t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
           <Button onClick={handleBrowseDirectory} variant="outline">

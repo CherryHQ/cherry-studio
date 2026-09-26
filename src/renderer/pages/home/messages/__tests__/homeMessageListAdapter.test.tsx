@@ -83,11 +83,18 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
+const excludedMessagesMock = vi.hoisted(() => ({
+  value: {} as Record<string, true>,
+  setValue: vi.fn()
+}))
+
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'chat.message.navigation_mode') return ['anchor', vi.fn()]
     if (key === 'chat.input.translate.target_language') return ['en-us', vi.fn()]
     if (key === 'chat.input.translate.show_confirm') return [false, vi.fn()]
+    if (key === 'chat.context_settings.excluded_messages')
+      return [excludedMessagesMock.value, excludedMessagesMock.setValue]
     return [undefined, vi.fn()]
   }
 }))
@@ -332,6 +339,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     messageEditingMock.editingMessage = null
     modelSelectorMock.props = []
     translationLanguagesMock.languages = []
+    excludedMessagesMock.value = {}
     clearPendingTopicImageActionsForTest()
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -634,6 +642,56 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
 
     expect(value?.actions.startNewContext).toBeUndefined()
+  })
+
+  it('overlays isExcludedFromContext from the preference onto the matching message only', () => {
+    excludedMessagesMock.value = { 'message-b': true }
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[{ id: 'message-a' }, { id: 'message-b' }] as any}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.messages.find((m) => m.id === 'message-a')?.isExcludedFromContext).toBeFalsy()
+    expect(value?.state.messages.find((m) => m.id === 'message-b')?.isExcludedFromContext).toBe(true)
+  })
+
+  it('adds a message to the excluded-messages preference without touching other entries', () => {
+    excludedMessagesMock.value = { 'message-other': true }
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[{ id: 'message-a' }] as any}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    value?.actions.setMessageContextExclusion?.('message-a', true)
+
+    expect(excludedMessagesMock.setValue).toHaveBeenCalledWith({ 'message-other': true, 'message-a': true })
+  })
+
+  it('removes a message from the excluded-messages preference when re-included', () => {
+    excludedMessagesMock.value = { 'message-other': true, 'message-a': true }
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[{ id: 'message-a' }] as any}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    value?.actions.setMessageContextExclusion?.('message-a', false)
+
+    expect(excludedMessagesMock.setValue).toHaveBeenCalledWith({ 'message-other': true })
   })
 
   it('capture consumer does not bind message-level global listeners', () => {

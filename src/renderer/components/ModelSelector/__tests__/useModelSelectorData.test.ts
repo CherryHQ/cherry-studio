@@ -1,14 +1,36 @@
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type AiUsageRecordStatsMetrics, AiUsageRecordStatsQuerySchema } from '@shared/data/api/schemas/aiUsageRecords'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { AppEdition } from '@shared/types/appEdition'
+import { apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
 
 import type { ModelSelectorModelItem } from '../types'
 import { useModelSelectorData } from '../useModelSelectorData'
+
+function metrics(overrides: Partial<AiUsageRecordStatsMetrics> = {}): AiUsageRecordStatsMetrics {
+  return {
+    costCurrency: null,
+    totalCost: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalTokens: 0,
+    totalNoCacheTokens: 0,
+    totalCacheReadTokens: 0,
+    totalCacheWriteTokens: 0,
+    recordCount: 0,
+    requestCount: 0,
+    estimatedRequestCount: 0,
+    unpricedRequestCount: 0,
+    ...overrides
+  }
+}
 
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
@@ -107,6 +129,11 @@ beforeEach(() => {
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
   mockGetAppEdition.mockReturnValue('global')
+})
+
+afterEach(() => {
+  MockUsePreferenceUtils.resetMocks()
+  MockUseDataApiUtils.resetMocks()
 })
 
 describe('useModelSelectorData', () => {
@@ -439,5 +466,94 @@ describe('useModelSelectorData', () => {
 
     expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(false)
     expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(false)
+  })
+
+  // Y1: image/video generation models share this same hook (`PaintingModelSelector` renders
+  // through it with a capability filter), so quota exhaustion must demote them exactly as it
+  // would a chat model — nothing here may branch on modality.
+  it('demotes an image-generation model to quota_exhausted once its declared per-model ceiling is spent', () => {
+    const imageModel = makeModel('gpt-image-1', 'openai', { capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+    wireDeps({
+      providers: [makeProvider('openai', { apiKeys: [{ id: 'k1', isEnabled: true }] })],
+      models: [imageModel]
+    })
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('openai', 'k1', imageModel.id)]: { limit: 5, period: 'daily' }
+    })
+    MockUseDataApiUtils.mockQueryData('/ai-usage-records/stats', {
+      buckets: [
+        {
+          groupBy: 'apiKeyModel',
+          providerId: 'openai',
+          providerName: 'openai',
+          apiKeyId: 'k1',
+          modelId: imageModel.id,
+          apiKeyLabel: null,
+          ...metrics({ requestCount: 5 })
+        }
+      ],
+      totals: metrics(),
+      other: metrics()
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const item = result.current.modelItems.find((entry) => entry.modelId === imageModel.id)
+
+    expect(item?.passiveReason).toBe('quota_exhausted')
+    expect(item?.remainingQuota).toBe(0)
+  })
+
+  it('badges an image-generation model with the requests it still has left under its per-model ceiling', () => {
+    const imageModel = makeModel('gpt-image-1', 'openai', { capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+    wireDeps({
+      providers: [makeProvider('openai', { apiKeys: [{ id: 'k1', isEnabled: true }] })],
+      models: [imageModel]
+    })
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('openai', 'k1', imageModel.id)]: { limit: 5, period: 'daily' }
+    })
+    MockUseDataApiUtils.mockQueryData('/ai-usage-records/stats', {
+      buckets: [
+        {
+          groupBy: 'apiKeyModel',
+          providerId: 'openai',
+          providerName: 'openai',
+          apiKeyId: 'k1',
+          modelId: imageModel.id,
+          apiKeyLabel: null,
+          ...metrics({ requestCount: 2 })
+        }
+      ],
+      totals: metrics(),
+      other: metrics()
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const item = result.current.modelItems.find((entry) => entry.modelId === imageModel.id)
+
+    expect(item?.remainingQuota).toBe(3)
+    expect(item?.passiveReason).toBeUndefined()
+  })
+  // The endpoint validates this query with `.parse`, so an out-of-range field does not degrade
+  // -- it throws in the handler and every quota column sharing the query renders blank. That is
+  // exactly what shipped: `limit: 100` against an aggregate cap of 50, so the picker badges, the
+  // quota table, the routing hint and the notifications were all silently empty.
+  it('sends a stats query the endpoint will actually accept', () => {
+    const model = makeModel('gpt-4o', 'openai')
+    wireDeps({
+      providers: [makeProvider('openai', { apiKeys: [{ id: 'k1', isEnabled: true }] })],
+      models: [model]
+    })
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('openai', 'k1', model.id)]: { limit: 5, period: 'daily' }
+    })
+
+    renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    const call = mockUseQuery.mock.calls.findLast(([path]) => path === '/ai-usage-records/stats')
+    expect(call).toBeDefined()
+    const query = (call?.[1] as { query?: unknown })?.query
+    expect(query).toBeDefined()
+    expect(() => AiUsageRecordStatsQuerySchema.parse(query)).not.toThrow()
   })
 })

@@ -10,6 +10,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../.
 import {
   type ApiKeyEntry,
   ApiKeyEntrySchema,
+  ApiKeyTierSchema,
   type AuthConfig,
   AuthConfigSchema,
   type EndpointConfig,
@@ -72,6 +73,7 @@ const ProviderSettingsMergePatchSchema = z.object({
   rateLimit: ProviderSettingsSchema.shape.rateLimit.nullable().optional(),
   timeout: ProviderSettingsSchema.shape.timeout.nullable().optional(),
   extraHeaders: z.record(z.string(), z.string().nullable()).nullable().optional(),
+  proxy: ProviderSettingsSchema.shape.proxy.nullable(),
   notes: ProviderSettingsSchema.shape.notes.nullable().optional(),
   isAuthed: ProviderSettingsSchema.shape.isAuthed.nullable().optional(),
   oauthUsername: ProviderSettingsSchema.shape.oauthUsername.nullable().optional(),
@@ -186,7 +188,12 @@ export type ReplaceProviderApiKeysDto = z.infer<typeof ReplaceProviderApiKeysSch
 export const UpdateApiKeySchema = z.strictObject({
   key: z.string().trim().min(1).optional(),
   label: z.string().optional(),
-  isEnabled: z.boolean().optional()
+  isEnabled: z.boolean().optional(),
+  tier: ApiKeyTierSchema.optional(),
+  /** ISO date the quota period counts from — free tiers usually renew on the signup day. */
+  renewalAnchor: z.string().optional(),
+  renewalTimezone: z.string().optional(),
+  note: z.string().optional()
 })
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 

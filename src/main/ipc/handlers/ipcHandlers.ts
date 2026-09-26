@@ -1,6 +1,7 @@
 import type { IpcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
+import { agentCheckpointHandlers } from './agentCheckpoint'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
@@ -40,6 +41,7 @@ import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
+import { tutorHandlers } from './tutor'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -54,6 +56,7 @@ import { windowHandlers } from './window'
  * exposure surface.
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
+  ...agentCheckpointHandlers,
   ...aiHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
@@ -93,6 +96,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...tabHandlers,
   ...translateHandlers,
   ...trashHandlers,
+  ...tutorHandlers,
   ...webSearchHandlers,
   ...webviewHandlers,
   ...windowHandlers

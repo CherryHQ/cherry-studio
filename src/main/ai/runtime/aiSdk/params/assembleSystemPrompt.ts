@@ -5,8 +5,9 @@
 import type { ToolSet } from 'ai'
 
 import { replacePromptVariables } from '@main/utils/prompt'
-import type { Assistant } from '@shared/data/types/assistant'
+import type { Assistant, AssistantReplyLanguage } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
@@ -39,6 +40,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
     if (resolved) sections.push(resolved)
   }
 
+  if (assistant?.settings.replyLanguage) {
+    sections.push(buildReplyLanguageInstruction(assistant.settings.replyLanguage))
+  }
+
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {
     sections.push(getDeferredToolsSystemPrompt(deferredEntries))
   }
@@ -58,6 +63,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (sections.length === 0) return undefined
   return sections.join('\n\n')
+}
+
+function buildReplyLanguageInstruction(language: AssistantReplyLanguage): string {
+  return `Always reply in ${languageEnglishNameMap[language]}, regardless of what language the user writes in.`
 }
 
 export function buildWebSearchDateContext(now: Date): string {

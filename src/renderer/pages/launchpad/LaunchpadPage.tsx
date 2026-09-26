@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Sortable } from '@cherrystudio/ui'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
@@ -46,6 +47,8 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
   paintings: paintingsIcon,
+  videos: paintingsIcon,
+  tutor: knowledgeIcon,
   translate: translateIcon,
   mini_app: miniAppIcon,
   knowledge: knowledgeIcon,
@@ -72,6 +75,16 @@ export default function LaunchpadPage() {
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
+
+  const routingTable = useSharedCacheValue('routing.derived_table')
+  const activeModelCount = useMemo(() => {
+    if (!routingTable) return 0
+    const ids = new Set<string>()
+    for (const candidates of Object.values(routingTable)) {
+      for (const c of candidates) ids.add(c.id)
+    }
+    return ids.size
+  }, [routingTable])
 
   const miniAppFavoriteIdSet = useMemo(
     () =>
@@ -295,6 +308,17 @@ export default function LaunchpadPage() {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <Scrollbar className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
+          <div className="flex items-center gap-2 px-9">
+            <span
+              className={`size-2 shrink-0 rounded-full ${activeModelCount > 0 ? 'bg-green-500' : 'bg-yellow-500'}`}
+            />
+            <span className="text-[12px] text-foreground/60">
+              {activeModelCount > 0
+                ? t('launchpad.models_ready', { count: activeModelCount })
+                : t('launchpad.no_models_hint')}
+            </span>
+          </div>
+
           <section className="flex flex-col gap-2">
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
               {t('launchpad.apps')}

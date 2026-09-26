@@ -79,7 +79,7 @@ export const AiUsageRecordListQuerySchema = z
 export type AiUsageRecordListQuery = z.infer<typeof AiUsageRecordListQuerySchema>
 export type AiUsageRecordListQueryParams = z.input<typeof AiUsageRecordListQuerySchema> & CursorPaginationParams
 
-export const AiUsageRecordGroupBySchema = z.enum(['provider', 'apiKey', 'model', 'source'])
+export const AiUsageRecordGroupBySchema = z.enum(['provider', 'apiKey', 'apiKeyModel', 'model', 'source'])
 export type AiUsageRecordGroupBy = z.infer<typeof AiUsageRecordGroupBySchema>
 export const AiUsageRecordMetricSchema = z.enum(['tokens', 'requests', 'cost'])
 export type AiUsageRecordMetric = z.infer<typeof AiUsageRecordMetricSchema>
@@ -156,6 +156,14 @@ export type AiUsageRecordStatsGroupIdentity =
       groupBy: 'model'
       providerId: string | null
       providerName: string | null
+      modelId: string | null
+    }
+  | {
+      groupBy: 'apiKeyModel'
+      providerId: string | null
+      providerName: string | null
+      apiKeyId: string | null
+      apiKeyLabel: string | null
       modelId: string | null
     }
   | {

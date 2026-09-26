@@ -295,7 +295,9 @@ export function useChatWriteActions(params: Params): Result {
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
       // Ordinary regeneration leaves the model unspecified so Main observes the current default.
-      // Failed in-place retries keep their original model; an explicit model always wins.
+      // In-place retry cannot change the model (Main enforces this), so it is only taken while the
+      // picker still points at the failed message's model — otherwise we fall through and Main
+      // resolves the new default. An explicit model always wins.
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
@@ -303,21 +305,21 @@ export function useChatWriteActions(params: Params): Result {
           : (target.metadata?.parentId ?? undefined)
         : undefined
       const regenerateModelId = options?.modelId
-      const retryModelId =
-        target?.role === 'assistant'
-          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
-          : regenerateModelId
+      const targetModelId = target?.metadata?.modelId as UniqueModelId | undefined
+      const retryModelId = target?.role === 'assistant' ? (regenerateModelId ?? targetModelId) : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
       const isFailedAssistant =
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+      const selectedModelId = assistant?.modelId ?? undefined
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
         retryModelId !== undefined &&
-        (options?.modelId === undefined || options.modelId === target.metadata?.modelId)
+        (options?.modelId === undefined || options.modelId === targetModelId) &&
+        (selectedModelId === undefined || selectedModelId === targetModelId)
 
       if (canRetryInPlace) {
         const ack = await ipcApi.request('ai.stream.open', {
@@ -375,7 +377,7 @@ export function useChatWriteActions(params: Params): Result {
       })
       await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id]
+    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id, assistant?.modelId]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
@@ -469,6 +471,28 @@ export function useChatWriteActions(params: Params): Result {
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )
 
+  const handleContinueTruncated = useCallback<ChatWriteActions['continueTruncated']>(
+    async (messageId) => {
+      const ack = await ipcApi.request('ai.stream.open', {
+        trigger: 'continue-truncated',
+        topicId: topic.id,
+        parentAnchorId: messageId
+      })
+
+      if (ack.mode === 'blocked') {
+        throw new Error(getStreamBlockedMessage(ack))
+      }
+
+      // No placeholder is reserved — main extends the existing row — but the ack still
+      // carries the execution so the view knows which message went live again.
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
+    },
+    [seedReservedMessages, topic.id]
+  )
+
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
     async (messageId) => {
       try {
@@ -537,6 +561,7 @@ export function useChatWriteActions(params: Params): Result {
       pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
+      continueTruncated: handleContinueTruncated,
       setActiveNode: handleSetActiveNode,
       setActiveBranch: handleSetActiveBranch,
       refresh
@@ -552,6 +577,7 @@ export function useChatWriteActions(params: Params): Result {
       handlePause,
       handleEditMessage,
       handleForkAndResend,
+      handleContinueTruncated,
       handleSetActiveNode,
       handleSetActiveBranch,
       refresh

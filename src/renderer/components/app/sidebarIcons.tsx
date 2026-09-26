@@ -1,5 +1,6 @@
 import type { LucideProps } from 'lucide-react'
 import {
+  BookOpen,
   Code,
   FileSearch,
   Folder,
@@ -8,7 +9,8 @@ import {
   MessageSquare,
   MousePointerClick,
   NotepadText,
-  Palette
+  Palette,
+  Video
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -28,6 +30,8 @@ export const SIDEBAR_ICON_COMPONENTS = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   paintings: Palette,
+  videos: Video,
+  tutor: BookOpen,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,

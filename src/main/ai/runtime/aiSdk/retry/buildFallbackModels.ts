@@ -16,6 +16,7 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
+import { isProviderQuotaExhausted } from '@main/data/services/apiKeyQuota'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
@@ -130,6 +131,14 @@ async function resolveFallback(
   // buys an opaque 404 instead of advancing to the next fallback (issue #20547).
   if (!provider.isEnabled) {
     logger.info('skipping fallback whose provider is disabled', { uniqueModelId })
+    return null
+  }
+
+  // Ranking a spent provider down is not enough here: a fallback exists to rescue a failed call, so
+  // handing it one that is already out of quota just burns an attempt. The primary is never skipped
+  // this way — only optional fallbacks are, so the request still goes out.
+  if (isProviderQuotaExhausted(provider.id, provider.apiKeys, model.id)) {
+    logger.info('skipping fallback whose quota is spent', { uniqueModelId })
     return null
   }
 

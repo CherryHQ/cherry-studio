@@ -217,6 +217,17 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
 
+  // ── Video generation (AiService) ──
+  'ai.video.generate': defineRoute({
+    input: z.strictObject({
+      uniqueModelId: UniqueModelIdSchema,
+      prompt: z.string().min(1),
+      duration: z.number().positive().optional(),
+      resolution: z.string().optional()
+    }),
+    output: z.object({ videoId: z.string(), jobId: z.string() })
+  }),
+
   // ── Provider model catalog & reachability probe (AiService) ──
   'ai.provider.model.list': defineRoute({
     input: z.strictObject({
@@ -269,6 +280,14 @@ export const aiRequestSchemas = {
         }),
         z.object({
           ...aiStreamRegenerateShape,
+          retryMessageId: z.never().optional(),
+          appendToLiveGroupMessageId: z.never().optional()
+        }),
+        z.object({
+          trigger: z.literal('continue-truncated'),
+          parentAnchorId: z.string().min(1),
+          userMessageParts: z.never().optional(),
+          targetMode: z.never().optional(),
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional()
         })

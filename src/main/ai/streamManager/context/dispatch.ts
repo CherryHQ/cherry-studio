@@ -9,7 +9,7 @@ import { topicService } from '@main/data/services/TopicService'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
@@ -33,6 +33,14 @@ export interface MainContinueConversationRequest {
 }
 
 /**
+ * The two requests that extend an existing assistant row instead of opening a new
+ * one: an approval resuming its paused turn, and a reply that hit the token cap.
+ */
+export type ContinueDispatchRequest =
+  | MainContinueConversationRequest
+  | Extract<AiStreamOpenRequest, { trigger: 'continue-truncated' }>
+
+/**
  * Answer a steer message that was persisted while a turn was live. Synthesised
  * by `AiStreamManager.startNextChatTurn` when a finished chat turn has a pending
  * steer queued — it opens a fresh assistant turn anchored on the steer user
@@ -51,6 +59,22 @@ export interface MainSteerContinuationRequest {
   fastMode: boolean
 }
 
+/**
+ * Fold the replies of a head-controller turn into one answer. Synthesised by
+ * `AiStreamManager` once every worker on the turn has settled cleanly — it opens one
+ * more assistant reply, on the controller's model, whose model-facing history carries
+ * the worker answers. Not on the renderer↔main IPC contract.
+ */
+export interface MainControllerMergeRequest {
+  trigger: 'controller-merge'
+  topicId: string
+  /** The user message the workers answered; the merged reply joins them under it. */
+  parentAnchorId: string
+  controllerModelId: UniqueModelId
+  /** The worker replies to fold together, with the task each was given. */
+  workers: Array<{ messageId: string; name: string; instruction: string }>
+}
+
 export type MainDispatchRequest = (
   | AiStreamOpenRequest
   | (Omit<Extract<AiStreamOpenRequest, { trigger: 'submit-message' }>, 'trigger'> & {
@@ -59,6 +83,7 @@ export type MainDispatchRequest = (
     })
   | MainContinueConversationRequest
   | MainSteerContinuationRequest
+  | MainControllerMergeRequest
 ) & {
   /**
    * Main-only dispatch flag: the run has no interactive responder (channel message, scheduled
@@ -131,6 +156,12 @@ export async function dispatchStreamRequest(
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
+  // Recorded before `send`, so the workers cannot settle between here and the enqueue and leave
+  // the merge owed with nothing left to chain it.
+  if (prepared.pendingControllerMerge) {
+    manager.enqueuePendingMerge(req.topicId, prepared.pendingControllerMerge)
+  }
+
   if (prepared.pendingSteerUserMessageId) {
     manager.enqueuePendingSteer(
       req.topicId,

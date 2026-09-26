@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { AssistantIdSchema } from '../../types/assistant'
-import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameSchema, TopicSchema, type TrashedTopic } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
@@ -129,6 +129,13 @@ export interface DeleteTopicsResult {
   deletedIds: string[]
   deletedCount: number
 }
+
+export interface EmptyTrashResult {
+  purgedCount: number
+}
+
+// Re-export so consumers can import from the schemas barrel.
+export type { TrashedTopic }
 
 /** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {

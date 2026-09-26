@@ -14,6 +14,7 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { isFreeAccessProvider } from '@shared/data/presets/freeTierProviders'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider } from '@shared/utils/provider'
 
@@ -161,6 +162,9 @@ export default function ProviderList({
         return false
       }
       if (filterMode === 'disabled' && provider.isEnabled) {
+        return false
+      }
+      if (filterMode === 'free' && !isFreeAccessProvider(provider.id)) {
         return false
       }
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))

@@ -40,6 +40,7 @@ import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
 import p_omlx from './omlx'
+import p_omniroute from './omniroute'
 import p_openai from './openai'
 import p_openai_codex from './openai-codex'
 import p_opencode from './opencode'
@@ -89,6 +90,7 @@ export const PROVIDERS: Provider[] = [
   p_tokendance,
   p_new_api,
   p_lmstudio,
+  p_omniroute,
   p_anthropic,
   p_claude_code,
   p_openai_codex,

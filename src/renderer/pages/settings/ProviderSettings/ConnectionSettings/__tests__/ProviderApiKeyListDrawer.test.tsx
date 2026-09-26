@@ -7,8 +7,10 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 const addApiKeyMock = vi.fn()
 const updateApiKeyMock = vi.fn()
 const deleteApiKeyMock = vi.fn()
+const checkApiMock = vi.fn()
 
 let mockKeys: ApiKeyEntry[] = []
+let mockModels: Array<{ id: string; name: string }> = [{ id: 'openai::gpt-4o', name: 'GPT-4o' }]
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -37,7 +39,26 @@ vi.mock('@renderer/hooks/useProvider', () => ({
     addApiKey: addApiKeyMock,
     updateApiKey: updateApiKeyMock,
     deleteApiKey: deleteApiKeyMock
-  })
+  }),
+  // The quota row inside each key reads the provider for its tier and renewal anchor.
+  useProvider: () => ({ provider: { id: 'openai', apiKeys: mockKeys }, updateApiKey: updateApiKeyMock })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: mockModels })
+}))
+
+// The rotation policy row appears once a provider has more than one key.
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [{}, vi.fn()]
+}))
+
+vi.mock('../../utils/healthCheck', () => ({
+  checkApi: (...args: unknown[]) => checkApiMock(...args),
+  // Every model in these tests is chat-capable; the real rule skips image/audio models.
+  getModelHealthCheckSkipReason: () => null,
+  // The real one classifies the provider error; here the raw message is enough to assert on.
+  healthCheckErrorToDiagnosis: () => undefined
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
@@ -54,6 +75,8 @@ describe('ProviderApiKeyListDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockKeys = []
+    mockModels = [{ id: 'openai::gpt-4o', name: 'GPT-4o' }]
+    checkApiMock.mockResolvedValue({ latency: 120 })
     addApiKeyMock.mockResolvedValue(undefined)
     updateApiKeyMock.mockResolvedValue(undefined)
     deleteApiKeyMock.mockResolvedValue(undefined)
@@ -115,6 +138,38 @@ describe('ProviderApiKeyListDrawer', () => {
 
     expect(screen.queryByText('short')).not.toBeInTheDocument()
     expect(screen.getByText('••••••••')).toBeInTheDocument()
+  })
+
+  it('tries a newly added key against the provider so a dead key is caught here', async () => {
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'sk-new' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(checkApiMock).toHaveBeenCalledWith('openai::gpt-4o', expect.objectContaining({ apiKey: 'sk-new' }))
+    })
+  })
+
+  it('reports a key the provider rejected instead of leaving it looking healthy', async () => {
+    mockKeys = [{ id: 'key-1', key: 'sk-dead', isEnabled: true }]
+    checkApiMock.mockRejectedValue(new Error('Insufficient Balance'))
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.probe.action' }))
+
+    expect(await screen.findByText('settings.provider.api_key.probe.failed')).toBeInTheDocument()
+  })
+
+  it('offers no test button when the provider has no model that can answer a probe', () => {
+    mockKeys = [{ id: 'key-1', key: 'sk-a', isEnabled: true }]
+    mockModels = []
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'settings.provider.api_key.probe.action' })).not.toBeInTheDocument()
   })
 
   it('removes a key via deleteApiKey by id', async () => {

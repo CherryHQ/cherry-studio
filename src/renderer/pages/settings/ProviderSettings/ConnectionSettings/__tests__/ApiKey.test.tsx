@@ -166,7 +166,20 @@ describe('ApiKey', () => {
     render(<ApiKey providerId="openai" />)
 
     expect(screen.queryByRole('button', { name: 'common.delete' })).not.toBeInTheDocument()
-    expect(screen.getByText('+1')).toBeInTheDocument()
+    expect(screen.getByText('settings.provider.api_key.count')).toBeInTheDocument()
+  })
+
+  // A provider accepts any number of keys, but the list is only reachable by clicking this row.
+  // The count used to appear only past the first key, so the one case that needs the hint — a
+  // single key, where the user cannot tell more are possible — was the one case without it.
+  it('shows the key count even with a single key, so the list is discoverable', () => {
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [{ id: 'key-1', key: 'sk-primary', isEnabled: true }] }
+    })
+
+    render(<ApiKey providerId="openai" />)
+
+    expect(screen.getByText('settings.provider.api_key.count')).toBeInTheDocument()
   })
 
   it('never exposes a short saved key that the shared formatter cannot partially mask', () => {

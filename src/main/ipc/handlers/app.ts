@@ -20,6 +20,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     appPath: application.getPath('app.root'),
     homePath: application.getPath('sys.home'),
     notesPath: application.getPath('feature.notes.data'),
+    defaultBackupPath: application.getPath('feature.backup.auto_local'),
     configPath: application.getPath('cherry.config'),
     appDataPath: application.getPath('app.userdata'),
     resourcesPath: application.getPath('app.root.resources'),

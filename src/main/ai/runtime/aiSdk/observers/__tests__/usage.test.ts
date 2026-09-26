@@ -177,4 +177,52 @@ describe('attachUsageObserver', () => {
       }
     })
   })
+
+  describe('finishReason', () => {
+    const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 } as LanguageModelUsage
+
+    const lastStats = (written: CherryUIMessageChunk[]) =>
+      (written.at(-1) as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata?.stats
+
+    it('records a truncated reply so the UI can offer to continue it', () => {
+      const { agent, written } = makeFakeAgent()
+      attachUsageObserver(agent as any)
+      agent.fire('onStart')
+
+      agent.fire('onStepFinish', { usage, finishReason: 'length' })
+
+      expect(lastStats(written)?.finishReason).toBe('length')
+    })
+
+    it('unwraps the provider-level { unified } shape', () => {
+      const { agent, written } = makeFakeAgent()
+      attachUsageObserver(agent as any)
+      agent.fire('onStart')
+
+      agent.fire('onStepFinish', { usage, finishReason: { unified: 'length', raw: 'max_tokens' } })
+
+      expect(lastStats(written)?.finishReason).toBe('length')
+    })
+
+    it('keeps only the final step, so an early cut-off does not outlive a clean finish', () => {
+      const { agent, written } = makeFakeAgent()
+      attachUsageObserver(agent as any)
+      agent.fire('onStart')
+
+      agent.fire('onStepFinish', { usage, finishReason: 'length' })
+      agent.fire('onStepFinish', { usage, finishReason: 'stop' })
+
+      expect(lastStats(written)?.finishReason).toBe('stop')
+    })
+
+    it('omits the field when the provider reports a shape it does not understand', () => {
+      const { agent, written } = makeFakeAgent()
+      attachUsageObserver(agent as any)
+      agent.fire('onStart')
+
+      agent.fire('onStepFinish', { usage, finishReason: { code: 7 } })
+
+      expect(lastStats(written)).not.toHaveProperty('finishReason')
+    })
+  })
 })

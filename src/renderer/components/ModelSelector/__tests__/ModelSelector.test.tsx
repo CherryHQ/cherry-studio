@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
@@ -349,6 +349,54 @@ describe('ModelSelector', () => {
     await user.click(disabledModel)
 
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // Y1: Paintings' model picker (`PaintingModelSelector`) renders through this same component
+  // with a capability filter, so an image-generation model must get the same passive badge as
+  // a chat model — and stay selectable, since exhaustion only reorders, never blocks.
+  it('badges an exhausted image-generation model as passive but still lets it be selected', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    const exhaustedItem = makeModelItem('openai::gpt-image-1', {
+      model: {
+        ...makeModel('openai::gpt-image-1'),
+        name: 'GPT Image 1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      },
+      passiveReason: 'quota_exhausted'
+    })
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [exhaustedItem],
+        modelItems: [exhaustedItem],
+        selectableModelsById: new Map([[exhaustedItem.modelId, exhaustedItem.model]])
+      })
+    )
+
+    render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+
+    const option = screen.getByTestId('model-selector-item-openai::gpt-image-1')
+    expect(screen.getByText('models.passive.quota_exhausted')).toBeInTheDocument()
+
+    await user.click(option)
+
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-image-1' }))
+  })
+
+  it('shows the requests left on an image-generation model that still has room', () => {
+    const item = makeModelItem('openai::gpt-image-1', {
+      model: {
+        ...makeModel('openai::gpt-image-1'),
+        name: 'GPT Image 1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      },
+      remainingQuota: 3
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
+
+    render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByText('models.quota.remaining')).toBeInTheDocument()
   })
 
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {

@@ -146,6 +146,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').abortRequest(requestId)
   },
 
+  // ── Video generation ──
+  'ai.video.generate': (payload) =>
+    exposeAiError('ai.video.generate', () => application.get('AiService').runVideoRequest(payload)),
+
   // ── Provider model catalog & reachability probe. ──
   'ai.provider.model.list': (request) =>
     exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),

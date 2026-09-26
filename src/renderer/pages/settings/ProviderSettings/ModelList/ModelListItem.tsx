@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -81,9 +82,22 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
         })()}
         <div className={modelListClasses.rowBody}>
           <div className="flex h-7 min-w-0 items-center gap-1.5">
-            <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground text-sm leading-none">
+            <span
+              className={cn(
+                'inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-sm leading-none',
+                model.isEnabled ? 'text-foreground' : 'text-muted-foreground line-through'
+              )}>
               {model.name}
             </span>
+            {/* Disabling a failed model is the action this screen offers, so it has to be visible
+                here — otherwise the button reports success and the row looks untouched. */}
+            {!model.isEnabled && (
+              <Tooltip content={t('settings.models.manage.disabled_tip')}>
+                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {t('settings.models.manage.disabled_badge')}
+                </span>
+              </Tooltip>
+            )}
           </div>
         </div>
       </RowFlex>

@@ -7,7 +7,8 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { SignatureClient } from '@main/ai/provider/cherryai'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { unlessLiteMode } from '@main/core/application/liteMode'
+import { BaseService, Conditional, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -110,6 +111,7 @@ class CherryCloudSessionRequiredError extends Error {
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
+@Conditional(unlessLiteMode())
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
   private machineCode: string | null = null

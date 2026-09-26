@@ -5,6 +5,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
 
 import type { ModelSelectorTag } from './filters'
+import type { ModelPassiveReason } from './modelAvailability'
 
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
@@ -20,6 +21,11 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
+  /**
+   * Also list models turned off in settings, demoted and badged rather than hidden. Only the chat
+   * picker wants this — elsewhere offering a disabled model just lets it be chosen and then fail.
+   */
+  showDisabledModels?: boolean
   isModelDisabled?: ModelSelectorFilter
   includeAgentOnlyModels?: boolean
   prioritizedProviderIds?: readonly string[]
@@ -94,6 +100,10 @@ export interface ModelSelectorModelItem {
   modelIdentifier: string
   isPinned: boolean
   showIdentifier: boolean
+  /** Set when the model is demoted: still selectable, but sorted last and badged. */
+  passiveReason?: ModelPassiveReason
+  /** Requests left across this provider's keys. Absent when no key declares a ceiling. */
+  remainingQuota?: number
 }
 
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
@@ -107,6 +117,7 @@ export interface UseModelSelectorDataOptions {
   filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
+  showDisabledModels?: boolean
   prioritizedProviderIds?: readonly string[]
 }
 

@@ -1,4 +1,5 @@
 import type { RouteDef } from '../define'
+import { agentCheckpointRequestSchemas, type AgentCheckpointEventSchemas } from './agentCheckpoint'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
@@ -38,6 +39,7 @@ import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { trashRequestSchemas } from './trash'
+import { tutorRequestSchemas } from './tutor'
 import { webSearchRequestSchemas } from './webSearch'
 import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -50,6 +52,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
+  ...agentCheckpointRequestSchemas,
   ...aiRequestSchemas,
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
@@ -89,6 +92,7 @@ export const ipcRequestSchemas = {
   ...tabRequestSchemas,
   ...translateRequestSchemas,
   ...trashRequestSchemas,
+  ...tutorRequestSchemas,
   ...webSearchRequestSchemas,
   ...webviewRequestSchemas,
   ...windowRequestSchemas
@@ -103,7 +107,8 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = AiEventSchemas &
+export type IpcEventSchemas = AgentCheckpointEventSchemas &
+  AiEventSchemas &
   ApiGatewayEventSchemas &
   AppEventSchemas &
   BackupEventSchemas &

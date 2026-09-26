@@ -1,13 +1,15 @@
-import React, { memo } from 'react'
+﻿import React, { memo } from 'react'
 
 import { ButtonGroup } from '@cherrystudio/ui'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
+import ProviderModelCheckAndPurge from './ProviderModelCheckAndPurge'
 import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
+import ProviderModelRemoveFailed from './ProviderModelRemoveFailed'
 
 interface ModelListProps {
   scrollElement?: HTMLDivElement | null
@@ -39,6 +41,8 @@ function ModelListContent({
         onContinueApiSetup={onContinueApiSetup}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
+            <ProviderModelCheckAndPurge disabled={toolbarDisabled} />
+            <ProviderModelRemoveFailed disabled={toolbarDisabled} />
             <ProviderModelPullReconcile
               providerId={providerId}
               disabled={toolbarDisabled}

@@ -1,10 +1,13 @@
 import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Tooltip } from '@cherrystudio/ui'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
+import { freeAccessKindOf } from '@shared/data/presets/freeTierProviders'
 import type { Provider } from '@shared/data/types/provider'
 
 interface ProviderListItemProps {
@@ -24,6 +27,8 @@ export default function ProviderListItem({
   onOpenMenu,
   renderMenuButton
 }: ProviderListItemProps) {
+  const { t } = useTranslation()
+  const freeAccess = freeAccessKindOf(provider.id)
   const handleOpenMenu = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     onOpenMenu?.()
@@ -80,6 +85,14 @@ export default function ProviderListItem({
             displayContext="provider-list"
           />
           <span className={providerListClasses.itemLabel}>{provider.name}</span>
+          {/* Sixty providers in one list, and nothing said which of them cost nothing to try. */}
+          {freeAccess ? (
+            <Tooltip content={t(`settings.provider.free_access.${freeAccess}_tip`)}>
+              <span className="shrink-0 rounded-md bg-success-subtle px-1.5 py-0.5 text-[10px] text-success-subtle-foreground">
+                {t(`settings.provider.free_access.${freeAccess}`)}
+              </span>
+            </Tooltip>
+          ) : null}
         </div>
       </div>
       {hasTrailingSlot && (

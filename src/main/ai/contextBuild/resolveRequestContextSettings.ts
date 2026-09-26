@@ -53,7 +53,10 @@ export async function resolveRequestContextSettings(
     // cannot carry that refinement — so an empty string is representable there.
     // Left as-is it reached `resolveCompressionModel('')`, which returns null,
     // and compression silently switched off instead of using the current model.
-    const compressId = contextSettings.compress.modelId?.trim() || model.id
+    // Summarising is high-volume and needs no judgement, so a configured local worker takes it over
+    // before the request model does — that keeps scarce free-tier quota for actual answers.
+    const localWorkerId = application.get('PreferenceService').get('chat.routing.local_worker_model')?.trim()
+    const compressId = contextSettings.compress.modelId?.trim() || localWorkerId || model.id
     compressionModel = await resolveCompressionModel(compressId, conversation)
   }
 

@@ -4,6 +4,7 @@ import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import { type DerivedRoutingTable, EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
@@ -129,7 +130,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
-  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  // Per-topic composer draft, renderer memory only; see chat.composer_draft_snapshot (persist
+  // tier, below) for the crash/restart-recovery fallback consulted when this is empty.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
@@ -325,6 +327,9 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  // Main-owned model ranking per task category. Derived from providers, health and quota, so it is
+  // rebuilt on demand rather than persisted; the renderer reads it to explain routing decisions.
+  'routing.derived_table': DerivedRoutingTable
   'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
@@ -388,6 +393,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'routing.derived_table': EMPTY_DERIVED_ROUTING_TABLE,
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
@@ -430,6 +436,10 @@ export type RendererPersistCacheSchema = {
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
+  // Crash/restart-recovery mirror of chat.composer_draft.*, keyed by topic id. An entry is
+  // removed once a topic's draft empties, and `savedAt` carries the memory tier's TTL across
+  // a restart so a stale draft is neither resurrected nor kept forever.
+  'chat.composer_draft_snapshot': Record<string, { draft: CacheValueTypes.CacheChatComposerDraft; savedAt: number }>
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null
@@ -450,7 +460,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
-  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled' | 'free'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
   // the page on an empty range.
@@ -493,6 +503,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
+  'chat.composer_draft_snapshot': {},
   'ui.chat.right_pane_open_override': null,
   'ui.assistant.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],

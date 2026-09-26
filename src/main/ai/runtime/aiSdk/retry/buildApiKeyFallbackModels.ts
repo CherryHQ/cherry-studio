@@ -1,5 +1,6 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
+import { filterKeysWithinQuota } from '@main/data/services/apiKeyQuota'
 import { providerService } from '@main/data/services/ProviderService'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -26,8 +27,14 @@ export interface BuildApiKeyFallbackModelsArgs {
 /** Lazily builds the same provider/model with each remaining enabled key. */
 export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): FallbackResolver[] {
   if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return []
+  // Rotating onto a key that already hit its declared ceiling wastes an attempt. When every key is
+  // spent `filterKeysWithinQuota` hands them all back, so the request is still attempted.
   const keys = resolveApiKeyFallbacks(
-    providerService.getApiKeys(args.provider.id, { enabled: true }),
+    filterKeysWithinQuota(
+      args.provider.id,
+      providerService.getApiKeys(args.provider.id, { enabled: true }),
+      args.model.id
+    ),
     args.primaryCredentialReceipt
   )
   return keys.map((key) => async () => {

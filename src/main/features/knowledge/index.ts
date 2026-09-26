@@ -11,6 +11,7 @@ export {
   assertSafeKnowledgeRelativePath,
   CHERRY_META_DIR,
   collectKnowledgeReservedRelativePaths,
+  getKnowledgeVectorStoreFilePathSync,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from './pathStorage'

@@ -2266,7 +2266,7 @@
         {
           "originalKey": "localBackupAutoSync",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.backup.local.auto_sync"
@@ -2274,7 +2274,7 @@
         {
           "originalKey": "localBackupSyncInterval",
           "type": "number",
-          "defaultValue": 0,
+          "defaultValue": 1440,
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.backup.local.sync_interval"
@@ -2282,7 +2282,7 @@
         {
           "originalKey": "localBackupMaxBackups",
           "type": "number",
-          "defaultValue": 0,
+          "defaultValue": 7,
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.backup.local.max_backups"

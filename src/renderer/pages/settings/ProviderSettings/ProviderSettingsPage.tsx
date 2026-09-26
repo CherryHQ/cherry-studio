@@ -12,7 +12,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
-import { ProviderList } from './ProviderList'
+import { ProviderList, type ProviderFilterMode } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 
 interface PendingApiSetup {
@@ -22,9 +22,10 @@ interface PendingApiSetup {
 
 interface ProviderSettingsContentProps {
   rawProviders: Provider[]
+  filterModeHint?: ProviderFilterMode
 }
 
-function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
+function ProviderSettingsContent({ rawProviders, filterModeHint: filterModeHintProp }: ProviderSettingsContentProps) {
   const search = useSearch<AppRouter, undefined, false>({ strict: false })
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
@@ -38,7 +39,8 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
   const visibleProviders = useMemo(() => providers.filter(isProviderSettingsListVisibleProvider), [providers])
-  const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
+  // Onboarding passes 'free' explicitly (its own memory router never carries a `?filter=` search param).
+  const filterModeHint = filterModeHintProp ?? (search.filter === 'agent' ? 'agent' : undefined)
 
   useEffect(() => {
     setLastSelectedProviderIdRef.current = setLastSelectedProviderId
@@ -137,7 +139,11 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
   )
 }
 
-export default function ProviderSettingsPage() {
+export interface ProviderSettingsPageProps {
+  filterModeHint?: ProviderFilterMode
+}
+
+export default function ProviderSettingsPage({ filterModeHint }: ProviderSettingsPageProps = {}) {
   const { t } = useTranslation()
   const { providers, hasLoaded, isLoading, error, refetch } = useProviders()
 
@@ -168,5 +174,5 @@ export default function ProviderSettingsPage() {
     )
   }
 
-  return <ProviderSettingsContent rawProviders={providers} />
+  return <ProviderSettingsContent rawProviders={providers} filterModeHint={filterModeHint} />
 }

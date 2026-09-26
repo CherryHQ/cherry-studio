@@ -3,6 +3,7 @@ import * as z from 'zod'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { QuotaNoticeState } from '@shared/utils/apiKeyLimit'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -37,6 +38,54 @@ export type MenuPresentationMode = 'native' | 'cherry'
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
+
+/** Last health-probe outcome per model, persisted so routing survives a restart. */
+export type ModelHealthMemory = Record<string, { ok: boolean; checkedAt: number; latency?: number }>
+
+/**
+ * User-declared request ceiling per credential, for free tiers the provider never reports.
+ * Keyed by `providerId::keyId`; actual consumption comes from the AI usage records, not from here.
+ */
+export type ApiKeyLimitPeriod = 'daily' | 'weekly' | 'monthly' | 'total'
+export type ApiKeyLimitMap = Record<string, { limit: number; period: ApiKeyLimitPeriod }>
+
+/**
+ * How a provider with several keys picks the next one.
+ *
+ * - `round-robin` spreads requests across keys, which suits per-minute rate limits.
+ * - `sequential` drains one key before touching the next, which suits allowances that reset on a
+ *   schedule: it leaves the later keys untouched and ready instead of half-spending all of them.
+ *
+ * Keyed by `providerId`; absent means `round-robin`.
+ */
+export type ApiKeyRotationPolicy = 'round-robin' | 'sequential'
+export type ApiKeyRotationMap = Record<string, ApiKeyRotationPolicy>
+
+/** Usage counter per web/URL service, keyed by `web::${providerId}`. */
+export type ServiceUsageMap = Record<string, { count: number; periodStart: number }>
+
+/**
+ * Which quota events have already been announced (a period rollover, or a one-shot trial key
+ * running dry), so a reminder fires once and never repeats across restarts. Keyed the same way
+ * as {@link ApiKeyLimitMap} — `providerId::keyId` or the model-scoped variant.
+ */
+export type QuotaNoticeMap = QuotaNoticeState
+
+/**
+ * Which historical messages are excluded from the model-facing history for a
+ * turn. Keyed by message id; presence (mapped to `true`) means excluded,
+ * absence means included. Global (not scoped by topic) because message ids
+ * are unique app-wide; toggling a message back in deletes its key rather than
+ * setting it to `false`, so the map only grows with currently-excluded messages.
+ */
+export type ExcludedContextMessageMap = Record<string, true>
+
+/** Task kinds the router recognises; each maps to the models that are best at it. */
+export const TASK_CATEGORIES = ['code', 'research', 'writing', 'image', 'general'] as const
+export type TaskCategory = (typeof TASK_CATEGORIES)[number]
+
+/** Preferred models per task category, best first. */
+export type CategoryModelMap = Partial<Record<TaskCategory, UniqueModelId[]>>
 
 /**
  * Global default Agent reply language (`agent.language`). Human-readable label
@@ -111,13 +160,14 @@ export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
   'paintings',
+  'videos',
+  'tutor',
   'translate',
   'mini_app',
   'knowledge',
   'files',
   'code_tools',
-  'notes',
-  'openclaw'
+  'notes'
 ] as const
 
 export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
