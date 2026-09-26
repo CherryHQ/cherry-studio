@@ -68,7 +68,10 @@ export async function handleEditTool(args: unknown, baseDir: string) {
               type: 'text',
               text: `Created new file: ${relativePath}\nLines: ${newString.split('\n').length}`
             }
-          ]
+          ],
+          // UI-only: the model already sees the text summary above via `content`;
+          // this lets a renderer show a real diff without re-deriving one (O2).
+          structuredContent: { file_path: relativePath, old_content: null, new_content: newString }
         }
       }
       throw new Error(`File not found: ${filePath}`)
@@ -92,7 +95,8 @@ export async function handleEditTool(args: unknown, baseDir: string) {
           type: 'text',
           text: `Overwrote file: ${relativePath}\nLines: ${newString.split('\n').length}`
         }
-      ]
+      ],
+      structuredContent: { file_path: relativePath, old_content: content, new_content: newString }
     }
   }
 
@@ -126,6 +130,7 @@ export async function handleEditTool(args: unknown, baseDir: string) {
         type: 'text',
         text: diffSummary
       }
-    ]
+    ],
+    structuredContent: { file_path: relativePath, old_content: content, new_content: newContent }
   }
 }

@@ -45,11 +45,15 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
     }
   }
 
-  // Check if file exists (for logging)
+  // Check if file exists (for logging) and capture its prior content so a
+  // renderer can show a real diff (O2) — the model never sees this, only the
+  // text summary below via `content`.
   let isOverwrite = false
+  let oldContent: string | null = null
   try {
     await fs.stat(validPath)
     isOverwrite = true
+    oldContent = await fs.readFile(validPath, 'utf-8')
   } catch {
     // File doesn't exist, that's fine
   }
@@ -79,6 +83,7 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
         type: 'text',
         text: `${action} file: ${relativePath}\n` + `Size: ${parsed.data.content.length} bytes\n` + `Lines: ${lines}`
       }
-    ]
+    ],
+    structuredContent: { file_path: relativePath, old_content: oldContent, new_content: parsed.data.content }
   }
 }
