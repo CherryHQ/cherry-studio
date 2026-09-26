@@ -5,6 +5,12 @@ export {
   useCloseConversationTabs
 } from './useCloseConversationTabs'
 export { useConversationNavigationOwner } from './useConversationNavigationOwner'
+export {
+  type ConversationTabVisuals,
+  type ConversationTabsSync,
+  ConversationTabsSyncContext,
+  useConversationTabsSync
+} from './useConversationTabsSync'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
 export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'

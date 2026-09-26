@@ -12,6 +12,9 @@ export const tabHandlers: IpcHandlersFor<typeof tabRequestSchemas> = {
   'tab.detach': async (payload) => {
     application.get('SubWindowService').createWindow(payload)
   },
+  'tab.sync_conversation_title': async (payload) => {
+    application.get('IpcApiService').broadcast('tab.conversation_title_synced', payload)
+  },
   'tab.drag_end': async (_input, { senderId }) => {
     if (!senderId) return
     const win = application.get('WindowManager').getWindow(senderId)

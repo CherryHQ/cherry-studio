@@ -28,7 +28,8 @@ export function AgentTabRuntime({
     title,
     emoji,
     routePrefix: '/app/agents',
-    preserveVisuals
+    preserveVisuals,
+    conversation: activeSessionId ? { appId: 'agents', key: activeSessionId } : undefined
   })
 
   useCommandHandler('app.sidebar.toggle', onToggleSidebar, { enabled: isActiveTab })

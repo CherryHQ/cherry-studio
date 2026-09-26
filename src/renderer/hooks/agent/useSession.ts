@@ -22,7 +22,7 @@ import {
   useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useConversationTabsSync } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -488,6 +488,7 @@ export const useSessions = (
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
+  const { sync: syncConversationTabs } = useConversationTabsSync()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
     // The non-null assertion mirrors useTopic.ts and crashes loud
@@ -506,6 +507,10 @@ export const useUpdateSession = () => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
+        // A rename must reach every tab of this session — a background or dormant one
+        // has no mounted page to re-derive its title from the refreshed data.
+        const renamedTo = patch.name !== undefined ? result.name?.trim() : ''
+        if (renamedTo) syncConversationTabs('agents', id, { title: renamedTo })
         if (options?.showSuccessToast ?? true) {
           toast.success(t('common.update_success'))
         }
@@ -515,7 +520,7 @@ export const useUpdateSession = () => {
         return undefined
       }
     },
-    [updateTrigger, t]
+    [syncConversationTabs, updateTrigger, t]
   )
 
   /**
@@ -539,14 +544,26 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `ai.agent.session.auto_renamed` and invalidates the
- * renamed session's SWR cache so the new name appears without manual refetch.
+ * Listens for `ai.agent.session.auto_renamed`, invalidating the renamed session's SWR
+ * cache so the new name appears without manual refetch, and stamping that name onto
+ * every tab of the session — an inactive tab has no live page that would pick the
+ * rename up on its own.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
+  // Main already broadcast this name to every window, so applying it here is enough.
+  const { apply: applyConversationTabs } = useConversationTabsSync()
 
-  useIpcOn(
-    'ai.agent.session.auto_renamed',
-    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
-  )
+  useIpcOn('ai.agent.session.auto_renamed', ({ sessionId, name }) => {
+    void (async () => {
+      try {
+        await invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+      } catch (error) {
+        logger.warn('Failed to refresh an auto-renamed agent session', error as Error, { sessionId })
+      }
+      // Retitle only once the refetch has landed: a page still holding the old
+      // name would otherwise stamp it straight back onto every tab.
+      applyConversationTabs('agents', sessionId, { title: name })
+    })()
+  })
 }

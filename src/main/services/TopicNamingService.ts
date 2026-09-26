@@ -252,7 +252,7 @@ export class TopicNamingService {
       if (nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      this.notifyAgentSessionAutoRenamed(sessionId, nextName)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', {
         sessionId,
@@ -325,7 +325,7 @@ export class TopicNamingService {
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      this.notifyAgentSessionAutoRenamed(sessionId, nextName)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', {
         agentId,
@@ -455,15 +455,15 @@ export class TopicNamingService {
     if (!nextName || nextName === latestTopic.name) return
 
     topicService.update(topicId, { name: nextName, isNameManuallyEdited: false })
-    this.notifyTopicAutoRenamed(topicId)
+    this.notifyTopicAutoRenamed(topicId, nextName)
   }
 
-  private notifyTopicAutoRenamed(topicId: string): void {
-    application.get('IpcApiService').broadcast('ai.topic.auto_renamed', { topicId })
+  private notifyTopicAutoRenamed(topicId: string, name: string): void {
+    application.get('IpcApiService').broadcast('ai.topic.auto_renamed', { topicId, name })
   }
 
-  private notifyAgentSessionAutoRenamed(sessionId: string): void {
-    application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId })
+  private notifyAgentSessionAutoRenamed(sessionId: string, name: string): void {
+    application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId, name })
   }
 }
 

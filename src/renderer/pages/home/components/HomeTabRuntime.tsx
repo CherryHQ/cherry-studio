@@ -19,7 +19,8 @@ export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, a
     title,
     emoji,
     routePrefix: '/app/chat',
-    preserveVisuals
+    preserveVisuals,
+    conversation: activeTopicId ? { appId: 'assistants', key: activeTopicId } : undefined
   })
 
   useEffect(() => {
