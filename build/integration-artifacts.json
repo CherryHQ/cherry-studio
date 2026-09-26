@@ -25,7 +25,7 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "ed01fd2955325af6e93390048e7390acf774129f"
+      "revision": "8aab2e1b38d6b4b468d856a678dd70128c4a9de3"
     },
     "uar": {
       "repository": "Prometheus-AGS/universal-agent-runtime",
@@ -368,7 +368,7 @@
   "catalogs": {
     "liter-llm": {
       "providers": "568d741ee4e4771b7fd4191cde974d743c834fc1db7bbf27fcde45d0521b67b4",
-      "models": "5209cd4e3c539757d49613fdba31d9572f29b0abc54dc548975a96c5d78da68e"
+      "models": "d6d57171617705eb9611cbfb62ff28a3d26fdaf85b4f38f4b2e4361fcfd153dd"
     }
   },
   "compassSkills": {

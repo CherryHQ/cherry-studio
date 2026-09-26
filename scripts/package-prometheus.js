@@ -52,6 +52,8 @@ function packagePrometheus() {
     .trim()
     .split(/\s+/)[2]
   if (revision !== gitlink) throw new Error('Commit the mini submodule pin before packaging the release')
+  if (revision !== artifacts.sources.mini.revision)
+    throw new Error('The packaged mini revision does not match the pinned integration revision')
   fs.rmSync(destination, { recursive: true, force: true })
   fs.mkdirSync(destination, { recursive: true })
   for (const entry of entries) {
