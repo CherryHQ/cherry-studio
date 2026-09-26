@@ -282,3 +282,25 @@ describe('resolveReasoningInvocation logging', () => {
     expect(mockMainLoggerService.info.mock.calls[0][0]).toContain("Reasoning 'high' not sent")
   })
 })
+
+describe('resolveReasoningInvocation user effort mappings', () => {
+  it('applies user tier translation before model projection', () => {
+    const controls = inferReasoningControls('gpt-5')
+    const model = makeModel({
+      id: 'openai::gpt-5',
+      reasoning: {
+        controls,
+        selectableEfforts: controls?.flatMap((control) => (control.kind === 'effort' ? control.values : [])) ?? []
+      }
+    })
+    const profile = REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const invocation = resolveReasoningInvocation({
+      selection: 'high',
+      model,
+      profile,
+      userEffortMap: { high: 'medium' }
+    })
+
+    expect(invocation.effort).toBe('medium')
+  })
+})

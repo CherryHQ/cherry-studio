@@ -20,6 +20,7 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
@@ -625,7 +626,8 @@ function resolveClaudeCodeThinkingOptions(
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
-    maxTokens: model.maxOutputTokens
+    maxTokens: model.maxOutputTokens,
+    userEffortMap: getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   })
   const encoded = encodeReasoningInvocation(invocation)
 
