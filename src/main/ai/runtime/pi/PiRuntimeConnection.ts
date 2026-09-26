@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { readdirSync } from 'node:fs'
-import path from 'node:path'
+import { readFileSync } from 'node:fs'
 
-import { application } from '@application'
-import type { AssistantMessage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -12,6 +10,9 @@ import type {
   ProviderConfig,
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
+import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -23,6 +24,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
@@ -32,8 +34,8 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
+import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
-import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -58,6 +60,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
+import { PiForkCheckpointSchema } from './forkCheckpoint'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -77,6 +80,7 @@ import {
   warmMcpToolCatalogs
 } from './piMcpToolAdapter'
 import { loadPiAiCompat, loadPiSdk } from './piSdk'
+import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
@@ -95,6 +99,28 @@ export function buildPiLoginPathPrefix(
 ): string | undefined {
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
 }
+
+/** Read the one field Cherry honors from the user's global pi settings; absent or malformed means unset. */
+function readPiShellPathSetting(): string | undefined {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
+    const shellPath = (settings as Record<string, unknown> | null)?.shellPath
+    return typeof shellPath === 'string' && shellPath.trim() ? shellPath.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function resolvePiShellPath(): string | undefined {
+  if (process.platform !== 'win32') return undefined
+  const configured = readPiShellPathSetting()
+  if (!configured) return autoDiscoverGitBash() ?? undefined
+
+  const shellPath = validateGitBashPath(configured)
+  if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
+  return shellPath
+}
+
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
@@ -242,7 +268,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message) => this.recordProviderInvocation(message),
+      (message, metrics) => this.recordProviderInvocation(message, metrics),
       (model) => this.startProviderSpan(model)
     )
 
@@ -269,7 +295,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      const shellPath = resolvePiShellPath()
+      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
@@ -293,7 +320,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        citationsGuidance
+        citationsGuidance,
+        effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const approvalContext = {
         sessionId: this.input.sessionId,
@@ -346,7 +374,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: linkedChannel !== null
+      })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
@@ -366,6 +397,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        commandPrefix: loginPathPrefix,
+        shellPath,
         spawnHook: (context) => ({
           ...context,
           env: mergePiBashExecutionEnv(context.env)
@@ -415,24 +448,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /**
-   * Pick the session manager for this connection. A fresh session (no resume token) is created with
-   * the Cherry session id. On resume, a format-valid token whose file is missing on disk falls back
-   * to a fresh session with the SAME id — pi flushes the JSONL lazily (nothing until the first
-   * assistant message), so a token emitted before that flush points at a never-persisted session; a
-   * hard failure here would brick the session forever (e.g. a first turn of `/compact` or a preflight
-   * rejection). A malformed token still throws — that's the resume-dir attack-surface guard.
-   */
+  /** Pi allocates session IDs before lazily flushing history, so an unflushed ID can still initialize. */
   private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
-    if (!this.resumeToken) {
-      return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    if (this.resumeToken) {
+      const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
+      if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
+      if (this.input.nativeSessionId) throw new Error('Edited native session history is missing')
     }
-    const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
-    if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
-    logger.warn('pi resume token has no session file on disk; creating a fresh session with the same id', {
-      sessionId: this.input.sessionId
+    return pi.SessionManager.create(workspacePath, sessionDir, {
+      id: this.resumeToken ?? this.input.nativeSessionId ?? this.input.sessionId
     })
-    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
   }
 
   send(input: AgentRuntimeUserInput): void {
@@ -571,9 +596,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  private closePromise?: Promise<void>
+
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= this.finishClose())
+  }
+
+  private async finishClose(): Promise<void> {
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown (plan Phase 3).
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
@@ -581,11 +611,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // closing queue.
     this.unsubscribe?.()
     this.unsubscribe = undefined
-    try {
-      await this.session?.abort()
-    } catch (error) {
-      logger.warn('pi session abort failed during close', { error })
-    }
+    await this.session?.abort()
     this.session?.dispose()
     this.session = undefined
     this.endOpenTraceSpans('pi connection closed')
@@ -664,11 +690,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       } else {
         failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
       }
-      logger.error('pi prompt failed', failure)
+      logger.error('pi prompt failed', chatErrorContext(failure))
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
       this.emitContextUsage()
-      this.eventQueue.push({ type: 'turn-complete' })
+      let leafId: string | null | undefined
+      try {
+        leafId = this.session?.sessionManager.getLeafId()
+      } catch (checkpointError) {
+        logger.warn('Could not capture Pi fork checkpoint', { error: checkpointError })
+      }
+      const checkpoint = PiForkCheckpointSchema.safeParse({ runtime: 'pi', runtimeSessionId: this.resumeToken, leafId })
+      this.eventQueue.push({
+        type: 'turn-complete',
+        forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
+      })
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
@@ -683,7 +719,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
-  private recordProviderInvocation(message: AssistantMessage): void {
+  private recordProviderInvocation(message: AssistantMessage, metrics?: PiInvocationMetrics): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
@@ -714,7 +750,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           noCacheTokens,
           cacheReadTokens,
           cacheWriteTokens
-        }
+        },
+        ...(metrics ? { metrics } : {})
       }
     })
   }
@@ -864,10 +901,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
+/** Wall-clock timing of one pi provider invocation; mirrors the usage-event metrics the host persists for TPS display. */
+interface PiInvocationMetrics {
+  timeFirstTokenMs?: number
+  timeCompletionMs?: number
+}
+
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage) => void,
+  onComplete: (message: AssistantMessage, metrics?: PiInvocationMetrics) => void,
   startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
 ): ProviderConfig {
   return {
@@ -881,10 +924,36 @@ function withPiInvocationCapture(
         traceObserver?.error(error)
         throw error
       }
+      // Observe producer-side events without consuming them: the agent loop iterates the same
+      // stream, so timing is captured by wrapping push() instead of reading from the iterator.
+      const streamStartedAt = Date.now()
+      let firstTokenAt: number | undefined
+      const originalPush = typeof stream.push === 'function' ? stream.push.bind(stream) : undefined
+      if (originalPush) {
+        stream.push = (event: AssistantMessageEvent) => {
+          if (
+            firstTokenAt === undefined &&
+            (event.type === 'text_start' ||
+              event.type === 'text_delta' ||
+              event.type === 'thinking_start' ||
+              event.type === 'thinking_delta' ||
+              event.type === 'toolcall_start' ||
+              event.type === 'toolcall_delta')
+          ) {
+            firstTokenAt = Date.now()
+          }
+          originalPush(event)
+        }
+      }
       void stream.result().then(
         (message) => {
           traceObserver?.complete(message)
-          onComplete(message)
+          const timeCompletionMs = Math.max(0, Date.now() - streamStartedAt)
+          const timeFirstTokenMs = firstTokenAt !== undefined ? Math.max(0, firstTokenAt - streamStartedAt) : undefined
+          onComplete(message, {
+            ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+            timeCompletionMs
+          })
         },
         (error) => traceObserver?.error(error)
       )
@@ -929,39 +998,6 @@ function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
-}
-
-/**
- * Resolve a resume token to its on-disk pi session file. Returns `null` when the token is
- * format-valid but no matching file exists yet (pi persists the JSONL lazily, so a token can point
- * at a session that never flushed) — the caller degrades to a fresh session instead of failing.
- * Throws only on a malformed token (path separators / traversal / illegal chars), which stays
- * fail-closed as the resume-dir attack-surface guard.
- */
-function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string): string | null {
-  if (
-    !resumeToken ||
-    resumeToken !== path.basename(resumeToken) ||
-    !/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/.test(resumeToken)
-  ) {
-    throw new Error('pi resume token must be a valid session id inside Cherry-owned session dir')
-  }
-
-  let entries: string[]
-  try {
-    entries = readdirSync(sessionDir)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') entries = []
-    else throw error
-  }
-
-  // pi owns the timestamped filename prefix; Cherry persists the stable id suffix.
-  // If the same id is recreated, the lexicographically greatest timestamp is the newest state.
-  const match = entries
-    .filter((entry) => entry.endsWith(`_${resumeToken}.jsonl`))
-    .sort()
-    .at(-1)
-  return match ? path.join(sessionDir, match) : null
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's

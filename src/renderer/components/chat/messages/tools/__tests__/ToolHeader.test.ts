@@ -1,8 +1,9 @@
-import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { AgentToolsType } from '../shared/agentToolTypes'
 import ToolHeader, { getReadableToolActivity } from '../ToolHeader'

@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import {
@@ -10,8 +13,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { NotificationSource } from '@renderer/types/notification'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const NotificationSettings: FC = () => {
   const { t } = useTranslation()

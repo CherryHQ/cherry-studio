@@ -1,7 +1,4 @@
 import './EmojiPicker.css'
-
-import { loggerService } from '@logger'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import EmojiPickerReact, {
   Categories,
   type EmojiClickData,
@@ -13,6 +10,9 @@ import { Clock3, Flag, Hash, Lightbulb, PawPrint, Plane, Smile, Trophy, Utensils
 import type { CSSProperties, FC, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import { type EmojiData, loadEmojiData } from './emojiData'
 import type { EmojiPickerProps } from './EmojiPicker'

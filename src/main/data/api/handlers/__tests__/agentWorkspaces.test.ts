@@ -1,5 +1,6 @@
-import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { SuccessStatus } from '@shared/data/api/types'
 
 const {
   listMock,
@@ -52,11 +53,11 @@ describe('agentWorkspaceHandlers', () => {
     listMock.mockReturnValueOnce([workspace])
     getByIdMock.mockReturnValueOnce(workspace)
 
-    await expect(agentWorkspaceHandlers['/agent-workspaces'].GET({} as never)).resolves.toEqual([workspace])
+    await expect(agentWorkspaceHandlers['/agent-workspaces'].GET({})).resolves.toEqual([workspace])
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toBe(workspace)
 
     expect(listMock).toHaveBeenCalledOnce()
@@ -70,13 +71,13 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
         body: { path: workspace.path, name: workspace.name }
-      } as never)
+      })
     ).resolves.toEqual({ data: workspace, status: SuccessStatus.CREATED })
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
         body: { name: 'Renamed' }
-      } as never)
+      })
     ).resolves.toMatchObject({ name: 'Renamed' })
 
     expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, { name: workspace.name })
@@ -89,7 +90,7 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
         body: { path: workspace.path, name: 'Ignored Rename' }
-      } as never)
+      })
     ).resolves.toEqual({ data: workspace, status: SuccessStatus.OK })
   })
 
@@ -125,7 +126,7 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toBe(references)
 
     expect(getReferencesMock).toHaveBeenCalledWith(workspace.id)

@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import { useTranslation } from 'react-i18next'
 
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
 import type { ModelDrawerEndpointType } from './types'

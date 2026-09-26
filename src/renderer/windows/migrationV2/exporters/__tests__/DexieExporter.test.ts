@@ -1,5 +1,6 @@
-import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 interface LegacyRecord {
   id: string

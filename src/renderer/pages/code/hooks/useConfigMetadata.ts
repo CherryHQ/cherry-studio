@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
@@ -9,7 +11,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
-import { useCallback, useMemo } from 'react'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
 import { modelSupportsCliTool } from '../utils/modelSupport'

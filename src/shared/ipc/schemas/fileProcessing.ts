@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { JobSnapshotSchema } from '@shared/data/api/schemas/jobs'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileHandleSchema } from '@shared/data/types/file'
@@ -5,7 +7,6 @@ import {
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

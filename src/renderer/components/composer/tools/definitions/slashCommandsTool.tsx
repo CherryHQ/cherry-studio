@@ -1,8 +1,9 @@
+import { Terminal } from 'lucide-react'
+
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { Terminal } from 'lucide-react'
 
 import { getBuiltinSlashCommands } from './agentSlashCommands'
 

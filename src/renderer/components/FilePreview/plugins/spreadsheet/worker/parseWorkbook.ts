@@ -29,7 +29,7 @@ import {
 } from './chartXmlParser'
 import { createFormulaEvaluator, type EvalContext, type FormulaCellRef } from './formulaEvaluator'
 import { dateToExcelSerial, formatCellValue } from './numberFormat'
-import { type ExcelColorRef, parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
+import { parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
 
 const FORMULA_BUDGET_MS = 5000
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
@@ -407,7 +407,7 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
       hasAny = true
     }
     if (font.color) {
-      const resolved = resolveColor(font.color as ExcelColorRef, theme)
+      const resolved = resolveColor(font.color, theme)
       if (resolved) {
         style.color = resolved
         hasAny = true
@@ -418,14 +418,14 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   const fill = cell.fill
   if (fill && fill.type === 'pattern') {
     if (fill.pattern === 'solid' && fill.fgColor) {
-      const resolved = resolveColor(fill.fgColor as ExcelColorRef, theme)
+      const resolved = resolveColor(fill.fgColor, theme)
       if (resolved) {
         style.bg = resolved
         hasAny = true
       }
     } else if (fill.pattern !== 'none' && fill.fgColor) {
       // Non-solid pattern: approximate fgColor as a solid fill.
-      const resolved = resolveColor(fill.fgColor as ExcelColorRef, theme)
+      const resolved = resolveColor(fill.fgColor, theme)
       if (resolved) {
         style.bg = resolved
         hasAny = true
@@ -439,12 +439,12 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
     BORDER_SIDES.forEach((side, i) => {
       const edge = border[side]
       if (edge?.style && SUPPORTED_BORDER_STYLES.has(edge.style as BorderEdge['style'])) {
-        const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
+        const color = resolveColor(edge.color, theme) ?? '#000000'
         style[BORDER_STYLE_KEYS[i]] = { style: edge.style as BorderEdge['style'], color }
         hasAny = true
       } else if (edge?.style) {
         warnings.add('border-style-unsupported-approximated-as-thin')
-        const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
+        const color = resolveColor(edge.color, theme) ?? '#000000'
         style[BORDER_STYLE_KEYS[i]] = { style: 'thin', color }
         hasAny = true
       }

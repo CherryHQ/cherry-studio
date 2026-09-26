@@ -2,14 +2,13 @@
   --rich-text-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
   --rich-text-divider-color: var(--border);
   --rich-text-table-heading-background: var(--muted);
-  /* 预留5px给scrollbar */
-  padding: var(--editor-padding, 12px 55px 12px 60px);
+  padding: var(--editor-padding, 0);
   outline: none;
-  min-height: var(--editor-min-height, 120px);
+  min-height: var(--editor-min-height, 0);
   overflow-wrap: break-word;
   word-break: break-word;
-  font-size: var(--editor-font-size, 16px);
-  line-height: var(--editor-line-height, normal);
+  font-size: var(--editor-font-size, inherit);
+  line-height: var(--editor-line-height, inherit);
 }
 
 .tiptap:focus {
@@ -71,7 +70,7 @@
 }
 
 .tiptap p {
-  margin: var(--editor-paragraph-margin, 1.1rem 0 0.5rem 0);
+  margin: var(--editor-paragraph-margin, 0);
   white-space: var(--editor-paragraph-white-space, normal);
   overflow-wrap: var(--editor-paragraph-overflow-wrap, break-word);
   word-break: var(--editor-paragraph-word-break, break-word);
@@ -155,7 +154,7 @@
   position: absolute;
   color: var(--foreground-tertiary);
   pointer-events: none;
-  font-style: var(--editor-placeholder-font-style, italic);
+  font-style: var(--editor-placeholder-font-style, normal);
   left: 0;
   right: 0;
 }
@@ -520,14 +519,6 @@
   justify-content: center;
   align-items: center;
   font-size: 1.2rem;
-}
-
-/* Bottom spacer to create viewport padding */
-.tiptap::after {
-  content: '';
-  display: block;
-  height: 50px;
-  pointer-events: none;
 }
 
 /* Code block wrapper and header styles */

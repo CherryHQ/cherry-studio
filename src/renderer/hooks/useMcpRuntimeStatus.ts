@@ -1,6 +1,7 @@
+import { useCallback, useMemo } from 'react'
+
 import { useSharedCacheSelector, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import { useCallback, useMemo } from 'react'
 
 type McpStatusCacheKey = `mcp.status.${string}`
 

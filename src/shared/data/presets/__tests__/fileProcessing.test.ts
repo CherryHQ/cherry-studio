@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { FILE_TYPE } from '@shared/types/file'
 import { GB, MB } from '@shared/utils/constants'
-import { describe, expect, it } from 'vitest'
 
 import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
 import {

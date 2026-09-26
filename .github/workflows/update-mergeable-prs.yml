@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 * * * *' # catches PRs approved while already behind main
+    - cron: "0 * * * *" # catches PRs approved while already behind main
   workflow_dispatch:
 
 concurrency:

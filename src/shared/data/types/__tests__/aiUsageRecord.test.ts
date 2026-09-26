@@ -1,5 +1,6 @@
-import { getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 import { describe, expect, it } from 'vitest'
+
+import { getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 
 describe('getAiUsageRecordTotalTokens', () => {
   it('prefers the provider total and derives a missing total from partial usage', () => {

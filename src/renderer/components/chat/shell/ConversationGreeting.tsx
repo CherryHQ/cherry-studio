@@ -1,6 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, EmojiIcon } from '@cherrystudio/ui'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
 export interface ConversationGreetingProps {
@@ -27,14 +26,14 @@ export function ConversationGreeting({ avatar, title }: ConversationGreetingProp
       style={{ paddingBottom: inset?.contentBottomPadding ?? 0 }}>
       {avatar &&
         (isEmoji(avatar) ? (
-          <EmojiIcon emoji={avatar} className="mr-0" size={48} fontSize={28} />
+          <EmojiIcon emoji={avatar} size={48} />
         ) : (
           <Avatar className="size-12">
             <AvatarImage className="size-full object-cover" src={avatar} />
             <AvatarFallback className="text-2xl">🤖</AvatarFallback>
           </Avatar>
         ))}
-      <h2 className="m-0 font-medium text-foreground text-lg">{title}</h2>
+      <h2 className="m-0 text-lg font-medium text-foreground">{title}</h2>
     </div>
   )
 }

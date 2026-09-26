@@ -14,5 +14,7 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  external: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
+  deps: {
+    neverBundle: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
+  }
 })

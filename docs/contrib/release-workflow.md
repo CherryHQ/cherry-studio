@@ -23,7 +23,7 @@ The release branch is the source of every installer and release asset. `main` re
 
 | Stage | Source | Workflow | Result |
 | --- | --- | --- | --- |
-| Preview | Any same-repository branch | **Preview Release** | Creates an isolated draft GitHub Release for internal testing |
+| Preview | Any same-repository branch | **Preview Release** | Uploads Actions artifacts for internal testing |
 | Prepare | `main` | **Pre Release** | Creates `release/v<version>` with a signed release metadata commit |
 | Validate | `release/v<version>` | **CI** | Validates the exact release branch commit |
 | Dispatch | Successful release-branch **CI** | **Auto Release Build** | Starts one exact-head all-platform build |
@@ -41,11 +41,11 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 2. Select `main` in the workflow branch selector. The workflow definition and its permissions must always come from `main`.
 3. Enter a same-repository source branch in the `branch` input.
 4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
-5. Open the resulting draft under **Releases** and download its installers.
+5. Open the completed workflow run and use the **Preview downloads** summary table to choose a platform, edition, and architecture; each row includes the version, size, and a direct artifact download link. The files are also listed under **Artifacts**.
 
-Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. After both editions succeed on every selected platform, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads all installers there.
+Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. Each successful platform and edition build uploads one installer per architecture as a separate, unarchived Actions artifact: Windows `setup.exe`, macOS `.dmg`, or Linux `.AppImage`. Download only the edition and architecture you need; artifact names are the original installer filenames and retention is 3 days. Portable executables, ZIP archives, DEB/RPM packages, and update metadata are not uploaded for previews. The download table includes available installers even if another build fails; if no installers were uploaded, it points to the build jobs instead. The workflow does not create GitHub Releases or tags.
 
-Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. The build job therefore requires approval through the `release` Environment before any source-branch code runs. Preview tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
+Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Preview jobs use repository-level secrets and do not reference a GitHub Environment, so they start without deployment approval. Only dispatch previews for trusted same-repository source branches. Formal publishing still requires approval through the `release` Environment. Preview builds explicitly disable package publishing and do not acquire the `release-state` lock or participate in formal release preparation, hotfix backports, or Post Release.
 
 ## Before Starting
 
@@ -255,7 +255,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 ## Invariants
 
-- Build internal feature previews only with **Preview Release** from a same-repository branch; source code runs only after protected `release` Environment approval, and preview draft releases never become formal release state.
+- Build internal feature previews only with **Preview Release** from a same-repository branch; source branches must be trusted because builds use repository-level secrets without deployment approval, and preview packages are available only as Actions artifacts.
 - Build from `release/v<version>` and publish only the exact approved release-branch SHA, never `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.

@@ -1,3 +1,5 @@
+import * as tinyPinyin from 'tiny-pinyin'
+
 import type {
   QuickPanelContextType,
   QuickPanelFilterFn,
@@ -7,7 +9,6 @@ import type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import * as tinyPinyin from 'tiny-pinyin'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
 import { ComposerPanelSymbol } from './symbols'
@@ -58,6 +59,35 @@ export type ComposerUnifiedPanelSelectHandler = (
     searchText?: string
   }
 ) => void
+
+export function prepareComposerQuickPanelSearch({
+  inputAdapter,
+  queryAnchor,
+  triggerInfo
+}: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
+  const text = inputAdapter?.getText()
+  const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
+  let searchAnchor =
+    triggerInfo?.type === 'input' ? queryAnchor : (queryAnchor ?? triggerInfo?.position ?? cursorOffset)
+
+  if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
+    const liveText = inputAdapter.getText()
+    const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
+    if (rangeEnd > queryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: rangeEnd })
+      inputAdapter.focus()
+      searchAnchor = undefined
+    }
+  }
+
+  return {
+    queryAnchor: searchAnchor,
+    trackInputQuery: true,
+    consumeQueryOnDismiss: true,
+    triggerInfo:
+      searchAnchor === undefined ? { type: 'button' as const } : { type: 'button' as const, position: searchAnchor }
+  }
+}
 
 function createQuickPanelWithParent(
   quickPanel: QuickPanelContextType,
@@ -272,13 +302,14 @@ function createUnifiedPanelListItem(
     action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
       const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
+      const nextQueryAnchor = triggerInfo?.type === 'input' ? undefined : queryAnchor
 
       if (children.length > 0) {
         openUnifiedPanelSubmenu(launcher, {
           ...options,
           ancestorLauncherIds: nextAncestorLauncherIds,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })
@@ -290,7 +321,7 @@ function createUnifiedPanelListItem(
         createUnifiedPanelActionOptions({
           ...options,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })
@@ -310,7 +341,7 @@ function createUnifiedPanelRootSearchItems(
   }
 ): QuickPanelListItem[] {
   const ancestorLauncherIds = new Set(options.ancestorLauncherIds)
-  if (ancestorLauncherIds.has(launcher.id)) return []
+  if (launcher.disabled || ancestorLauncherIds.has(launcher.id)) return []
   ancestorLauncherIds.add(launcher.id)
 
   const customPanelItems = (launcher.rootSearchItems ?? [])
@@ -319,24 +350,24 @@ function createUnifiedPanelRootSearchItems(
   const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
     const childAncestorLauncherIds = new Set(ancestorLauncherIds)
     childAncestorLauncherIds.add(child.id)
-    const isSelectableLeaf =
+    const children = getUnifiedChildren(child, childAncestorLauncherIds)
+    const childItems =
       (child.kind === 'command' || child.kind === 'dialog') &&
       !child.disabled &&
       Boolean(child.action) &&
-      getUnifiedChildren(child, childAncestorLauncherIds).length === 0
-    const childItems = isSelectableLeaf
-      ? [
-          asUnifiedPanelRootSearchItem(
-            createUnifiedPanelListItem(child, {
-              ...options,
-              ancestorLauncherIds,
-              source: getLauncherPreferredSource(child)
-            })
-          )
-        ]
-      : []
+      children.length === 0
+        ? [
+            asUnifiedPanelRootSearchItem(
+              createUnifiedPanelListItem(child, {
+                ...options,
+                ancestorLauncherIds,
+                source: getLauncherPreferredSource(child)
+              })
+            )
+          ]
+        : []
 
-    return childItems
+    return [...childItems, ...createUnifiedPanelRootSearchItems(child, { ...options, ancestorLauncherIds })]
   })
 
   return [...customPanelItems, ...submenuItems]
@@ -377,7 +408,8 @@ function openUnifiedPanelSubmenu(
     queryAnchor: options.queryAnchor,
     // A submenu is opened by a selection, so its query starts empty and is typed, not triggered.
     triggerInfo: { type: 'button' },
-    trackInputQuery: true
+    trackInputQuery: true,
+    consumeQueryOnDismiss: true
   })
 }
 

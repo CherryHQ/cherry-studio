@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type ModelCapability, objectValues } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
-import * as z from 'zod'
 
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
 const utcDateTimeSchema = z.iso.datetime()

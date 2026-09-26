@@ -1,20 +1,19 @@
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH,
   getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 280, byKey: {} as Record<string, number> }
+  const state = { width: 280, byKey: {} as Record<string, number>, windowByKey: {} as Record<string, number> }
 
   return {
     state,
@@ -23,6 +22,9 @@ const persistCacheMock = vi.hoisted(() => {
     }),
     setByKey: vi.fn((key: string, width: number) => {
       state.byKey[key] = width
+    }),
+    setWindowByKey: vi.fn((key: string, width: number) => {
+      state.windowByKey[key] = width
     })
   }
 })
@@ -45,6 +47,10 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  useCache: vi.fn((key: string, initialValue: number) => [
+    persistCacheMock.state.windowByKey[key] ?? initialValue,
+    (width: number) => persistCacheMock.setWindowByKey(key, width)
+  ]),
   usePersistCache: vi.fn((key: string) => [
     persistCacheMock.state.byKey[key] ?? persistCacheMock.state.width,
     (width: number) => {
@@ -207,7 +213,7 @@ function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: 
     x: 0,
     y: top,
     toJSON: () => ({})
-  } as DOMRect)
+  })
 }
 
 describe('RightPaneHost', () => {
@@ -224,8 +230,10 @@ describe('RightPaneHost', () => {
     restoreResizeObserver = null
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
     persistCacheMock.state.byKey = {}
+    persistCacheMock.state.windowByKey = {}
     persistCacheMock.setWidth.mockClear()
     persistCacheMock.setByKey.mockClear()
+    persistCacheMock.setWindowByKey.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
@@ -275,13 +283,6 @@ describe('RightPaneHost', () => {
     )
 
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
-  })
-
-  it('uses the configured right pane default and minimum widths', () => {
-    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {
@@ -338,6 +339,21 @@ describe('RightPaneHost', () => {
     expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
   })
 
+  it('lets an inspector grow beyond 720px while reserving usable center space', () => {
+    mockMainRegionWidth(2400)
+    render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable>
+          <div>Browser</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const handle = screen.getByRole('separator')
+    expect(handle).toHaveAttribute('aria-valuemax', '2040')
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(persistCacheMock.state.width).toBe(2040)
+  })
+
   it('persists a list pane under its own key and lets it reach the list floor', () => {
     mockMainRegionWidth(900)
     persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
@@ -366,6 +382,35 @@ describe('RightPaneHost', () => {
 
     expect(persistCacheMock.setByKey).toHaveBeenCalledWith(LIST_POLICY.cacheKey, LIST_POLICY.minWidth)
     expect(persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey]).toBe(460)
+  })
+
+  it.each([
+    { policy: LIST_POLICY, windowKey: 'ui.window.chat.resource_pane.width' },
+    { policy: INSPECTOR_POLICY, windowKey: 'ui.window.chat.artifact_pane.width' }
+  ])('keeps detached $policy.cacheKey resizing local to its renderer window', ({ policy, windowKey }) => {
+    mockMainRegionWidth(900)
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <div data-main-region>
+          <PersistentRightPaneHost
+            open
+            resizable
+            minWidth={policy.minWidth}
+            maxWidth={policy.maxWidth}
+            cacheKey={policy.cacheKey}>
+            <div>pane</div>
+          </PersistentRightPaneHost>
+        </div>
+      </WindowFrameProvider>
+    )
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWindowByKey).toHaveBeenCalledWith(windowKey, policy.minWidth)
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
   })
 
   it('builds the list pane spacer expression from the list floor', () => {
@@ -831,10 +876,9 @@ describe('RightPaneHost', () => {
 
     fireEvent.mouseUp(document)
 
-    // Exactly one commit, with the last mousemove's clamped width (800 - 20 = 780,
-    // clamped down to the max).
+    // Commit the final width once; inspector panes can grow beyond 720px.
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
-    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MAX_WIDTH)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(780)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
@@ -917,7 +961,7 @@ describe('RightPaneHost', () => {
       window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
         rafCallbacks.push(callback)
         return nextRafId++
-      }) as typeof window.requestAnimationFrame
+      })
       window.cancelAnimationFrame = vi.fn()
     })
 

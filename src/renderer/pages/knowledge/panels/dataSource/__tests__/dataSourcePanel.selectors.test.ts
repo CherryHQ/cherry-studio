@@ -1,5 +1,6 @@
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
+
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { getItemStatus, getItemTitle } from '../utils/selectors'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'

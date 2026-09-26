@@ -3,14 +3,15 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { session } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import type { MiniAppManifest } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { session } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearPublishJournal, recoverInterruptedPublishes, writePublishJournal } from '../publishJournal'
 import { withPublishLock } from '../publishLock'

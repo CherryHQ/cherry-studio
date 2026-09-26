@@ -1,4 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 

@@ -1,5 +1,6 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
+
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import WebSearchProviderLogo from './WebSearchProviderLogo'
 

@@ -1,9 +1,10 @@
-import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { X } from 'lucide-react'
 import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 type PromptTextAreaProps = Omit<
   ComponentProps<typeof Textarea.Input>,

@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the assistant-item hunk in patches/@ai-sdk__openai@3.0.53.patch.
+ * Guards the assistant-item hunk in patches/@ai-sdk__openai@3.0.109.patch.
  * Volcengine Ark rejects an assistant input item that omits `type` or `status`
  * (400 MissingParameter, reported one field at a time, #18253) — the adapter
  * infers both from the role. Only the assistant item needs them: Ark validates

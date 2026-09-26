@@ -3,6 +3,11 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -20,10 +25,6 @@ import {
   isManagedCherryProviderId
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =

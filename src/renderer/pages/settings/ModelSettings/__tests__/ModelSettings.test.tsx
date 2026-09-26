@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -136,17 +136,16 @@ vi.mock('../TopicNamingSettings', () => ({
 
 import ModelSettings from '../ModelSettings'
 
-const createModel = (providerId: string, apiModelId: string): Model =>
-  ({
-    id: `${providerId}::${apiModelId}`,
-    providerId,
-    apiModelId,
-    name: apiModelId,
-    capabilities: [],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false
-  }) as Model
+const createModel = (providerId: string, apiModelId: string): Model => ({
+  id: `${providerId}::${apiModelId}`,
+  providerId,
+  apiModelId,
+  name: apiModelId,
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('ModelSettings', () => {
   beforeEach(() => {

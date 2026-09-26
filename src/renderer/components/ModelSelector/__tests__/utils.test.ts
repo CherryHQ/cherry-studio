@@ -8,8 +8,9 @@
  * prevent.
  */
 
-import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
 
 import { getProviderDisplayName } from '../utils'
 

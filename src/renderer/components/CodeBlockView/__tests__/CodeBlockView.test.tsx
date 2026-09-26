@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { CodeBlockView } from '../CodeBlockView'
 import { CodeBlockWrapLinesContext } from '../wrapLinesContext'
@@ -49,6 +50,19 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('CodeBlockView', () => {
+  it('keeps the sticky toolbar attached to the message scroll container', () => {
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    const codeBlock = screen.getByLabelText('Code viewer').closest('[data-ui~="part:code-block"]')
+
+    expect(codeBlock).toHaveClass('overflow-clip')
+    expect(codeBlock).not.toHaveClass('overflow-hidden')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(navigator, 'clipboard', {

@@ -1,10 +1,11 @@
-import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
@@ -20,14 +21,14 @@ const originalResizeObserver = globalThis.ResizeObserver
 
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
-  observe: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 240, paneWidth: 460, listPaneWidth: 275 }
+  const state = { width: 240, paneWidth: 460, listPaneWidth: 275, windowWidth: 240 }
 
   return {
     state,
@@ -39,6 +40,9 @@ const persistCacheMock = vi.hoisted(() => {
     }),
     setListPaneWidth: vi.fn((width: number) => {
       state.listPaneWidth = width
+    }),
+    setWindowWidth: vi.fn((width: number) => {
+      state.windowWidth = width
     })
   }
 })
@@ -63,6 +67,7 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  useCache: vi.fn(() => [persistCacheMock.state.windowWidth, persistCacheMock.setWindowWidth]),
   usePersistCache: vi.fn((key: string) => {
     if (key === 'ui.chat.artifact_pane.width') return [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
     if (key === 'ui.chat.resource_pane.width')
@@ -121,7 +126,7 @@ describe('ChatAppShell', () => {
       writable: true
     })
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance = {
         callback,
         observe: vi.fn(),
@@ -133,16 +138,18 @@ describe('ChatAppShell', () => {
         observe: instance.observe,
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {
     persistCacheMock.state.width = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.state.paneWidth = 460
     persistCacheMock.state.listPaneWidth = 275
+    persistCacheMock.state.windowWidth = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.setWidth.mockClear()
     persistCacheMock.setPaneWidth.mockClear()
     persistCacheMock.setListPaneWidth.mockClear()
+    persistCacheMock.setWindowWidth.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.documentElement.style.removeProperty('--assistants-width')
@@ -348,6 +355,22 @@ describe('ChatAppShell', () => {
     expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
   })
 
+  it('keeps detached left-pane resizing local to its renderer window', () => {
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+      </WindowFrameProvider>
+    )
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resource list pane resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWindowWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
   it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
@@ -538,6 +561,27 @@ describe('ChatAppShell', () => {
     notifyObservedShellWidth(599)
 
     expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('predicts detached auto-collapse from the same renderer-local list width used by its splitter', () => {
+    persistCacheMock.state.width = RESOURCE_LIST_PANE_MIN_WIDTH
+    persistCacheMock.state.windowWidth = RESOURCE_LIST_PANE_MAX_WIDTH
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell
+          pane={<aside>topics</aside>}
+          paneOpen
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+          main={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    notifyObservedShellWidth(700)
+
     expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
   })
 

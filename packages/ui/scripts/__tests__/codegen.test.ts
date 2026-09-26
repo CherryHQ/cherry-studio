@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { generateAvatar, generateIconIndex, generateIconLoaders } from '../codegen'
+import { generateAvatar, generateBarrelIndex, generateIconIndex, generateIconLoaders } from '../codegen'
 
 describe('generateAvatar', () => {
   it('renders neutral-background icons at the full avatar size', () => {
@@ -128,6 +128,38 @@ describe('generateIconLoaders', () => {
       expect(content).toContain('satisfies Record<ProviderIconKey, () => Promise<CompoundIcon>>')
       expect(content).not.toMatch(/import \{ OpenaiIcon \} from '\.\/openai'/)
       expect(content).not.toContain("from './catalog'")
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('imports a named icon component without relying on index.tsx', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cherry-ui-codegen-'))
+    const barrelPath = join(dir, 'index.ts')
+    const loadersPath = join(dir, 'loaders.ts')
+    const entries = [
+      {
+        dirName: 'gpt-6-astra',
+        colorName: 'Gpt6Astra',
+        modulePath: './gpt-6-astra/gpt-6-astra'
+      }
+    ]
+
+    try {
+      generateBarrelIndex({ outPath: barrelPath, entries })
+      generateIconLoaders({
+        outPath: loadersPath,
+        entries,
+        loadersName: 'MODEL_ICON_LOADERS',
+        keyTypeName: 'ModelIconKey'
+      })
+
+      expect(readFileSync(barrelPath, 'utf-8')).toContain(
+        "export { Gpt6AstraIcon as Gpt6Astra } from './gpt-6-astra/gpt-6-astra'"
+      )
+      expect(readFileSync(loadersPath, 'utf-8')).toContain(
+        "import('./gpt-6-astra/gpt-6-astra').then(({ Gpt6AstraIcon }) => Gpt6AstraIcon)"
+      )
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

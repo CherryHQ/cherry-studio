@@ -1,6 +1,7 @@
-import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import { useModelCheckCredentials } from '../useModelCheckCredentials'
 

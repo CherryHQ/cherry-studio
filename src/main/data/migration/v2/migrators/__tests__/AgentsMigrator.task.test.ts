@@ -20,13 +20,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
-import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 
 import { AgentsMigrator } from '../AgentsMigrator'
 

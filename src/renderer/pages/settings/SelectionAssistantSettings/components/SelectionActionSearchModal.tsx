@@ -1,3 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Globe } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   Button,
   Dialog,
@@ -18,16 +26,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Globe } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
 const SEARCH_ENGINE_ICON_COLOR = 'var(--muted-foreground)'
@@ -199,7 +200,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const customUrl = form.getValues('customUrl')
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
-      void ipcApi.request('system.shell.open_website', testUrl)
+      void openExternalWebsite(testUrl)
     }
   }
 

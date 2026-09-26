@@ -1,5 +1,6 @@
-import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Edge, Node } from '@xyflow/react'
+
+import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 
 export const TOPIC_MESSAGE_FLOW_NODE_TYPE = 'topicMessage'
 

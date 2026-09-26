@@ -88,5 +88,5 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
   provider.imageModel = (modelId: string) =>
     createImageGenerationModel(modelId, { provider: PPIO_PROVIDER_NAME, transport })
 
-  return provider as PpioProvider
+  return provider
 }

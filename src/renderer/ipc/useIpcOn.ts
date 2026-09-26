@@ -1,6 +1,7 @@
+import { useEffect, useEffectEvent } from 'react'
+
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
-import { useEffect, useEffectEvent } from 'react'
 
 import { ipcApi } from './ipcApi'
 

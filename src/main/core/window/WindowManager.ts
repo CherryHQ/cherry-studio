@@ -1,5 +1,8 @@
 import { join } from 'node:path'
 
+import { app, BrowserWindow, screen } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
@@ -30,8 +33,6 @@ import {
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import { app, BrowserWindow, screen, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 
@@ -1360,20 +1361,14 @@ export class WindowManager extends BaseService {
       }
     })
 
-    // Intercept external links: open in system browser
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
-      }
-      return { action: 'deny' }
-    })
+    // Domain services may route denied popups after onWindowCreated.
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window

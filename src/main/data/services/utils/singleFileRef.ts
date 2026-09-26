@@ -41,11 +41,12 @@
  * here, so the DataApi services stay 100% DB-only.
  */
 
-import { application } from '@application'
-import type { FileEntryId } from '@shared/data/types/file'
 import { type AnyColumn, eq } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
+import type { FileEntryId } from '@shared/data/types/file'
 
 /**
  * Broad transaction/database type. Matches both top-level `DbType` and the
@@ -54,7 +55,6 @@ import { v4 as uuidv4 } from 'uuid'
  * single-file ref table, and Drizzle's `BetterSQLite3Database<TSchema>` generic
  * would otherwise force call-site casts with no safety benefit.
  */
-// biome-ignore lint: intentionally loose — see JSDoc above.
 type TxLike = any
 
 /**

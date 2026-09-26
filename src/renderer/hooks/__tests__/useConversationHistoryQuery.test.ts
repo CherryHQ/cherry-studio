@@ -1,7 +1,8 @@
-import { dataApiService } from '@data/DataApiService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { unstable_serialize } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 import { createSWRTestWrapper as makeWrapper } from '../../data/hooks/__tests__/testUtils'
 
@@ -13,6 +14,16 @@ describe('useConversationHistoryQuery', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.useRealTimers()
+  })
+
+  it('rejects parallel loading for cursor-paginated conversation history', () => {
+    if ((false as boolean) === true) {
+      void useConversationHistoryQuery('/topics/:topicId/messages', {
+        params: { topicId: 'topic-1' },
+        // @ts-expect-error - each page key depends on the previous page cursor
+        swrOptions: { parallel: true }
+      })
+    }
   })
 
   it('removes a cursor page cache entry after revalidation replaces that cursor', async () => {

@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
 import { t } from '@main/i18n'
@@ -12,7 +14,6 @@ import type { FileHandle } from '@shared/data/types/file'
 import { type AbsoluteFilePath, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { GB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
-import mime from 'mime'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
 import { processorRegistry } from '../processors/registry'
@@ -20,7 +21,7 @@ import type {
   FileProcessingCapabilityHandler,
   FileProcessingProcessorCapabilities,
   FileProcessingRemoteContext,
-  PreparedBackgroundJob,
+  PreparedFileProcessingJob,
   PreparedRemoteJob
 } from '../processors/types'
 import type { FileProcessingJobPayload } from './shared'
@@ -35,7 +36,7 @@ interface PreparedFileProcessingJobBase {
 }
 
 export interface PreparedBackgroundFileProcessingJob extends PreparedFileProcessingJobBase {
-  prepared: PreparedBackgroundJob
+  prepared: PreparedFileProcessingJob
 }
 
 export interface PreparedRemotePollFileProcessingJob extends PreparedFileProcessingJobBase {
@@ -62,15 +63,22 @@ export async function prepareFileProcessingJob(
   const { feature, file, processorId } = input
   const config = resolveProcessorConfigByFeature(feature, processorId)
   const handler = getCapabilityHandler(config.id, feature)
-  assertModeMatches(handler, expectedMode)
+  if (handler.mode !== 'auto') {
+    assertModeMatches({ mode: handler.mode }, expectedMode)
+  } else if (expectedMode !== 'background') {
+    throw new Error('Internal error - Auto capability must use the background job type')
+  }
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
-  await assertDocumentInputLimits(ctx, expectedMode, fileInfo, config)
+  await assertDocumentInputLimits(ctx, handler.mode, fileInfo, config)
 
   const prepared = await handler.prepare(fileInfo, config, ctx.signal, {
+    ...(ctx.metadata.remoteState !== undefined ? { remoteState: ctx.metadata.remoteState } : {}),
     ...(input.context?.dataId ? { dataId: input.context.dataId } : {})
   })
-  assertModeMatches(prepared, expectedMode)
+  if (handler.mode !== 'auto') {
+    assertModeMatches(prepared, expectedMode)
+  }
 
   return createPreparedFileProcessingJobResult(expectedMode, {
     feature,
@@ -83,13 +91,13 @@ export async function prepareFileProcessingJob(
 
 async function assertDocumentInputLimits(
   ctx: JobContext<FileProcessingJobPayload>,
-  mode: FileProcessingJobMode,
+  mode: FileProcessingCapabilityHandler['mode'],
   file: FileInfo,
   config: FileProcessorMerged
 ): Promise<void> {
   if (
     ctx.input.feature !== 'document_to_markdown' ||
-    (mode === 'remote-poll' && hasPersistedProviderTask(ctx.metadata.remoteState))
+    (mode !== 'background' && hasPersistedProviderTask(ctx.metadata.remoteState))
   ) {
     return
   }
