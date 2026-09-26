@@ -2,7 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
 
-import { execWorkerSource } from './worker'
+import { execWorkerSource, IMAGE_OUTPUT_LIMIT_ERROR, MAX_EXEC_IMAGE_DATA_LENGTH, MAX_EXEC_IMAGES } from './worker'
 
 const logger = loggerService.withContext('codeMode.runtime')
 
@@ -12,13 +12,30 @@ const EXECUTION_TIMEOUT_MS = 60_000
 export interface ExecResult {
   result: unknown
   logs?: string[]
+  images?: ExecImage[]
   error?: string
   isError?: boolean
 }
 
+export interface ExecImage {
+  data: string
+  mimeType: string
+}
+
+export interface ExecToolResult {
+  value: unknown
+  images?: ExecImage[]
+}
+
 export interface ExecCodeContext {
   abortSignal?: AbortSignal
-  executeTool(name: string, params: Record<string, unknown>, requestId: string, signal: AbortSignal): Promise<unknown>
+  facades?: Record<string, Record<string, string>>
+  executeTool(
+    name: string,
+    params: Record<string, unknown>,
+    requestId: string,
+    signal: AbortSignal
+  ): Promise<ExecToolResult>
   onExecutionStarted?: (controls: { pauseTimeout: () => void; resumeTimeout: () => void }) => void
 }
 
@@ -38,6 +55,7 @@ interface WorkerResultMessage {
   type: 'result'
   result: unknown
   logs?: string[]
+  images?: ExecImage[]
 }
 
 interface WorkerErrorMessage {
@@ -63,6 +81,8 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     let timeoutStartedAt = 0
     let timeoutRemainingMs = EXECUTION_TIMEOUT_MS
     let timeoutPauseCount = 0
+    let forwardedImageCount = 0
+    let forwardedImageDataLength = 0
 
     const addLog = (entry: string) => {
       if (logs.length < MAX_LOGS) logs.push(entry)
@@ -162,7 +182,24 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       try {
         const result = await ctx.executeTool(message.name, message.params ?? {}, message.requestId, childAbort.signal)
         if (finished || timedOut || terminating) return
-        worker.postMessage({ type: 'toolResult', requestId: message.requestId, result })
+        const images = result.images ?? []
+        const nextImageCount = forwardedImageCount + images.length
+        const nextImageDataLength = images.reduce(
+          (length, image) => length + image.data.length,
+          forwardedImageDataLength
+        )
+        if (nextImageCount > MAX_EXEC_IMAGES || nextImageDataLength > MAX_EXEC_IMAGE_DATA_LENGTH) {
+          await terminateWithError(IMAGE_OUTPUT_LIMIT_ERROR)
+          return
+        }
+        forwardedImageCount = nextImageCount
+        forwardedImageDataLength = nextImageDataLength
+        worker.postMessage({
+          type: 'toolResult',
+          requestId: message.requestId,
+          result: result.value,
+          images
+        })
       } catch (err) {
         if (finished || timedOut || terminating) return
         const errorMessage = err instanceof Error ? err.message : String(err)
@@ -183,7 +220,11 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
           break
         case 'result': {
           const resolvedLogs = message.logs && message.logs.length > 0 ? message.logs : logs
-          void finalize({ result: message.result, logs: resolvedLogs.length > 0 ? resolvedLogs : undefined })
+          void finalize({
+            result: message.result,
+            logs: resolvedLogs.length > 0 ? resolvedLogs : undefined,
+            images: message.images
+          })
           break
         }
         case 'error': {
@@ -221,6 +262,6 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       )
     })
 
-    worker.postMessage({ type: 'exec', code })
+    worker.postMessage({ type: 'exec', code, facades: ctx.facades })
   })
 }
