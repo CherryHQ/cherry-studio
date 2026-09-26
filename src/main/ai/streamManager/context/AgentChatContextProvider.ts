@@ -128,6 +128,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     await driver.validateSession(session)
+    // O1: snapshot the workspace now, before this turn can touch it. A failed
+    // checkpoint must never block the turn — CheckpointService swallows its own errors.
+    if (session.workspace?.path) {
+      await application.get('CheckpointService').createCheckpoint(sessionId, session.workspace.path)
+    }
 
     const deliveryMessage = req.agentDeliveryMessage
     if (

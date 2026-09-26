@@ -507,7 +507,8 @@ vi.mock('../components/AgentChatNavbar', () => ({
         </button>
       )}
     </div>
-  )
+  ),
+  AgentCheckpointUndo: () => null
 }))
 
 vi.mock('../AgentSidePanel', () => ({

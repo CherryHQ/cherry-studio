@@ -249,7 +249,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
 vi.mock('../components/AgentChatNavbar', () => ({
   AgentChatNavbar: ({ conversationControls }: { conversationControls?: ReactNode }) => (
     <div data-testid="agent-navbar">{conversationControls}</div>
-  )
+  ),
+  AgentCheckpointUndo: () => null
 }))
 
 vi.mock('../components/AgentRightPane', () => {

@@ -6,6 +6,7 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { CheckpointService } from '@main/ai/agentSession/CheckpointService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
@@ -164,6 +165,7 @@ export const services = {
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
+  CheckpointService,
   AgentJobsService,
   AgentLifecycleService,
   ChannelManager,
