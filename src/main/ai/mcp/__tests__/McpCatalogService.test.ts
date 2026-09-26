@@ -40,10 +40,11 @@ const runtimeService = {
     async (
       _serverId: string,
       operation: (client: {
-        listTools: typeof listTools
+        request: typeof listTools
+        cacheToolMetadata: ReturnType<typeof vi.fn>
         getServerCapabilities: typeof getServerCapabilities
       }) => unknown
-    ) => operation({ listTools, getServerCapabilities })
+    ) => operation({ request: listTools, cacheToolMetadata: vi.fn(), getServerCapabilities })
   ),
   setServerStatus: vi.fn(),
   onToolListChanged: vi.fn(() => ({ dispose: vi.fn() })),
@@ -150,6 +151,61 @@ describe('McpCatalogService', () => {
     expect(first.serverId).toBe('server-a')
     expect(second.serverId).toBe('server-b')
   })
+
+  it('loads the whole catalog when tools contain boolean and empty subschemas', async () => {
+    getById.mockReturnValue(server())
+    const tools = [
+      sdkTool('plain'),
+      ...[true, false].map((value) => ({
+        ...sdkTool(`state-${value}`),
+        outputSchema: { type: 'object', properties: { canonical_state: value } }
+      })),
+      {
+        ...sdkTool('flexible-input'),
+        inputSchema: { type: 'object', properties: { payload: {}, filter: false } },
+        extension: { enabled: true }
+      }
+    ]
+    listTools.mockResolvedValue({ tools })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    const loaded = service.listTools('server-1', { includeDisabled: true })
+    expect(loaded).toHaveLength(4)
+    expect(loaded).toMatchObject(tools)
+    expect(cacheStore.get('mcp.tools.server-1')).toEqual(loaded)
+    expect(runtimeService.setServerStatus).toHaveBeenCalledExactlyOnceWith('server-1', 'connected')
+    expect(loggerWarn).not.toHaveBeenCalled()
+  })
+
+  it.each(['inputSchema', 'outputSchema'])(
+    'skips a tool with an unnormalizable %s without losing its peers',
+    async (field) => {
+      getById.mockReturnValue(server())
+      listTools.mockResolvedValue({
+        tools: [
+          sdkTool('before'),
+          { ...sdkTool('bad-required'), [field]: { type: 'object', required: [42] } },
+          sdkTool('after')
+        ]
+      })
+
+      const service = new McpCatalogService()
+      await service.refreshTools('server-1')
+
+      expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['before', 'after'])
+      expect(runtimeService.setServerStatus).toHaveBeenCalledExactlyOnceWith('server-1', 'connected')
+      expect(loggerWarn).toHaveBeenCalledWith(
+        'Skipping MCP tool with invalid schema',
+        expect.objectContaining({
+          serverId: 'server-1',
+          toolName: 'bad-required',
+          reason: expect.stringContaining('required')
+        })
+      )
+    }
+  )
 
   it('mints distinct ids for non-ASCII tool names from one server', async () => {
     getById.mockReturnValue(server({ id: 'ocr-server', name: 'ocr' }))

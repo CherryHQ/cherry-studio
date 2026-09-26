@@ -1,6 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { ProgressNotificationSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import {
+  ListToolsRequestSchema,
+  ProgressNotificationSchema,
+  ToolListChangedNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -54,9 +59,11 @@ function searchTool() {
 
 /** Connect a real MCP client to the bridge over an in-memory transport pair and make sure
  *  the `initialized` notification has been processed server-side before returning. */
-async function connectClient(sdkServer: ReturnType<typeof createMcpBridgeServer>) {
+async function connectClient(
+  sdkServer: ReturnType<typeof createMcpBridgeServer>,
+  client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} })
+) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-  const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} })
   await sdkServer.server.connect(serverTransport)
   await client.connect(clientTransport)
   // client.connect resolves after *sending* `initialized`; give the server a tick to handle it.
@@ -208,6 +215,116 @@ describe('createMcpBridgeServer', () => {
     expect(client.getServerCapabilities()?.tools).toEqual({ listChanged: true })
 
     await client.close()
+  })
+
+  it('serves boolean output subschemas that a strict SDK client rejects without normalization', async () => {
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        canonical_state: true,
+        forbidden: false,
+        nested: { type: 'object', properties: { child: false } },
+        sequence: { type: 'array', items: [true, false] }
+      }
+    }
+    const tool = { ...searchTool(), outputSchema }
+    const plainServer = new McpServer({ name: 'unnormalized', version: '1.0.0' }, { capabilities: { tools: {} } })
+    plainServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [tool] }))
+
+    const controlClient = await connectClient(plainServer)
+    try {
+      await expect(controlClient.listTools()).rejects.toMatchObject({
+        name: '$ZodError',
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ['tools', 0, 'outputSchema', 'properties', 'canonical_state'],
+            code: 'custom'
+          }),
+          expect.objectContaining({ path: ['tools', 0, 'outputSchema', 'properties', 'forbidden'], code: 'custom' })
+        ])
+      })
+    } finally {
+      await controlClient.close()
+    }
+
+    mocks.listTools.mockReturnValue([tool])
+    const callResult = { content: [{ type: 'text', text: 'done' }], structuredContent: { canonical_state: true } }
+    mocks.callTool.mockResolvedValue(callResult)
+    const client = await connectClient(createMcpBridgeServer('server-1'), controlClient)
+    try {
+      const { tools } = await client.listTools()
+      expect(tools).toEqual([
+        {
+          name: 'search',
+          description: 'search desc',
+          inputSchema: tool.inputSchema,
+          outputSchema: {
+            type: 'object',
+            properties: {
+              canonical_state: {},
+              forbidden: { not: {} },
+              nested: { type: 'object', properties: { child: { not: {} } } },
+              sequence: { type: 'array', items: [{}, { not: {} }] }
+            }
+          }
+        }
+      ])
+      await expect(client.callTool({ name: 'search', arguments: {} })).resolves.toEqual(callResult)
+    } finally {
+      await client.close()
+    }
+  })
+
+  it('preserves calls, cached schemas and notifications while normalizing both tool schemas', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        canonical_state: true,
+        forbidden: false,
+        alternatives: { anyOf: [true, false] },
+        literal: { default: true, const: true, enum: [true, false] }
+      }
+    }
+    const expectedSchema = {
+      type: 'object',
+      properties: {
+        canonical_state: {},
+        forbidden: { not: {} },
+        alternatives: { anyOf: [{}, { not: {} }] },
+        literal: { default: true, const: true, enum: [true, false] }
+      }
+    }
+    const cached = [{ ...searchTool(), name: 'boolean_tool', inputSchema: schema, outputSchema: schema }, searchTool()]
+    const original = structuredClone(cached)
+    mocks.listTools.mockReturnValue(cached)
+    mocks.callTool.mockResolvedValue({
+      content: [{ type: 'text', text: 'done' }],
+      structuredContent: { canonical_state: true }
+    })
+
+    const client = await connectClient(createMcpBridgeServer('server-1'))
+    try {
+      const { tools } = await client.listTools()
+      expect(tools.map((tool) => tool.name)).toEqual(['boolean_tool', 'search'])
+      expect(tools[0].inputSchema).toEqual(expectedSchema)
+      expect(tools[0].outputSchema).toEqual(expectedSchema)
+      expect(tools[1].outputSchema).toBeUndefined()
+      expect(cached).toEqual(original)
+      await expect(client.callTool({ name: 'boolean_tool', arguments: { canonical_state: false } })).resolves.toEqual({
+        content: [{ type: 'text', text: 'done' }],
+        structuredContent: { canonical_state: true }
+      })
+
+      const notified = new Promise<void>((resolve) => {
+        client.setNotificationHandler(ToolListChangedNotificationSchema, async () => resolve())
+      })
+      mocks.listTools.mockReturnValue([searchTool()])
+      cacheUpdatedListener!({ serverId: 'server-1' })
+      await notified
+      expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['search'])
+    } finally {
+      await client.close()
+    }
   })
 
   it('does not subscribe to cache updates until the session actually initializes', () => {

@@ -11,6 +11,7 @@ import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
+import { listToolsTolerant } from './mcpListTools'
 import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
@@ -179,7 +180,7 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
     try {
-      const { tools } = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
+      const tools = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
         // A server that publishes only prompts or resources answers `tools/list` with -32601, which
         // used to surface as "start failed" and made it impossible to enable at all.
         if (!client.getServerCapabilities()?.tools) {
@@ -187,15 +188,26 @@ export class McpCatalogService extends BaseService {
             serverId: server.id,
             serverName: server.name
           })
-          return { tools: [] as SDKTool[] }
+          return [] as SDKTool[]
         }
-        return client.listTools()
+        return listToolsTolerant(client)
       })
-      return tools.map((tool: SDKTool) => {
+      const serverTools: McpTool[] = []
+      for (const tool of tools) {
+        const inputSchema = MCP_TOOL_INPUT_SCHEMA.safeParse(tool.inputSchema)
+        const outputSchema = tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.safeParse(tool.outputSchema) : undefined
+        if (!inputSchema.success || (outputSchema && !outputSchema.success)) {
+          logger.warn('Skipping MCP tool with invalid schema', {
+            serverId: server.id,
+            toolName: tool.name,
+            reason: inputSchema.error?.message ?? outputSchema?.error?.message
+          })
+          continue
+        }
         const serverTool: McpTool = {
           ...tool,
-          inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
-          outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
+          inputSchema: inputSchema.data,
+          outputSchema: outputSchema?.data,
           id: buildMcpToolWireId({
             serverId: server.id,
             serverName: server.name,
@@ -211,8 +223,9 @@ export class McpCatalogService extends BaseService {
           toolName: tool.name,
           toolId: serverTool.id
         })
-        return serverTool
-      })
+        serverTools.push(serverTool)
+      }
+      return serverTools
     } catch (error: unknown) {
       logger.error('Failed to list tools', error as Error, { serverId: server.id, serverName: server.name })
       throw error
