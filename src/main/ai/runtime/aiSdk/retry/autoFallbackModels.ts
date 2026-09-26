@@ -4,7 +4,6 @@
 import { loggerService } from '@logger'
 import { modelService } from '@main/data/services/ModelService'
 import type { ModelHealthMemory, RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { freshModelHealth } from '@shared/utils/modelHealth'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
@@ -28,10 +27,10 @@ export function buildAutoFallbackModelIds(health: ModelHealthMemory): RetryFallb
     const chatModels = modelService.list({ enabled: true }).filter((model) => !isNonChatModel(model))
     const healthy = new Set(healthyIds)
     return chatModels
-      .map((model) => createUniqueModelId(model.providerId, model.id))
+      .map((model) => model.id)
       .filter((uniqueModelId) => healthy.has(uniqueModelId))
       .sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))
-      .slice(0, MAX_AUTO_FALLBACKS) as RetryFallbackModelId[]
+      .slice(0, MAX_AUTO_FALLBACKS)
   } catch (error) {
     logger.warn('could not build an automatic fallback chain', { error })
     return []
