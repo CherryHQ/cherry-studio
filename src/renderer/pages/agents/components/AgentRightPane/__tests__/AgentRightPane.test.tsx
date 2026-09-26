@@ -169,6 +169,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  Alert: ({ message }: { message?: string }) => <div>{message}</div>,
   TooltipSurface: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
@@ -2056,6 +2057,51 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
   })
 
+  it('pages older history in when a receipt root is outside the window, then opens it', async () => {
+    const loadOlder = vi.fn()
+    // dsh's receipt carries its target in the input and the rendered text; the launch names the same
+    // child, which is how the pane joins the two.
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    // The launch root is paged out, so the click loads history instead of doing nothing at all.
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // Once the launch row is in the window the flow opens on its own, at the launch identity.
+    view.rerender(pane({ m1: [receipt], m2: [launch] }))
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
+  })
+
   it('resolves a dynamic flow panel from the declared flow capability', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
@@ -2090,6 +2136,8 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
   })
 
+  // The resolved output feeds resume-round splitting (the receipt carries the agent id), even
+  // though its text is no longer rendered in the flow.
   it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {

@@ -131,7 +131,9 @@ import {
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
-  isAgentPreviewUrlSourceAfterFrontier
+  isAgentPreviewUrlSourceAfterFrontier,
+  isResumeReceiptCall,
+  resolveFlowToolCallId
 } from './agentRightPaneProjection'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 
@@ -220,6 +222,10 @@ interface AgentRightPaneMeta {
 interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** Pages older history in so a flow root outside the loaded window can still be opened. */
+  loadOlder?: () => void
+  /** Whether older history remains; false means a missing root cannot be paged in. */
+  hasOlder?: boolean
   browserUrl: string | null
   browserProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
@@ -296,6 +302,9 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   revealRequest?: ResourceListRevealRequest
   streamingLayers?: MessageStreamingLayers
   isMessageHistoryLoading?: boolean
+  /** Pages older history in, and reports whether any is left, for flows rooted outside the window. */
+  loadOlder?: () => void
+  hasOlder?: boolean
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
@@ -409,14 +418,69 @@ function AgentRightPaneActionsProvider({
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
-  const openAgentToolFlow = useCallback(
-    (input: AgentToolFlowOpenInput, nested = false) => {
-      if (!canOpenAgentToolFlow) return
+  // Read the parts map at call time through a ref so message streaming does not re-create the
+  // actions object (and re-render consumers that only open flows).
+  const runtime = use(AgentRightPaneRuntimeContext)
+  const runtimeRef = useRef(runtime)
+  runtimeRef.current = runtime
+  // A root outside the loaded window is not a dead click: hold the intent and page older history in
+  // until it arrives, so the flow opens without the user scrolling back by hand.
+  const [pendingFlowOpen, setPendingFlowOpen] = useState<AgentToolFlowOpenInput | null>(null)
+  const pagedForRef = useRef<string | null>(null)
+  const showFlowTab = useCallback(
+    (input: AgentToolFlowOpenInput, nested: boolean) => {
       replaceFlowTab(input, nested)
       panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
-    [canOpenAgentToolFlow, panelActions, replaceFlowTab]
+    [panelActions, replaceFlowTab]
   )
+  const openAgentToolFlow = useCallback(
+    (input: AgentToolFlowOpenInput, nested = false) => {
+      if (!canOpenAgentToolFlow) return
+      // A task bound to its send-message receipt (cold reconnect replay) must still open the flow
+      // its agent actually streams under — the launch root.
+      const partsByMessageId = runtimeRef.current?.partsByMessageId ?? null
+      const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId)
+      // A receipt whose root is merely paged out is worth waiting for; one that resolves nowhere
+      // must not open an empty pane rooted at the continuation itself.
+      if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId)) {
+        pagedForRef.current = null
+        setPendingFlowOpen(input)
+        return
+      }
+      const flowInput = resolved
+        ? { ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }
+        : input
+      showFlowTab(flowInput, nested)
+    },
+    [canOpenAgentToolFlow, showFlowTab]
+  )
+  useEffect(() => {
+    if (!pendingFlowOpen) return
+    const partsByMessageId = runtime?.partsByMessageId ?? null
+    const resolved = resolveFlowToolCallId(pendingFlowOpen.toolCallId, partsByMessageId)
+    if (resolved) {
+      setPendingFlowOpen(null)
+      pagedForRef.current = null
+      showFlowTab(
+        { ...pendingFlowOpen, toolCallId: resolved.toolCallId, title: resolved.description ?? pendingFlowOpen.title },
+        false
+      )
+      return
+    }
+    if (!runtime?.hasOlder) {
+      // No history is left to page: the root is absent, so say so instead of ignoring the click.
+      setPendingFlowOpen(null)
+      pagedForRef.current = null
+      toast.warning(t('agent.right_pane.flow.no_messages.description'))
+      return
+    }
+    // One page per arrival: the parts map changes with each load, so a repeat cannot spin.
+    const requestKey = `${pendingFlowOpen.toolCallId}:${Object.keys(partsByMessageId ?? {}).length}`
+    if (pagedForRef.current === requestKey) return
+    pagedForRef.current = requestKey
+    runtime.loadOlder?.()
+  }, [pendingFlowOpen, runtime, showFlowTab, t])
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
@@ -523,7 +587,9 @@ function AgentRightPaneStateProvider({
   userOpenIntentSeq,
   revealRequest,
   streamingLayers,
-  isMessageHistoryLoading = false
+  isMessageHistoryLoading = false,
+  loadOlder,
+  hasOlder
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -664,8 +730,26 @@ function AgentRightPaneStateProvider({
       ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
       : WebviewSecurityProfile.AgentBrowser
   const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
-    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
+    () => ({
+      messages,
+      partsByMessageId,
+      loadOlder,
+      hasOlder,
+      browserUrl,
+      browserProfile,
+      openBrowserUrl,
+      acceptDetectedBrowserUrl
+    }),
+    [
+      acceptDetectedBrowserUrl,
+      browserUrl,
+      browserProfile,
+      openBrowserUrl,
+      messages,
+      partsByMessageId,
+      loadOlder,
+      hasOlder
+    ]
   )
   // The pane renders the same resume receipts as the chat list, so it needs the same index: without
   // it a receipt cannot resolve to its launch root and stays non-navigable.
@@ -1132,6 +1216,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
+  // The resolved output feeds resume-round splitting only (the launch receipt carries the agent id
+  // that ties SendMessage continuations to this flow) — it is not rendered.
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
