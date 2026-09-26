@@ -39,7 +39,34 @@ function isSafeRelativePath(filename) {
   return normalized === filename && normalized !== '..' && !normalized.startsWith('../')
 }
 
-function verifyPackagedUarPayload(resourcesDir, platformKey) {
+function isPlatformSignedCode(filename, platformKey) {
+  if (platformKey.startsWith('darwin-')) return filename === 'uar-sidecar' || filename.endsWith('.dylib')
+  if (platformKey.startsWith('win32-')) return filename === 'uar-sidecar.exe'
+  return false
+}
+
+function verifyPlatformSignature(filename, platformKey) {
+  const result = platformKey.startsWith('darwin-')
+    ? spawnSync('codesign', ['--verify', '--strict', '--verbose=2', filename], { encoding: 'utf8' })
+    : spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          '(Get-AuthenticodeSignature -LiteralPath $env:UAR_SIGNED_FILE).Status'
+        ],
+        { env: { ...process.env, UAR_SIGNED_FILE: filename }, encoding: 'utf8', windowsHide: true }
+      )
+  const valid = platformKey.startsWith('darwin-')
+    ? result.status === 0
+    : result.status === 0 && result.stdout.trim() === 'Valid'
+  if (!valid) {
+    throw new Error(`Packaged UAR sidecar platform signature is invalid for ${platformKey}: ${path.basename(filename)}`)
+  }
+}
+
+function verifyPackagedUarPayload(resourcesDir, platformKey, options = {}) {
   const { integration, sidecar } = loadUarArtifactManifest()
   const expected = sidecar?.packages?.[platformKey]
   if (!expected) throw new Error(`Integration artifact manifest is missing uar-sidecar ${platformKey}`)
@@ -80,10 +107,14 @@ function verifyPackagedUarPayload(resourcesDir, platformKey) {
     }
     const filename = path.join(payloadDir, ...entry.path.split('/'))
     const stat = fs.statSync(filename, { throwIfNoEntry: false })
-    if (!stat?.isFile() || stat.size !== entry.size) {
+    if (!stat?.isFile() || stat.size === 0) {
       throw new Error(`Packaged UAR sidecar file is missing or truncated for ${platformKey}: ${entry.path}`)
     }
-    if (sha256(filename) !== entry.sha256) {
+    const payloadMatches = stat.size === entry.size && sha256(filename) === entry.sha256
+    if (payloadMatches) continue
+    if (options.allowPlatformSigning && isPlatformSignedCode(entry.path, platformKey)) {
+      verifyPlatformSignature(filename, platformKey)
+    } else {
       throw new Error(`Packaged UAR sidecar checksum mismatch for ${platformKey}: ${entry.path}`)
     }
   }
@@ -124,8 +155,8 @@ function probePackagedUarSidecar(executable, payloadDir, platformKey) {
   }
 }
 
-function verifyAndProbePackagedUarPayload(resourcesDir, platformKey) {
-  const payload = verifyPackagedUarPayload(resourcesDir, platformKey)
+function verifyAndProbePackagedUarPayload(resourcesDir, platformKey, options) {
+  const payload = verifyPackagedUarPayload(resourcesDir, platformKey, options)
   probePackagedUarSidecar(payload.executable, payload.payloadDir, platformKey)
   return payload
 }

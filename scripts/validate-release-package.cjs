@@ -15,6 +15,7 @@ const platformKey = process.argv[2]
 const nativePlatformKey = `${process.platform}-${process.arch}`
 const version = require('../package.json').version
 const profile = resolveReleaseProfile()
+const requireNotarization = process.env.HAS_NOTARIZATION === 'true'
 
 if (!profile.supportedPlatforms.includes(platformKey)) {
   throw new Error(`usage: node scripts/validate-release-package.cjs <${profile.supportedPlatforms.join('|')}>`)
@@ -55,7 +56,7 @@ function verifyPackagedApplication(resourcesDir) {
     }
   }
 
-  if (profile.uarEnabled) verifyAndProbePackagedUarPayload(resourcesDir, platformKey)
+  if (profile.uarEnabled) verifyAndProbePackagedUarPayload(resourcesDir, platformKey, { allowPlatformSigning: true })
   else assertPackagedUarPayloadAbsent(resourcesDir, platformKey)
 }
 
@@ -76,8 +77,12 @@ function verifyApplicationBundle(app) {
     throw new Error('Mounted DMG application is missing its sealed code resources')
   }
   execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=4', app], { stdio: 'inherit' })
-  execFileSync('xcrun', ['stapler', 'validate', app], { stdio: 'inherit', timeout: 60_000 })
-  execFileSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', app], { stdio: 'inherit' })
+  if (requireNotarization) {
+    execFileSync('xcrun', ['stapler', 'validate', app], { stdio: 'inherit', timeout: 60_000 })
+    execFileSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', app], { stdio: 'inherit' })
+  } else {
+    process.stdout.write('Notarization validation skipped because HAS_NOTARIZATION is not true\n')
+  }
   verifyPackagedApplication(path.join(app, 'Contents', 'Resources'))
 }
 
