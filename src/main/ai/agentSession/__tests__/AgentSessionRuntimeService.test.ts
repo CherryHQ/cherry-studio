@@ -1086,6 +1086,27 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
     })
 
+    it('rebinds the entry model from the session override only for interactive enqueues', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const override = 'override-provider::override-model' as any
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', model: override })
+      try {
+        service.enqueueUserMessage('session-1', userMessage('user-headless'), { headless: true })
+        // Headless enqueues run on the agent default, so they must not rebind the entry's model to
+        // the session override — a mid-turn rebind is observable by the live turn's error reporting.
+        expect(entry.modelId).toBe(baseTurnInput.modelId)
+
+        service.enqueueUserMessage('session-1', userMessage('user-interactive'))
+        expect(entry.modelId).toBe(override)
+      } finally {
+        // The suite's shared beforeEach clears calls but keeps return values — hand the session
+        // back so later tests are not seeded with this one's override.
+        mocks.getSessionById.mockReturnValue(undefined)
+      }
+    })
+
     it('keeps an omitted recipient set distinct from an explicit empty set', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

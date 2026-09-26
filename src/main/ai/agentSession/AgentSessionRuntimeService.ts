@@ -977,9 +977,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // A session model switch has no agent-updated push, so the entry's cached
     // model can still target the old model while streaming. Refresh it before
     // the redirect gate — otherwise the next message folds into the running
-    // turn's old model instead of queueing for the new one.
+    // turn's old model instead of queueing for the new one. Headless enqueues
+    // deliberately run on the agent default, so they must not rebind
+    // `entry.modelId` from the session override either (same rule the queued
+    // drain applies below).
     const latestEffectiveModel =
-      this.readSessionModelOverride(sessionId) ?? agentService.getAgent(entry.agentId)?.model ?? entry.modelId
+      (headless ? null : this.readSessionModelOverride(sessionId)) ??
+      agentService.getAgent(entry.agentId)?.model ??
+      entry.modelId
     if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
     // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
@@ -3338,7 +3343,10 @@ export class AgentSessionRuntimeService extends BaseService {
         afterPersist
       }),
       onPersistFailed: (error) =>
-        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
+        // Report against THIS turn's frozen model: `entry.modelId` tracks the
+        // next turn's routing and can already have been rebound by a message
+        // enqueued while this turn was still streaming.
+        application.get('AiStreamManager').broadcastTopicError(entry.topicId, modelId, error)
     })
   }
 
