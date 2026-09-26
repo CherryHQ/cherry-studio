@@ -279,6 +279,83 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('passes effective image support for each configured subagent alias into settings', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId,
+      capabilities: modelId === 'model-plan' ? [MODEL_CAPABILITY.IMAGE_RECOGNITION] : []
+    }))
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        supportsImages: false,
+        subagentImageSupport: { opus: false, sonnet: true, haiku: false }
+      }),
+      expect.anything()
+    )
+  })
+
+  it('inherits the primary capability for unset subagent tiers', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        supportsImages: true,
+        subagentImageSupport: { opus: true, sonnet: true, haiku: true }
+      }),
+      expect.anything()
+    )
+  })
+
+  it('pins cross-provider tiers to the primary capability for external-cli routes', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'other::model-plan',
+      smallModel: 'other::model-small'
+    })
+    mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId,
+      capabilities: providerId === 'other' && modelId === 'model-plan' ? [MODEL_CAPABILITY.IMAGE_RECOGNITION] : []
+    }))
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        supportsImages: false,
+        subagentImageSupport: { opus: false, sonnet: false, haiku: false }
+      }),
+      expect.anything()
+    )
+  })
+
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
     const model = { id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 }
     mocks.getModelByKey.mockReturnValue(model)

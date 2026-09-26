@@ -27,7 +27,7 @@ import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
-import type { ClaudeCodeSettings } from './types'
+import type { ClaudeCodeSettings, SubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
@@ -74,11 +74,90 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  /** Per-alias image support from the effective route; subagent requests resolve against it. */
+  subagentImageSupport?: SubagentImageSupport
   agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
+
+  // SubagentStart carries no model, so Task/Agent launches are tagged by tool_use_id and bound
+  // to the child agent_id at start (forks keep the parent value: they run on the parent model).
+  // Backgrounded launches resolve (PostToolUse + PostToolBatch) at acknowledgement time while
+  // their SubagentStart arrives later, so their tags survive the success planes until bound.
+  const pendingSubagentLaunches = new Map<string, { agentType: string; support: boolean; background: boolean }>()
+  const activeSubagentImageSupport = new Map<string, boolean>()
+  const MAX_PENDING_SUBAGENT_LAUNCHES = 50
+
+  const launchAgentType = (input: Record<string, unknown> | undefined): string => {
+    const raw = input?.subagent_type ?? input?.agent_type
+    return typeof raw === 'string' ? raw : ''
+  }
+
+  const resolveLaunchImageSupport = (input: Record<string, unknown> | undefined): boolean => {
+    if (launchAgentType(input).trim().toLowerCase() === 'fork') return ctx.supportsImages
+    const requested = typeof input?.model === 'string' ? input.model.trim().toLowerCase() : ''
+    if (requested === '' || requested === 'inherit') return ctx.supportsImages
+    if (requested === 'haiku' || requested === 'sonnet' || requested === 'opus') {
+      const support = ctx.subagentImageSupport?.[requested]
+      if (support !== undefined) return support
+      logger.debug('Subagent alias has no resolved capability; inheriting session value', { requested })
+      return ctx.supportsImages
+    }
+    logger.debug('Subagent launch has no mappable model alias; inheriting session value', { requested })
+    return ctx.supportsImages
+  }
+
+  // A backgrounded Task/Agent call resolves at acknowledgement time, before its SubagentStart
+  // arrives; a foreground call resolves after its child started (and usually completed).
+  const isBackgroundLaunch = (input: Record<string, unknown> | undefined): boolean => {
+    if (input?.run_in_background === true) return true
+    // Remote-isolation agents always run in the background (SDK AgentInput).
+    return input?.isolation === 'remote'
+  }
+
+  const rememberSubagentLaunch = (toolUseId: string, input: Record<string, unknown> | undefined): void => {
+    if (pendingSubagentLaunches.size >= MAX_PENDING_SUBAGENT_LAUNCHES) {
+      const oldest = pendingSubagentLaunches.keys().next()
+      if (!oldest.done) {
+        logger.debug('Dropping oldest pending subagent launch', { toolUseId: oldest.value })
+        pendingSubagentLaunches.delete(oldest.value)
+      }
+    }
+    pendingSubagentLaunches.set(toolUseId, {
+      agentType: launchAgentType(input),
+      support: resolveLaunchImageSupport(input),
+      background: isBackgroundLaunch(input)
+    })
+  }
+
+  const takePendingLaunch = (agentType: string): boolean | undefined => {
+    for (const [id, entry] of pendingSubagentLaunches) {
+      if (entry.agentType === agentType) {
+        pendingSubagentLaunches.delete(id)
+        return entry.support
+      }
+    }
+    for (const [id, entry] of pendingSubagentLaunches) {
+      if (entry.agentType === '') {
+        logger.debug('Binding untyped subagent launch by arrival order', { agentType })
+        pendingSubagentLaunches.delete(id)
+        return entry.support
+      }
+    }
+    return undefined
+  }
+
+  const forgetSubagentLaunch = (toolName: string, toolUseId: unknown, keepBackground: boolean): void => {
+    if ((toolName === 'Task' || toolName === 'Agent') && typeof toolUseId === 'string') {
+      // Retracting a backgrounded launch on the success planes would drop the child's capability
+      // before its later SubagentStart binds it; failure/denial planes always retract because a
+      // failed or denied launch never produces a SubagentStart.
+      if (keepBackground && pendingSubagentLaunches.get(toolUseId)?.background) return
+      pendingSubagentLaunches.delete(toolUseId)
+    }
+  }
 
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
@@ -102,11 +181,19 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       signal: options?.signal,
-      supportsImages: ctx.supportsImages,
+      supportsImages: input.agent_id
+        ? (activeSubagentImageSupport.get(input.agent_id) ?? ctx.supportsImages)
+        : ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
+    // Tag Task/Agent launches that this plane did not deny; failure, denial, and batch-end
+    // sweeps below retract the tag when no SubagentStart consumes it. Backgrounded launches keep
+    // their tag on the success planes because their SubagentStart arrives after acknowledgement.
+    if ((toolName === 'Task' || toolName === 'Agent') && decision?.effect !== 'deny') {
+      rememberSubagentLaunch(input.tool_use_id, toolInput)
+    }
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
@@ -225,7 +312,41 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
+    activeSubagentImageSupport.delete(input.agent_id)
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    return {}
+  }
+
+  const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStart') return {}
+    const support = takePendingLaunch(input.agent_type)
+    if (support !== undefined) activeSubagentImageSupport.set(input.agent_id, support)
+    return {}
+  }
+
+  // Retracts launch tags that never bound: the launch failed, was denied, or completed. Denied
+  // calls emit no PostToolUse, so the denial and batch-end planes are required, not belt-and-braces.
+  // Backgrounded launches keep their tag on the success planes: they resolve at acknowledgement
+  // time while their SubagentStart arrives later.
+  const postToolUseCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
+      return {}
+    }
+    forgetSubagentLaunch(input.tool_name, input.tool_use_id, input.hook_event_name === 'PostToolUse')
+    return {}
+  }
+
+  const permissionDeniedCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PermissionDenied') return {}
+    forgetSubagentLaunch(input.tool_name, input.tool_use_id, false)
+    return {}
+  }
+
+  const postToolBatchCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PostToolBatch') return {}
+    // The batch fires at acknowledgement time for backgrounded launches, so their tags survive
+    // here the same way they survive PostToolUse; foreground leftovers are still reaped.
+    for (const call of input.tool_calls) forgetSubagentLaunch(call.tool_name, call.tool_use_id, true)
     return {}
   }
 
@@ -305,9 +426,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, postToolUseCleanupHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, postToolUseCleanupHook] }],
+    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook, postToolBatchCleanupHook] }],
+    PermissionDenied: [{ hooks: [permissionDeniedCleanupHook] }],
+    SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }
