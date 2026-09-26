@@ -1,10 +1,16 @@
 import { hasSupportedClipboardImage } from '@renderer/components/composer/composerPaste'
-import type { FileMetadata } from '@renderer/types/file'
 import { getFileExtension } from '@renderer/utils/file'
+import { MAX_TRANSLATE_IMAGE_BYTES } from '@shared/utils/constants'
 import { imageExts } from '@shared/utils/file'
 
 /** Image extensions Translation accepts for clipboard paste / replace. */
 export const TRANSLATE_CLIPBOARD_IMAGE_EXTS = [...imageExts]
+
+export type TranslateClipboardImage = {
+  name: string
+  data: Uint8Array
+  previewUrl: string
+}
 
 /**
  * Whether clipboard paste should prefer an image over a coexisting text flavor.
@@ -18,15 +24,10 @@ export function shouldPreferTranslateClipboardImage(
 }
 
 /**
- * Persist a clipboard `File` (path-backed or pathless image bytes) into a
- * `FileMetadata` the translate page can preview and send.
+ * Capture clipboard image bytes and create a renderer-owned preview URL during
+ * the paste gesture.
  */
-export async function ingestTranslateClipboardImage(file: File): Promise<FileMetadata | null> {
-  const filePath = window.api.file.getPathForFile(file)
-  if (filePath) {
-    return window.api.file.get(filePath)
-  }
-
+export async function ingestTranslateClipboardImage(file: File): Promise<TranslateClipboardImage | null> {
   if (!file.type.startsWith('image/')) {
     return null
   }
@@ -35,8 +36,14 @@ export async function ingestTranslateClipboardImage(file: File): Promise<FileMet
     return null
   }
 
-  const tempFilePath = await window.api.file.createTempFile(file.name)
-  const arrayBuffer = await file.arrayBuffer()
-  await window.api.file.write(tempFilePath, new Uint8Array(arrayBuffer))
-  return window.api.file.get(tempFilePath)
+  if (file.size <= 0 || file.size > MAX_TRANSLATE_IMAGE_BYTES) {
+    return null
+  }
+
+  const data = new Uint8Array(await file.arrayBuffer())
+  if (data.byteLength <= 0 || data.byteLength > MAX_TRANSLATE_IMAGE_BYTES) {
+    return null
+  }
+
+  return { name: file.name, data, previewUrl: URL.createObjectURL(file) }
 }

@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid'
 import { ipcApi } from '@renderer/ipc'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { AbsoluteFilePath } from '@shared/types/file'
 
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
@@ -13,14 +12,14 @@ const TRANSLATE_STREAM_PREFIX = 'translate:'
  * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
  * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
  * display (see `useSmoothStream`). `signal` aborts via the `ai.stream.abort` route.
- * Optional `imagePath` attaches a clipboard/screenshot image as a vision file part.
+ * Optional image bytes are captured during the user's paste/select action and attached as a vision file part.
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
   signal?: AbortSignal,
-  imagePath?: AbsoluteFilePath
+  image?: { data: Uint8Array; filename: string }
 ): Promise<string> => {
   if (signal?.aborted) {
     throw new DOMException('Translation aborted before start', 'AbortError')
@@ -79,8 +78,13 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.stream.done', ({ topicId }) => {
+      ipcApi.on('ai.stream.done', ({ topicId, status }) => {
         if (topicId !== streamId) return
+        if (status === 'paused' || signal?.aborted) {
+          cleanup()
+          reject(new DOMException('Translation aborted', 'AbortError'))
+          return
+        }
         const trimmed = accumulated.trim()
         cleanup()
         if (!trimmed) {
@@ -104,12 +108,20 @@ export const translateText = async (
       })
     )
 
-    ipcApi
-      .request('translate.open', {
-        streamId,
-        text,
-        targetLangCode,
-        ...(imagePath ? { imagePath } : {})
+    const openRequest = ipcApi.request('translate.open', {
+      streamId,
+      text,
+      targetLangCode,
+      ...(image ? { image } : {})
+    })
+    if (signal?.aborted) abortListener?.()
+
+    openRequest
+      .then(() => {
+        // `translate.open` may await FileManager before registering the stream.
+        // An abort sent during that window is intentionally retried once the open
+        // completes, when AiStreamManager is guaranteed to know this topic.
+        if (signal?.aborted && !cleaned) abortListener?.()
       })
       .catch((openError: unknown) => {
         cleanup()

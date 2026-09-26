@@ -24,17 +24,16 @@ import type { TranslationFiles } from '../translationFiles'
 
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
+  read: vi.fn(),
   readText: vi.fn(),
   readExternal: vi.fn(),
   startTask: vi.fn(),
   getTask: vi.fn(),
   getFileExtension: vi.fn(() => 'txt'),
-  isTextFile: vi.fn(),
-  getPathForFile: vi.fn(),
-  createTempFile: vi.fn(),
-  write: vi.fn(),
-  get: vi.fn()
+  isTextFile: vi.fn()
 }))
+const createObjectURLMock = vi.hoisted(() => vi.fn())
+const revokeObjectURLMock = vi.hoisted(() => vi.fn())
 
 const ocrTaskSeq = vi.hoisted(() => ({ value: 0 }))
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
@@ -362,7 +361,7 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     onCancelOcr: () => void
-    clipboardImage: { path: string; name: string } | null
+    clipboardImage: { name: string; previewUrl: string } | null
     onRemoveClipboardImage: () => void
     onReplaceClipboardImage: () => void
     copied: boolean
@@ -548,6 +547,7 @@ describe('TranslatePage', () => {
       'feature.translate.page.enable_markdown': false
     })
     fileMock.onSelectFile.mockReset()
+    fileMock.read.mockReset()
     fileMock.readText.mockReset()
     fileMock.readExternal.mockReset()
     fileMock.startTask.mockReset()
@@ -555,11 +555,11 @@ describe('TranslatePage', () => {
     fileMock.getFileExtension.mockReset()
     fileMock.getFileExtension.mockReturnValue('txt')
     fileMock.isTextFile.mockResolvedValue(true)
-    fileMock.getPathForFile.mockReset()
-    fileMock.createTempFile.mockReset()
-    fileMock.write.mockReset()
-    fileMock.write.mockResolvedValue(undefined)
-    fileMock.get.mockReset()
+    let previewId = 0
+    createObjectURLMock.mockReset().mockImplementation(() => `blob:translate-preview-${++previewId}`)
+    revokeObjectURLMock.mockReset()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURLMock })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURLMock })
     fileMock.startTask.mockImplementation(async () => {
       ocrTaskSeq.value++
       const task: FileProcessingTask = { ...ocrTaskFields(), status: 'queued' }
@@ -623,13 +623,10 @@ describe('TranslatePage', () => {
     })
     ;(window as any).api = {
       file: {
-        readExternal: fileMock.readExternal,
-        getPathForFile: fileMock.getPathForFile,
-        createTempFile: fileMock.createTempFile,
-        write: fileMock.write,
-        get: fileMock.get
+        readExternal: fileMock.readExternal
       },
       fs: {
+        read: fileMock.read,
         readText: fileMock.readText
       }
     }
@@ -1238,28 +1235,19 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('attaches a pathless pasted clipboard image for vision preview instead of starting OCR', async () => {
+  it('attaches a pasted clipboard image with an object URL preview instead of starting OCR', async () => {
     // Catches the regression where Translation still OCR'd clipboard screenshots
     // instead of keeping them as a removable vision attachment (#20024).
     fileMock.getFileExtension.mockImplementation((name?: string) => {
       const match = /\.[^.]+$/.exec(name ?? '')
       return match?.[0] ?? ''
     })
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileMock.get.mockResolvedValue({
-      path: '/tmp/pasted.png',
-      size: 10,
-      type: 'image',
-      name: 'pasted.png',
-      origin_name: 'pasted.png'
-    })
-
     render(<TranslatePage />)
 
     const pastedImage = {
       name: 'pasted.png',
       type: 'image/png',
+      size: 8,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
     }
     fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
@@ -1272,8 +1260,166 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
     expect(screen.getByTestId('translate-clipboard-image-preview')).toHaveTextContent('pasted.png')
     expect(fileMock.startTask).not.toHaveBeenCalled()
-    expect(fileMock.createTempFile).toHaveBeenCalledWith('pasted.png')
-    expect(fileMock.write).toHaveBeenCalled()
+    expect(createObjectURLMock).toHaveBeenCalledWith(pastedImage)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.remove' }))
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes the old object URL when replacing an image and the replacement on unmount', async () => {
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    fileMock.onSelectFile.mockResolvedValue([
+      {
+        path: '/Users/test/replacement.jpg',
+        size: 3,
+        type: 'image',
+        name: 'replacement.jpg',
+        origin_name: 'replacement.jpg'
+      }
+    ])
+    fileMock.read.mockResolvedValue(new Uint8Array([1, 2, 3]))
+
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.replace' }))
+
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1'))
+    expect(screen.getByTestId('translate-clipboard-image-preview')).toHaveTextContent('replacement.jpg')
+    unmount()
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-2')
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('revokes a clipboard preview when the page unmounts', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    unmount()
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes a clipboard preview when history replaces the current view', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes a preview created after an in-flight paste finishes post-unmount', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    let resolveBytes: ((value: ArrayBuffer) => void) | undefined
+    const arrayBuffer = vi.fn(
+      () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveBytes = resolve
+        })
+    )
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [{ name: 'late.png', type: 'image/png', size: 8, arrayBuffer }]
+      }
+    })
+    await waitFor(() => expect(arrayBuffer).toHaveBeenCalled())
+
+    unmount()
+    await act(async () => resolveBytes?.(new ArrayBuffer(8)))
+
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1'))
+  })
+
+  it('revokes a replacement preview created after its file read finishes post-unmount', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    fileMock.onSelectFile.mockResolvedValue([
+      {
+        path: '/Users/test/replacement.png',
+        size: 8,
+        type: 'image',
+        name: 'replacement.png',
+        origin_name: 'replacement.png'
+      }
+    ])
+    let resolveBytes: ((value: Uint8Array) => void) | undefined
+    fileMock.read.mockImplementationOnce(
+      () =>
+        new Promise<Uint8Array>((resolve) => {
+          resolveBytes = resolve
+        })
+    )
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.replace' }))
+    await waitFor(() => expect(fileMock.read).toHaveBeenCalledWith('/Users/test/replacement.png'))
+
+    unmount()
+    await act(async () => resolveBytes?.(new Uint8Array(8)))
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-2'))
   })
 
   it('prefers a clipboard image over a coexisting text flavor and keeps the attachment', async () => {
@@ -1281,16 +1427,6 @@ describe('TranslatePage', () => {
       const match = /\.[^.]+$/.exec(name ?? '')
       return match?.[0] ?? ''
     })
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/win-shot.png')
-    fileMock.get.mockResolvedValue({
-      path: '/tmp/win-shot.png',
-      size: 10,
-      type: 'image',
-      name: 'win-shot.png',
-      origin_name: 'win-shot.png'
-    })
-
     render(<TranslatePage />)
 
     fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
@@ -1300,6 +1436,7 @@ describe('TranslatePage', () => {
           {
             name: 'win-shot.png',
             type: 'image/png',
+            size: 8,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
           }
         ]
@@ -1321,16 +1458,6 @@ describe('TranslatePage', () => {
       const match = /\.[^.]+$/.exec(name ?? '')
       return match?.[0] ?? ''
     })
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileMock.get.mockResolvedValue({
-      path: '/tmp/pasted.png',
-      size: 10,
-      type: 'image',
-      name: 'pasted.png',
-      origin_name: 'pasted.png'
-    })
-
     const { rerender } = render(<TranslatePage />)
 
     fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
@@ -1340,6 +1467,7 @@ describe('TranslatePage', () => {
           {
             name: 'pasted.png',
             type: 'image/png',
+            size: 8,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
           }
         ]
@@ -1371,15 +1499,6 @@ describe('TranslatePage', () => {
       const match = /\.[^.]+$/.exec(name ?? '')
       return match?.[0] ?? ''
     })
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileMock.get.mockResolvedValue({
-      path: '/tmp/pasted.png',
-      size: 10,
-      type: 'image',
-      name: 'pasted.png',
-      origin_name: 'pasted.png'
-    })
     translateCoreMock.translateText.mockImplementation(
       async (_text, _lang, onResponse?: (text: string, done: boolean) => void) => {
         onResponse?.('translated', true)
@@ -1396,6 +1515,7 @@ describe('TranslatePage', () => {
           {
             name: 'pasted.png',
             type: 'image/png',
+            size: 8,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
           }
         ]
@@ -1410,7 +1530,7 @@ describe('TranslatePage', () => {
     const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
     expect(translateArgs?.[0]).toBe('')
     expect(translateArgs?.[1]).toBe('en-us')
-    expect(translateArgs?.[4]).toBe('/tmp/pasted.png')
+    expect(translateArgs?.[4]).toEqual({ data: new Uint8Array(8), filename: 'pasted.png' })
     expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
     expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
@@ -1434,15 +1554,6 @@ describe('TranslatePage', () => {
       const match = /\.[^.]+$/.exec(name ?? '')
       return match?.[0] ?? ''
     })
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileMock.get.mockResolvedValue({
-      path: '/tmp/pasted.png',
-      size: 10,
-      type: 'image',
-      name: 'pasted.png',
-      origin_name: 'pasted.png'
-    })
     translateCoreMock.detectLanguage.mockResolvedValue('en-us')
     translateCoreMock.translateText.mockImplementation(
       async (_text, _lang, onResponse?: (text: string, done: boolean) => void) => {
@@ -1460,6 +1571,7 @@ describe('TranslatePage', () => {
           {
             name: 'pasted.png',
             type: 'image/png',
+            size: 8,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
           }
         ]
@@ -1477,7 +1589,7 @@ describe('TranslatePage', () => {
     const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
     expect(translateArgs?.[0]).toBe('translate this screenshot')
     expect(translateArgs?.[1]).toBe('en-us')
-    expect(translateArgs?.[4]).toBe('/tmp/pasted.png')
+    expect(translateArgs?.[4]).toEqual({ data: new Uint8Array(8), filename: 'pasted.png' })
     expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
     expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
@@ -1868,7 +1980,7 @@ describe('TranslatePage', () => {
 
     expect(dropMock.getTextFromDropEvent).not.toHaveBeenCalled()
     expect(dropMock.getFilesFromDropEvent).not.toHaveBeenCalled()
-    expect(fileMock.getPathForFile).not.toHaveBeenCalled()
+    expect(createObjectURLMock).not.toHaveBeenCalled()
 
     await act(async () => {
       resolveTranslate('done')

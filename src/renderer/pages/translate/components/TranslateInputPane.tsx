@@ -15,15 +15,9 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
 import { cn } from '@renderer/utils/style'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
 
+import type { TranslateClipboardImage } from '../clipboardImagePaste'
 import IconButton from './IconButton'
-
-export type TranslateClipboardImage = {
-  path: AbsoluteFilePath
-  name: string
-}
 
 const TARGET_ID = 'translate-page-source'
 
@@ -124,7 +118,7 @@ const TranslateInputPane = ({
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
   const showUploadArea = !text && !clipboardImage
-  const previewUrl = clipboardImage ? toFileUrl(clipboardImage.path) : null
+  const previewUrl = clipboardImage?.previewUrl ?? null
 
   return (
     <div

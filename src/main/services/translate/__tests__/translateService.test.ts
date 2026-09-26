@@ -1,18 +1,54 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+
+const fileTypeFromBufferMock = vi.hoisted(() => vi.fn())
+vi.mock('file-type', () => ({ fileTypeFromBuffer: fileTypeFromBufferMock }))
 
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
-const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
+const registeredStreams = new Set<string>()
+const abortedRegisteredStreams = new Set<string>()
+const streamPromptMock = vi.fn((request: { streamId: string }) => {
+  registeredStreams.add(request.streamId)
+  return { mode: 'started' as const, activeExecutions: [] }
+})
+const dispatchLocks = new KeyedMutex()
+const withDispatchLockMock = vi.fn((topicId: string, operation: () => Promise<unknown>) =>
+  dispatchLocks.runExclusive(topicId, operation)
+)
+const abortAndDrainMock = vi.fn((topicId: string) =>
+  dispatchLocks.runExclusive(topicId, async () => {
+    if (!registeredStreams.has(topicId)) return
+    abortedRegisteredStreams.add(topicId)
+    const streamRequest = streamPromptMock.mock.calls.find(([request]) => request.streamId === topicId)?.[0] as
+      | { listener: Array<{ terminalPhase?: string; onPaused: (result: never) => void | Promise<void> }> }
+      | undefined
+    const listeners = Array.isArray(streamRequest?.listener) ? streamRequest.listener : []
+    await listeners.find((listener) => listener.terminalPhase === 'cleanup')?.onPaused({} as never)
+  })
+)
+const createInternalEntryMock = vi.fn()
+const getFileUrlMock = vi.fn()
+const permanentDeleteMock = vi.fn()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { streamPrompt: streamPromptMock }
+    AiStreamManager: {
+      streamPrompt: streamPromptMock,
+      withDispatchLock: withDispatchLockMock,
+      abortAndDrain: abortAndDrainMock
+    },
+    FileManager: {
+      createInternalEntry: createInternalEntryMock,
+      getUrl: getFileUrlMock,
+      permanentDelete: permanentDeleteMock
+    }
   } as never)
 })
 
@@ -56,6 +92,9 @@ const TARGET: TranslateLanguage = {
 } as unknown as TranslateLanguage
 
 const fakeSender = { id: 1 } as unknown as Electron.WebContents
+const IMAGE_ENTRY_ID = '019606a0-0000-7000-8000-000000000058' as const
+const IMAGE_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+const IMAGE = { data: IMAGE_BYTES, filename: 'screenshot.png' }
 
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
@@ -63,7 +102,28 @@ beforeEach(() => {
   getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
   getByLangCodeMock.mockReset()
   streamPromptMock.mockReset()
-  streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
+  streamPromptMock.mockImplementation((request: { streamId: string }) => {
+    registeredStreams.add(request.streamId)
+    return { mode: 'started' as const, activeExecutions: [] }
+  })
+  registeredStreams.clear()
+  abortedRegisteredStreams.clear()
+  withDispatchLockMock.mockClear()
+  abortAndDrainMock.mockClear()
+  fileTypeFromBufferMock.mockReset().mockResolvedValue({ ext: 'png', mime: 'image/png' })
+  createInternalEntryMock.mockReset().mockResolvedValue({
+    id: IMAGE_ENTRY_ID,
+    origin: 'internal',
+    name: 'translation-image',
+    ext: 'png',
+    cleanupPolicy: 'delete_when_unreferenced',
+    size: 1,
+    contentHash: null,
+    createdAt: 1,
+    updatedAt: 1
+  })
+  getFileUrlMock.mockReset().mockReturnValue(`file:///managed/${IMAGE_ENTRY_ID}.png`)
+  permanentDeleteMock.mockReset().mockResolvedValue(undefined)
 })
 
 describe('translateService.resolveTranslatePayload', () => {
@@ -162,7 +222,7 @@ describe('translateService.open', () => {
 
   it('uses the renderer-supplied streamId, resolves the DTO, and dispatches via streamManager.streamPrompt', async () => {
     const streamId = 'translate:caller-supplied-id'
-    const result = translateService.open(fakeSender, {
+    const result = await translateService.open(fakeSender, {
       streamId,
       text: 'hello',
       targetLangCode: 'en-us'
@@ -198,15 +258,23 @@ describe('translateService.open', () => {
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
   })
 
-  it('sends a multimodal user message when imagePath is provided instead of a bare prompt string', () => {
+  it('sniffs image bytes, stages a fresh entry, and sends a multimodal user message', async () => {
     const streamId = 'translate:with-image'
-    translateService.open(fakeSender, {
+    await translateService.open(fakeSender, {
       streamId,
       text: 'translate this screenshot',
       targetLangCode: 'en-us',
-      imagePath: '/tmp/screenshot.png' as any
+      image: IMAGE
     })
 
+    expect(fileTypeFromBufferMock).toHaveBeenCalledWith(IMAGE_BYTES)
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'bytes',
+      data: IMAGE_BYTES,
+      name: 'translation-image',
+      ext: 'png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const arg = (
       streamPromptMock.mock.calls as unknown as Array<
@@ -229,13 +297,106 @@ describe('translateService.open', () => {
       {
         type: 'file',
         mediaType: 'image/png',
-        url: 'file:///tmp/screenshot.png',
-        filename: 'screenshot.png'
+        url: `file:///managed/${IMAGE_ENTRY_ID}.png`,
+        filename: IMAGE.filename
       }
     ])
   })
 
-  it('asks the vision model to judge an image-only request and translate only into the configured target', () => {
+  it('holds the topic lock through image validation and synchronous stream registration', async () => {
+    const streamId = 'translate:abort-during-validation'
+    let resolveFileType: ((type: { ext: string; mime: string }) => void) | undefined
+    fileTypeFromBufferMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFileType = resolve
+        })
+    )
+
+    const opening = translateService.open(fakeSender, {
+      streamId,
+      text: 'translate this screenshot',
+      targetLangCode: 'en-us',
+      image: IMAGE
+    })
+    await vi.waitFor(() => expect(fileTypeFromBufferMock).toHaveBeenCalledWith(IMAGE_BYTES))
+
+    let abortFoundRegisteredStream: boolean | undefined
+    const aborting = abortAndDrainMock(streamId).then(() => {
+      abortFoundRegisteredStream = abortedRegisteredStreams.has(streamId)
+    })
+    await Promise.resolve()
+    expect(abortFoundRegisteredStream).toBeUndefined()
+
+    resolveFileType?.({ ext: 'png', mime: 'image/png' })
+    await expect(opening).resolves.toEqual({ streamId })
+    await aborting
+
+    expect(abortFoundRegisteredStream).toBe(true)
+    expect(abortAndDrainMock).toHaveBeenCalledWith(streamId)
+    expect(permanentDeleteMock).toHaveBeenCalledWith(IMAGE_ENTRY_ID)
+  })
+
+  it.each(['onDone', 'onPaused', 'onError'] as const)('deletes the staged image after terminal %s', async (method) => {
+    await translateService.open(fakeSender, {
+      streamId: `translate:cleanup-${method}`,
+      text: 'hello',
+      targetLangCode: 'en-us',
+      image: IMAGE
+    })
+
+    const request = streamPromptMock.mock.calls[0][0] as unknown as {
+      listener: Array<{
+        terminalPhase?: string
+        onDone: (result: never) => void | Promise<void>
+        onPaused: (result: never) => void | Promise<void>
+        onError: (result: never) => void | Promise<void>
+      }>
+    }
+    const cleanup = request.listener.find((listener) => listener.terminalPhase === 'cleanup')
+    expect(cleanup).toBeDefined()
+
+    await cleanup?.[method]({} as never)
+    await cleanup?.[method]({} as never)
+
+    expect(permanentDeleteMock).toHaveBeenCalledTimes(1)
+    expect(permanentDeleteMock).toHaveBeenCalledWith(IMAGE_ENTRY_ID)
+  })
+
+  it('does not turn a successful stream terminal into an error when image cleanup fails', async () => {
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+    await translateService.open(fakeSender, {
+      streamId: 'translate:cleanup-failure',
+      text: 'hello',
+      targetLangCode: 'en-us',
+      image: IMAGE
+    })
+    const request = streamPromptMock.mock.calls[0][0] as unknown as {
+      listener: Array<{ terminalPhase?: string; onDone: (result: never) => void | Promise<void> }>
+    }
+    const cleanup = request.listener.find((listener) => listener.terminalPhase === 'cleanup')
+
+    await expect(cleanup?.onDone({} as never)).resolves.toBeUndefined()
+  })
+
+  it('deletes the staged image when stream registration fails without masking the error', async () => {
+    streamPromptMock.mockImplementationOnce(() => {
+      throw new Error('stream registration failed')
+    })
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    await expect(
+      translateService.open(fakeSender, {
+        streamId: 'translate:registration-failure',
+        text: 'hello',
+        targetLangCode: 'en-us',
+        image: IMAGE
+      })
+    ).rejects.toThrow('stream registration failed')
+    expect(permanentDeleteMock).toHaveBeenCalledWith(IMAGE_ENTRY_ID)
+  })
+
+  it('asks the vision model to judge an image-only request and translate only into the configured target', async () => {
     // Catches image-only falling through to the text template, which can name
     // the other side of a bidirectional pair instead of the configured target.
     MockMainPreferenceServiceUtils.setPreferenceValue(
@@ -243,11 +404,11 @@ describe('translateService.open', () => {
       'If the image is already {{target_language}}, translate it into Chinese instead: {{text}}'
     )
 
-    translateService.open(fakeSender, {
+    await translateService.open(fakeSender, {
       streamId: 'translate:image-only',
       text: '',
       targetLangCode: 'en-us',
-      imagePath: '/tmp/screenshot.png' as any
+      image: IMAGE
     })
 
     expect(getByLangCodeMock).toHaveBeenCalledWith('en-us')
@@ -279,8 +440,8 @@ describe('translateService.open', () => {
           {
             type: 'file',
             mediaType: 'image/png',
-            url: 'file:///tmp/screenshot.png',
-            filename: 'screenshot.png'
+            url: `file:///managed/${IMAGE_ENTRY_ID}.png`,
+            filename: IMAGE.filename
           }
         ]
       }
@@ -288,38 +449,79 @@ describe('translateService.open', () => {
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {
-    expect(() =>
+    await expect(
       translateService.open(fakeSender, {
         streamId: 'agent-session:bogus',
         text: 'hello',
         targetLangCode: 'en-us'
       })
-    ).toThrow(/translate:/)
+    ).rejects.toThrow(/translate:/)
     expect(getByLangCodeMock).not.toHaveBeenCalled()
     expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('throws for an invalid lang code without touching the DTO service or stream manager', async () => {
-    expect(() =>
+    await expect(
       translateService.open(fakeSender, {
         streamId: 'translate:abc',
         text: 'hello',
         targetLangCode: 'not-a-real-code' as any
       })
-    ).toThrow('Invalid target language: not-a-real-code')
+    ).rejects.toThrow('Invalid target language: not-a-real-code')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
     expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('throws for the "unknown" sentinel', async () => {
-    expect(() =>
+    await expect(
       translateService.open(fakeSender, {
         streamId: 'translate:abc',
         text: 'hello',
         targetLangCode: 'unknown' as any
       })
-    ).toThrow('Invalid target language: unknown')
+    ).rejects.toThrow('Invalid target language: unknown')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts detected JPEG bytes regardless of the supplied filename extension', async () => {
+    fileTypeFromBufferMock.mockResolvedValueOnce({ ext: 'jpg', mime: 'image/jpeg' })
+
+    await translateService.open(fakeSender, {
+      streamId: 'translate:jpeg',
+      text: 'hello',
+      targetLangCode: 'en-us',
+      image: { data: IMAGE_BYTES, filename: 'misnamed.png' }
+    })
+
+    expect(createInternalEntryMock).toHaveBeenCalledWith(expect.objectContaining({ ext: 'jpg' }))
+    const request = streamPromptMock.mock.calls[0][0] as unknown as {
+      messages: Array<{ parts: Array<{ type: string; mediaType?: string; filename?: string }> }>
+    }
+    expect(request.messages[0].parts[1]).toMatchObject({
+      type: 'file',
+      mediaType: 'image/jpeg',
+      filename: 'misnamed.png'
+    })
+  })
+
+  it.each([
+    ['unrecognized bytes', undefined, 'recognized image'],
+    ['spoofed PNG bytes', { ext: 'pdf', mime: 'application/pdf' }, 'recognized image'],
+    ['an unsupported detected image', { ext: 'avif', mime: 'image/avif' }, 'Unsupported translation image type']
+  ] as const)('rejects %s before creating an entry', async (_kind, detected, message) => {
+    fileTypeFromBufferMock.mockResolvedValueOnce(detected)
+
+    await expect(
+      translateService.open(fakeSender, {
+        streamId: 'translate:invalid-image',
+        text: 'hello',
+        targetLangCode: 'en-us',
+        image: IMAGE
+      })
+    ).rejects.toThrow(message)
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(permanentDeleteMock).not.toHaveBeenCalled()
+    expect(streamPromptMock).not.toHaveBeenCalled()
   })
 })
 

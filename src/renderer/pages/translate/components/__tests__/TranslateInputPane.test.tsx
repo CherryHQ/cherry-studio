@@ -126,7 +126,11 @@ describe('TranslateInputPane', () => {
 
   it('shows clipboard image preview with remove and replace controls', () => {
     const props = baseProps()
-    props.clipboardImage = { path: '/tmp/shot.png' as any, name: 'shot.png' }
+    props.clipboardImage = {
+      name: 'shot.png',
+      data: new Uint8Array([1]),
+      previewUrl: 'blob:shot-preview'
+    }
 
     render(<TranslateInputPane {...props} />)
 
