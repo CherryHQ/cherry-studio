@@ -423,6 +423,81 @@ describe('prepareChatMessages — routing', () => {
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
     expect(textOf(out.parts)).toEqual(['Cannot read the attached file "archive.zip" as text (unsupported file type).'])
   })
+
+  it('caps long legacy text without a read_file pointer the tool cannot resolve', async () => {
+    resolveMock.mockResolvedValueOnce({
+      type: 'file',
+      mediaType: 'text/plain',
+      filename: 'notes.txt'
+    })
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/notes.txt',
+      mediaType: 'text/plain',
+      filename: 'notes.txt'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 5, tokenizer: charTokenizer }
+    })
+
+    const text = textOf(out.parts)[0]
+    expect(text).toContain('fixtu')
+    expect(text).toContain('[Truncated 5/12 chars.]')
+    expect(text).not.toContain('read_file')
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
+  })
+
+  it('caps a long legacy PDF extract without a read_file pointer', async () => {
+    resolveMock.mockResolvedValueOnce({ type: 'file', mediaType: 'application/pdf', filename: 'legacy.pdf' })
+    extractMock.mockResolvedValueOnce('0123456789')
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/legacy.pdf',
+      mediaType: 'application/pdf',
+      filename: 'legacy.pdf'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 5, tokenizer: charTokenizer }
+    })
+
+    const text = textOf(out.parts)[0]
+    expect(text).toContain('[Truncated 5/10 chars.]')
+    expect(text).not.toContain('read_file')
+  })
+
+  it('keeps the read_file pointer on a managed file when a same-named legacy file is also truncated', async () => {
+    resolveMock.mockReset()
+    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('0123456789')
+    const managed = fileWithEntry('e1', 'notes.txt', 'text/plain')
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/notes.txt',
+      mediaType: 'text/plain',
+      filename: 'notes.txt'
+    } as CherryMessagePart
+    const messages = [userMessage([managed, legacy])] as UIMessage[]
+
+    const [out] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 10, tokenizer: charTokenizer }
+    })
+
+    const texts = textOf(out.parts)
+    expect(texts[0]).toContain('read_file("notes.txt", offset=5)')
+    expect(texts[1]).toContain('[Truncated 5/12 chars.]')
+    expect(texts[1]).not.toContain('read_file')
+  })
 })
 
 describe('collectFileAttachments', () => {

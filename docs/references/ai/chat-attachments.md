@@ -80,8 +80,8 @@ Extracted text is bounded so multi-turn context stays in control:
 
 - text ≤ cap → inlined in full.
 - text > cap → inline the first `cap` chars + a trailer:
-  - tool-capable model: `[truncated N/total — call read_file("name", offset=N) for more]`
-  - otherwise: `[truncated N/total]`
+  - tool-capable model, and the file is on the `read_file` allow-list (`fileEntryId`): `[truncated N/total — call read_file("name", offset=N) for more]`
+  - otherwise, including a legacy or gateway part with no `fileEntryId`: `[truncated N/total]`
 
 Default cap ≈ 8k chars/file (tunable).
 

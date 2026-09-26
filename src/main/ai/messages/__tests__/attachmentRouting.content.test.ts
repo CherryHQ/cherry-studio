@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { application } from '@application'
 import { readFile } from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 
 const { readMock, getByIdMock, ocrMock } = vi.hoisted(() => ({
@@ -275,6 +276,40 @@ describe('chat attachment content admission into AI SDK', () => {
       expect.objectContaining({ type: 'text', text: expect.stringContaining('unsupported file type') })
     ])
     expect(readMock).toHaveBeenCalledTimes(1)
+  })
+
+  async function expectNoReadFilePointer(file: FileUIPart, body: string) {
+    const messages = [{ id: 'user-1', role: 'user', parts: [file] }] as UIMessage[]
+    const attachments = collectFileAttachments(messages)
+    const prepared = await prepareChatMessages(messages, {
+      attachments,
+      nativeSupport: { image: true, pdf: true, audio: true, video: true },
+      isToolCapable: true
+    })
+    const inline = (prepared[0].parts[0] as { text: string }).text
+
+    expect(attachments).toEqual([])
+    expect(inline).toContain(`[Truncated ${READ_FILE_PAGE_SIZE}/${body.length} chars.]`)
+    expect(inline).not.toContain('read_file')
+    expect(inline).not.toContain('TAIL')
+    expect(prepared[0].parts.filter((entry) => entry.type === 'file')).toHaveLength(0)
+  }
+
+  it('does not advertise read_file for a long legacy text file without fileEntryId', async () => {
+    const body = `${'a'.repeat(READ_FILE_PAGE_SIZE)}TAIL`
+    const target = path.join(tmpDir, 'legacy-notes.txt')
+    await fs.writeFile(target, body)
+
+    await expectNoReadFilePointer(part('legacy-notes.txt', pathToFileURL(target).href), body)
+  })
+
+  it('does not advertise read_file for a long gateway data URL without fileEntryId', async () => {
+    const body = `${'a'.repeat(READ_FILE_PAGE_SIZE)}TAIL`
+
+    await expectNoReadFilePointer(
+      part('gateway-notes.txt', `data:text/plain;base64,${Buffer.from(body).toString('base64')}`),
+      body
+    )
   })
 
   it('does not send a legacy local ZIP without fileEntryId as a native file part', async () => {

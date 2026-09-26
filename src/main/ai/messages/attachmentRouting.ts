@@ -6,10 +6,10 @@
  *     materialized from recognized bytes by `prepareFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
  *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
- *     inlined and capped. Over the cap, the head is inlined + a `read_file`
- *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
- *     unconfigured/failed) stops before the provider call with a user-facing
- *     error.
+ *     inlined and capped. Over the cap, the head is inlined. A `read_file`
+ *     pointer is added only when that handle is on the allow-list. A non-vision
+ *     image whose OCR yields no text (or whose OCR is unconfigured/failed)
+ *     stops before the provider call with a user-facing error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
@@ -17,7 +17,8 @@
  * note rather than silently dropping the file or failing the request. Unreadable
  * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
  * keep the eager materialization path, but their image/audio/video parts remain
- * capability-gated.
+ * capability-gated. Their overflow notes omit `read_file`: that handle is not
+ * on the allow-list the tool resolves.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -223,8 +224,8 @@ async function prepareChatMessage<T extends UIMessage>(
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     if (!fileEntryId) {
-      // Legacy / gateway part — eager materialization, but do not let media
-      // bypass the native-support gate applied to first-party attachments.
+      // Legacy / gateway part — no fileEntryId, so read_file cannot resolve it.
+      // Media still obeys the same native-support gate as first-party files.
       const name = part.filename ?? 'file'
       const prepared = ctx.preparedFiles?.get(part) ?? (await prepareFilePart(part))
       if (prepared.kind === 'read-failed') {
@@ -234,7 +235,7 @@ async function prepareChatMessage<T extends UIMessage>(
         const mediaType = prepared.part.mediaType
         const rejectedKind = rejectedMediaKind(mediaType, ctx.nativeSupport)
         if (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.TEXT) {
-          defer(kept, pending, name, decodeTextBufferIfText(prepared.bytes) ?? '')
+          defer(kept, pending, name, decodeTextBufferIfText(prepared.bytes) ?? '', false)
         } else if (prepared.kind === 'recognized' && mediaType === 'application/pdf' && !ctx.nativeSupport.pdf) {
           try {
             const text = await extractDocumentText('', {
@@ -242,7 +243,7 @@ async function prepareChatMessage<T extends UIMessage>(
               preparedBytes: prepared.bytes,
               preparedExt: 'pdf'
             })
-            defer(kept, pending, name, text?.trim() || noExtractableTextNote(name))
+            defer(kept, pending, name, text?.trim() || noExtractableTextNote(name), false)
           } catch (error) {
             if (ctx.signal?.aborted || isAbortError(error)) throw error
             logger.warn('Could not extract legacy PDF text', { messageId: message.id, filename: name, error })
@@ -367,10 +368,18 @@ interface PendingInline {
   index: number
   handle: string
   body: string
+  /** False for legacy/gateway parts: `read_file` only resolves allow-list handles. */
+  readFilePointer: boolean
 }
 
-function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
-  pending.push({ parts, index: parts.length, handle, body })
+function defer(
+  parts: UIMessage['parts'],
+  pending: PendingInline[],
+  handle: string,
+  body: string,
+  readFilePointer = true
+): void {
+  pending.push({ parts, index: parts.length, handle, body, readFilePointer })
   parts.push({ type: 'text', text: '' })
 }
 
@@ -383,7 +392,7 @@ function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): voi
     : pending.map(() => READ_FILE_PAGE_SIZE)
 
   pending.forEach((entry, index) => {
-    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable && entry.readFilePointer, caps[index])
     entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
   })
 }
