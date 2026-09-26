@@ -53,6 +53,7 @@ const models = modelsRaw.models as Array<{
   }
   reasoning?: {
     controls?: Array<{ kind: string; values?: string[] }>
+    supportedEfforts?: string[]
   }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
@@ -371,9 +372,12 @@ describe('catalog invariants (data/*.json)', () => {
   it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'advertises only the official DeepSeek V4 reasoning efforts for %s',
     (id) => {
-      expect(models.find((model) => model.id === id)?.reasoning?.controls).toEqual([
-        { kind: 'effort', values: ['none', 'low', 'high', 'max'] }
-      ])
+      expect(models.find((model) => model.id === id)).toMatchObject({
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }],
+          supportedEfforts: ['none', 'low', 'high', 'max']
+        }
+      })
     }
   )
 
