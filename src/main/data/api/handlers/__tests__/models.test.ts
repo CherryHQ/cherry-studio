@@ -24,7 +24,9 @@ const {
   reconcileForProviderMock,
   lookupModelMock,
   resolveModelsMock,
-  getImageGenerationSupportMock
+  getImageGenerationSupportMock,
+  reorderMock,
+  reorderBatchMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
@@ -36,7 +38,9 @@ const {
   reconcileForProviderMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
-  getImageGenerationSupportMock: vi.fn()
+  getImageGenerationSupportMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -48,7 +52,9 @@ vi.mock('@data/services/ModelService', () => ({
     bulkDelete: bulkDeleteMock,
     create: createMock,
     bulkUpdate: bulkUpdateMock,
-    reconcileForProvider: reconcileForProviderMock
+    reconcileForProvider: reconcileForProviderMock,
+    reorder: reorderMock,
+    reorderBatch: reorderBatchMock
   }
 }))
 
@@ -455,6 +461,111 @@ describe('/models/:uniqueModelId*', () => {
     await expect(
       modelHandlers['/models/:uniqueModelId*'].GET({ params: { uniqueModelId: 'openai::missing' } } as never)
     ).rejects.toBe(serviceError)
+  })
+})
+
+describe('/models/:uniqueModelId*/order', () => {
+  it('forwards a slash-containing uniqueModelId verbatim with the parsed anchor', async () => {
+    await modelHandlers['/models/:uniqueModelId*/order'].PATCH({
+      params: { uniqueModelId: 'qwen::qwen/qwen3-vl' },
+      body: { position: 'first' }
+    } as never)
+
+    // The service needs the full UniqueModelId, not a split pair: the move is
+    // scoped by provider, and the id is the only thing that carries it.
+    expect(reorderMock).toHaveBeenCalledWith('qwen::qwen/qwen3-vl', { position: 'first' })
+  })
+
+  it('accepts a relative anchor', async () => {
+    await modelHandlers['/models/:uniqueModelId*/order'].PATCH({
+      params: { uniqueModelId: 'openai::gpt-5' },
+      body: { after: 'openai::o3' }
+    })
+
+    expect(reorderMock).toHaveBeenCalledWith('openai::gpt-5', { after: 'openai::o3' })
+  })
+
+  it('rejects an id missing the :: separator with a 422 validation error', async () => {
+    await expect(
+      modelHandlers['/models/:uniqueModelId*/order'].PATCH({
+        params: { uniqueModelId: 'no-separator' },
+        body: { position: 'first' }
+      } as never)
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+    expect(reorderMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body that is not one of the three anchor shapes', async () => {
+    await expect(
+      modelHandlers['/models/:uniqueModelId*/order'].PATCH({
+        params: { uniqueModelId: 'openai::gpt-5' },
+        body: { position: 'middle' }
+      } as never)
+    ).rejects.toThrow()
+
+    expect(reorderMock).not.toHaveBeenCalled()
+  })
+
+  it('is reachable through the real route table', async () => {
+    const { ApiServer } = await import('../../core/ApiServer')
+    const server = new (ApiServer as any)(modelHandlers)
+
+    const response = await server.handleRequest({
+      id: 'req_reorder',
+      method: 'PATCH',
+      path: '/models/openai::gpt-5/order',
+      body: { position: 'first' },
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.status).toBe(200)
+    expect(reorderMock).toHaveBeenCalledWith('openai::gpt-5', { position: 'first' })
+  })
+
+  it('routes a slash-bearing id through the real route table', async () => {
+    const { ApiServer } = await import('../../core/ApiServer')
+    const server = new (ApiServer as any)(modelHandlers)
+
+    const response = await server.handleRequest({
+      id: 'req_reorder_slash',
+      method: 'PATCH',
+      path: '/models/qwen::qwen/qwen3-vl/order',
+      body: { position: 'last' },
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.status).toBe(200)
+    expect(reorderMock).toHaveBeenCalledWith('qwen::qwen/qwen3-vl', { position: 'last' })
+  })
+})
+
+describe('/models/order:batch', () => {
+  it('forwards the parsed moves to the service', async () => {
+    const moves = [
+      { id: 'openai::gpt-5', anchor: { after: 'openai::o3' } },
+      { id: 'openai::o3', anchor: { position: 'first' } as const }
+    ]
+
+    await modelHandlers['/models/order:batch'].PATCH({ body: { moves } })
+
+    expect(reorderBatchMock).toHaveBeenCalledWith(moves)
+  })
+
+  it('rejects an empty move list at the transport layer', async () => {
+    // `OrderBatchRequestSchema` requires at least one move, so a caller can
+    // never reach the service's empty-batch guard over HTTP.
+    await expect(modelHandlers['/models/order:batch'].PATCH({ body: { moves: [] } })).rejects.toThrow()
+
+    expect(reorderBatchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a move entry without an anchor', async () => {
+    await expect(
+      modelHandlers['/models/order:batch'].PATCH({ body: { moves: [{ id: 'openai::gpt-5' }] } } as never)
+    ).rejects.toThrow()
+
+    expect(reorderBatchMock).not.toHaveBeenCalled()
   })
 })
 

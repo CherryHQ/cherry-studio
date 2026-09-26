@@ -154,6 +154,26 @@ describe('ApiServer.extractPathParams', () => {
     })
   })
 
+  describe('composite UniqueModelId on the order sub-resource', () => {
+    it('cannot route a slash-bearing UniqueModelId through a plain `:id` order path', () => {
+      const { extract } = createServer()
+      // A `UniqueModelId` is `providerId::modelId`, and `modelId` may contain
+      // `/`. Matching happens on raw path segments with no decoding, so the
+      // canonical single-segment form cannot carry such an id.
+      expect(extract('/models/:id/order', '/models/qwen::qwen/qwen3-vl/order')).toBeNull()
+    })
+
+    it('routes it through the greedy tail anchored by the /order suffix', () => {
+      const { extract } = createServer()
+      expect(extract('/models/:uniqueModelId*/order', '/models/qwen::qwen/qwen3-vl/order')).toEqual({
+        uniqueModelId: 'qwen::qwen/qwen3-vl'
+      })
+      expect(extract('/models/:uniqueModelId*/order', '/models/openai::gpt-5/order')).toEqual({
+        uniqueModelId: 'openai::gpt-5'
+      })
+    })
+  })
+
   describe('greedy syntax edge cases', () => {
     it('does not treat a bare `:*` as greedy (length <= 2)', () => {
       const { extract } = createServer()
@@ -168,6 +188,81 @@ describe('ApiServer.extractPathParams', () => {
       expect(extract('/foo*', '/foo*')).toEqual({})
       expect(extract('/foo*', '/foo/bar')).toBeNull()
     })
+  })
+})
+
+/**
+ * `findHandler` returns the first pattern that matches, in declaration order.
+ * A greedy tail therefore captures everything that follows it, including a
+ * trailing anchor meant for a later, more specific route. Route authors must
+ * declare the anchored route first — see the key order in
+ * `handlers/models.ts`, where the greedy-id order route precedes the greedy
+ * row route for exactly this reason.
+ */
+describe('ApiServer route resolution precedence', () => {
+  const buildServer = (order: 'anchored-first' | 'greedy-first') => {
+    const anchored = {
+      '/models/:uniqueModelId*/order': {
+        PATCH: async () => ({ handler: 'row-reorder' })
+      }
+    }
+    const greedy = {
+      '/models/:uniqueModelId*': {
+        PATCH: async () => ({ handler: 'row-update' })
+      }
+    }
+
+    return new (ApiServer as any)(order === 'anchored-first' ? { ...anchored, ...greedy } : { ...greedy, ...anchored })
+  }
+
+  const patchOrder = (server: ReturnType<typeof buildServer>) =>
+    server.handleRequest({
+      id: 'req_order',
+      method: 'PATCH',
+      path: '/models/openai::gpt-5/order',
+      metadata: { timestamp: Date.now() }
+    })
+
+  it('prefers the anchored order route when it is declared first', async () => {
+    const response = await patchOrder(buildServer('anchored-first'))
+
+    expect(response).toMatchObject({ status: 200, data: { handler: 'row-reorder' } })
+  })
+
+  it('lets a greedy route declared first swallow the trailing anchor', async () => {
+    const response = await patchOrder(buildServer('greedy-first'))
+
+    // The hazard this pins: the row route captures `openai::gpt-5/order` as
+    // the id, so the order endpoint is never reached.
+    expect(response).toMatchObject({ status: 200, data: { handler: 'row-update' } })
+  })
+
+  it('routes a literal sub-resource path by its exact key', async () => {
+    const server = new (ApiServer as any)({
+      '/models/order:batch': {
+        PATCH: async () => ({ handler: 'batch-reorder' })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_batch',
+      method: 'PATCH',
+      path: '/models/order:batch',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({ status: 200, data: { handler: 'batch-reorder' } })
+  })
+
+  it('still routes a slash-bearing id without the suffix to the row route', async () => {
+    const response = await buildServer('anchored-first').handleRequest({
+      id: 'req_row',
+      method: 'PATCH',
+      path: '/models/qwen::qwen/qwen3-vl',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({ status: 200, data: { handler: 'row-update' } })
   })
 })
 

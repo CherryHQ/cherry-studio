@@ -4853,6 +4853,7 @@
   "settings.models.quick_model.label": "Быстрая модель",
   "settings.models.quick_model.setting_title": "Быстрая настройка модели",
   "settings.models.quick_model.tooltip": "Выберите легковесную модель и избегайте моделей с рассуждениями.",
+  "settings.models.reorder_failed": "Не удалось изменить порядок моделей",
   "settings.models.retry.backoff": "Экспоненциальная задержка",
   "settings.models.retry.description": "Повторяет вызовы чата, эмбеддингов и переранжирования; чат может переключаться на другие модели",
   "settings.models.retry.fallback_models": "Резервные модели",

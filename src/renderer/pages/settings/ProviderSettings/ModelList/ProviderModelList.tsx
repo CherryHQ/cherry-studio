@@ -1,11 +1,18 @@
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useReorder } from '@renderer/data/hooks/useReorder'
+import { toast } from '@renderer/services/toast'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
 import ModelListSections from './ModelListSections'
+import { reorderModelGroups } from './reorderModelGroups'
 import { useProviderModelList } from './useProviderModelList'
 
 interface ProviderModelListProps {
@@ -23,6 +30,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   onContinueApiSetup,
   actions
 }) => {
+  const { t } = useTranslation()
   const [groupExpansionCommand, setGroupExpansionCommand] = useState({ expanded: true, version: 0 })
   const modelList = useProviderModelList({
     providerId,
@@ -34,6 +42,46 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     providerMeta.provider?.authOptional !== true &&
     providerMeta.provider?.apiKeys.some((entry) => entry.isEnabled) === true
   const toolbarDisabled = disabled
+  // `GET /models` is cached per provider, and a `UniqueModelId` can contain
+  // `/`, so the reorder hook needs both the query and the greedy id param.
+  const {
+    move: moveModel,
+    applyReorderedList: applyModelOrder,
+    isPending: isReorderingModels
+  } = useReorder('/models', {
+    query: providerId ? { providerId } : undefined,
+    itemIdParam: 'uniqueModelId*'
+  })
+
+  const handleReorderModel = useCallback(
+    (uniqueModelId: UniqueModelId, anchor: OrderRequest) => {
+      if (disabled) return
+      void moveModel(uniqueModelId, anchor).catch(() => {
+        // `move` already rolls the optimistic overlay back and revalidates, so
+        // the only thing left to do is tell the user why the row snapped back.
+        toast.error(t('settings.models.reorder_failed'))
+      })
+    },
+    [disabled, moveModel, t]
+  )
+
+  const handleReorderGroups = useCallback(
+    (activeGroupName: string, overGroupName: string) => {
+      if (disabled) return
+      const next = reorderModelGroups({
+        models: modelList.sections.orderedModels,
+        activeGroupName,
+        overGroupName
+      })
+      if (next === modelList.sections.orderedModels) return
+
+      void applyModelOrder(next as unknown as Array<Record<string, unknown>>).catch(() => {
+        toast.error(t('settings.models.reorder_failed'))
+      })
+    },
+    [applyModelOrder, disabled, modelList.sections.orderedModels, t]
+  )
+
   const toggleGroupsExpanded = useCallback(() => {
     setGroupExpansionCommand((current) => ({
       expanded: !current.expanded,
@@ -93,6 +141,9 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           bulkActionDisabled={toolbarDisabled}
           expansionCommand={groupExpansionCommand}
           onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
+          onReorderModel={disabled || isReorderingModels ? undefined : handleReorderModel}
+          orderedModels={modelList.sections.orderedModels}
+          onReorderGroups={disabled || isReorderingModels ? undefined : handleReorderGroups}
         />
       </div>
       <EditModelDrawer

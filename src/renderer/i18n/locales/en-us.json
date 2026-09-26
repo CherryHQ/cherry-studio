@@ -4853,6 +4853,7 @@
   "settings.models.quick_model.label": "Quick Model",
   "settings.models.quick_model.setting_title": "Quick model setup",
   "settings.models.quick_model.tooltip": "Choose a lightweight model and avoid reasoning models.",
+  "settings.models.reorder_failed": "Failed to reorder models",
   "settings.models.retry.backoff": "Exponential backoff",
   "settings.models.retry.description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
   "settings.models.retry.fallback_models": "Fallback models",

@@ -4853,6 +4853,7 @@
   "settings.models.quick_model.label": "Modelo rápido",
   "settings.models.quick_model.setting_title": "Configuración del modelo rápido",
   "settings.models.quick_model.tooltip": "Elige un modelo ligero y evita los modelos de razonamiento.",
+  "settings.models.reorder_failed": "Error al reordenar modelos",
   "settings.models.retry.backoff": "Retroceso exponencial",
   "settings.models.retry.description": "Reintenta las llamadas de chat, embeddings y reordenación; el chat puede recurrir a otros modelos",
   "settings.models.retry.fallback_models": "Modelos de respaldo",

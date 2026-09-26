@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderModelList from '../ProviderModelList'
@@ -24,14 +24,48 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+const { virtualListPropsRef } = vi.hoisted(() => ({ virtualListPropsRef: { current: null as any } }))
+
 vi.mock('@renderer/components/VirtualList', () => ({
-  DynamicVirtualList: ({ list, children, className, getItemKey }: any) => (
-    <div className={className}>
-      {list.map((item: unknown, index: number) => (
-        <div key={getItemKey?.(index) ?? index}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+  // The section list is virtualized in production; here every group header,
+  // item and footer is rendered inline so ordering and collapse state are
+  // observable.
+  GroupedSortableVirtualList: (props: any) => {
+    virtualListPropsRef.current = props
+    const { groups, getGroupId, getItemId, renderGroupHeader, renderItem, renderGroupFooter, className } = props
+    return (
+      <div className={className}>
+        {groups.map((entry: any, groupIndex: number) => {
+          const groupId = getGroupId(entry.group, groupIndex)
+          return (
+            <div key={String(groupId)}>
+              {entry.header !== undefined ? renderGroupHeader(entry.header, entry.group, groupIndex) : null}
+              {entry.items.map((item: unknown, itemIndex: number) => (
+                <div key={String(getItemId(item, itemIndex, entry.group, groupIndex, itemIndex))}>
+                  {renderItem(item, itemIndex, entry.group, groupIndex, itemIndex)}
+                </div>
+              ))}
+              {entry.footer !== undefined ? renderGroupFooter(entry.footer, entry.group, groupIndex) : null}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+}))
+
+const { moveModelMock, applyReorderedListMock, toastErrorMock } = vi.hoisted(() => ({
+  moveModelMock: vi.fn().mockResolvedValue(undefined),
+  applyReorderedListMock: vi.fn().mockResolvedValue(undefined),
+  toastErrorMock: vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/useReorder', () => ({
+  useReorder: () => ({ move: moveModelMock, applyReorderedList: applyReorderedListMock, isPending: false })
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock, success: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
 
 vi.mock('../ModelDrawer', () => ({
@@ -79,6 +113,11 @@ vi.mock('../useProviderModelList', () => ({
       hasVisibleModels: modelListStateMock.hasVisibleModels,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
+      orderedModels: [
+        { id: 'openai::a1', providerId: 'openai', group: 'chat' },
+        { id: 'openai::b1', providerId: 'openai', group: 'vision' },
+        { id: 'openai::d1', providerId: 'openai', group: 'rerank' }
+      ],
       disabled: false,
       pendingModelIds: new Set<string>(),
       defaultModelIds: new Set<string>(),
@@ -101,6 +140,152 @@ describe('ProviderModelList', () => {
     modelListStateMock.hasVisibleModels = true
     providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [] }
     searchTextMock.value = ''
+  })
+
+  it('turns a same-group drop into an anchored reorder request', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overId: 'openai::gpt-5',
+      overItem: { id: 'openai::gpt-5' },
+      overType: 'item',
+      position: 'after',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'OpenAI' },
+      targetGroupId: 'OpenAI',
+      sourceIndex: 0,
+      targetIndex: 1
+    })
+
+    expect(moveModelMock).toHaveBeenCalledWith('openai::gpt-4', { after: 'openai::gpt-5' })
+  })
+
+  it('encodes a drop before the target row as a before anchor', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overId: 'openai::gpt-5',
+      overItem: { id: 'openai::gpt-5' },
+      overType: 'item',
+      position: 'before',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'OpenAI' },
+      targetGroupId: 'OpenAI',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    expect(moveModelMock).toHaveBeenCalledWith('openai::gpt-4', { before: 'openai::gpt-5' })
+  })
+
+  it('ignores a cross-group drop so no order the grouped view contradicts is persisted', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overId: 'anthropic::claude',
+      overItem: { id: 'anthropic::claude' },
+      overType: 'item',
+      position: 'before',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'Anthropic' },
+      targetGroupId: 'Anthropic',
+      sourceIndex: 0,
+      targetIndex: 0
+    })
+
+    expect(moveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('tells the user when the reorder is rejected instead of silently snapping back', async () => {
+    moveModelMock.mockRejectedValueOnce(new Error('reorder rejected'))
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overId: 'openai::gpt-5',
+      overItem: { id: 'openai::gpt-5' },
+      overType: 'item',
+      position: 'after',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'OpenAI' },
+      targetGroupId: 'OpenAI',
+      sourceIndex: 0,
+      targetIndex: 1
+    })
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('settings.models.reorder_failed'))
+  })
+
+  it('ignores a drop that lands on a group header rather than a row', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    virtualListPropsRef.current.onDragEnd({
+      type: 'item',
+      activeId: 'openai::gpt-4',
+      activeItem: { id: 'openai::gpt-4' },
+      overType: 'group',
+      position: 'before',
+      sourceGroup: { groupName: 'OpenAI' },
+      sourceGroupId: 'OpenAI',
+      targetGroup: { groupName: 'OpenAI' },
+      targetGroupId: 'OpenAI',
+      sourceIndex: 0,
+      targetIndex: 0
+    })
+
+    expect(moveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('disables item dragging while the list is disabled', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    expect(virtualListPropsRef.current.dragCapabilities).toMatchObject({
+      groups: true,
+      items: true,
+      itemSameGroup: true,
+      itemCrossGroup: false
+    })
+    expect(virtualListPropsRef.current.canDragItem({ id: 'openai::gpt-4' })).toBe(true)
+
+    render(<ProviderModelList providerId="openai" disabled />)
+
+    expect(virtualListPropsRef.current.dragCapabilities).toEqual({ groups: false, items: false })
+  })
+
+  it('moves a whole group when a group header is dropped on another group', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    // Group names here come from each model's own `group` value, which is what
+    // `reorderModelGroups` groups by — the same rule the list renders with.
+    virtualListPropsRef.current.onDragEnd({
+      type: 'group',
+      activeGroup: { groupName: 'vision' },
+      activeGroupId: 'vision',
+      overGroup: { groupName: 'chat' },
+      overGroupId: 'chat',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    expect(applyReorderedListMock).toHaveBeenCalledTimes(1)
+    const nextIds = (applyReorderedListMock.mock.calls[0][0] as Array<{ id: string }>).map((m) => m.id)
+    expect(nextIds.indexOf('openai::b1')).toBeLessThan(nextIds.indexOf('openai::a1'))
   })
 
   it('shows guidance to get models when the provider has no models', () => {

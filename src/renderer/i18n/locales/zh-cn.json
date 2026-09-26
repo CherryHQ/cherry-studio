@@ -4853,6 +4853,7 @@
   "settings.models.quick_model.label": "快速模型",
   "settings.models.quick_model.setting_title": "快速模型设置",
   "settings.models.quick_model.tooltip": "建议选择轻量模型，不建议选择思考模型",
+  "settings.models.reorder_failed": "调整模型顺序失败",
   "settings.models.retry.backoff": "指数退避",
   "settings.models.retry.description": "重试聊天、嵌入和重排调用；聊天失败时可回退到其他模型",
   "settings.models.retry.fallback_models": "回退模型",

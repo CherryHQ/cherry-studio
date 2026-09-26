@@ -4853,6 +4853,7 @@
   "settings.models.quick_model.label": "Model rapid",
   "settings.models.quick_model.setting_title": "Configurare model rapid",
   "settings.models.quick_model.tooltip": "Alege un model ușor și evită modelele de raționament.",
+  "settings.models.reorder_failed": "Nu s-a reușit reordonarea modelelor",
   "settings.models.retry.backoff": "Așteptare exponențială",
   "settings.models.retry.description": "Reîncearcă apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
   "settings.models.retry.fallback_models": "Modele de rezervă",
