@@ -44,7 +44,7 @@ import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
@@ -196,6 +196,13 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
+  // Plan-approval model handoff, once Main has stopped the approved turn: switch the agent model,
+  // then (once the stopped turn has settled) send the execution follow-up on a fresh turn.
+  const [planExecutionHandoff, setPlanExecutionHandoff] = useState<{
+    sessionId: string
+    modelId: UniqueModelId
+    modelApplied?: boolean
+  }>()
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -226,6 +233,9 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
+    // A pending handoff belongs to the session it was approved on; switching away drops it so
+    // returning later cannot fire a stale execution follow-up.
+    setPlanExecutionHandoff(undefined)
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -254,7 +264,11 @@ const AgentChat = ({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
-    reservedMessages: EMPTY_MESSAGES
+    reservedMessages: EMPTY_MESSAGES,
+    onPlanModelHandoff: (modelId) => {
+      if (!activeAgent || !isUniqueModelId(modelId)) return
+      setPlanExecutionHandoff({ sessionId: sessionSnapshot?.id ?? '', modelId })
+    }
   })
   const {
     hasOlder: runtimeHasOlder,
@@ -263,6 +277,32 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  // Complete the plan-approval model handoff. Main already resolved the plan as approved and
+  // stopped the turn; switch the agent to the chosen model, wait for the stopped turn's stream to
+  // settle, then send the execution follow-up — a fresh turn captures the new model.
+  useEffect(() => {
+    const handoff = planExecutionHandoff
+    if (!handoff || handoff.sessionId !== sessionSnapshot?.id || !activeAgent) return
+    if (handoff.modelApplied) {
+      if (runtime.isPending) return
+      setPlanExecutionHandoff(undefined)
+      void runtime.sendMessage({ text: t('agent.toolPermission.executionModel.followUp') })
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        await updateModel({ agentId: activeAgent.id, modelId: handoff.modelId }, { showSuccessToast: false })
+      } catch {
+        setPlanExecutionHandoff(undefined)
+        return
+      }
+      if (!cancelled) setPlanExecutionHandoff({ ...handoff, modelApplied: true })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeAgent, planExecutionHandoff, runtime.isPending, runtime.sendMessage, sessionSnapshot?.id, t, updateModel])
   const openDiagnosticReport = useCallback(
     (description = '') => {
       if (!currentSessionId) return

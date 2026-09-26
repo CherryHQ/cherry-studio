@@ -45,6 +45,31 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({
+    value,
+    onSelect,
+    noneOptionLabel
+  }: {
+    value?: { id: string; name: string }
+    onSelect: (model: { id: string; name: string } | undefined) => void
+    noneOptionLabel?: string
+  }) => (
+    <div data-testid="model-selector-mock">
+      <button
+        type="button"
+        data-testid="model-selector-pick"
+        onClick={() => onSelect({ id: 'anthropic::claude-sonnet-5', name: 'Claude Sonnet 5' })}>
+        pick
+      </button>
+      <button type="button" data-testid="model-selector-none" onClick={() => onSelect(undefined)}>
+        {noneOptionLabel}
+      </button>
+      <span data-testid="model-selector-value">{value?.id ?? 'none'}</span>
+    </div>
+  )
+}))
+
 const part = {
   type: 'tool-CustomTool',
   toolName: 'CustomTool',
@@ -205,6 +230,72 @@ describe('PermissionRequestComposer', () => {
     const preview = screen.getByTestId('permission-preview')
     expect(preview).toHaveTextContent('Release plan')
     expect(preview).toHaveTextContent('Run the focused tests')
+  })
+
+  it('renders the execution-model selector only for plan-exit approvals', () => {
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    const { rerender } = render(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
+
+    expect(screen.getByTestId('plan-execution-model')).toBeInTheDocument()
+    expect(screen.getByTestId('model-selector-mock')).toBeInTheDocument()
+
+    rerender(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
+  })
+
+  it('approves a plan without a model choice exactly as before', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  it('approves a plan with the chosen execution model for the fresh-turn restart', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByTestId('model-selector-pick'))
+    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('anthropic::claude-sonnet-5')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: planRequest.match,
+      approved: true,
+      executionModelId: 'anthropic::claude-sonnet-5'
+    })
   })
 
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {

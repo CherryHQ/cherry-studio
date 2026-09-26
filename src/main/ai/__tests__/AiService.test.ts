@@ -964,6 +964,7 @@ describe('AiService tool approval', () => {
         updatedInput?: Record<string, unknown>
         topicId?: string
         anchorId?: string
+        executionModelId?: string
       }
     ) => service.respondToolApproval(payload, event.sender)
   }
@@ -973,7 +974,7 @@ describe('AiService tool approval', () => {
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
-    const respondToolApproval = vi.fn(() => true)
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, modelHandoff: false }))
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -996,15 +997,38 @@ describe('AiService tool approval', () => {
         reason: undefined,
         updatedInput: undefined
       },
-      undefined
+      undefined,
+      { executionModelId: undefined }
     )
     // Fast-path short-circuits before any DB read or continue dispatch.
     expect(getById).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()
   })
 
+  it('echoes the execution model when the runtime performed the plan-approval handoff', async () => {
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, modelHandoff: true }))
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
+    )
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'plan-approval-1',
+      approved: true,
+      executionModelId: 'anthropic::claude-sonnet-5'
+    })
+
+    expect(result).toEqual({ ok: true, executionModelId: 'anthropic::claude-sonnet-5' })
+    expect(respondToolApproval).toHaveBeenCalledWith(
+      'plan-approval-1',
+      { approved: true, reason: undefined, updatedInput: undefined },
+      undefined,
+      { executionModelId: 'anthropic::claude-sonnet-5' }
+    )
+  })
+
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1022,7 +1046,7 @@ describe('AiService tool approval', () => {
   })
 
   it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1068,7 +1092,7 @@ describe('AiService tool approval', () => {
   })
 
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1098,7 +1122,7 @@ describe('AiService tool approval', () => {
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
     // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
     // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
@@ -1124,7 +1148,7 @@ describe('AiService tool approval', () => {
   })
 
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1159,7 +1183,7 @@ describe('AiService tool approval', () => {
   })
 
   it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1192,7 +1216,7 @@ describe('AiService tool approval', () => {
   })
 
   it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1224,7 +1248,7 @@ describe('AiService tool approval', () => {
   })
 
   it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
