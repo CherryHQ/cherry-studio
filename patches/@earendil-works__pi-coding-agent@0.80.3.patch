@@ -37,3 +37,62 @@ diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
                      this.agent.state.messages = messages.slice(0, -1);
                  }
                  return true;
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -5,6 +5,6 @@
+  * and after compaction the session is reloaded.
+  */
+-import { completeSimple } from "@earendil-works/pi-ai/compat";
++import { completeSimple, isContextOverflow } from "@earendil-works/pi-ai/compat";
+ import { convertToLlm, createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "../messages.js";
+ import { buildSessionContext } from "../session-manager.js";
+ import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, SUMMARIZATION_SYSTEM_PROMPT, serializeConversation, } from "./utils.js";
+@@ -429,10 +429,43 @@ function createSummarizationOptions(model, maxTokens, apiKey, headers, env, sign
+     }
+     return options;
+ }
++function fitSummarizationPrompt(prompt, maxChars) {
++    if (prompt.length <= maxChars)
++        return prompt;
++    // Keep the original request and the latest work plus the instructions at the end.
++    const marker = "\n[...middle conversation omitted to fit the model context...]\n";
++    const remaining = maxChars - marker.length;
++    const firstChars = Math.floor(remaining / 5);
++    return prompt.slice(0, firstChars) + marker + prompt.slice(-(remaining - firstChars));
++}
+ async function completeSummarization(model, context, options, streamFn) {
+-    if (!streamFn) {
+-        return completeSimple(model, context, options);
++    // Small contexts need headroom for tokenizer variance. Large models retain
++    // their full history unless the provider actually rejects the request.
++    const originalPrompt = context.messages[0]?.content?.[0]?.text;
++    if (typeof originalPrompt !== "string") {
++        if (!streamFn)
++            return completeSimple(model, context, options);
++        return (await streamFn(model, context, options)).result();
++    }
++    const smallContext = model.contextWindow < 100000;
++    const maxTokens = smallContext
++        ? Math.min(options.maxTokens, Math.max(256, Math.floor(model.contextWindow / 24)))
++        : options.maxTokens;
++    const boundedOptions = { ...options, maxTokens };
++    const safeMaxChars = Math.max(512, Math.floor((model.contextWindow - maxTokens) / 2));
++    let maxChars = smallContext ? safeMaxChars : originalPrompt.length;
++    for (let attempt = 0; attempt < 4; attempt++) {
++        options.signal?.throwIfAborted();
++        const prompt = fitSummarizationPrompt(originalPrompt, maxChars);
++        const requestContext = {
++            ...context,
++            messages: [{ ...context.messages[0], content: [{ type: "text", text: prompt }] }],
++        };
++        const response = streamFn
++            ? await (await streamFn(model, requestContext, boundedOptions)).result()
++            : await completeSimple(model, requestContext, boundedOptions);
++        if (response.stopReason !== "error" || !isContextOverflow(response, model.contextWindow) || attempt === 3)
++            return response;
++        maxChars = Math.max(256, Math.min(safeMaxChars, Math.floor(maxChars / 2)));
+     }
+-    const stream = await streamFn(model, context, options);
+-    return stream.result();
+ }
