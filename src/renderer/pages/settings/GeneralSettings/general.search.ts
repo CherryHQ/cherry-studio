@@ -37,6 +37,7 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'proxy-mode',
     titleKey: 'settings.proxy.mode.title',
     groupKey: 'settings.proxy.mode.title',
+    descriptionKey: 'settings.proxy.mode.description',
     aliases: ['proxy', '代理']
   },
   {
