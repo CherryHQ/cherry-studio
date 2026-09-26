@@ -52,7 +52,7 @@ export function PromptPolishActions({
   disabled = false
 }: PromptPolishActionsProps) {
   const { t } = useTranslation()
-  const { defaultModel, isDefaultModelLoading = false } = useDefaultModel()
+  const { defaultModel, isDefaultModelLoading } = useDefaultModel()
   const [running, setRunning] = useState(false)
   const [restoreState, setRestoreState] = useState<RestoreState | null>(null)
   const inFlightRef = useRef(false)
