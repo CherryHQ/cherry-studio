@@ -90,6 +90,8 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
+  /** Bumped when a server's tools are withdrawn so an in-flight refresh cannot republish them. */
+  private readonly toolsEpochByServer = new Map<string, number>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -170,7 +172,16 @@ export class McpCatalogService extends BaseService {
 
   /** Lifecycle invalidation permits a new warm; failed connectivity checks back off automatic warms for 30 seconds. */
   public invalidateTools(serverId: string, reason: ToolsInvalidationReason): void {
+    this.bumpToolsEpoch(serverId)
     this.writeToolsCache(serverId, { kind: reason === 'connectivity-check' ? 'refresh-failed' : 'invalidated' })
+  }
+
+  private bumpToolsEpoch(serverId: string): void {
+    this.toolsEpochByServer.set(serverId, (this.toolsEpochByServer.get(serverId) ?? 0) + 1)
+  }
+
+  private toolsEpochIsCurrent(serverId: string, epoch: number): boolean {
+    return (this.toolsEpochByServer.get(serverId) ?? 0) === epoch
   }
 
   private runtimeService() {
@@ -324,6 +335,7 @@ export class McpCatalogService extends BaseService {
       server = this.getServerById(serverId)
     } catch (error) {
       if (isDataApiNotFoundError(error)) {
+        this.bumpToolsEpoch(serverId)
         this.writeToolsCache(serverId, { kind: 'invalidated' })
       } else {
         this.writeToolsCache(serverId, { kind: 'refresh-failed' })
@@ -331,17 +343,29 @@ export class McpCatalogService extends BaseService {
       }
       throw error
     }
+    let epoch: number | undefined
     try {
       if (!server.isActive) {
+        this.bumpToolsEpoch(serverId)
         this.writeToolsCache(serverId, { kind: 'invalidated' })
         this.runtimeService().setServerStatus(serverId, 'disabled')
         return
       }
       this.clearToolsCache(server)
+      epoch = this.toolsEpochByServer.get(serverId) ?? 0
       const tools = await this.listToolsForServer(server)
+      if (!this.toolsEpochIsCurrent(serverId, epoch)) {
+        this.clearToolsCache(server)
+        logger.debug('Dropped MCP tools refresh that finished after invalidation', { serverId })
+        return
+      }
       this.writeToolsCache(serverId, tools.length > 0 ? { kind: 'success', tools } : { kind: 'confirmed-empty' })
       this.runtimeService().setServerStatus(serverId, 'connected')
     } catch (error) {
+      if (epoch !== undefined && !this.toolsEpochIsCurrent(serverId, epoch)) {
+        logger.debug('Dropped MCP tools refresh that finished after invalidation', { serverId })
+        throw error
+      }
       this.writeToolsCache(serverId, { kind: 'refresh-failed' })
       this.runtimeService().setServerStatus(serverId, 'error', error)
       throw error

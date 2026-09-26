@@ -520,6 +520,87 @@ describe('McpCatalogService', () => {
     expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['new-tool'])
   })
 
+  it('does not republish tools or status when a refresh finishes after invalidation', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let releaseList: ((value: { tools: ReturnType<typeof sdkTool>[] }) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = resolve
+        })
+    )
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    const refresh = service.refreshTools('server-1')
+    expect(listTools).toHaveBeenCalledTimes(1)
+    service.invalidateTools('server-1', 'restart')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    releaseList?.({ tools: [sdkTool('stale')] })
+    await refresh
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheStore.get('mcp:list_tool:server:server-1')).toBeUndefined()
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('does not replace an invalidation with a failed refresh outcome when the in-flight list rejects', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let rejectList: ((error: Error) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectList = reject
+        })
+    )
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    expect(listTools).toHaveBeenCalledTimes(1)
+    service.invalidateTools('server-1', 'stop')
+    runtimeService.setServerStatus.mockClear()
+    const sharedWrites = cacheService.setShared.mock.calls.length
+
+    rejectList?.(new Error('closed during invalidation'))
+    await expect(refresh).rejects.toThrow('closed during invalidation')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    expect(cacheService.setShared.mock.calls).toHaveLength(sharedWrites)
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('keeps tools empty when a stale refresh resolves and the reconnect refresh fails', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let releaseList: ((value: { tools: ReturnType<typeof sdkTool>[] }) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = resolve
+        })
+    )
+    listTools.mockRejectedValueOnce(new Error('restart failed'))
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    service.invalidateTools('server-1', 'restart')
+    releaseList?.({ tools: [sdkTool('stale')] })
+    await refresh
+    await expect(service.refreshTools('server-1')).rejects.toThrow('restart failed')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalledWith('server-1', 'connected')
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', expect.any(Error))
+  })
+
   it('withdraws old tools on restart before a failed reconnect and keeps them withdrawn', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
     getById.mockReturnValue(server())
