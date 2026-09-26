@@ -9,7 +9,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { AppEdition } from '@shared/types/appEdition'
-import { apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
+import { apiKeyModelLimitId, periodStartOf } from '@shared/utils/apiKeyLimit'
 
 import type { ModelSelectorModelItem } from '../types'
 import { useModelSelectorData } from '../useModelSelectorData'
@@ -555,5 +555,32 @@ describe('useModelSelectorData', () => {
     const query = (call?.[1] as { query?: unknown })?.query
     expect(query).toBeDefined()
     expect(() => AiUsageRecordStatsQuerySchema.parse(query)).not.toThrow()
+  })
+
+  // A period-only lookup (no anchor/timezone) reads every key as renewing on the 1st in UTC, so a
+  // key whose real cycle starts later got a stats window that began too early and missed nothing —
+  // but one whose real cycle starts *earlier* (an anchor day already past in this month) got a
+  // window that started too late, silently dropping usage from before it and underreporting spend.
+  it('fetches usage back to a key’s own renewal anchor, not the default 1st-of-month', () => {
+    const model = makeModel('gpt-4o', 'openai')
+    wireDeps({
+      providers: [
+        makeProvider('openai', {
+          apiKeys: [{ id: 'k1', isEnabled: true, renewalAnchor: '2020-01-20', renewalTimezone: 'UTC' }]
+        })
+      ],
+      models: [model]
+    })
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('openai', 'k1', model.id)]: { limit: 5, period: 'monthly' }
+    })
+
+    renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    const call = mockUseQuery.mock.calls.findLast(([path]) => path === '/ai-usage-records/stats')
+    const query = (call?.[1] as { query?: { from: number } })?.query
+    const expectedFrom = periodStartOf('monthly', '2020-01-20', 'UTC')
+
+    expect(query?.from).toBe(expectedFrom)
   })
 })

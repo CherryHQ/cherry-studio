@@ -11,7 +11,6 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
-import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -129,18 +128,23 @@ export function useModelSelectorData({
   const [modelHealth] = usePreference('chat.retry.model_health')
   const [apiKeyLimits] = usePreference('chat.routing.api_key_limits')
 
-  const quotaPeriods = useMemo(() => {
+  // Per limit, not per period: two limits can share a period yet renew on different anchors/
+  // timezones, and a period-only lookup would fetch too short a window for whichever renews later.
+  const quotaPeriodStarts = useMemo(() => {
     if (!apiKeyLimits || Object.keys(apiKeyLimits).length === 0) return []
-    const periods = new Set<ApiKeyLimitPeriod>()
-    for (const v of Object.values(apiKeyLimits)) periods.add(v.period)
-    return [...periods]
-  }, [apiKeyLimits])
+    const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+    return Object.entries(apiKeyLimits).map(([limitKey, value]) => {
+      const [providerId, keyId] = limitKey.split('::')
+      const key = providerById.get(providerId)?.apiKeys.find((k) => k.id === keyId)
+      return periodStartOf(value.period, key?.renewalAnchor, key?.renewalTimezone)
+    })
+  }, [apiKeyLimits, providers])
 
   const quotaStatsParams = useMemo(() => {
     // `useQuery` treats absent options as enabled, so skipping has to be said explicitly — passing
     // `undefined` sent a query-less request that the endpoint rejects, once per picker render.
-    if (quotaPeriods.length === 0) return { enabled: false }
-    const minFrom = usageStatsFrom(quotaPeriods.map((p) => periodStartOf(p)))
+    if (quotaPeriodStarts.length === 0) return { enabled: false }
+    const minFrom = usageStatsFrom(quotaPeriodStarts)
     return {
       query: {
         groupBy: 'apiKeyModel' as const,
@@ -150,7 +154,7 @@ export function useModelSelectorData({
         limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
-  }, [quotaPeriods])
+  }, [quotaPeriodStarts])
 
   const { data: quotaUsageData } = useQuery('/ai-usage-records/stats', quotaStatsParams)
 
