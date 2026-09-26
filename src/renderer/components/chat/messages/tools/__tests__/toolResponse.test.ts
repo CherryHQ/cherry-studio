@@ -5,6 +5,25 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { buildToolResponseFromPart } from '../toolResponse'
 
 describe('toolResponse adapter', () => {
+  it('carries the part result metadata onto the projected response', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-1',
+      toolName: 'SendMessage',
+      state: 'output-available',
+      input: { to: 'agent-77' },
+      output: { success: true, resumedAgentId: 'agent-77' },
+      resultProviderMetadata: { cherry: { launchToolCallId: 'call-launch' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+    expect((response as { resultProviderMetadata?: unknown }).resultProviderMetadata).toEqual({
+      cherry: { launchToolCallId: 'call-launch' }
+    })
+  })
+
   it('maps structured dynamic-tool output metadata to MCP tool fields', () => {
     const part = {
       type: 'dynamic-tool',

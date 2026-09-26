@@ -1,4 +1,5 @@
 import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -26,12 +27,15 @@ function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: T
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
 }
 
-function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | Record<string, unknown> | undefined) {
+export function getAgentToolFlowTitle(
+  toolName: string | undefined,
+  input: ToolInput | Record<string, unknown> | undefined
+) {
   if (typeof input === 'string') return input.trim() || toolName
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
   const inputEntries = Object.entries(input)
-  for (const key of ['description', 'subject', 'title', 'name']) {
+  for (const key of ['description', 'subject', 'title', 'name', 'summary']) {
     const value = inputEntries.find(([field]) => field === key)?.[1]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
@@ -58,6 +62,9 @@ export function AgentToolCallCard({
   hasError = false,
   isCherrySessionTool = false,
   openFlowOnClick = false,
+  flowTargetToolCallId,
+  flowTitle,
+  labelOverride,
   showInlineDetails = true
 }: {
   toolCallId?: string
@@ -69,6 +76,12 @@ export function AgentToolCallCard({
   hasError?: boolean
   isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
+  /** Opens a different flow than this card's own call — e.g. a resume entry pointing at the launch root. */
+  flowTargetToolCallId?: string
+  /** Title for the opened flow; by default derived from this card's input. */
+  flowTitle?: string
+  /** Replaces the renderer's label — used when a caller knows a more identifying one. */
+  labelOverride?: ReactNode
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
@@ -89,12 +102,14 @@ export function AgentToolCallCard({
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
           actions.openAgentToolFlow?.({
-            toolCallId,
+            toolCallId: flowTargetToolCallId ?? toolCallId,
             toolName,
-            title: getAgentToolFlowTitle(toolName, input)
+            title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
-  if (openToolFlow) {
+  // A card whose flow lives elsewhere — a resume receipt pointing at its launch root — keeps the
+  // disclosure header: that header carries the resume presentation and still opens the target flow.
+  if (openToolFlow && !flowTargetToolCallId) {
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
@@ -157,7 +172,7 @@ export function AgentToolCallCard({
       <AgentToolDisclosureLabel
         label={
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="min-w-0">{renderedItem.label}</div>
+            <div className="min-w-0">{labelOverride ?? renderedItem.label}</div>
             {status && (status !== 'done' || hasError || openFlowOnClick) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
             )}

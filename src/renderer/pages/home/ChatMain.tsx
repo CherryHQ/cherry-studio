@@ -1,7 +1,9 @@
-import type { FC } from 'react'
+import { type FC, useMemo } from 'react'
 
+import { AgentLaunchIndexProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -60,9 +62,11 @@ const ChatMain: FC<ChatMainProps> = ({
     onStartBranchDraft
   })
   return (
-    <MessageListProvider value={value}>
-      <MessageList enableSearch />
-    </MessageListProvider>
+    <AgentLaunchIndexProvider value={useMemo(() => buildAgentLaunchIndex(partsByMessageId), [partsByMessageId])}>
+      <MessageListProvider value={value}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    </AgentLaunchIndexProvider>
   )
 }
 
