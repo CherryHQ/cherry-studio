@@ -34,16 +34,17 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
-    // Keep local services reachable independently of the configured proxy. A `<-loopback>` entry
-    // in the rules is an ordered negation the matcher evaluates itself, so the defaults still go
-    // in — they simply lose to a negation that precedes them, matching Chromium's ordering.
-    if (proxyUrl) {
+    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
+    // Keep local services reachable independently of the configured proxy. The matcher resolves
+    // conflicts the way Chromium's does — later rules override earlier rules — so with the
+    // `<-loopback>` escape hatch armed these defaults must stay out: appended at the end they
+    // would override the negation and send loopback back to direct.
+    if (proxyUrl && !loopbackEscape) {
       for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
         if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
-    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
-    // EnvHttpProxyAgent consults NO_PROXY on its own, ahead of the matcher's ordered evaluation —
+    // EnvHttpProxyAgent consults NO_PROXY on its own, ahead of the matcher's evaluation —
     // with the escape hatch armed, loopback entries must stay out of the env or undici would
     // bypass what the negation sends through the proxy.
     const envBypassRules = loopbackEscape

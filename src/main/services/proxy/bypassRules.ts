@@ -96,10 +96,10 @@ export function createProxyBypassMatcher(
     }
 
     if (trimmedRule === '<-loopback>') {
-      // Ordered negation of the implicit loopback scope (see isImplicitLoopbackScope): rules are
-      // evaluated in order and the first match decides, so `localhost,<-loopback>` keeps loopback
-      // bypassed while `<-loopback>` alone sends it through the proxy — Chromium's subtractive
-      // directive, spelled as an exclude entry instead of a token to delete.
+      // Chromium's subtractive directive for the implicit loopback scope (see
+      // isImplicitLoopbackScope), spelled as an exclude entry. Its position in the list matters:
+      // the matcher lets later rules override earlier ones, so `<-loopback>,localhost` keeps
+      // localhost bypassed while `localhost,<-loopback>` sends it through the proxy.
       return {
         type: 'loopbackScope',
         matchType: 'exact',
@@ -116,7 +116,9 @@ export function createProxyBypassMatcher(
     }
 
     if (workingRule.includes('/')) {
-      const cleanedCidr = workingRule.replace(/^\[|\]$/g, '')
+      // For a bracketed IPv6 subnet like `[::ffff:127.0.0.0]/104` the `]` sits before the prefix,
+      // not at the end — strip the pair wherever it wraps the literal.
+      const cleanedCidr = workingRule.replace(/^\[/, '').replace(/\]/, '')
       if (ipaddrModule.isValidCIDR(cleanedCidr)) {
         return {
           type: 'cidr',
@@ -142,7 +144,9 @@ export function createProxyBypassMatcher(
       }
     }
 
-    const cleanedHost = workingRule.replace(/^\[|\]$/g, '')
+    // Same trailing-dot normalization as the URL host side — with hosts canonicalized, a
+    // user-typed `localhost.` rule would otherwise go dead.
+    const cleanedHost = workingRule.replace(/^\[|\]$/g, '').replace(/\.$/, '')
     const normalizedHost = cleanedHost.toLowerCase()
 
     if (!cleanedHost) {
@@ -234,7 +238,7 @@ export function createProxyBypassMatcher(
 
   // The implicit scope that `<-loopback>` negates: loopback hostnames (including the Windows-only
   // `loopback` and the legacy `localhost6` aliases), the loopback and unspecified IPv4 ranges,
-  // and link-local addresses.
+  // link-local addresses, and IPv4-mapped loopback (net::IsIPv4MappedLoopback).
   const isImplicitLoopbackScope = (hostname: string): boolean => {
     if (isLocalHostname(hostname)) {
       return true
@@ -242,8 +246,18 @@ export function createProxyBypassMatcher(
 
     const cleaned = hostname.replace(/^\[|\]$/g, '')
     if (ipaddrModule.isValid(cleaned)) {
-      const range = ipaddrModule.parse(cleaned).range()
+      const parsed = ipaddrModule.parse(cleaned)
+      const range = parsed.range()
       if (range === 'linkLocal' || range === 'unspecified') {
+        return true
+      }
+      // [::ffff:127.0.0.1]/104 — the one loopback family net::IsLocalhost() misses, which is
+      // why Chromium carries a dedicated check beside it.
+      if (
+        range === 'ipv4Mapped' &&
+        parsed instanceof ipaddrModule.IPv6 &&
+        parsed.toIPv4Address().range() === 'loopback'
+      ) {
         return true
       }
     }
@@ -287,7 +301,9 @@ export function createProxyBypassMatcher(
 
       try {
         const parsedUrl = new URL(url)
-        const hostname = parsedUrl.hostname
+        // WHATWG keeps a trailing dot in the host (`localhost.`); net::IsLocalHostname strips it
+        // before comparing, and without the same strip every loopback entry misses the dotted form.
+        const hostname = parsedUrl.hostname.replace(/\.$/, '')
         const cleanedHostname = hostname.replace(/^\[|\]$/g, '')
         const protocol = parsedUrl.protocol
         const protocolName = protocol.replace(':', '').toLowerCase()
@@ -295,7 +311,14 @@ export function createProxyBypassMatcher(
         const port = parsedUrl.port || defaultPort || ''
         const hostnameIsIp = ipaddrModule.isValid(cleanedHostname)
 
-        for (const rule of parsedByPassRules) {
+        // Chromium's SchemeHostPortMatcher resolves positive/negative conflicts by letting later
+        // rules override earlier ones — Evaluate() iterates the rule list in reverse and
+        // short-circuits on the first match (net/base/scheme_host_port_matcher.cc). Iterating our
+        // flat list in reverse reproduces that last-match-wins semantics exactly; first-match
+        // iteration was measured against a real Chromium session and picks the wrong winner for
+        // both `localhost,<-loopback>` and `<-loopback>,localhost`.
+        for (let i = parsedByPassRules.length - 1; i >= 0; i--) {
+          const rule = parsedByPassRules[i]
           if (rule.scheme && rule.scheme !== protocolName) {
             continue
           }
@@ -311,8 +334,8 @@ export function createProxyBypassMatcher(
               }
               break
             case 'loopbackScope':
-              // First match wins: an earlier positive rule has already returned, so reaching this
-              // case means the URL is loopback-scope and must NOT bypass.
+              // Reverse iteration short-circuits on the first match, so reaching this case means
+              // no later rule matched; a loopback-scope URL is therefore NOT bypassed.
               if (isImplicitLoopbackScope(hostname)) {
                 return false
               }
