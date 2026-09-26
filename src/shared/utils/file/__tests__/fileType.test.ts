@@ -26,6 +26,7 @@ describe('getFileTypeByExt', () => {
   it('classifies common video / audio / text / document / image extensions', () => {
     expect(getFileTypeByExt('mp4')).toBe('video')
     expect(getFileTypeByExt('mp3')).toBe('audio')
+    expect(getFileTypeByExt('m4a')).toBe('audio')
     expect(getFileTypeByExt('pdf')).toBe('document')
     expect(getFileTypeByExt('jpg')).toBe('image')
   })

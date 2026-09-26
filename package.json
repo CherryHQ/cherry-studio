@@ -426,6 +426,7 @@
     "mermaid": "^11.13.0",
     "micromark-util-types": "^2.0.2",
     "mime": "^4.0.4",
+    "mime-db": "^1.54.0",
     "mime-types": "^3.0.1",
     "motion": "^12.42.0",
     "nanoid": "3.3.11",

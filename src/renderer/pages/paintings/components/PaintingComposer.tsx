@@ -26,7 +26,6 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
@@ -48,7 +47,10 @@ const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['fi
 // pills, so the composer manages no tokens then (empty set = no doc token reconcile).
 const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
 const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
-const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
+// Edit-image models' documented input contract tops out at PNG/JPEG/WebP
+// (OpenAI gpt-image-1, Gemini image generation): the wider imageExts catalog
+// would let PSD/HEIC references past the picker and fail at generation time.
+const PAINTING_IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp']
 const PAINTING_SCOPE = 'painting' as const
 
 /** Field types worth surfacing in the compact button summary. */

@@ -1187,6 +1187,9 @@ importers:
       mime:
         specifier: ^4.0.4
         version: 4.1.0
+      mime-db:
+        specifier: ^1.54.0
+        version: 1.54.0
       mime-types:
         specifier: ^3.0.1
         version: 3.0.2
