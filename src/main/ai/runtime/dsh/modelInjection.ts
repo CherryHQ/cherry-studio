@@ -14,6 +14,7 @@ import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
@@ -318,28 +319,40 @@ export async function resolveDshProviderInjectionFromSnapshot(
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
+  let injection: DshProviderInjection
   if (!resolvedApiKey.value.trim()) {
     // Keyless local servers (registry authOptional) need no credential; dsh
     // still wants a non-empty credential value.
     if (provider.authOptional !== true) throw new DshMissingApiKeyError(provider.id)
-    return buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+    injection = buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+  } else {
+    if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
+      throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
+    }
+    injection = buildDshProviderInjection(
+      provider,
+      model,
+      resolvedApiKey.value,
+      resolvedApiKey.apiKeySelection,
+      reasoningEffort
+    )
   }
-  if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
-    throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
-  }
-  const injection = buildDshProviderInjection(
-    provider,
-    model,
-    resolvedApiKey.value,
-    resolvedApiKey.apiKeySelection,
-    reasoningEffort
-  )
   // OpenCode Go/Zen reject requests without this header; a header the operator set wins.
   if (
     matchesPreset(provider, SystemProviderIds.opencode) &&
     !Object.keys(injection.headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
   ) {
     injection.headers = { ...injection.headers, 'x-opencode-session': sessionId }
+  }
+  const resolvedEndpoint = resolveDshEndpoint(provider, model)
+  if (
+    usesOpenRouterSessionRouting(provider, resolvedEndpoint.endpointType) &&
+    !Object.keys(injection.headers ?? {}).some((name) => name.toLowerCase() === 'x-session-id')
+  ) {
+    injection.headers = {
+      ...injection.headers,
+      'x-session-id': deriveAgentSessionRoutingKey(sessionId)
+    }
   }
   return injection
 }

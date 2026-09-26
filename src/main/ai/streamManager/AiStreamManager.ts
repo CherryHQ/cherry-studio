@@ -890,6 +890,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Per-request upstream headers for trusted in-process callers. */
+    headers?: Record<string, string>
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
@@ -924,9 +926,10 @@ export class AiStreamManager extends BaseService {
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+      ...(input.headers !== undefined || input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
         ? {
             requestOptions: {
+              ...(input.headers !== undefined ? { headers: input.headers } : {}),
               ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
               ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
             }
