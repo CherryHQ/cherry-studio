@@ -230,4 +230,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAYLOAD_TAG: ${{ inputs.payload_tag }}
+          PAYLOAD_PLATFORMS: ${{ inputs.native_platforms }}
         run: node scripts/publish-integration-payload.cjs

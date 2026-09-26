@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
+import { isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -102,5 +103,5 @@ export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
   runtimeDriverRegistry.register(new DshRuntimeDriver())
-  runtimeDriverRegistry.register(new UarRuntimeDriver())
+  if (isUarEnabled()) runtimeDriverRegistry.register(new UarRuntimeDriver())
 }

@@ -6,7 +6,24 @@ exports.default = async function notarizing(context) {
     return
   }
 
-  if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD || !process.env.APPLE_TEAM_ID) {
+  const apiCredentials =
+    process.env.APPLE_API_KEY && process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER
+      ? {
+          appleApiKey: process.env.APPLE_API_KEY,
+          appleApiKeyId: process.env.APPLE_API_KEY_ID,
+          appleApiIssuer: process.env.APPLE_API_ISSUER
+        }
+      : null
+  const appleIdCredentials =
+    process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID
+      ? {
+          appleId: process.env.APPLE_ID,
+          appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+          teamId: process.env.APPLE_TEAM_ID
+        }
+      : null
+
+  if (!apiCredentials && !appleIdCredentials) {
     return
   }
 
@@ -16,9 +33,7 @@ exports.default = async function notarizing(context) {
   await notarize({
     appPath,
     appBundleId: context.packager.appInfo.macBundleIdentifier,
-    appleId: process.env.APPLE_ID,
-    appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-    teamId: process.env.APPLE_TEAM_ID
+    ...(apiCredentials || appleIdCredentials)
   })
 
   console.log('  • Notarized app:', appPath)

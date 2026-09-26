@@ -6,6 +6,8 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { resolveReleaseProfile } = require('./release-profile.cjs')
+const { getUarPayloadInventory } = require('./uar-payload-integrity.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -224,10 +226,16 @@ exports.default = async function (context) {
   const excludeBundledBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
+  const profile = resolveReleaseProfile()
+  const excludeUarPayloadFilters = profile.uarEnabled
+    ? []
+    : getUarPayloadInventory(currentPlatformKey).map(
+        (filename) => '!resources/binaries/' + currentPlatformKey + '/' + filename
+      )
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters, ...excludeUarPayloadFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters, ...excludeUarPayloadFilters])
   }
 }

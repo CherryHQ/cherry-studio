@@ -1,6 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
+const { resolveReleaseProfile } = require('./release-profile.cjs')
+
 /** Produced from successful native release jobs, then committed before installer packaging. */
 function loadIntegrationBinaries({ required = false } = {}) {
   const filename = path.join(__dirname, '..', 'build', 'integration-artifacts.json')
@@ -12,23 +14,20 @@ function loadIntegrationBinaries({ required = false } = {}) {
     return []
   }
   const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'))
-  for (const name of ['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', 'uar-sidecar']) {
+  const profile = resolveReleaseProfile()
+  const requiredTools = profile.nativeTools
+  for (const name of requiredTools) {
     const tool = manifest.tools.find((entry) => entry.name === name)
     if (!tool) throw new Error(`Integration manifest is missing ${name}`)
-    for (const platform of manifest.platforms || [
-      'darwin-x64',
-      'darwin-arm64',
-      'win32-x64',
-      'win32-arm64',
-      'linux-x64',
-      'linux-arm64'
-    ]) {
+    for (const platform of profile.supportedPlatforms) {
       const asset = tool.packages[platform]
       if (!asset || !asset.url.startsWith('https://') || !/^[a-f0-9]{64}$/.test(asset.sha256))
         throw new Error(`Unpinned integration artifact: ${name} ${platform}`)
     }
   }
-  return manifest.tools.map((tool) => ({ ...tool, required: true, versionFile: `.${tool.name}-version` }))
+  return manifest.tools
+    .filter((tool) => requiredTools.includes(tool.name))
+    .map((tool) => ({ ...tool, required, versionFile: `.${tool.name}-version` }))
 }
 
 module.exports = { loadIntegrationBinaries }

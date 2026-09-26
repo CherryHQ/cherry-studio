@@ -111,6 +111,8 @@ extraResources:
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
+  - from: "node_modules/@rainbowatcher/toml-edit-js/index_bg.wasm"
+    to: "toml-edit-js/index_bg.wasm"
 win:
   executableName: The Boss
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -189,22 +191,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    The Boss 2.2.0 - Universal Agent Runtime
+    The Boss 2.2.2 - Universal Agent Runtime and integration administration
 
-    - [Agent runtime] Add the supervised Universal Agent Runtime as a packaged local sidecar with versioned capability negotiation and no Docker requirement.
-    - [Isolation] Bind every run to its conversation, workspace, provider credentials, working directory, and allowed roots.
-    - [Tools] Route Compass, Rust Filesystem, and packaged skill commands through The Boss approval policy with correlated tool results.
-    - [Recovery] Preserve canonical conversation history across sidecar restarts and recover interrupted AG-UI streams without repeating completed effects.
-    - [Skills] Bundle the latest complete mini skill runtime, dependencies, Docker assets, Compass skills, Prometheus, pk, and Node.js.
-    - [Settings] Add translated UAR status, version, backend, capability, restart, and operational diagnostic controls.
+    - [UAR] Package the supervised Universal Agent Runtime sidecar for Windows x64 and Apple Silicon, with dedicated administration, capability negotiation, restart recovery, and operational diagnostics.
+    - [Storage] Let UAR use embedded storage or a configured SurrealDB service, including existing installations discovered outside The Boss.
+    - [Services] Show durable progress, results, recovery actions, cancellation, and complete logs for Docker, SurrealDB, surreal-memory-server, and liter-llm operations.
+    - [Compass] Add per-project enablement, indexing, drift detection, update controls, isolated graphs, and streaming project logs.
+    - [Models] Add liter-llm provider and model catalogs, editable connections, role assignments, configuration diagnostics, and gateway model refresh.
+    - [Skills] Bundle the complete pinned Prometheus mini runtime, Compass skills, OpenSpec, Prometheus, pk, Node.js, and their required assets.
 
     <!--LANG:zh-CN-->
-    The Boss 2.2.0 - 通用智能体运行时
+    The Boss 2.2.2 - 通用智能体运行时与集成管理
 
-    - [智能体运行时] 内置受监管的通用智能体运行时本地辅助进程，支持版本化能力协商，无需 Docker 即可启动。
-    - [隔离] 将每次运行绑定到对应的对话、工作区、服务商凭据、工作目录和允许访问的目录。
-    - [工具] 通过 The Boss 的审批策略调用 Compass、Rust Filesystem 和已打包的技能命令，并关联记录工具结果。
-    - [恢复] 在辅助进程重启后保留规范对话历史，恢复中断的 AG-UI 数据流且不会重复已完成的操作。
-    - [技能] 打包最新的完整 mini 技能运行环境、依赖、Docker 资源、Compass 技能、Prometheus、pk 和 Node.js。
-    - [设置] 新增完整翻译的 UAR 状态、版本、后端、能力、重启和运行诊断控制项。
+    - [UAR] 为 Windows x64 和 Apple 芯片打包受监管的通用智能体运行时辅助进程，并提供独立管理、能力协商、重启恢复和运行诊断。
+    - [存储] UAR 可使用嵌入式存储或已配置的 SurrealDB 服务，包括在 The Boss 外部发现的现有安装。
+    - [服务] Docker、SurrealDB、surreal-memory-server 和 liter-llm 操作显示持久进度、结果、恢复操作、取消功能和完整日志。
+    - [Compass] 新增按项目启用、索引、漂移检测、更新控制、独立图数据库和项目流式日志。
+    - [模型] 新增 liter-llm 服务商与模型目录、可编辑连接、角色分配、配置诊断和网关模型刷新。
+    - [技能] 打包完整且锁定版本的 Prometheus mini 运行环境、Compass 技能、OpenSpec、Prometheus、pk、Node.js 及其所需资源。
     <!--LANG:END-->

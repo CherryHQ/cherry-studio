@@ -5,13 +5,35 @@ Each entry records the exact source commit, artifact checksum, size, and signing
 
 <!-- releases:newest-first -->
 
-## v2.2.0 — 2026-09-24T06:27:24.763Z
+## v2.2.2 — 2026-09-26T05:39:17.903Z
 
-Pending platforms: win32-arm64, darwin-x64, darwin-arm64, linux-x64, linux-arm64
+Profile: uar-enabled
 
 | Installer | Size | Download | SHA-256 | Signing | Source |
 |---|---|---|---|---|---|
-| `The-Boss-2.2.0-win-x64-setup.exe` | 423.2 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.0/The-Boss-2.2.0-win-x64-setup.exe) | `689a661dd22b84dae21c34bc668e3bf7924ef39a7aa30146792ab053b03c9844` | unsigned | [`8bb3171a0`](https://github.com/Prometheus-AGS/the-boss/commit/8bb3171a023fd73d97ae71aa6a8a574c435cae7d) |
+| `The-Boss-2.2.2-win-x64-setup.exe` | 427.7 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.2/The-Boss-2.2.2-win-x64-setup.exe) | `c81f9c5d74f2334db38a916bf646d16e162a817455a9ce6cd50bb9ab02feafa3` | unsigned | [`4dcfa03c6`](https://github.com/Prometheus-AGS/the-boss/commit/4dcfa03c6dff7f4291db4d1ef8b03799efc4be4d) |
+
+
+
+## v2.2.1 — 2026-09-25T15:50:21.073Z
+
+Profile: non-uar
+
+| Installer | Size | Download | SHA-256 | Signing | Source |
+|---|---|---|---|---|---|
+| `The-Boss-2.2.1-mac-arm64.dmg` | 458.7 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-mac-arm64.dmg) | `1808ed9e4d42a4fd606cfe1cfa2727c6faf0085413be11843e495c85ccaf5064` | Developer ID (notarized) | [`60cfc7ba3`](https://github.com/Prometheus-AGS/the-boss/commit/60cfc7ba3d12571c1a273c5172d6954740a19ea9) |
+| `The-Boss-2.2.1-mac-x64.dmg` | 481.8 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-mac-x64.dmg) | `f18d591b9ec88f270b383e0e808f25426fcab77df69d58f13bc015884ec5cefa` | unsigned (not notarized) | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
+| `The-Boss-2.2.1-win-arm64-setup.exe` | 337.3 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-win-arm64-setup.exe) | `800ff483d9dfb7943ffa89531971fba2071cdb7448709836897d529ca8e16eaf` | unsigned | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
+| `The-Boss-2.2.1-win-x64-setup.exe` | 361.8 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.1/The-Boss-2.2.1-win-x64-setup.exe) | `91b0a71cc98e01575917d68c1cf9f1e6b425f864c59ada0e81ba77b8d3b3b421` | unsigned | [`7f1b0d16d`](https://github.com/Prometheus-AGS/the-boss/commit/7f1b0d16d84196f3002f6e8dcaae55336c1f2fe8) |
+
+## v2.2.0 — 2026-09-25T06:44:58.522Z
+
+Pending platforms: win32-arm64, darwin-x64, linux-x64, linux-arm64
+
+| Installer | Size | Download | SHA-256 | Signing | Source |
+|---|---|---|---|---|---|
+| `The-Boss-2.2.0-mac-arm64.dmg` | 556.3 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.0/The-Boss-2.2.0-mac-arm64.dmg) | `1b524e9e78974531f933b1368009318d7bf580fe1aa26aaa68f2e09da96c0a33` | unsigned (not notarized) | [`420524865`](https://github.com/Prometheus-AGS/the-boss/commit/42052486566adf90ef433353d60ac8f2bd49ca7a) |
+| `The-Boss-2.2.0-win-x64-setup.exe` | 427.2 MB | [Download](https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.0/The-Boss-2.2.0-win-x64-setup.exe) | `bb0ac31116d0342e162321576b043f4f0e51b9cfa7c6204774d8799ef4e3fe5c` | unsigned | [`420524865`](https://github.com/Prometheus-AGS/the-boss/commit/42052486566adf90ef433353d60ac8f2bd49ca7a) |
 
 ## v2.1.3 — 2026-09-23T16:05:39.892Z
 

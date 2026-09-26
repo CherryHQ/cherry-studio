@@ -61,5 +61,16 @@
     "observed": "Initial pre-commit Oxfmt rewrote source-controlled team evidence and imported .agents skills.",
     "resolution": "Restored generated/imported bytes from the staged index; added .agent-team/** and .agents/skills/** to the existing formatter exclusions; retained formatter output for four edited Boss production files.",
     "runtimeChange": false
+  },
+  "prIntegration": {
+    "miniRevision": "0bfa619f638292f859ad17068ec319c828a1538b",
+    "bossMain": "75b1438b2e63b89a5b24817f373ab1187a230558",
+    "packagingResolution": "Preserve upstream liter-llm catalog revision/checksum packaging and mini revision guard while retaining the shared offline copy helper and skill-local Node rendering.",
+    "checks": [
+      "97 built-in skills current",
+      "6 packaged UI/team integration cases passed",
+      "mini submodule and both integration manifest revisions match"
+    ],
+    "scope": "Merge reconciliation and packaged helper validation; no full installed Electron or native Windows claim."
   }
 }

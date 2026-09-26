@@ -16,7 +16,7 @@ import {
 import { type IconComponent, PiCli } from '@cherrystudio/ui/icons'
 import { ClaudeCode, Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { AGENT_RUNTIME_CAPABILITIES, isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 
 /**
@@ -54,7 +54,9 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   uar: 'library.config.agent.field.runtime.option_description.uar'
 }
 
-const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
+const RUNTIMES = (Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]).filter(
+  (runtime) => runtime !== 'uar' || isUarEnabled()
+)
 const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {

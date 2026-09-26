@@ -1,2 +1,5 @@
 export { ipcApi } from './ipcApi'
+export { integrationOperations } from './integrationOperations'
+export { literGatewayCatalogApi } from './literGatewayCatalog'
+export { literRoleAssignmentsApi } from './literRoleAssignments'
 export { useIpcOn } from './useIpcOn'

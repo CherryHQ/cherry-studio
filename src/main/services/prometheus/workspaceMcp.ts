@@ -1,35 +1,55 @@
 import { createHash } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { IntegrationConfig, WorkspaceIntegration } from '@shared/types/prometheusIntegration'
+import type { CompassFreshness, IntegrationConfig, WorkspaceIntegration } from '@shared/types/prometheusIntegration'
+
+import { detectFullPack } from './fullPackDetection'
 import { integrationDirectory, readIntegrationConfig, readSecrets } from './integrationConfig'
 import { runIntegrationProcess } from './integrationProcess'
-import { compassEnvironment, compassRemoteReady } from './surrealConnection'
-import { copyOwnedSkill } from './ownedSkillCopy'
-import { detectFullPack } from './fullPackDetection'
 import { renderMiniSkill } from './miniCommands'
+import { copyOwnedSkill } from './ownedSkillCopy'
+import { compassEnvironment, compassRemoteReady } from './surrealConnection'
 
 export const MANAGED_TAG = 'the-boss:workspace-managed'
 export function workspaceIdentity(workspace: string): string {
-  const normalized = path.resolve(workspace)
-  return createHash('sha256').update(process.platform === 'win32' ? normalized.toLowerCase() : normalized).digest('hex').slice(0,16)
+  const normalized = realpathSync.native(path.resolve(workspace))
+  return createHash('sha256')
+    .update(process.platform === 'win32' ? normalized.toLowerCase() : normalized)
+    .digest('hex')
+    .slice(0, 16)
 }
 export const workspaceDirectory = (id: string) => path.join(integrationDirectory(), 'workspaces', id)
 export const workspaceDatabase = (id: string) => `workspace_${id}`
-const exists = async (filename: string) => fs.access(filename).then(() => true, () => false)
+const workspaceGraph = (id: string, remote: boolean) =>
+  path.join(workspaceDirectory(id), remote ? 'remote' : 'local', 'compass-out', 'graph.json')
+const exists = async (filename: string) =>
+  fs.access(filename).then(
+    () => true,
+    () => false
+  )
 
 function projectionProfile(config: IntegrationConfig, backend: WorkspaceIntegration['backend']): string {
   const { endpoint, namespace, username, authLevel } = config.compass
-  return JSON.stringify(backend === 'remote' ? { backend, endpoint, namespace, username, authLevel } : { backend })
+  const profile = {
+    schemaVersion: 1,
+    backend,
+    extraction: { codeOnly: true, visualization: false },
+    ...(backend === 'remote' ? { endpoint, namespace, username, authLevel } : {})
+  }
+  return JSON.stringify(profile)
 }
 
 async function matchesProjection(output: string, profile: string): Promise<boolean> {
-  try { return await fs.readFile(path.join(output, 'boss-projection.json'), 'utf8') === profile } catch (error) {
+  try {
+    return (await fs.readFile(path.join(output, 'boss-projection.json'), 'utf8')) === profile
+  } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return false
   }
@@ -46,91 +66,290 @@ async function hasProjection(graph: string, backend: WorkspaceIntegration['backe
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
-  return await exists(path.join(snapshot, 'graph.json')) && (backend === 'json' || await exists(path.join(snapshot, backend === 'remote' ? 'surreal.ref' : 'store.ref')))
+  return (
+    (await exists(path.join(snapshot, 'graph.json'))) &&
+    (backend === 'json' || (await exists(path.join(snapshot, backend === 'remote' ? 'surreal.ref' : 'store.ref'))))
+  )
 }
 
 export async function saveWorkspaceState(workspace: WorkspaceIntegration): Promise<void> {
   const directory = workspaceDirectory(workspace.id)
   await fs.mkdir(directory, { recursive: true })
-  await fs.writeFile(path.join(directory, 'workspace.json'), JSON.stringify(workspace,null,2) + '\n')
+  await fs.writeFile(path.join(directory, 'workspace.json'), JSON.stringify(workspace, null, 2) + '\n')
 }
 
 export async function loadWorkspaceState(workspace: string): Promise<WorkspaceIntegration> {
   const id = workspaceIdentity(workspace)
-  try { return JSON.parse(await fs.readFile(path.join(workspaceDirectory(id), 'workspace.json'), 'utf8')) } catch (error) {
+  try {
+    const saved = JSON.parse(
+      await fs.readFile(path.join(workspaceDirectory(id), 'workspace.json'), 'utf8')
+    ) as Partial<WorkspaceIntegration>
+    const graph = workspaceGraph(id, saved.backend === 'remote')
+    const indexed = saved.indexed ?? (await exists(graph))
+    return {
+      path: workspace,
+      id,
+      graph,
+      backend: saved.backend ?? 'sqlite',
+      serverIds: saved.serverIds ?? [],
+      enabled: saved.enabled ?? true,
+      indexed,
+      freshness: saved.freshness ?? { state: indexed ? 'unknown' : 'missing' },
+      ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+      ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId }),
+      ...(saved.error === undefined ? {} : { error: saved.error })
+    }
+  } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    const graph = path.join(workspaceDirectory(id), 'local', 'graph.json')
-    return { path: workspace, id, graph, backend: 'sqlite', serverIds: [], indexed: await exists(graph) }
+    const graph = workspaceGraph(id, false)
+    const indexed = await exists(graph)
+    return {
+      path: workspace,
+      id,
+      graph,
+      backend: 'sqlite',
+      serverIds: [],
+      enabled: true,
+      indexed,
+      freshness: { state: indexed ? 'unknown' : 'missing' }
+    }
   }
 }
 
-export async function describeWorkspace(workspace: string, config = readIntegrationConfig()): Promise<WorkspaceIntegration> {
+export async function describeWorkspace(
+  workspace: string,
+  config = readIntegrationConfig()
+): Promise<WorkspaceIntegration> {
   const id = workspaceIdentity(workspace)
-  const remote = ['automatic','remote'].includes(config.compass.storage) && await compassRemoteReady(config, workspaceDatabase(id))
+  const saved = await loadWorkspaceState(workspace)
+  const remote =
+    ['automatic', 'remote'].includes(config.compass.storage) &&
+    (await compassRemoteReady(config, workspaceDatabase(id)))
   if (config.compass.storage === 'remote' && !remote) {
-    return { path: workspace, id, graph: path.join(workspaceDirectory(id),'remote','graph.json'), backend: 'remote', serverIds: [], indexed: false, error: 'prometheus.error.remoteUnavailable' }
+    return {
+      path: workspace,
+      id,
+      graph: workspaceGraph(id, true),
+      backend: 'remote',
+      serverIds: [],
+      enabled: saved.enabled,
+      indexed: false,
+      freshness: { state: 'error', detail: 'prometheus.error.remoteUnavailable' },
+      ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+      ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId }),
+      error: 'prometheus.error.remoteUnavailable'
+    }
   }
   const backend = remote ? 'remote' : config.compass.storage === 'json' ? 'json' : 'sqlite'
-  const graph = path.join(workspaceDirectory(id), remote ? 'remote' : 'local', 'graph.json')
-  const indexed = await matchesProjection(path.dirname(graph), projectionProfile(config, backend)) && await hasProjection(graph, backend)
-  return { path: workspace, id, graph, backend, serverIds: [], indexed }
+  const graph = workspaceGraph(id, remote)
+  const projectionExists = await hasProjection(graph, backend)
+  const indexed = projectionExists && (await matchesProjection(path.dirname(graph), projectionProfile(config, backend)))
+  const freshness: CompassFreshness = !projectionExists
+    ? { state: 'missing' }
+    : indexed
+      ? saved.freshness
+      : { state: 'stale' }
+  return {
+    path: workspace,
+    id,
+    graph,
+    backend,
+    serverIds: saved.serverIds,
+    enabled: saved.enabled,
+    indexed,
+    freshness,
+    ...(saved.lastIndexedAt === undefined ? {} : { lastIndexedAt: saved.lastIndexedAt }),
+    ...(saved.latestOperationId === undefined ? {} : { latestOperationId: saved.latestOperationId })
+  }
 }
 
 function upsertManagedServer(key: string, definition: CreateMcpServerDto): McpServer {
-  const existing = mcpServerService.list({}).items.find((server) => server.tags?.includes(MANAGED_TAG) && server.reference === key)
+  const existing = mcpServerService
+    .list({})
+    .items.find((server) => server.tags?.includes(MANAGED_TAG) && server.reference === key)
   const dto = { ...definition, reference: key, tags: [MANAGED_TAG], installSource: 'builtin' as const }
   if (!existing) return mcpServerService.create(dto)
-  const changed = Object.entries(dto).some(([key, value]) => JSON.stringify(existing[key as keyof McpServer]) !== JSON.stringify(value))
+  const changed = Object.entries(dto).some(
+    ([key, value]) => JSON.stringify(existing[key as keyof McpServer]) !== JSON.stringify(value)
+  )
   return changed ? mcpServerService.update(existing.id, dto) : existing
 }
 
-export async function registerWorkspaceServers(workspace: WorkspaceIntegration, config: IntegrationConfig): Promise<McpServer[]> {
-  const suffix = `${path.basename(workspace.path) || 'workspace'}-${workspace.id.slice(0,8)}`
+export async function registerWorkspaceServers(
+  workspace: WorkspaceIntegration,
+  config: IntegrationConfig
+): Promise<McpServer[]> {
+  const suffix = `${path.basename(workspace.path) || 'workspace'}-${workspace.id.slice(0, 8)}`
   const servers: McpServer[] = []
-  if (config.compass.enabled) {
+  const compassReference = `compass:${workspace.id}`
+  const existingCompass = mcpServerService
+    .list({})
+    .items.find((server) => server.tags?.includes(MANAGED_TAG) && server.reference === compassReference)
+  if (config.compass.enabled && workspace.enabled) {
     const command = await getBinaryPath('compass')
-    const server = upsertManagedServer(`compass:${workspace.id}`, {
-      name: `Compass · ${suffix}`, type: 'stdio', command, cwd: workspace.path,
-      args: ['serve', '--graph', workspace.graph, '--engine', workspace.backend === 'remote' ? 'surreal' : workspace.backend === 'sqlite' ? 'store' : 'json'],
-      isActive: !workspace.error, env: { BOSS_COMPASS_WORKSPACE: workspace.id },
-      shouldConfig: Boolean(workspace.error), description: workspace.error ?? workspace.path
+    const ready = !workspace.error && workspace.indexed && workspace.freshness.state === 'current'
+    const server = upsertManagedServer(compassReference, {
+      name: `Compass · ${suffix}`,
+      type: 'stdio',
+      command,
+      cwd: workspace.path,
+      args: [
+        'serve',
+        '--graph',
+        workspace.graph,
+        '--engine',
+        workspace.backend === 'remote' ? 'surreal' : workspace.backend === 'sqlite' ? 'store' : 'json'
+      ],
+      isActive: ready,
+      env: { BOSS_COMPASS_WORKSPACE: workspace.id },
+      shouldConfig: !ready,
+      description: workspace.error ?? workspace.path
     })
-    if (!workspace.error) servers.push(server)
+    if (ready) servers.push(server)
+  } else if (existingCompass?.isActive) {
+    mcpServerService.update(existingCompass.id, { isActive: false })
   }
   if (config.filesystem.enabled) {
-    const roots = await Promise.all([workspace.path,...config.filesystem.additionalRoots].map((root) => fs.realpath(root)))
-    servers.push(upsertManagedServer(`filesystem:${workspace.id}`, {
-      name: `Rust Filesystem · ${suffix}`, type: 'stdio', cwd: workspace.path,
-      command: await getBinaryPath('rust-mcp-filesystem'),
-      args: [...(config.filesystem.allowWrite ? ['--allow-write'] : []), '--', ...new Set(roots)],
-      env: { ALLOW_WRITE: config.filesystem.allowWrite ? 'true' : 'false', ENABLE_ROOTS: 'false' },
-      isActive: true, description: roots.join('\n')
-    }))
+    const roots = await Promise.all(
+      [workspace.path, ...config.filesystem.additionalRoots].map((root) => fs.realpath(root))
+    )
+    servers.push(
+      upsertManagedServer(`filesystem:${workspace.id}`, {
+        name: `Rust Filesystem · ${suffix}`,
+        type: 'stdio',
+        cwd: workspace.path,
+        command: await getBinaryPath('rust-mcp-filesystem'),
+        args: [...(config.filesystem.allowWrite ? ['--allow-write'] : []), '--', ...new Set(roots)],
+        env: { ALLOW_WRITE: config.filesystem.allowWrite ? 'true' : 'false', ENABLE_ROOTS: 'false' },
+        isActive: true,
+        description: roots.join('\n')
+      })
+    )
   }
-  if (config.services.memoryEnabled) servers.push(upsertManagedServer('surreal-memory', {
-    name: 'Surreal Memory (managed)', type: 'sse', baseUrl: config.services.memoryEndpoint, isActive: true
-  }))
+  if (config.services.memoryEnabled)
+    servers.push(
+      upsertManagedServer('surreal-memory', {
+        name: `Surreal Memory (${config.services.memory.source})`,
+        type: 'sse',
+        baseUrl: config.services.memory.endpoint,
+        isActive: true
+      })
+    )
   return servers
 }
 
-export async function indexWorkspace(workspace: WorkspaceIntegration, config: IntegrationConfig, signal: AbortSignal, onOutput: (value: string) => void): Promise<void> {
+export async function indexWorkspace(
+  workspace: WorkspaceIntegration,
+  config: IntegrationConfig,
+  signal: AbortSignal,
+  onOutput: (value: string) => void
+): Promise<CompassFreshness> {
   if (workspace.error) throw new Error(workspace.error)
   const local = path.join(workspaceDirectory(workspace.id), 'local')
   const remote = path.join(workspaceDirectory(workspace.id), 'remote')
   const binary = await getBinaryPath('compass')
   await fs.mkdir(local, { recursive: true })
   const secrets = await readSecrets()
-  const run = (out: string, store: string, env: Record<string,string> = {}, extra: string[] = []) => runIntegrationProcess(binary,
-    ['update', workspace.path, '--code-only', '--out', out, '--store', store, '--no-viz', ...extra],
-    { cwd: workspace.path, signal, env, onOutput, secrets: Object.values(secrets) })
-  await run(local, workspace.backend === 'json' ? 'json' : 'sqlite', { COMPASS_STORE: workspace.backend === 'json' ? 'json' : 'sqlite' })
-  await fs.writeFile(path.join(local, 'boss-projection.json'), projectionProfile(config, workspace.backend === 'json' ? 'json' : 'sqlite'))
+  const run = (out: string, store: string, env: Record<string, string> = {}, extra: string[] = []) =>
+    runIntegrationProcess(
+      binary,
+      ['update', workspace.path, '--code-only', '--out', out, '--store', store, '--no-viz', ...extra],
+      { cwd: workspace.path, signal, env, onOutput, secrets: Object.values(secrets) }
+    )
+  await run(local, workspace.backend === 'json' ? 'json' : 'sqlite', {
+    COMPASS_STORE: workspace.backend === 'json' ? 'json' : 'sqlite'
+  })
+  await fs.writeFile(
+    path.join(local, 'compass-out', 'boss-projection.json'),
+    projectionProfile(config, workspace.backend === 'json' ? 'json' : 'sqlite')
+  )
   if (workspace.backend === 'remote') {
     // Preserve the complete local graph and SQLite snapshot. The projection reuses
     // Compass's extraction cache; a remote outage never removes the local graph.
     await fs.cp(local, remote, { recursive: true, force: true })
-    await run(remote, 'surreal', await compassEnvironment(config, workspaceDatabase(workspace.id)), ['--force','--reuse-cache-on-force'])
-    await fs.writeFile(path.join(remote, 'boss-projection.json'), projectionProfile(config, 'remote'))
+    await run(remote, 'surreal', await compassEnvironment(config, workspaceDatabase(workspace.id)), [
+      '--force',
+      '--reuse-cache-on-force'
+    ])
+    await fs.writeFile(path.join(remote, 'compass-out', 'boss-projection.json'), projectionProfile(config, 'remote'))
+  }
+  return checkWorkspaceFreshness(workspace, config, signal, onOutput)
+}
+
+type CompassDoctorReport = {
+  schema: 'compass.agent-doctor/1'
+  checks: Array<{ id: string; status: 'pass' | 'fail' | 'skip'; detail?: string }>
+}
+
+function parseDoctorReport(output: string): CompassFreshness {
+  const start = output.indexOf('{')
+  const end = output.lastIndexOf('}')
+  if (start < 0 || end < start) return { state: 'error', checkedAt: Date.now(), detail: output.trim() }
+  try {
+    const report = JSON.parse(output.slice(start, end + 1)) as CompassDoctorReport
+    if (report.schema !== 'compass.agent-doctor/1' || !Array.isArray(report.checks)) {
+      return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.invalidDoctorReport' }
+    }
+    const presence = report.checks.find((check) => check.id === 'graph_presence')
+    const freshness = report.checks.find((check) => check.id === 'graph_freshness')
+    if (presence?.status === 'fail') {
+      return { state: 'missing', checkedAt: Date.now(), ...(presence.detail ? { detail: presence.detail } : {}) }
+    }
+    if (presence?.status !== 'pass' || !freshness) {
+      return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.incompleteDoctorReport' }
+    }
+    if (freshness.status === 'pass') return { state: 'current', checkedAt: Date.now() }
+    if (freshness.status === 'fail' && freshness.detail?.toLowerCase().includes('stale')) {
+      return { state: 'stale', checkedAt: Date.now(), detail: freshness.detail }
+    }
+    return {
+      state: 'error',
+      checkedAt: Date.now(),
+      ...(freshness.detail ? { detail: freshness.detail } : {})
+    }
+  } catch {
+    return { state: 'error', checkedAt: Date.now(), detail: 'prometheus.compass.invalidDoctorReport' }
+  }
+}
+
+export async function checkWorkspaceFreshness(
+  workspace: WorkspaceIntegration,
+  config: IntegrationConfig,
+  signal: AbortSignal,
+  onOutput: (value: string) => void
+): Promise<CompassFreshness> {
+  const binary = await getBinaryPath('compass')
+  const secrets = await readSecrets()
+  try {
+    const output = await runIntegrationProcess(
+      binary,
+      ['agent', 'doctor', '--platform', 'agents', '--project-root', workspace.path, '--format', 'json'],
+      {
+        cwd: workspace.path,
+        signal,
+        env: { COMPASS_OUT: path.dirname(workspace.graph) },
+        onOutput,
+        secrets: Object.values(secrets)
+      }
+    )
+    const native = parseDoctorReport(output)
+    if (
+      native.state === 'current' &&
+      !(await matchesProjection(path.dirname(workspace.graph), projectionProfile(config, workspace.backend)))
+    ) {
+      return { state: 'stale', checkedAt: Date.now() }
+    }
+    return native
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error
+    const native = parseDoctorReport(error instanceof Error ? error.message : String(error))
+    if (
+      native.state === 'current' &&
+      !(await matchesProjection(path.dirname(workspace.graph), projectionProfile(config, workspace.backend)))
+    ) {
+      return { state: 'stale', checkedAt: Date.now() }
+    }
+    return native
   }
 }
 
@@ -143,20 +362,30 @@ export async function materializeManagedServer(server: McpServer): Promise<McpSe
     const id = server.reference.slice('compass:'.length)
     if (!/^[a-f0-9]{16}$/.test(id)) throw new Error('prometheus.error.workspaceIdentity')
     const binary = await getBinaryPath('compass')
-    if (server.command !== binary || server.args[0] !== 'serve' || !server.cwd || workspaceIdentity(server.cwd) !== id) {
+    if (
+      server.command !== binary ||
+      server.args[0] !== 'serve' ||
+      !server.cwd ||
+      workspaceIdentity(server.cwd) !== id
+    ) {
       throw new Error('prometheus.error.managedDefinition')
     }
-    return { ...server, env: { ...server.env, ...await compassEnvironment(config, workspaceDatabase(id)) } }
+    return { ...server, env: { ...server.env, ...(await compassEnvironment(config, workspaceDatabase(id))) } }
   }
   if (server.reference === 'surreal-memory') {
-    if (server.baseUrl !== config.services.memoryEndpoint || server.type !== 'sse' || server.command) throw new Error('prometheus.error.managedDefinition')
+    if (server.baseUrl !== config.services.memory.endpoint || server.type !== 'sse' || server.command)
+      throw new Error('prometheus.error.managedDefinition')
     const { memoryToken } = await readSecrets()
     return { ...server, headers: memoryToken ? { Authorization: `Bearer ${memoryToken}` } : {} }
   }
   return server
 }
 
-export async function installCompassProjectSkills(workspacePath: string, signal: AbortSignal, onOutput: (value: string) => void): Promise<string> {
+export async function installCompassProjectSkills(
+  workspacePath: string,
+  signal: AbortSignal,
+  onOutput: (value: string) => void
+): Promise<string> {
   const binary = await getBinaryPath('compass')
   let installed = 0
   const fullPack = await detectFullPack()
@@ -166,10 +395,21 @@ export async function installCompassProjectSkills(workspacePath: string, signal:
       if (!skill.isDirectory()) continue
       for (const harness of ['.agents', '.claude']) {
         signal.throwIfAborted()
-        if (await copyOwnedSkill(path.join(source,skill.name), path.join(workspacePath,harness,'skills',skill.name), renderMiniSkill)) installed++
+        if (
+          await copyOwnedSkill(
+            path.join(source, skill.name),
+            path.join(workspacePath, harness, 'skills', skill.name),
+            renderMiniSkill
+          )
+        )
+          installed++
       }
     }
   }
-  const compass = await runIntegrationProcess(binary, ['install','--project','--platform','agents','--platform','claude','--format','json'], { cwd: workspacePath, signal, onOutput })
+  const compass = await runIntegrationProcess(
+    binary,
+    ['install', '--project', '--platform', 'agents', '--platform', 'claude', '--format', 'json'],
+    { cwd: workspacePath, signal, onOutput }
+  )
   return JSON.stringify({ miniSkillCopies: installed, fullPackPreserved: fullPack.present, compass })
 }

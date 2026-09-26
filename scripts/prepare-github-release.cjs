@@ -1,19 +1,37 @@
 const { spawnSync } = require('node:child_process')
 
 const version = require('../package.json').version
+const { resolveReleaseProfile } = require('./release-profile.cjs')
 const tag = `v${version}`
 const repository = process.env.GITHUB_REPOSITORY
+const profile = resolveReleaseProfile()
+const profileNote = profile.uarEnabled
+  ? `Feature profile: ${profile.id}. Includes the complete pinned UAR sidecar payload for Windows x64 and Apple Silicon.`
+  : `Feature profile: ${profile.id}. UAR is unavailable in this customer release while its sidecar packaging is corrected.`
 
-const existing = spawnSync('gh', ['release', 'view', tag, '--repo', repository], { encoding: 'utf8' })
+const existing = spawnSync('gh', ['release', 'view', tag, '--repo', repository, '--json', 'body,targetCommitish'], {
+  encoding: 'utf8'
+})
 if (existing.status === 0) {
+  const release = JSON.parse(existing.stdout)
+  const existingProfile = release.body.match(/^Feature profile: ([a-z-]+)\./m)?.[1]
+  if (existingProfile !== profile.id) {
+    throw new Error(`GitHub Release ${tag} already belongs to feature profile ${existingProfile || 'unknown'}`)
+  }
+  if (release.targetCommitish !== process.env.GITHUB_SHA) {
+    throw new Error(
+      `GitHub Release ${tag} targets ${release.targetCommitish}, not frozen source ${process.env.GITHUB_SHA}`
+    )
+  }
   console.log(`Using existing GitHub Release ${tag}`)
   process.exit(0)
 }
 
 const notes = [
-  `The Boss ${version} — supervised Universal Agent Runtime, workspace-bound tools, and the complete Prometheus skill payload.`,
+  `The Boss ${version} — workspace-bound tools, managed services, and the complete Prometheus skill payload.`,
   '',
-  'Installers are published incrementally by platform. See RELEASES.md for checksums and signing status.'
+  profileNote,
+  `Installers are published for ${profile.supportedPlatforms.join(', ')}. See RELEASES.md for checksums and signing status.`
 ].join('\n')
 const created = spawnSync(
   'gh',

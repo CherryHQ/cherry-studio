@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
+import { mainExternalModules, mainResolveAlias, uarEnabled } from './electron.vite.config'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -16,6 +16,7 @@ import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
  */
 export default {
   main: {
+    define: { __UAR_ENABLED__: JSON.stringify(uarEnabled) },
     plugins: [hermeticEntryGuardPlugin()],
     resolve: { alias: mainResolveAlias },
     build: {

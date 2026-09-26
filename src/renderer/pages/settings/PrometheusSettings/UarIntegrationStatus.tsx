@@ -15,7 +15,8 @@ export function UarIntegrationStatus({
   dirty,
   theme,
   text,
-  start
+  start,
+  id
 }: {
   snapshot: IntegrationSnapshot
   busy: boolean
@@ -23,11 +24,33 @@ export function UarIntegrationStatus({
   theme: ThemeMode
   text: (key: string) => string
   start: (action: IntegrationAction) => void
+  id?: string
 }) {
+  const describeStorage = (
+    backend: 'embedded' | 'remote',
+    details: { endpoint?: string; namespace?: string; database?: string }
+  ) => {
+    if (backend === 'embedded') return text('uarBackendLocal')
+    return [
+      text('backends.remote'),
+      details.endpoint,
+      details.namespace && details.database ? `${details.namespace}/${details.database}` : undefined
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }
   const rows = [
     [text('uarProcess'), text(`states.${snapshot.uar.state}`)],
     [text('uarRuntimeVersion'), snapshot.uar.runtimeVersion ?? text('uarUnavailable')],
-    [text('uarBackend'), text('uarBackendLocal')],
+    [
+      text('uarRequestedBackend'),
+      describeStorage(snapshot.uar.requestedBackend, snapshot.config.uar)
+    ],
+    [
+      text('uarEffectiveBackend'),
+      describeStorage(snapshot.uar.effectiveBackend, snapshot.uar)
+    ],
+    [text('uarConfigurationState'), text(snapshot.uar.applyRequired ? 'uarApplyRequired' : 'uarApplied')],
     [text('uarSkills'), String(snapshot.inventory?.skills.length ?? 0)],
     [
       text('uarCapabilities'),
@@ -36,7 +59,7 @@ export function UarIntegrationStatus({
   ]
 
   return (
-    <SettingGroup theme={theme}>
+    <SettingGroup theme={theme} id={id} className="scroll-mt-6">
       <SettingSubtitle>{text('uar')}</SettingSubtitle>
       <SettingDescription>{text('uarDescription')}</SettingDescription>
       <SettingDivider />
@@ -59,11 +82,24 @@ export function UarIntegrationStatus({
         <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => start('uar-check')}>
           {text('actions.uar-check')}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || dirty || !snapshot.uar.applyRequired}
+          onClick={() => start('uar-apply')}>
+          {text('actions.uar-apply')}
+        </Button>
         <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => start('uar-restart')}>
           {text('actions.uar-restart')}
         </Button>
       </div>
-      <SettingHelpText className="mt-3">{text('uarPreview')}</SettingHelpText>
+      {snapshot.uar.lastApplyError ? (
+        <SettingHelpText className="mt-3 text-error" role="alert">
+          {text('uarLastApplyError')}: {snapshot.uar.lastApplyError}
+        </SettingHelpText>
+      ) : (
+        <SettingHelpText className="mt-3">{text('uarApplyHelp')}</SettingHelpText>
+      )}
     </SettingGroup>
   )
 }

@@ -27,11 +27,26 @@ candidates = ["http://localhost:4000/v1", "http://localhost:8181/v1"]
 generator = "kbd-frontier"   # the producer; not dispatched, only compared against
 critic    = "kbd-critic"     # MUST differ from generator
 judge     = "kbd-judge"
+backup    = "kbd-backup"
+
+[role_identities]
+critic_gateway_connection_id = "local-gateway"
+critic_provider_connection_id = "local-proxy"
+critic_provider_id = "openai"
+critic_model_id = "gpt-5.5"
+judge_gateway_connection_id = "local-gateway"
+judge_provider_connection_id = "local-proxy"
+judge_provider_id = "openai"
+judge_model_id = "gpt-5.6-sol"
+backup_gateway_connection_id = "local-gateway"
+backup_provider_connection_id = "local-proxy"
+backup_provider_id = "openai"
+backup_model_id = "gpt-5.4"
 ```
 
 This shape is parsed defensively by `lib/review/model-resolution.mjs`'s
-`parseModelsToml` — a minimal, hand-rolled parser for exactly these two
-tables (`[gateway]` with a `candidates` array, `[roles]` with flat string
+`parseModelsToml` — a minimal, hand-rolled parser for exactly these three
+tables (`[gateway]` with a `candidates` array, `[roles]` and `[role_identities]` with flat string
 keys), not a general TOML library. Any unreadable or malformed file returns
 the empty shape rather than throwing: a missing or broken config degrades to
 "not configured", never crashes the dispatch.
@@ -155,6 +170,9 @@ liter-llm supports `${VAR}` **only** — no `${VAR:-default}` — and expands an
 | `isolation_mode` | `rest-gateway:<url>` — the endpoint that served the review |
 | `cross_model_check` | `verified-distinct` · `same-model-collision` · `unverified-producer-unknown` |
 | `judge_model` / `producer_model` | the compared pair |
+| `judge_identity` / `producer_identity` | canonical provider-connection/provider/model triples used for collision checks |
 
 `unverified-producer-unknown` means the packet carried no `producer_model`, so
-the collision check passed **trivially** — export `KBD_PRODUCER_MODEL` to fix it.
+the collision check could not be certified. Export `KBD_PRODUCER_MODEL` plus
+`KBD_PRODUCER_PROVIDER_CONNECTION_ID`, `KBD_PRODUCER_PROVIDER_ID`, and
+`KBD_PRODUCER_MODEL_ID` to fix it.

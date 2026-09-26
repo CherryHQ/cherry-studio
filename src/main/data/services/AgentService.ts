@@ -22,6 +22,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { assertUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -32,7 +33,8 @@ import {
   type AgentConfiguration,
   type AgentEntity,
   sanitizeAgentConfiguration,
-  type UpdateAgentDto
+  type UpdateAgentDto,
+  type UarCatalogLink
 } from '@shared/data/api/schemas/agents'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
@@ -118,6 +120,14 @@ function getBuiltinRole(configuration: unknown): unknown {
   return (configuration as { builtin_role?: unknown }).builtin_role
 }
 
+function hasUarCatalogLink(configuration: unknown): boolean {
+  return (
+    configuration !== null &&
+    typeof configuration === 'object' &&
+    Object.prototype.hasOwnProperty.call(configuration, 'uar_catalog_link')
+  )
+}
+
 function removeUntrustedSupportRole(id: string, configuration: unknown): Record<string, unknown> {
   const next =
     configuration && typeof configuration === 'object' && !Array.isArray(configuration)
@@ -147,7 +157,7 @@ function applyAgentConfigurationPatch(
       : {}
 
   for (const [key, value] of Object.entries(patch ?? {})) {
-    if (key === 'builtin_role') continue
+    if (key === 'builtin_role' || key === 'uar_catalog_link') continue
     if (value === undefined) {
       delete next[key]
     } else {
@@ -290,11 +300,18 @@ export class AgentService {
    * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+    if (req.type === 'uar') assertUarEnabled()
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
         'create agent',
         'configuration.builtin_role is reserved for system agents'
+      )
+    }
+    if (hasUarCatalogLink(req.configuration)) {
+      throw DataApiErrorFactory.invalidOperation(
+        'create agent',
+        'configuration.uar_catalog_link is owned by the UAR catalog bridge'
       )
     }
     const mcps = req.mcps ?? []
@@ -765,6 +782,12 @@ export class AgentService {
                 'configuration.builtin_role is reserved for system agents'
               )
             }
+            if (hasUarCatalogLink(configurationPatch)) {
+              throw DataApiErrorFactory.invalidOperation(
+                'update agent',
+                'configuration.uar_catalog_link is owned by the UAR catalog bridge'
+              )
+            }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
             const effectiveModelId = updates.model !== undefined ? updates.model : current.model
@@ -817,6 +840,21 @@ export class AgentService {
 
   updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): void {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
+  }
+
+  /** Persist the main-process-owned UAR catalog link outside public Agent PATCH. */
+  updateUarCatalogLink(id: string, link: UarCatalogLink): AgentEntity | null {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const [current] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
+      if (!current) return false
+      const configuration =
+        current.configuration && typeof current.configuration === 'object' && !Array.isArray(current.configuration)
+          ? { ...current.configuration, uar_catalog_link: link }
+          : { uar_catalog_link: link }
+      this.updateAgentTx(tx, id, { configuration })
+      return true
+    })
+    return changed ? this.getAgent(id) : null
   }
 
   deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {

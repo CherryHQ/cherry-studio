@@ -24,7 +24,6 @@ import type {
   PrometheusDoctorReport,
   PrometheusPushState
 } from '@shared/types/prometheus'
-import { IntegrationSettings } from './IntegrationSettings'
 
 const ROUTE = '/settings/prometheus'
 const domId = (anchorId: string) => getSettingDomId(ROUTE, anchorId)
@@ -59,6 +58,12 @@ function CheckRow({
 }) {
   const { t } = useTranslation()
   const Icon = STATUS_ICON[check.status]
+  const statusLabel: Record<PrometheusCheckStatus, string> = {
+    pass: t('settings.prometheus.check.pass'),
+    warn: t('settings.prometheus.check.warn'),
+    fail: t('settings.prometheus.check.fail'),
+    skip: t('settings.prometheus.check.skip')
+  }
 
   return (
     <div className="py-2">
@@ -66,7 +71,7 @@ function CheckRow({
         <SettingRowTitle className="gap-2">
           <Icon size={15} className={STATUS_CLASS[check.status]} aria-hidden="true" />
           <span className="font-medium">{check.title}</span>
-          <span className="sr-only">{t(`settings.prometheus.check.${check.status}`)}</span>
+          <span className="sr-only">{statusLabel[check.status]}</span>
         </SettingRowTitle>
         {check.fixId ? (
           <Button
@@ -191,7 +196,6 @@ export default function PrometheusSettings() {
       </SettingGroup>
 
       {/* 2 · Skill availability — the one surface that writes into $HOME. */}
-      <IntegrationSettings />
       <SettingGroup theme={theme} id={domId('skill-push')} className="scroll-mt-6">
         <SettingSubtitle>
           {refused ? t('settings.prometheus.push.fullPackTitle') : t('settings.prometheus.push.title')}

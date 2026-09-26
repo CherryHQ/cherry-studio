@@ -1,0 +1,36 @@
+{
+  "name": "@prometheus-ags/a2ui-uar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UAR-owned React renderer for the A2UI protocol (uar.a2ui/1), built directly on @prometheus-ags/a2ui-core (@a2ui/web_core). Uses shadcn/ui as the visual baseline and react-aria-components for accessibility primitives that shadcn/Base UI does not cover (multi-select ChoicePicker). This is the renderer UAR product code should import — @prometheus-ags/a2ui-react is a reference implementation only.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": [
+    "./src/styles.css"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.7.0",
+    "@prometheus-ags/a2ui-core": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "i18next": "26.4.0",
+    "lucide-react": "^0.575.0",
+    "motion": "^12.42.0",
+    "react-aria-components": "^1.20.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

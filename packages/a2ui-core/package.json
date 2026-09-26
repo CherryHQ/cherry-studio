@@ -1,0 +1,42 @@
+{
+  "name": "@prometheus-ags/a2ui-core",
+  "version": "0.10.4",
+  "private": true,
+  "description": "UAR-vendored, version-pinned re-export of Google's @a2ui/web_core A2UI core rendering/state-management library. See UPSTREAM.md for the pin and the update procedure.",
+  "homepage": "https://a2ui.org/",
+  "license": "Apache-2.0",
+  "author": "Google LLC (upstream, https://github.com/a2ui-project/a2ui); vendored by Prometheus AGS",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./v0_8": {
+      "types": "./src/v0_8.ts",
+      "default": "./src/v0_8.ts"
+    },
+    "./v0_9": {
+      "types": "./src/v0_9.ts",
+      "default": "./src/v0_9.ts"
+    },
+    "./v0_9/basic_catalog": {
+      "types": "./src/v0_9-basic-catalog.ts",
+      "default": "./src/v0_9-basic-catalog.ts"
+    },
+    "./semantic-dom": {
+      "types": "./src/semantic-dom.ts",
+      "default": "./src/semantic-dom.ts"
+    },
+    "./conformance": {
+      "types": "./src/conformance.ts",
+      "default": "./src/conformance.ts"
+    }
+  },
+  "dependencies": {
+    "@a2ui/web_core": "0.10.6"
+  }
+}

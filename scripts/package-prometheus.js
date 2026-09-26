@@ -86,8 +86,41 @@ function packagePrometheus() {
     .trim()
     .split(/\s+/)[2]
   if (revision !== gitlink) throw new Error('Commit the mini submodule pin before packaging the release')
+  if (revision !== artifacts.sources.mini.revision)
+    throw new Error('The packaged mini revision does not match the pinned integration revision')
   fs.rmSync(destination, { recursive: true, force: true })
   copyPrometheusPayload(source, destination)
+  const literSource = path.join(source, 'tools', 'liter-llm')
+  const literCatalogDestination = path.join(destination, 'catalogs', 'liter-llm')
+  const literRevision = execFileSync('git', ['-C', literSource, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  if (literRevision !== artifacts.sources['liter-llm'].revision)
+    throw new Error('The liter-llm catalog source does not match the pinned integration revision')
+  fs.mkdirSync(literCatalogDestination, { recursive: true })
+  for (const [sourceName, artifactName] of [
+    ['providers.json', 'providers'],
+    ['catalog.json', 'models']
+  ]) {
+    const sourceFile = path.join(literSource, 'schemas', sourceName)
+    const checksum = crypto.createHash('sha256').update(fs.readFileSync(sourceFile)).digest('hex')
+    if (checksum !== artifacts.catalogs['liter-llm'][artifactName])
+      throw new Error(`The liter-llm ${artifactName} catalog checksum does not match the integration manifest`)
+    fs.copyFileSync(sourceFile, path.join(literCatalogDestination, sourceName))
+  }
+  fs.writeFileSync(
+    path.join(literCatalogDestination, 'catalog-manifest.json'),
+    `${JSON.stringify(
+      {
+        schema: 1,
+        repository: artifacts.sources['liter-llm'].repository,
+        revision: literRevision,
+        providersSha256: artifacts.catalogs['liter-llm'].providers,
+        catalogSha256: artifacts.catalogs['liter-llm'].models
+      },
+      null,
+      2
+    )}\n`
+  )
+
   // OpenSpec's exact dependency graph comes from mini's checked-in npm lock. The
   // runtime includes its JS dependencies; no install step runs on the user's PC.
   const npm = process.env.npm_execpath

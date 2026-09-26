@@ -30,11 +30,13 @@ import { Route as SettingsArchiveRouteImport } from './routes/settings/archive'
 import { Route as SettingsBrowserRouteImport } from './routes/settings/browser'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
+import { Route as SettingsCompassRouteImport } from './routes/settings/compass'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsDependenciesRouteImport } from './routes/settings/dependencies'
 import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
+import { Route as SettingsLiterLlmRouteImport } from './routes/settings/liter-llm'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
@@ -48,9 +50,11 @@ import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/sc
 import { Route as SettingsScreenshotRouteImport } from './routes/settings/screenshot'
 import { Route as SettingsSearchRouteImport } from './routes/settings/search'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
+import { Route as SettingsServicesRouteImport } from './routes/settings/services'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
+import { Route as SettingsUarRouteImport } from './routes/settings/uar'
 import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
@@ -175,6 +179,11 @@ const SettingsCodeExecutionRoute = SettingsCodeExecutionRouteImport.update({
   path: '/code-execution',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsCompassRoute = SettingsCompassRouteImport.update({
+  id: '/compass',
+  path: '/compass',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
@@ -199,6 +208,11 @@ const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsLiterLlmRoute = SettingsLiterLlmRouteImport.update({
+  id: '/liter-llm',
+  path: '/liter-llm',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsLocalModelsRoute = SettingsLocalModelsRouteImport.update({
@@ -267,6 +281,11 @@ const SettingsSelectionAssistantRoute =
     path: '/selection-assistant',
     getParentRoute: () => SettingsRoute,
   } as any)
+const SettingsServicesRoute = SettingsServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
   id: '/shortcut',
   path: '/shortcut',
@@ -280,6 +299,11 @@ const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
   id: '/system',
   path: '/system',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsUarRoute = SettingsUarRouteImport.update({
+  id: '/uar',
+  path: '/uar',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsUsageRoute = SettingsUsageRouteImport.update({
@@ -397,11 +421,13 @@ export interface FileRoutesByFullPath {
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/compass': typeof SettingsCompassRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/liter-llm': typeof SettingsLiterLlmRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -415,9 +441,11 @@ export interface FileRoutesByFullPath {
   '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
+  '/settings/services': typeof SettingsServicesRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/uar': typeof SettingsUarRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -458,11 +486,13 @@ export interface FileRoutesByTo {
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/compass': typeof SettingsCompassRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/liter-llm': typeof SettingsLiterLlmRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
@@ -474,8 +504,10 @@ export interface FileRoutesByTo {
   '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
+  '/settings/services': typeof SettingsServicesRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/uar': typeof SettingsUarRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
@@ -518,11 +550,13 @@ export interface FileRoutesById {
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/compass': typeof SettingsCompassRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/liter-llm': typeof SettingsLiterLlmRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -536,9 +570,11 @@ export interface FileRoutesById {
   '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
+  '/settings/services': typeof SettingsServicesRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/uar': typeof SettingsUarRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -582,11 +618,13 @@ export interface FileRouteTypes {
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/compass'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/liter-llm'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -600,9 +638,11 @@ export interface FileRouteTypes {
     | '/settings/screenshot'
     | '/settings/search'
     | '/settings/selection-assistant'
+    | '/settings/services'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/system'
+    | '/settings/uar'
     | '/settings/usage'
     | '/settings/websearch'
     | '/settings/'
@@ -643,11 +683,13 @@ export interface FileRouteTypes {
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/compass'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/liter-llm'
     | '/settings/local-models'
     | '/settings/model'
     | '/settings/notifications'
@@ -659,8 +701,10 @@ export interface FileRouteTypes {
     | '/settings/screenshot'
     | '/settings/search'
     | '/settings/selection-assistant'
+    | '/settings/services'
     | '/settings/shortcut'
     | '/settings/system'
+    | '/settings/uar'
     | '/settings/usage'
     | '/settings/websearch'
     | '/settings'
@@ -702,11 +746,13 @@ export interface FileRouteTypes {
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/compass'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/liter-llm'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -720,9 +766,11 @@ export interface FileRouteTypes {
     | '/settings/screenshot'
     | '/settings/search'
     | '/settings/selection-assistant'
+    | '/settings/services'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/system'
+    | '/settings/uar'
     | '/settings/usage'
     | '/settings/websearch'
     | '/settings/'
@@ -898,6 +946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsCodeExecutionRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/compass': {
+      id: '/settings/compass'
+      path: '/compass'
+      fullPath: '/settings/compass'
+      preLoaderRoute: typeof SettingsCompassRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/data': {
       id: '/settings/data'
       path: '/data'
@@ -931,6 +986,13 @@ declare module '@tanstack/react-router' {
       path: '/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof SettingsGeneralRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/liter-llm': {
+      id: '/settings/liter-llm'
+      path: '/liter-llm'
+      fullPath: '/settings/liter-llm'
+      preLoaderRoute: typeof SettingsLiterLlmRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/local-models': {
@@ -1024,6 +1086,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSelectionAssistantRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/services': {
+      id: '/settings/services'
+      path: '/services'
+      fullPath: '/settings/services'
+      preLoaderRoute: typeof SettingsServicesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/shortcut': {
       id: '/settings/shortcut'
       path: '/shortcut'
@@ -1043,6 +1112,13 @@ declare module '@tanstack/react-router' {
       path: '/system'
       fullPath: '/settings/system'
       preLoaderRoute: typeof SettingsSystemRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/uar': {
+      id: '/settings/uar'
+      path: '/uar'
+      fullPath: '/settings/uar'
+      preLoaderRoute: typeof SettingsUarRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/usage': {
@@ -1276,11 +1352,13 @@ interface SettingsRouteChildren {
   SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
+  SettingsCompassRoute: typeof SettingsCompassRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDependenciesRoute: typeof SettingsDependenciesRoute
   SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
+  SettingsLiterLlmRoute: typeof SettingsLiterLlmRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
@@ -1294,9 +1372,11 @@ interface SettingsRouteChildren {
   SettingsScreenshotRoute: typeof SettingsScreenshotRoute
   SettingsSearchRoute: typeof SettingsSearchRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
+  SettingsServicesRoute: typeof SettingsServicesRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
   SettingsSkillsRoute: typeof SettingsSkillsRouteWithChildren
   SettingsSystemRoute: typeof SettingsSystemRoute
+  SettingsUarRoute: typeof SettingsUarRoute
   SettingsUsageRoute: typeof SettingsUsageRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -1310,11 +1390,13 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,
+  SettingsCompassRoute: SettingsCompassRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDependenciesRoute: SettingsDependenciesRoute,
   SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsLiterLlmRoute: SettingsLiterLlmRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
@@ -1328,9 +1410,11 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsScreenshotRoute: SettingsScreenshotRoute,
   SettingsSearchRoute: SettingsSearchRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
+  SettingsServicesRoute: SettingsServicesRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
   SettingsSkillsRoute: SettingsSkillsRouteWithChildren,
   SettingsSystemRoute: SettingsSystemRoute,
+  SettingsUarRoute: SettingsUarRoute,
   SettingsUsageRoute: SettingsUsageRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,

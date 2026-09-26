@@ -20,11 +20,11 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "86b2c7e1a7ea21d416782ed90fba19e496f02f88"
+      "revision": "0bfa619f638292f859ad17068ec319c828a1538b"
     },
     "uar": {
       "repository": "Prometheus-AGS/universal-agent-runtime",
-      "revision": "c29af47be3439c69e1a3c124fdcf09ce4cbb5cba"
+      "revision": "0f2ea3d4a8111bea3a425bfb6596acbc9fb09d26"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
@@ -32,7 +32,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "c5c6caac617eb931cd5009146a70831422ec236c"
+      "revision": "3392482a2a1e14d114ee1115db3684334aaaa2cb"
     }
   },
   "tools": {
@@ -62,7 +62,12 @@
       "source": "uar",
       "package": "universal-agent-runtime",
       "version": "1.0.0",
-      "features": "minimal,local-models,document-intelligence,wasm-runtime"
+      "features": "minimal,a2a-transport,local-models,document-intelligence,wasm-runtime"
+    },
+    "liter-llm": {
+      "source": "liter-llm",
+      "package": "liter-llm-cli",
+      "version": "2.1.0"
     }
   },
   "parser": {

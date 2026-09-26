@@ -1,0 +1,12 @@
+{
+  "gate": "C",
+  "fullPackDetected": true,
+  "managedGateway": "operational",
+  "realInference": ["critic", "judge", "backup"],
+  "configApply": "restart-required",
+  "conflict": "conflict",
+  "remoteExport": "deployment-required",
+  "fallback": "kbd-backup-dispatched",
+  "uarRefresh": true,
+  "credentialsDisclosed": false
+}
