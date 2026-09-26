@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { cacheState, mocks, updateState } = vi.hoisted(() => ({
   cacheState: { sidebarWidth: 50 },
   mocks: {
+    ipcRequest: vi.fn(),
+    loggerError: vi.fn(),
     openSettingsTab: vi.fn(),
     showDoctorPopup: vi.fn(),
     showSearchPopup: vi.fn(),
@@ -22,7 +25,7 @@ const { cacheState, mocks, updateState } = vi.hoisted(() => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn()
+      error: mocks.loggerError
     })
   }
 }))
@@ -49,6 +52,10 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
@@ -86,6 +93,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'globalSearch.open': 'Open global search',
+        'quickAssistant.tooltip.open': 'Open Quick Assistant',
         'settings.about.updateAvailable': 'Found new version',
         'settings.doctor.entry.title': 'System diagnostics',
         'settings.title': 'Settings'
@@ -129,6 +137,10 @@ afterEach(() => {
 
 describe('ShellTabBarActions', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.show_in_tab_bar', true)
+    mocks.ipcRequest.mockResolvedValue(undefined)
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: { error: vi.fn() }
@@ -148,6 +160,46 @@ describe('ShellTabBarActions', () => {
       'dark:text-muted-foreground'
     )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the Quick Assistant action when the feature and tab bar entry are enabled', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+    render(<ShellTabBarActions />)
+
+    expect(screen.getByRole('button', { name: 'Open Quick Assistant' })).toBeInTheDocument()
+  })
+
+  it.each([
+    [false, true],
+    [true, false]
+  ])('hides the Quick Assistant action when enabled=%s and tabBarEntry=%s', (enabled, tabBarEntry) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', enabled)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.show_in_tab_bar', tabBarEntry)
+    render(<ShellTabBarActions />)
+
+    expect(screen.queryByRole('button', { name: 'Open Quick Assistant' })).not.toBeInTheDocument()
+  })
+
+  it('opens the Quick Assistant from the action area', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+
+    render(<ShellTabBarActions />)
+    await user.click(screen.getByRole('button', { name: 'Open Quick Assistant' }))
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('quick_assistant.show')
+  })
+
+  it('logs Quick Assistant launcher failures', async () => {
+    const user = userEvent.setup()
+    const error = new Error('open failed')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+    mocks.ipcRequest.mockRejectedValueOnce(error)
+
+    render(<ShellTabBarActions />)
+    await user.click(screen.getByRole('button', { name: 'Open Quick Assistant' }))
+
+    await waitFor(() => expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open Quick Assistant', error))
   })
 
   it('shows a ready update and opens its dialog directly', async () => {
