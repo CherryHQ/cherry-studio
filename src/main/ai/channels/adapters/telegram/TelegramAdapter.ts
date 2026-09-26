@@ -1,6 +1,7 @@
 import { Bot, InputFile } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
+import { t } from '@main/i18n'
 import {
   downloadFileAsBase64,
   downloadImageAsBase64,
@@ -10,19 +11,92 @@ import {
 } from '@main/utils/downloadAsBase64'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import { splitMessage } from '../../utils'
 
 const TELEGRAM_MAX_LENGTH = 4096
 /**
- * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
- * chunk has an index-aligned plain fallback) and then escape it; escaping only
- * grows length, so this headroom keeps the formatted chunk within the 4096 hard
- * limit for normal prose. A pathological all-special-char chunk could still
- * overflow — Telegram then rejects it and the catch sends the plain chunk, which
- * is always within budget.
+ * Plain-text chunk budget under MarkdownV2. Escaping only grows length, so this
+ * headroom keeps normal prose within Telegram's 4096-character limit. A chunk
+ * whose escaped form still exceeds that limit is sent as plain text instead.
  */
 const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
 
-import { splitMessage } from '../../utils'
+/** Backoff gaps after transient network send failures (initial attempt + these retries). */
+const TELEGRAM_SEND_RETRY_DELAYS_MS = [5_000, 15_000, 60_000] as const
+
+const TRANSIENT_NETWORK_MARKERS = [
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'ECONNABORTED',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'ERR_CONNECTION_RESET',
+  'ERR_CONNECTION_CLOSED',
+  'ERR_CONNECTION_ABORTED',
+  'ERR_CONNECTION_REFUSED',
+  'ERR_NAME_NOT_RESOLVED',
+  'ERR_TIMED_OUT',
+  'socket hang up'
+] as const
+
+function isMarkdownParseError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'error_code' in error && 'description' in error) {
+    const grammy = error
+    if (
+      grammy.error_code === 400 &&
+      typeof grammy.description === 'string' &&
+      /parse|entities|markdown/i.test(grammy.description)
+    ) {
+      return true
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return /can'?t parse|parse entities|Bad Request.*markdown/i.test(message)
+}
+
+/** Telegram rejects an over-4096 payload with 400 "message is too long", which is not a parse error. */
+function isTelegramMessageTooLong(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'error_code' in error && 'description' in error) {
+    const grammy = error
+    if (
+      grammy.error_code === 400 &&
+      typeof grammy.description === 'string' &&
+      /message is too long/i.test(grammy.description)
+    ) {
+      return true
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return /message is too long/i.test(message)
+}
+
+function isTransientNetworkError(error: unknown): boolean {
+  if (error && typeof error === 'object' && (error as { name?: string }).name === 'HttpError') {
+    return true
+  }
+  const visit = (err: unknown, depth: number): boolean => {
+    if (!err || depth > 4) return false
+    if (typeof err === 'string') {
+      return TRANSIENT_NETWORK_MARKERS.some((marker) => err.includes(marker))
+    }
+    if (typeof err !== 'object') return false
+    const record = err as Record<string, unknown>
+    if (typeof record.code === 'string' && TRANSIENT_NETWORK_MARKERS.some((marker) => marker === record.code)) {
+      return true
+    }
+    const message = record.message
+    if (typeof message === 'string' && TRANSIENT_NETWORK_MARKERS.some((marker) => message.includes(marker))) {
+      return true
+    }
+    if (record.error !== undefined && visit(record.error, depth + 1)) return true
+    if (record.cause !== undefined && visit(record.cause, depth + 1)) return true
+    return false
+  }
+  return visit(error, 0)
+}
 
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
@@ -305,6 +379,20 @@ class TelegramAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
+    try {
+      await this.deliverMessageChunks(chatId, text, opts)
+    } catch (error) {
+      await this.notifyDeliveryFailure(chatId)
+      throw error
+    }
+  }
+
+  private async deliverMessageChunks(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
+    const bot = this.bot
+    if (!bot) {
+      throw new Error('Bot is not connected')
+    }
+
     const parseMode = opts?.parseMode ?? 'MarkdownV2'
     const isMarkdown = parseMode === 'MarkdownV2'
     // Split the PLAIN text first and escape each chunk, so the MarkdownV2 send and
@@ -322,21 +410,37 @@ class TelegramAdapter extends ChannelAdapter {
           ? { reply_parameters: { message_id: opts.replyToMessageId } }
           : {}
 
-      try {
-        await this.bot.api.sendMessage(chatId, formatted, {
-          parse_mode: parseMode,
-          ...replyParams
+      const sendPlainText = () =>
+        this.sendWithNetworkRetry(chatId, () => bot.api.sendMessage(chatId, plain, replyParams))
+
+      // Escaping can exceed 4096. That 400 is not a parse error, so send the plain chunk
+      // instead of letting the rejection drop the message.
+      if (isMarkdown && formatted.length > TELEGRAM_MAX_LENGTH) {
+        this.log.warn('MarkdownV2 payload exceeds Telegram length limit, falling back to plain text', {
+          chatId,
+          length: formatted.length
         })
-      } catch (error) {
-        // Fallback to plain text if MarkdownV2 parsing fails — same chunk content.
-        if (isMarkdown) {
-          this.log.warn('MarkdownV2 send failed, falling back to plain text', {
-            chatId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          await this.bot.api.sendMessage(chatId, plain, replyParams)
-        } else {
-          throw error
+        await sendPlainText()
+      } else {
+        try {
+          await this.sendWithNetworkRetry(chatId, () =>
+            bot.api.sendMessage(chatId, formatted, {
+              parse_mode: parseMode,
+              ...replyParams
+            })
+          )
+        } catch (error) {
+          // Format downgrade is only for MarkdownV2 parse rejections and length
+          // rejections — never for network errors.
+          if (isMarkdown && (isMarkdownParseError(error) || isTelegramMessageTooLong(error))) {
+            this.log.warn('MarkdownV2 send failed, falling back to plain text', {
+              chatId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            await sendPlainText()
+          } else {
+            throw error
+          }
         }
       }
 
@@ -344,6 +448,43 @@ class TelegramAdapter extends ChannelAdapter {
       if (i < plainChunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
+    }
+  }
+
+  private async sendWithNetworkRetry(chatId: string, send: () => Promise<unknown>): Promise<void> {
+    let lastError: unknown
+    const maxAttempts = TELEGRAM_SEND_RETRY_DELAYS_MS.length + 1
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await send()
+        return
+      } catch (error) {
+        lastError = error
+        const canRetry = isTransientNetworkError(error) && attempt < TELEGRAM_SEND_RETRY_DELAYS_MS.length
+        if (!canRetry) throw error
+        const delayMs = TELEGRAM_SEND_RETRY_DELAYS_MS[attempt]
+        this.log.warn('Transient Telegram send failure, retrying', {
+          chatId,
+          attempt: attempt + 1,
+          delayMs,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+    throw lastError
+  }
+
+  private async notifyDeliveryFailure(chatId: string): Promise<void> {
+    if (!this.bot) return
+    try {
+      // Plain text, single attempt — do not recurse through sendMessage / MarkdownV2.
+      await this.bot.api.sendMessage(chatId, t('common.channel_message_dropped'))
+    } catch (error) {
+      this.log.debug('Failed to send Telegram delivery-failure notice', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

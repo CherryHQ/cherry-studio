@@ -6,6 +6,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@main/i18n', () => ({
+  t: (key: string) => key
+}))
+
 const mockBot = {
   use: vi.fn(),
   command: vi.fn(),
@@ -28,17 +32,58 @@ vi.mock('grammy', () => {
       readonly filename: string
     ) {}
   }
+  class MockHttpError extends Error {
+    constructor(
+      message: string,
+      readonly error: unknown
+    ) {
+      super(message)
+      this.name = 'HttpError'
+    }
+  }
+  class MockGrammyError extends Error {
+    readonly ok = false as const
+    readonly parameters = {}
+    readonly error_code: number
+    readonly description: string
+    constructor(
+      message: string,
+      err: { ok: false; error_code: number; description: string },
+      readonly method: string,
+      readonly payload: Record<string, unknown>
+    ) {
+      super(`${message} (${err.error_code}: ${err.description})`)
+      this.name = 'GrammyError'
+      this.error_code = err.error_code
+      this.description = err.description
+    }
+  }
   return {
     Bot: vi.fn().mockImplementation(function BotMock() {
       return mockBot
     }),
-    InputFile: MockInputFile
+    InputFile: MockInputFile,
+    HttpError: MockHttpError,
+    GrammyError: MockGrammyError
   }
 })
 
-import { InputFile } from 'grammy'
+import { GrammyError, HttpError, InputFile } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import { createTelegramAdapter } from '../telegram/TelegramAdapter'
+
+function networkResetError(): HttpError {
+  const cause = Object.assign(
+    new Error('Client network socket disconnected before secure TLS connection was established'),
+    {
+      code: 'ECONNRESET',
+      errno: 'ECONNRESET',
+      type: 'system'
+    }
+  )
+  return new HttpError("Network request for 'sendMessage' failed!", cause)
+}
 
 describe('TelegramAdapter', () => {
   beforeEach(() => {
@@ -47,7 +92,7 @@ describe('TelegramAdapter', () => {
     mockBot.command.mockClear()
     mockBot.on.mockClear()
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
-    mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendMessage.mockReset().mockResolvedValue(undefined)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendDocument.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
@@ -165,17 +210,150 @@ describe('TelegramAdapter', () => {
     expect(call[1]).not.toBe('Price is 10.5!')
   })
 
+  // #20643: special characters stay under the plain budget, but MarkdownV2 escaping
+  // exceeds 4096. Deliver that chunk as plain text instead of dropping it.
+  it('sendMessage() falls back to plain text when escaped MarkdownV2 exceeds 4096 (REGRESSION #20643)', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const plain = '.'.repeat(2500)
+    expect(plain.length).toBeLessThanOrEqual(4096)
+    expect(toMarkdownV2(plain).trimEnd().length).toBeGreaterThan(4096)
+
+    mockBot.api.sendMessage.mockImplementation(async (...args: [string, string]) => {
+      const text = args[1]
+      if (text.length > 4096) {
+        throw new GrammyError(
+          "Call to 'sendMessage' failed!",
+          { ok: false, error_code: 400, description: 'Bad Request: message is too long' },
+          'sendMessage',
+          {}
+        )
+      }
+    })
+
+    await adapter.sendMessage('123', plain)
+
+    const payloadCalls = mockBot.api.sendMessage.mock.calls.filter(
+      (call) => call[1] !== 'common.channel_message_dropped'
+    )
+    expect(payloadCalls).toContainEqual(['123', plain, {}])
+    expect(payloadCalls.every((call) => call[1].length <= 4096)).toBe(true)
+    expect(mockBot.api.sendMessage.mock.calls.some((call) => call[1] === 'common.channel_message_dropped')).toBe(false)
+  })
+
+  // Length rejections are not parse errors. A MarkdownV2 400 "message is too long"
+  // must still downgrade to the plain chunk instead of the drop notice.
+  it('sendMessage() falls back to plain text when Telegram reports message is too long (REGRESSION #20643)', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage.mockRejectedValueOnce(
+      new GrammyError(
+        "Call to 'sendMessage' failed!",
+        { ok: false, error_code: 400, description: 'Bad Request: message is too long' },
+        'sendMessage',
+        {}
+      )
+    )
+
+    await adapter.sendMessage('123', 'Hello')
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
+    expect(mockBot.api.sendMessage.mock.calls[1]).toEqual(['123', 'Hello', {}])
+    expect(mockBot.api.sendMessage.mock.calls.some((call) => call[1] === 'common.channel_message_dropped')).toBe(false)
+  })
+
   it('sendMessage() falls back to plain text on MarkdownV2 error', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
-    mockBot.api.sendMessage.mockRejectedValueOnce(new Error("Bad Request: can't parse"))
+    mockBot.api.sendMessage.mockRejectedValueOnce(
+      new GrammyError(
+        "Call to 'sendMessage' failed!",
+        { ok: false, error_code: 400, description: "Bad Request: can't parse entities" },
+        'sendMessage',
+        {}
+      )
+    )
 
     await adapter.sendMessage('123', 'Hello')
 
     expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
     // Second call should be plain text fallback
     expect(mockBot.api.sendMessage.mock.calls[1][1]).toBe('Hello')
+    expect(mockBot.api.sendMessage.mock.calls[1][2]).toEqual({})
+  })
+
+  // #20643: network-layer failures must not be misclassified as MarkdownV2 parse
+  // failures. A format downgrade on ECONNRESET wastes the only retry and still fails.
+  it('sendMessage() does not format-downgrade on network errors (REGRESSION #20643)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage.mockRejectedValue(networkResetError())
+
+    const sendPromise = adapter.sendMessage('123', 'Price is 10.5!')
+    const expectation = expect(sendPromise).rejects.toMatchObject({ name: 'HttpError' })
+    await vi.runAllTimersAsync()
+    await expectation
+
+    const payloadCalls = mockBot.api.sendMessage.mock.calls.filter(
+      (call) => call[1] !== 'common.channel_message_dropped'
+    )
+    expect(payloadCalls.length).toBeGreaterThan(1)
+    for (const call of payloadCalls) {
+      expect(call[2]).toEqual({ parse_mode: 'MarkdownV2' })
+      // Escaped MarkdownV2 payload — never the raw plain chunk used by format fallback.
+      expect(call[1]).not.toBe('Price is 10.5!')
+    }
+  })
+
+  // #20643: transient network failures should backoff-retry the same payload before giving up.
+  it('sendMessage() retries transient network errors with backoff then succeeds (REGRESSION #20643)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage
+      .mockRejectedValueOnce(networkResetError())
+      .mockRejectedValueOnce(networkResetError())
+      .mockResolvedValueOnce(undefined)
+
+    const sendPromise = adapter.sendMessage('123', 'Hello')
+    await Promise.resolve()
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(15_000)
+    await sendPromise
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(3)
+    for (const call of mockBot.api.sendMessage.mock.calls) {
+      expect(call[2]).toEqual({ parse_mode: 'MarkdownV2' })
+    }
+  })
+
+  // #20643: after retries are exhausted the failure must surface to the caller and a
+  // user-visible drop notice must be attempted (not silent swallow inside the adapter).
+  it('sendMessage() notifies and rethrows after network retries are exhausted (REGRESSION #20643)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage.mockRejectedValue(networkResetError())
+
+    const sendPromise = adapter.sendMessage('123', 'Hello')
+    const expectation = expect(sendPromise).rejects.toMatchObject({ name: 'HttpError' })
+    await vi.runAllTimersAsync()
+    await expectation
+
+    const dropNotice = mockBot.api.sendMessage.mock.calls.find((call) => call[1] === 'common.channel_message_dropped')
+    expect(dropNotice).toBeDefined()
+    expect(dropNotice?.[0]).toBe('123')
+    // Initial attempt + 3 backoff retries for the payload, then one drop-notice attempt.
+    expect(mockBot.api.sendMessage.mock.calls.length).toBe(5)
   })
 
   it('sendMessage() chunks long messages', async () => {
