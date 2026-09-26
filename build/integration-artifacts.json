@@ -37,7 +37,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "6e962c7835ada20fcf5f5eac608623bbacaa650a"
+      "revision": "3392482a2a1e14d114ee1115db3684334aaaa2cb"
     }
   },
   "tools": [
@@ -363,7 +363,7 @@
   "images": {
     "surrealdb": "surrealdb/surrealdb:v3.2.4@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843",
     "surreal-memory": "ghcr.io/prometheus-ags/the-boss-surreal-memory@sha256:1e1095242e4df05efb010098888e828d915668f44577797549046acaaefac2be",
-    "liter-llm": "ghcr.io/prometheus-ags/the-boss-liter-llm@sha256:2e03527e66378965e07b623df50d147b1d5961b231728199456a91f536a51bba"
+    "liter-llm": "ghcr.io/prometheus-ags/the-boss-liter-llm@sha256:c0eb21bd507db16203c41c85351edd561a162d494783e136aae3efafc14e090e"
   },
   "catalogs": {
     "liter-llm": {

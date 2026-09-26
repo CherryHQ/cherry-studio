@@ -32,7 +32,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "6e962c7835ada20fcf5f5eac608623bbacaa650a"
+      "revision": "3392482a2a1e14d114ee1115db3684334aaaa2cb"
     }
   },
   "tools": {
@@ -67,7 +67,7 @@
     "liter-llm": {
       "source": "liter-llm",
       "package": "liter-llm-cli",
-      "version": "2.0.3"
+      "version": "2.1.0"
     }
   },
   "parser": {
