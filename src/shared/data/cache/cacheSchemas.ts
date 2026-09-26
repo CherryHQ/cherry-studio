@@ -435,6 +435,8 @@ export type RendererPersistCacheSchema = {
   'ui.chat.right_pane_open_override': boolean | null
   // Classic assistant rail group collapse, kept separate from topic display-mode groups.
   'ui.assistant.entity_rail.expansion': string[]
+  // Classic agent rail group collapse, kept separate from the assistant surface.
+  'ui.agent.entity_rail.expansion': string[]
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -495,6 +497,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.last_used_topic_id': null,
   'ui.chat.right_pane_open_override': null,
   'ui.assistant.entity_rail.expansion': [],
+  'ui.agent.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,

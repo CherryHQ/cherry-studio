@@ -113,6 +113,8 @@
   "agent.edit_resend.label": "Editar e reenviar",
   "agent.edit_resend.save": "Guardar e reenviar",
   "agent.edit_resend.warning": "Substitui esta mensagem e todas as mensagens seguintes. As alterações nos ficheiros não serão desfeitas.",
+  "agent.groups.group_by": "Mostrar em grupos",
+  "agent.groups.ungroup": "Parar de agrupar",
   "agent.heartbeat.action_failed": "Não foi possível guardar ou iniciar o heartbeat. Consulte os registos e tente novamente.",
   "agent.heartbeat.conflict": "As tarefas foram alteradas fora do editor. Copie as suas alterações antes de recarregar.",
   "agent.heartbeat.description": "O agente verifica estas tarefas a cada heartbeat. Cada execução com conteúdo utiliza o modelo selecionado.",

@@ -107,6 +107,8 @@ export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
+export type AgentTabSortType = 'tags' | 'list'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',

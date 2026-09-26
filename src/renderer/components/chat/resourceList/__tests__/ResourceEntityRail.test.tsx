@@ -663,6 +663,52 @@ describe('ResourceEntityRail', () => {
     expect(onGroupReorder).toHaveBeenCalledWith('group-work', { before: 'group-home' })
   })
 
+  it('maps the runtime group-row drop ids to canonical group ids', () => {
+    // The drag pipeline addresses group rows by their `group:` ids — those must
+    // resolve too, or the reorder fires with a null id and does nothing.
+    const onGroupReorder = vi.fn()
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Agents list"
+        groupByGroup
+        items={[
+          {
+            id: 'home-a',
+            name: 'Home A',
+            icon: <span />,
+            groupId: 'group-home',
+            groupName: 'home',
+            groupOrderKey: 'aZ'
+          },
+          {
+            id: 'work-a',
+            name: 'Work A',
+            icon: <span />,
+            groupId: 'group-work',
+            groupName: 'work',
+            groupOrderKey: 'aa'
+          }
+        ]}
+        variant="agent"
+        onAdd={vi.fn()}
+        onGroupReorder={onGroupReorder}
+        onSelect={vi.fn()}
+      />
+    )
+
+    virtualListMocks.onDragEnd?.({
+      type: 'group',
+      activeGroupId: 'resource-entity-rail:group:["group","group-work"]',
+      overGroupId: 'resource-entity-rail:group:["group","group-home"]',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    expect(onGroupReorder).toHaveBeenCalledWith('group-work', { before: 'group-home' })
+  })
+
   it('keeps a real group named like the ungrouped sentinel separate from ungrouped entities', () => {
     render(
       <ResourceEntityRail

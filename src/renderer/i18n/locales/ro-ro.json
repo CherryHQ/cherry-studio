@@ -113,6 +113,8 @@
   "agent.edit_resend.label": "Editează și retrimite",
   "agent.edit_resend.save": "Salvează și retrimite",
   "agent.edit_resend.warning": "Înlocuiește acest mesaj și toate mesajele următoare. Modificările fișierelor nu vor fi anulate.",
+  "agent.groups.group_by": "Afișează în grupuri",
+  "agent.groups.ungroup": "Oprește gruparea",
   "agent.heartbeat.action_failed": "Heartbeat nu a putut fi salvat sau pornit. Verifică jurnalele și încearcă din nou.",
   "agent.heartbeat.conflict": "Sarcinile au fost modificate în afara editorului. Copiază modificările înainte de reîncărcare.",
   "agent.heartbeat.description": "Agentul verifică aceste sarcini la fiecare heartbeat. Fiecare rulare cu conținut folosește modelul selectat.",

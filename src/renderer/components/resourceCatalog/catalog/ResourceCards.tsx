@@ -82,7 +82,7 @@ export function ResourceCard({
   const showTypeIcon = r.type === 'skill'
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
-  const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
+  const visibleGroup = r.type === 'assistant' || r.type === 'agent' ? r.groupName : undefined
   const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
   return (

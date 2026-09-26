@@ -113,6 +113,9 @@
   "agent.edit_resend.label": "Edit and resend",
   "agent.edit_resend.save": "Save and resend",
   "agent.edit_resend.warning": "Replaces this message and all following messages. File changes will not be undone.",
+  "agent.groups.group_by": "Show in groups",
+  "agent.groups.ungroup": "Stop grouping",
+
   "agent.heartbeat.action_failed": "Could not save or start the heartbeat. Check the logs and try again.",
   "agent.heartbeat.conflict": "The tasks changed outside this editor. Copy your edits before reloading.",
   "agent.heartbeat.description": "The agent checks these tasks at each heartbeat. Each non-empty run uses your selected model.",

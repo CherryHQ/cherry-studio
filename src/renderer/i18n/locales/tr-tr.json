@@ -113,6 +113,8 @@
   "agent.edit_resend.label": "Düzenle ve yeniden gönder",
   "agent.edit_resend.save": "Kaydet ve yeniden gönder",
   "agent.edit_resend.warning": "Bu iletiyi ve sonraki tüm iletileri değiştirir. Dosya değişiklikleri geri alınmaz.",
+  "agent.groups.group_by": "Gruplar hâlinde göster",
+  "agent.groups.ungroup": "Gruplamayı durdur",
   "agent.heartbeat.action_failed": "Heartbeat kaydedilemedi veya başlatılamadı. Günlükleri kontrol edip tekrar deneyin.",
   "agent.heartbeat.conflict": "Görevler düzenleyici dışında değiştirildi. Yeniden yüklemeden önce değişikliklerinizi kopyalayın.",
   "agent.heartbeat.description": "Ajan her heartbeat sırasında bu görevleri kontrol eder. İçerik bulunan her çalıştırma seçilen modeli kullanır.",

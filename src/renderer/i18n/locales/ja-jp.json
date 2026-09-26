@@ -113,6 +113,8 @@
   "agent.edit_resend.label": "編集して再送",
   "agent.edit_resend.save": "保存して再送",
   "agent.edit_resend.warning": "このメッセージとそれ以降のすべてのメッセージを置き換えます。ファイルの変更は元に戻りません。",
+  "agent.groups.group_by": "グループで表示",
+  "agent.groups.ungroup": "グループ解除",
   "agent.heartbeat.action_failed": "保存または実行できませんでした。ログを確認して再試行してください。",
   "agent.heartbeat.conflict": "タスクが外部で変更されました。編集内容をコピーしてから再読み込みしてください。",
   "agent.heartbeat.description": "エージェントは各ハートビートでこれらのタスクを確認します。内容がある場合、選択したモデルを使用します。",
