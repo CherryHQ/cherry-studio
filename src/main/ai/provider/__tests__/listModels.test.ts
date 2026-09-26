@@ -7,7 +7,7 @@ import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/mo
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
-import { CERT_VERIFY_ACCEPT, CERT_VERIFY_USE_CHROMIUM } from '../../utils/providerTlsExceptions'
+import { CERT_AUTHORITY_INVALID, CERT_VERIFY_ACCEPT, CERT_VERIFY_USE_CHROMIUM } from '../../utils/providerTlsExceptions'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
@@ -232,6 +232,7 @@ describe('listModels — provider network transport', () => {
     const scoped = {
       fetch: vi.fn(async () => Response.json({ data: [{ id: 'local-model' }] })),
       setCertificateVerifyProc: vi.fn(),
+      closeAllConnections: vi.fn(),
       webRequest: { onBeforeSendHeaders: vi.fn() }
     }
     const original = vi.mocked(session.fromPartition).getMockImplementation()
@@ -300,13 +301,15 @@ describe('listModels — provider network transport', () => {
       expect(scoped.fetch).toHaveBeenCalledWith('https://models.internal/catalog', expect.any(Object))
 
       const verify = scoped.setCertificateVerifyProc.mock.calls.at(-1)?.[0] as (
-        request: { hostname: string },
+        request: { hostname: string; errorCode?: number },
         callback: (result: number) => void
       ) => void
       const callback = vi.fn()
-      verify({ hostname: 'models.internal' }, callback)
+      verify({ hostname: 'models.internal', errorCode: CERT_AUTHORITY_INVALID }, callback)
       expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_ACCEPT)
-      verify({ hostname: 'unlisted.internal' }, callback)
+      verify({ hostname: 'models.internal', errorCode: -201 }, callback)
+      expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_USE_CHROMIUM)
+      verify({ hostname: 'unlisted.internal', errorCode: CERT_AUTHORITY_INVALID }, callback)
       expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_USE_CHROMIUM)
     } finally {
       if (original) vi.mocked(session.fromPartition).mockImplementation(original)

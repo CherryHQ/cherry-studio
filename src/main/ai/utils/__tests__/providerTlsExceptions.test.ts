@@ -6,12 +6,15 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { customFetch } from '../customFetch'
 import {
+  CERT_AUTHORITY_INVALID,
   CERT_VERIFY_ACCEPT,
   CERT_VERIFY_USE_CHROMIUM,
   collectAllowSelfSignedTlsHostnames,
   createProviderScopedFetch,
   hostnameFromApiBaseUrl,
   installProviderCertificateVerifyProc,
+  releaseProviderTlsSession,
+  releaseProviderTlsSessionIfInactive,
   resolveCertificateVerifyResult
 } from '../providerTlsExceptions'
 
@@ -86,13 +89,24 @@ describe('collectAllowSelfSignedTlsHostnames', () => {
 })
 
 describe('resolveCertificateVerifyResult', () => {
-  it('accepts only allowlisted hostnames and otherwise defers to Chromium', () => {
+  const authorityInvalid = { errorCode: CERT_AUTHORITY_INVALID }
+
+  it('accepts only an untrusted issuer on an allowlisted hostname', () => {
     const allowed = new Set(['llm.internal'])
 
-    // Bug this locks: a global TLS disable would accept api.openai.com too.
-    expect(resolveCertificateVerifyResult('llm.internal', allowed)).toBe(CERT_VERIFY_ACCEPT)
-    expect(resolveCertificateVerifyResult('LLM.Internal', allowed)).toBe(CERT_VERIFY_ACCEPT)
-    expect(resolveCertificateVerifyResult('api.openai.com', allowed)).toBe(CERT_VERIFY_USE_CHROMIUM)
+    // Bug this locks: accepting every certificate for the host would also trust
+    // an expired or name-mismatched leaf, and a global bypass would trust api.openai.com.
+    expect(resolveCertificateVerifyResult('llm.internal', allowed, authorityInvalid)).toBe(CERT_VERIFY_ACCEPT)
+    expect(
+      resolveCertificateVerifyResult('LLM.Internal', allowed, {
+        verificationResult: 'net::ERR_CERT_AUTHORITY_INVALID'
+      })
+    ).toBe(CERT_VERIFY_ACCEPT)
+    expect(resolveCertificateVerifyResult('llm.internal', allowed, { errorCode: -201 })).toBe(CERT_VERIFY_USE_CHROMIUM)
+    expect(resolveCertificateVerifyResult('llm.internal', allowed, { errorCode: -200 })).toBe(CERT_VERIFY_USE_CHROMIUM)
+    expect(resolveCertificateVerifyResult('llm.internal', allowed, { errorCode: 0 })).toBe(CERT_VERIFY_USE_CHROMIUM)
+    expect(resolveCertificateVerifyResult('llm.internal', allowed)).toBe(CERT_VERIFY_USE_CHROMIUM)
+    expect(resolveCertificateVerifyResult('api.openai.com', allowed, authorityInvalid)).toBe(CERT_VERIFY_USE_CHROMIUM)
   })
 })
 
@@ -183,13 +197,13 @@ describe('createProviderScopedFetch', () => {
     mockProxyService.registerProxySession.mockReset().mockResolvedValue(undefined)
   })
 
-  function verify(hostname: string): number {
+  function verify(hostname: string, errorCode: number = CERT_AUTHORITY_INVALID): number {
     const proc = [...partitions.values()][0].setCertificateVerifyProc.mock.calls.at(-1)?.[0] as (
-      request: { hostname: string },
+      request: { hostname: string; errorCode?: number },
       callback: (result: number) => void
     ) => void
     const callback = vi.fn()
-    proc({ hostname }, callback)
+    proc({ hostname, errorCode }, callback)
     return callback.mock.calls[0]?.[0] as number
   }
 
@@ -226,6 +240,7 @@ describe('createProviderScopedFetch', () => {
       expect([...partitions.keys()]).toEqual([expect.not.stringMatching(/^persist:/)])
       expect([...partitions.values()][0].webRequest.onBeforeSendHeaders).toHaveBeenCalledTimes(1)
       expect(verify('llm.internal')).toBe(CERT_VERIFY_ACCEPT)
+      expect(verify('llm.internal', -201)).toBe(CERT_VERIFY_USE_CHROMIUM)
       expect(verify('unlisted.example')).toBe(CERT_VERIFY_USE_CHROMIUM)
       await createProviderScopedFetch({
         id: 'opted',
@@ -245,6 +260,51 @@ describe('createProviderScopedFetch', () => {
       expect(await (await customFetch('https://llm.internal/v1/models')).text()).toBe('default')
       expect(partitions.size).toBe(1)
       expect(net.fetch).toHaveBeenCalledTimes(3)
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
+  it('releases the provider session on opt-out and on deletion', async () => {
+    // Bug: the in-memory partition kept accepting certificates after the toggle was cleared.
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    const scoped = {
+      fetch: vi.fn(async () => new Response('scoped')),
+      setCertificateVerifyProc: vi.fn(),
+      closeAllConnections: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    vi.mocked(session.fromPartition).mockReturnValue(scoped as never)
+    vi.mocked(net.fetch).mockImplementation(async () => new Response('default'))
+    const provider = {
+      id: 'opted',
+      isEnabled: true,
+      settings: { allowSelfSignedTls: true as const },
+      endpointConfigs: host
+    }
+
+    try {
+      await createProviderScopedFetch(provider)('https://llm.internal/v1/models')
+      expect(mockProxyService.registerProxySession).toHaveBeenCalledWith(scoped)
+
+      releaseProviderTlsSessionIfInactive({ ...provider, settings: { allowSelfSignedTls: false } })
+      const strictFetch = createProviderScopedFetch({ ...provider, settings: { allowSelfSignedTls: false } })
+      expect(await (await strictFetch('https://llm.internal/v1/models')).text()).toBe('default')
+      expect(scoped.setCertificateVerifyProc).toHaveBeenCalledWith(null)
+      expect(scoped.closeAllConnections).toHaveBeenCalledTimes(1)
+      expect(mockProxyService.unregisterProxySession).toHaveBeenCalledWith(scoped)
+
+      await createProviderScopedFetch(provider)('https://llm.internal/v1/models')
+      mockProxyService.unregisterProxySession.mockClear()
+      scoped.closeAllConnections.mockClear()
+      releaseProviderTlsSessionIfInactive(provider)
+      expect(mockProxyService.unregisterProxySession).not.toHaveBeenCalled()
+
+      releaseProviderTlsSession(provider.id)
+      expect(scoped.setCertificateVerifyProc).toHaveBeenLastCalledWith(null)
+      expect(mockProxyService.unregisterProxySession).toHaveBeenCalledWith(scoped)
+      releaseProviderTlsSession(provider.id)
+      expect(mockProxyService.unregisterProxySession).toHaveBeenCalledTimes(1)
     } finally {
       if (original) vi.mocked(session.fromPartition).mockImplementation(original)
     }

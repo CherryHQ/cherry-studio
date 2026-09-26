@@ -13,6 +13,7 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../customFetch'
 import {
+  CERT_AUTHORITY_INVALID,
   CERT_VERIFY_ACCEPT,
   CERT_VERIFY_USE_CHROMIUM,
   createProviderScopedFetch,
@@ -66,7 +67,7 @@ const UNLISTED_HOST = '10.255.255.1'
 const API_ROOT = `https://${leafHost}/v1`
 
 type VerifyProc = (
-  request: { hostname: string; certificate: { data: string } },
+  request: { hostname: string; certificate: { data: string }; errorCode?: number; verificationResult?: string },
   callback: (result: number) => void
 ) => void
 
@@ -123,7 +124,15 @@ async function respond(
       resolve(CERT_VERIFY_USE_CHROMIUM)
       return
     }
-    proc({ hostname: url.hostname, certificate: { data: fixtureCertificate.raw.toString('base64') } }, resolve)
+    proc(
+      {
+        hostname: url.hostname,
+        certificate: { data: fixtureCertificate.raw.toString('base64') },
+        errorCode: CERT_AUTHORITY_INVALID,
+        verificationResult: 'net::ERR_CERT_AUTHORITY_INVALID'
+      },
+      resolve
+    )
   })
   if (decision !== CERT_VERIFY_ACCEPT) {
     throw new Error(`self-signed certificate (${url.hostname})`)

@@ -82,7 +82,8 @@ export const mockJobManager = {
 
 /** Minimal ProxyService mock for consumers that register scoped Electron sessions. */
 export const mockProxyService = {
-  registerProxySession: vi.fn().mockResolvedValue(undefined)
+  registerProxySession: vi.fn().mockResolvedValue(undefined),
+  unregisterProxySession: vi.fn()
 }
 
 /** Default service instances from existing mock files */

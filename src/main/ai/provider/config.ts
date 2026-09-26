@@ -389,6 +389,7 @@ export async function resolveProviderAiSdkConfig(
   const { config } = resolved
   // ??=: a builder that already wrapped fetch (signing, body rewrite) stays intact.
   // Opted-in providers get a scoped session; every other provider gets customFetch.
+  // Image submit/poll transports must read this same fetch instead of global fetch.
   config.providerSettings.fetch ??= ctx.providerFetch
 
   return {

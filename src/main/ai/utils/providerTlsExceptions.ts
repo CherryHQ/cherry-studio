@@ -10,6 +10,8 @@ import { createProviderFetch, customFetch, installProviderUserAgentInterceptor }
 export const CERT_VERIFY_USE_CHROMIUM = -3
 /** Accept the certificate (skips Chromium's failure for this host). */
 export const CERT_VERIFY_ACCEPT = 0
+/** Chromium `net::ERR_CERT_AUTHORITY_INVALID` (self-signed or private CA). */
+export const CERT_AUTHORITY_INVALID = -202
 
 type ProviderTlsSource = Pick<Provider, 'isEnabled' | 'settings' | 'endpointConfigs'>
 
@@ -18,6 +20,19 @@ const PROVIDER_TLS_PARTITION_PREFIX = 'cherry-provider-tls:'
 
 /** Sessions that already have the User-Agent interceptor. The verify proc is refreshed per call. */
 const hookedTlsSessions = new WeakSet<Session>()
+/** In-memory TLS partitions, so opt-out and deletion can drop the exception. */
+const tlsSessionsByProviderId = new Map<string, Session>()
+
+export interface CertificateVerifyFailure {
+  errorCode?: number
+  verificationResult?: string
+}
+
+function isUntrustedIssuerFailure(failure: CertificateVerifyFailure | undefined): boolean {
+  if (!failure) return false
+  if (failure.errorCode === CERT_AUTHORITY_INVALID) return true
+  return failure.verificationResult?.includes('ERR_CERT_AUTHORITY_INVALID') === true
+}
 
 /**
  * Parse the hostname of a provider API base URL.
@@ -57,12 +72,43 @@ export function collectAllowSelfSignedTlsHostnames(providers: readonly ProviderT
   return hosts
 }
 
-/** Resolve Electron `setCertificateVerifyProc` callback codes for one hostname. */
+/**
+ * Resolve Electron `setCertificateVerifyProc` callback codes for one request.
+ *
+ * `CERT_VERIFY_ACCEPT` (0) trusts the certificate outright, including expired
+ * or name-mismatched leaves. The opt-in only overrides an untrusted issuer.
+ */
 export function resolveCertificateVerifyResult(
   hostname: string,
-  allowedHostnames: ReadonlySet<string>
+  allowedHostnames: ReadonlySet<string>,
+  failure?: CertificateVerifyFailure
 ): typeof CERT_VERIFY_ACCEPT | typeof CERT_VERIFY_USE_CHROMIUM {
-  return allowedHostnames.has(hostname.toLowerCase()) ? CERT_VERIFY_ACCEPT : CERT_VERIFY_USE_CHROMIUM
+  if (!allowedHostnames.has(hostname.toLowerCase())) return CERT_VERIFY_USE_CHROMIUM
+  return isUntrustedIssuerFailure(failure) ? CERT_VERIFY_ACCEPT : CERT_VERIFY_USE_CHROMIUM
+}
+
+/**
+ * Drop a provider's TLS partition: Chromium verification, open connections,
+ * and the proxy registration. Idempotent when the provider never opted in.
+ */
+export function releaseProviderTlsSession(providerId: string): void {
+  const scoped = tlsSessionsByProviderId.get(providerId)
+  if (!scoped) return
+  tlsSessionsByProviderId.delete(providerId)
+  hookedTlsSessions.delete(scoped)
+  scoped.setCertificateVerifyProc(null)
+  void scoped.closeAllConnections()
+  application.get('ProxyService').unregisterProxySession(scoped)
+}
+
+/** Release when a saved provider is disabled or no longer opts in. */
+export function releaseProviderTlsSessionIfInactive(provider: {
+  id: string
+  isEnabled: boolean
+  settings?: { allowSelfSignedTls?: boolean | null }
+}): void {
+  if (provider.isEnabled && provider.settings?.allowSelfSignedTls === true) return
+  releaseProviderTlsSession(provider.id)
 }
 
 /**
@@ -96,8 +142,14 @@ export function createProviderScopedFetch(provider: ProviderTlsSource & Pick<Pro
   if (allowed.size === 0) return customFetch
 
   const scoped = session.fromPartition(`${PROVIDER_TLS_PARTITION_PREFIX}${provider.id}`)
+  tlsSessionsByProviderId.set(provider.id, scoped)
   scoped.setCertificateVerifyProc((request, callback) => {
-    callback(resolveCertificateVerifyResult(request.hostname, allowed))
+    callback(
+      resolveCertificateVerifyResult(request.hostname, allowed, {
+        errorCode: request.errorCode,
+        verificationResult: request.verificationResult
+      })
+    )
   })
   if (!hookedTlsSessions.has(scoped)) {
     hookedTlsSessions.add(scoped)

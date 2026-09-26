@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
@@ -55,15 +57,18 @@ export interface ModelscopeTaskResult {
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
+  fetch?: FetchFunction
 }
 
 class ModelscopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private readonly fetchFn: FetchFunction | undefined
 
   constructor(settings: ModelscopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_MODELSCOPE_BASE_URL
+    this.fetchFn = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -224,7 +229,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
+      const response = await (this.fetchFn ?? globalThis.fetch)(`${this.baseURL}${path}`, fetchOptions)
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new ModelscopeApiError(`ModelScope API error: ${response.status} - ${errorText}`, response.status)

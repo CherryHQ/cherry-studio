@@ -112,6 +112,15 @@ export class ProxyService extends BaseService {
     throw new Error(error == null ? 'Proxy session registration did not converge' : String(error))
   }
 
+  /**
+   * Stop applying later proxy updates to `proxySession`.
+   * Provider TLS partitions call this on opt-out and deletion.
+   */
+  unregisterProxySession(proxySession: Session): void {
+    if (!this.dynamicSessions.delete(proxySession)) return
+    this.dynamicSessionEpoch += 1
+  }
+
   /** Read-only view of intent vs. what is in effect, for diagnostics. */
   async getAppliedSnapshot(): Promise<ProxyAppliedSnapshot> {
     await this.proxyReconciler.flush()
