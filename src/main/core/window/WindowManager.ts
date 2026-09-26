@@ -100,9 +100,13 @@ export class WindowManager extends BaseService {
   /** Window IDs indexed by type for fast lookups */
   private windowsByType = new Map<WindowType, Set<string>>()
 
-  private pendingCenterBounds = new WeakMap<BrowserWindow, Electron.Rectangle>()
-  /** Listener registered by `center()` while waiting for macOS `leave-full-screen`. */
-  private pendingCenterLeaveHandlers = new WeakMap<BrowserWindow, () => void>()
+  /** Deferred macOS center, bound to the pooled lease (`use`) that requested it. */
+  private pendingCenters = new WeakMap<
+    BrowserWindow,
+    { use: number; bounds: Electron.Rectangle; onLeave: () => void }
+  >()
+  /** Bumped when a pooled window is released or leased to the next consumer. */
+  private windowUses = new WeakMap<BrowserWindow, number>()
 
   /** Warmup state per window type — shared by pooled and singleton lifecycles */
   private warmupStates = new Map<WindowType, WarmupState>()
@@ -569,21 +573,24 @@ export class WindowManager extends BaseService {
     }
 
     const fullscreen = window.isFullScreen()
-    if (isMac && (fullscreen || this.pendingCenterBounds.has(window))) {
-      const pending = this.pendingCenterBounds.has(window)
-      this.pendingCenterBounds.set(window, bounds)
-      if (!pending) {
-        // Native fullscreen exit is asynchronous on macOS; early bounds are discarded.
-        const onLeave = () => {
-          this.pendingCenterLeaveHandlers.delete(window)
-          const target = this.pendingCenterBounds.get(window)
-          this.pendingCenterBounds.delete(window)
-          if (target && !window.isDestroyed()) place(target)
-        }
-        this.pendingCenterLeaveHandlers.set(window, onLeave)
-        window.once('leave-full-screen', onLeave)
-        window.setFullScreen(false)
+    const use = this.windowUse(window)
+    const pending = this.pendingCenters.get(window)
+    if (isMac && (fullscreen || (pending !== undefined && pending.use === use))) {
+      if (pending !== undefined && pending.use === use) {
+        pending.bounds = bounds
+        return true
       }
+      if (pending) this.cancelPendingCenter(window)
+      // Native fullscreen exit is asynchronous on macOS; early bounds are discarded.
+      const onLeave = () => {
+        const current = this.pendingCenters.get(window)
+        if (!current || current.onLeave !== onLeave || this.windowUse(window) !== use) return
+        this.pendingCenters.delete(window)
+        if (!window.isDestroyed()) place(current.bounds)
+      }
+      this.pendingCenters.set(window, { use, bounds, onLeave })
+      window.once('leave-full-screen', onLeave)
+      window.setFullScreen(false)
       return true
     }
 
@@ -891,6 +898,9 @@ export class WindowManager extends BaseService {
         continue
       }
 
+      // New lease. A center callback from the previous use must not place on this one.
+      this.advanceWindowUse(candidate.window)
+      this.cancelPendingCenter(candidate.window)
       // Reset native geometry state to match fresh-creation config
       this.resetPooledWindowGeometry(candidate.window, type, args?.options)
 
@@ -969,14 +979,20 @@ export class WindowManager extends BaseService {
     }
   }
 
+  private windowUse(window: BrowserWindow): number {
+    return this.windowUses.get(window) ?? 0
+  }
+
+  private advanceWindowUse(window: BrowserWindow): void {
+    this.windowUses.set(window, this.windowUse(window) + 1)
+  }
+
   /** Drop a macOS center that is still waiting for `leave-full-screen`. */
   private cancelPendingCenter(window: BrowserWindow): void {
-    const onLeave = this.pendingCenterLeaveHandlers.get(window)
-    if (onLeave) {
-      window.removeListener('leave-full-screen', onLeave)
-      this.pendingCenterLeaveHandlers.delete(window)
-    }
-    this.pendingCenterBounds.delete(window)
+    const pending = this.pendingCenters.get(window)
+    if (!pending) return
+    window.removeListener('leave-full-screen', pending.onLeave)
+    this.pendingCenters.delete(window)
   }
 
   /**
@@ -1034,8 +1050,9 @@ export class WindowManager extends BaseService {
       return
     }
 
-    // The pooled BrowserWindow outlives close. Drop a deferred macOS center so
-    // a late leave-full-screen cannot move the next lease with stale bounds.
+    // The pooled BrowserWindow outlives close. End the lease so a deferred macOS
+    // center stays bound to the use that requested it.
+    this.advanceWindowUse(managed.window)
     this.cancelPendingCenter(managed.window)
 
     // Clear runtime overrides before the window goes hidden/idle. The three

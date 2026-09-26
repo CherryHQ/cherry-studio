@@ -1637,6 +1637,49 @@ describe('WindowManager', () => {
       expect(win.getBounds()).toEqual(leased)
     })
 
+    it('center() does not let a stale macOS fullscreen callback move a later pooled lease', async () => {
+      const { screen } = await import('electron')
+      platformMock.isMac = true
+      const display = {
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display
+      vi.mocked(screen.getDisplayNearestPoint).mockReturnValue(display)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue(display)
+
+      const id = wm.open('pooled' as never)
+      const win = createdWindows[0]
+      let bounds = { x: 1920, y: 0, width: 1920, height: 1080 }
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockImplementation(() => ({ ...bounds }))
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      win.setBounds.mockImplementation((next: typeof bounds) => {
+        bounds = { ...next }
+      })
+
+      expect(wm.center(id)).toBe(true)
+      const staleCall = win.once.mock.calls.find((call) => call[0] === 'leave-full-screen')
+      expect(staleCall).toBeDefined()
+      const stale = staleCall?.[1] as () => void
+
+      // SelectionAction closes through the native close event, then the pool leases the same window again.
+      win.emit('close', { preventDefault: vi.fn() })
+      win.isFullScreen.mockReturnValue(true)
+      expect(wm.open('pooled' as never)).toBe(id)
+
+      const leased = { ...win.getBounds() }
+      expect(leased).toMatchObject({ width: 1100, height: 720 })
+
+      // The next lease requests its own center while the previous exit callback is still runnable.
+      win.getNormalBounds.mockReturnValue({ x: 0, y: 0, width: 400, height: 300 })
+      expect(wm.center(id)).toBe(true)
+      stale()
+
+      expect(win.getBounds()).toEqual(leased)
+      win.emit('leave-full-screen')
+      expect(win.getBounds()).toEqual({ x: 760, y: 390, width: 400, height: 300 })
+    })
+
     it('center() returns false for unknown windowId', () => {
       expect(wm.center('does-not-exist')).toBe(false)
     })
