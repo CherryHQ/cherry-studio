@@ -1,3 +1,5 @@
+import { CircleAlert } from 'lucide-react'
+
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n/resolver'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -54,15 +56,31 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
 export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   if (toolResponse.status !== 'done' || !outputParse.success) return null
+  const warning = outputParse.data.find((result) => result.warning)?.warning
 
   return (
-    <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:p-0">
-      {outputParse.data.map((result: KbSearchOutputItem) => (
-        <li key={result.id} className="flex min-w-0 gap-2">
-          <span className="shrink-0 text-foreground-tertiary">{result.id}</span>
-          <span className="min-w-0 truncate">{result.content}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2">
+      {warning ? (
+        <div className="flex gap-2 rounded-md border border-warning-border bg-warning-subtle px-2.5 py-2 text-warning-subtle-foreground text-xs leading-5">
+          <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            {i18n.t('knowledge.recall.rerank_warning')}{' '}
+            {i18n.t(
+              warning.reason === 'input_too_large'
+                ? 'knowledge.recall.rerank_warning_input_too_large'
+                : 'knowledge.recall.rerank_warning_provider_error'
+            )}
+          </span>
+        </div>
+      ) : null}
+      <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:p-0">
+        {outputParse.data.map((result: KbSearchOutputItem) => (
+          <li key={result.id} className="flex min-w-0 gap-2">
+            <span className="shrink-0 text-foreground-tertiary">{result.id}</span>
+            <span className="min-w-0 truncate">{result.content}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
