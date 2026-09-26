@@ -1636,6 +1636,41 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('active layout', () => {
+    it('shows intermediate prose inline while keeping tools and reasoning in one live fold', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer', state: 'streaming' }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="live-tool-group"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
+      expect(latestMainTextProps(5)?.isStreaming).toBe(true)
+      expandCollapsedLiveToolGroups()
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
+    })
+
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
@@ -2151,6 +2186,41 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(historyTrigger)
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
+    })
+
+    it('shows each completed prose part inline and leaves tools and reasoning in the fold', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'First update' },
+          toolPart('read'),
+          { type: 'text', text: 'Second update' },
+          { type: 'reasoning', text: 'Checking result', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'Final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+      )
+
+      for (const text of ['First update', 'Second update', 'Final answer']) {
+        expect(screen.getByText(text).closest('[data-testid="tool-history-content"]')).toBeNull()
+      }
+      expect(
+        screen.getByText('First update').compareDocumentPosition(screen.getByText('Second update')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(historyTrigger)
+      expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
+      expect(screen.getAllByText('First update')).toHaveLength(1)
     })
 
     it('keeps channel authentication QR tools outside collapsed process history', () => {

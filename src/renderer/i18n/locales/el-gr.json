@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Συντόμευση κατεύθυνσης",
   "settings.messages.input.steer_shortcuts_hint": "Ενώ τρέχει ένας Πράκτορας, αυτή αποστέλλει το μήνυμά σας αμέσως στον τρέχοντα γύρο για να τον κατευθύνετε· η συντόμευση αποστολής το τοποθετεί σε ουρά μέχρι να ολοκληρωθεί ο γύρος.",
   "settings.messages.input.title": "Ρυθμίσεις εισαγωγής",
+  "settings.messages.keep_intermediate_text.hint": "Εμφάνιση του κειμένου του βοηθού ανάμεσα στις κλήσεις εργαλείων στην απάντηση, ενώ τα εργαλεία και η συλλογιστική παραμένουν συμπτυγμένα.",
+  "settings.messages.keep_intermediate_text.label": "Εμφάνιση ενδιάμεσου κειμένου βοηθού",
   "settings.messages.layout.conversation": "Προβολή συνομιλίας",
   "settings.messages.layout.work": "Προβολή εργασίας",
   "settings.messages.markdown_rendering_input_message": "Απόδοση του μηνύματος εισόδου με Markdown",

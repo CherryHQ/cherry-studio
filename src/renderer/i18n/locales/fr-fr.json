@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Raccourci d'orientation",
   "settings.messages.input.steer_shortcuts_hint": "Lorsqu'un Agent est en cours d'exécution, cela envoie immédiatement votre message dans le tour en cours pour l'orienter ; le raccourci d'envoi le met en file d'attente jusqu'à la fin du tour.",
   "settings.messages.input.title": "Paramètres d'entrée",
+  "settings.messages.keep_intermediate_text.hint": "Afficher dans la réponse le texte de l’assistant entre les appels d’outils ; les outils et le raisonnement restent repliés.",
+  "settings.messages.keep_intermediate_text.label": "Afficher le texte intermédiaire de l’assistant",
   "settings.messages.layout.conversation": "Vue conversation",
   "settings.messages.layout.work": "Vue du travail",
   "settings.messages.markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",

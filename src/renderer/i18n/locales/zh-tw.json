@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "引導快捷鍵",
   "settings.messages.input.steer_shortcuts_hint": "智能體執行中時，使用此快捷鍵可立即將訊息送入當前回合以進行引導；使用發送快捷鍵則會排隊，待該回合結束後再發出。",
   "settings.messages.input.title": "輸入設定",
+  "settings.messages.keep_intermediate_text.hint": "在回覆中顯示工具呼叫之間的助理文字；工具和推理內容仍保持摺疊。",
+  "settings.messages.keep_intermediate_text.label": "顯示助理的中間文字",
   "settings.messages.layout.conversation": "對話視圖",
   "settings.messages.layout.work": "工作視圖",
   "settings.messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",

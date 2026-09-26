@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Steer shortcut",
   "settings.messages.input.steer_shortcuts_hint": "While an Agent is running, this sends your message into the current turn right away to steer it; the send shortcut queues it until the turn ends.",
   "settings.messages.input.title": "Input Settings",
+  "settings.messages.keep_intermediate_text.hint": "Keep assistant text between tool calls in the response while tools and reasoning stay folded.",
+  "settings.messages.keep_intermediate_text.label": "Show intermediate assistant text",
   "settings.messages.layout.conversation": "Conversation view",
   "settings.messages.layout.work": "Work view",
   "settings.messages.markdown_rendering_input_message": "Markdown render input message",

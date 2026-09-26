@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Yönlendirme kısayolu",
   "settings.messages.input.steer_shortcuts_hint": "Bir ajan çalışırken bu, yönlendirmek amacıyla mesajı hemen geçerli tura gönderir; gönderme kısayolu ise tur sona erene kadar mesajı kuyruğa alır.",
   "settings.messages.input.title": "Girdi Ayarları",
+  "settings.messages.keep_intermediate_text.hint": "Araç çağrıları arasındaki asistan metnini yanıtta göster; araçlar ve akıl yürütme katlanmış kalır.",
+  "settings.messages.keep_intermediate_text.label": "Ara asistan metnini göster",
   "settings.messages.layout.conversation": "Konuşma görünümü",
   "settings.messages.layout.work": "Çalışma görünümü",
   "settings.messages.markdown_rendering_input_message": "Girdi mesajını Markdown olarak işle",
