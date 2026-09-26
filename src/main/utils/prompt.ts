@@ -16,6 +16,7 @@ import os from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
 
 const logger = loggerService.withContext('utils:prompt')
 
@@ -90,8 +91,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{language}}')) {
     try {
-      const language = application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
-      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, getAppLanguage())
     } catch (error) {
       logger.error('Failed to resolve {{language}}', error as Error)
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')

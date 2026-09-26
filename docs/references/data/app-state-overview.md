@@ -79,6 +79,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `seed:<name>`         | `SeedRunner`     | `{ version: string }`   | Seeding journal, one row per seeder. See [Database Seeding Guide](./database-seeding-guide.md).                                                                                                              |
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
+| `assistantService:cherryInOfficialAssistants` | `AssistantDataService` | `{ createdIds: string[] }` | Fixed IDs already created after CherryIN OAuth; prevents user-deleted assistants from being recreated by a later successful setup. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 
 ## Related Source Code
