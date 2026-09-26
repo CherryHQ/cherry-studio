@@ -28,16 +28,21 @@ describe('serializeError', () => {
     it('drops an opaque object instead of stringifying it', () => {
       const result = serializeError({ apiKey: 'object-secret', nested: { token: 'nested-secret' } })
 
-      expect(result).toEqual({ name: null, message: 'Unknown error', stack: null })
+      expect(result).toEqual({ name: null, message: null, stack: null, i18nKey: 'unknown' })
       expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
     })
 
     it('normalizes nullish values and redacts provider messages', () => {
-      expect(serializeError(null).message).toBe('Unknown error')
-      expect(serializeError(undefined).message).toBe('Unknown error')
+      expect(serializeError(null)).toMatchObject({ message: null, i18nKey: 'unknown' })
+      expect(serializeError(undefined)).toMatchObject({ message: null, i18nKey: 'unknown' })
       expect(serializeError({ error: { message: 'Authorization: Bearer provider-secret' } }).message).toBe(
         'Authorization: "<redacted>"'
       )
+    })
+
+    it('preserves safe primitive strings and redacts secrets', () => {
+      expect(serializeError('boom')).toEqual({ name: null, message: 'boom', stack: null })
+      expect(serializeError('Authorization: Bearer provider-secret').message).toBe('Authorization: "<redacted>"')
     })
   })
 

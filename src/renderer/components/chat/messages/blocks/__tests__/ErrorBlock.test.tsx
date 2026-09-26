@@ -104,6 +104,22 @@ describe('ErrorBlock', () => {
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it('localizes an opaque serialized throw through the unknown-error key', () => {
+    mocks.language = 'zh-CN'
+    mocks.i18nKeys.add('error.unknown')
+    mocks.translations.set('error.unknown', '未知错误')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: null, message: null, stack: null, i18nKey: 'unknown' }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('未知错误')).toBeInTheDocument()
+  })
+
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
       <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />
