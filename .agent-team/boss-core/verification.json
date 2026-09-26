@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-24T23:42:45.909Z",
+  "head": "8344b485203427952716cd142da28c181162be61",
+  "manifestValidation": "creator CLI passed",
+  "roleCount": 10,
+  "nativeCount": 50,
+  "nativeSyntax": [
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-lead.toml",
+      "name": "boss-lead",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-lead.md",
+      "name": "boss-lead",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-lead.md",
+      "name": "boss-lead",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-lead.md",
+      "name": "boss-lead",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-lead/agent.md",
+      "name": "boss-lead",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-product.toml",
+      "name": "boss-product",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-product.md",
+      "name": "boss-product",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-product.md",
+      "name": "boss-product",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-product.md",
+      "name": "boss-product",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-product/agent.md",
+      "name": "boss-product",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-ux.toml",
+      "name": "boss-ux",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-ux.md",
+      "name": "boss-ux",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-ux.md",
+      "name": "boss-ux",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-ux.md",
+      "name": "boss-ux",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-ux/agent.md",
+      "name": "boss-ux",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-renderer.toml",
+      "name": "boss-renderer",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-renderer.md",
+      "name": "boss-renderer",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-renderer.md",
+      "name": "boss-renderer",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-renderer.md",
+      "name": "boss-renderer",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-renderer/agent.md",
+      "name": "boss-renderer",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-desktop.toml",
+      "name": "boss-desktop",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-desktop.md",
+      "name": "boss-desktop",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-desktop.md",
+      "name": "boss-desktop",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-desktop.md",
+      "name": "boss-desktop",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-desktop/agent.md",
+      "name": "boss-desktop",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-runtime.toml",
+      "name": "boss-runtime",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-runtime.md",
+      "name": "boss-runtime",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-runtime.md",
+      "name": "boss-runtime",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-runtime.md",
+      "name": "boss-runtime",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-runtime/agent.md",
+      "name": "boss-runtime",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-providers.toml",
+      "name": "boss-providers",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-providers.md",
+      "name": "boss-providers",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-providers.md",
+      "name": "boss-providers",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-providers.md",
+      "name": "boss-providers",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-providers/agent.md",
+      "name": "boss-providers",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-data.toml",
+      "name": "boss-data",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-data.md",
+      "name": "boss-data",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-data.md",
+      "name": "boss-data",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-data.md",
+      "name": "boss-data",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-data/agent.md",
+      "name": "boss-data",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-security.toml",
+      "name": "boss-security",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-security.md",
+      "name": "boss-security",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-security.md",
+      "name": "boss-security",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-security.md",
+      "name": "boss-security",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-security/agent.md",
+      "name": "boss-security",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "codex",
+      "file": ".codex/agents/boss-verifier.toml",
+      "name": "boss-verifier",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "claude",
+      "file": ".claude/agents/boss-verifier.md",
+      "name": "boss-verifier",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "kimi",
+      "file": ".kimi-code/agents/boss-verifier.md",
+      "name": "boss-verifier",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "opencode",
+      "file": ".opencode/agents/boss-verifier.md",
+      "name": "boss-verifier",
+      "syntax": "passed",
+      "promptMatches": true
+    },
+    {
+      "target": "minimax",
+      "file": ".minimax/agents/boss-verifier/agent.md",
+      "name": "boss-verifier",
+      "syntax": "passed",
+      "promptMatches": true
+    }
+  ],
+  "exportBytesMatch": true,
+  "skillBindings": "all exist",
+  "defaultOwnership": "no overlaps detected",
+  "preservation": {
+    "preexistingChanged": [
+      ".gitignore",
+      "CLAUDE.md"
+    ],
+    "allowed": [
+      "CLAUDE.md routing appended",
+      ".gitignore Boss role exceptions appended; prior Compass entries preserved"
+    ],
+    "compassDefinitions": "unchanged and matching",
+    "agentsLink": "CLAUDE.md"
+  },
+  "nativeDiscovery": {
+    "opencode": {
+      "status": 0,
+      "signal": null,
+      "name": "boss-lead",
+      "mode": "primary",
+      "promptMatches": true
+    },
+    "remainingRoles": "Static export/installation validation only; inference not run."
+  },
+  "modelDiscovery": {
+    "status": "unavailable",
+    "error": "transport_unavailable_or_redirect_refused"
+  },
+  "applicationTests": "not applicable; configuration/docs only",
+  "errors": [],
+  "documentationGate": {
+    "command": "pnpm docs:check",
+    "exitCode": 0,
+    "note": "Initial copied-source links fixed to shipped compiled modules, adaptation hashes recorded."
+  },
+  "launcher": {
+    "command": "node .agent-team/boss-core/launch.mjs --help",
+    "exitCode": 0
+  },
+  "review": {
+    "status": "PASS",
+    "findings": 0,
+    "isolation": "harness-native-fresh-context",
+    "crossModel": "same-family-fallback",
+    "receipt": ".agent-team/boss-core/reviews/native-findings-final.json",
+    "crossModelAttempts": ".agent-team/boss-core/reviews/attempts.json",
+    "runtimeCertification": false
+  },
+  "skillGovernance": {
+    "publicSkills": 18,
+    "command": "pnpm skills:check",
+    "exitCode": 0,
+    "generatedBy": "pnpm skills:sync",
+    "newSkills": 8,
+    "claudeSkillLinks": 8
+  },
+  "openSpec": {
+    "command": "node /Users/gqadonis/Projects/references/OpenSpec/bin/openspec.js validate boss-development-team --strict",
+    "exitCode": 0,
+    "note": "No application behavior changes; skip_specs enabled."
+  },
+  "gitRetention": "All installed native roles and skill links are visible to Git",
+  "configurationBoundary": "creator validate -> init -> five native exports -> install -> parse all 50 native files and compare prompts/hashes -> native OpenCode lead discovery; no model inference or app launch",
+  "additionalChecks": {
+    "gitDiffCheck": 0,
+    "launcherSyntaxCheck": 0
+  },
+  "sycophancy": {
+    "descriptorScore": 0.01785714365541935,
+    "mandatoryCorrection": false,
+    "note": "Only low-severity aggregate length heuristic; reviewed for relevant role-specific content."
+  },
+  "minimaxFollowup": {
+    "status": "installed-cli-verified-runtime-partially-verified",
+    "receipt": ".agent-team/boss-core/research/minimax-installed.json",
+    "version": "0.5.4",
+    "missingExecutableResolved": true,
+    "customAgentExecution": false,
+    "providerReadiness": "unverified; launcher probe timed out"
+  }
+}

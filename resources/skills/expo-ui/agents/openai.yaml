@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo UI"
+  short_description: "Build native UI with @expo/ui — universal components first, SwiftUI/Jetpack Compose when needed"
+  default_prompt: "Use $expo-ui when adding or reviewing @expo/ui UI: universal cross-platform components (Host, Column, Row, Button, Text, List, ...), drop-in replacements for React Native community libraries, or platform-specific @expo/ui/swift-ui and @expo/ui/jetpack-compose trees and modifiers. Recommend universal components first; use drop-in replacements when migrating off a community UI library; reach for platform-specific layers only when universal is missing something or you need platform optimization (which requires .ios.tsx/.android.tsx splits)."

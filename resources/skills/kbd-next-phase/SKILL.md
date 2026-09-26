@@ -46,7 +46,7 @@ Completed kbd-next-phase — <new-phase-name> ready for /kbd-assess
 ## How to invoke
 
 ```bash
-boss-mini kbd-next-phase.mjs [new-phase-name]
+node scripts/kbd-next-phase.mjs [new-phase-name]
 ```
 
 1. Reads the current waypoint — confirms current phase name and stage.

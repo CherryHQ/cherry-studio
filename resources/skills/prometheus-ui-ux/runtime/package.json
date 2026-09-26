@@ -1,0 +1,16 @@
+{
+  "name": "prometheus-ui-ux-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "22.18.6"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
+

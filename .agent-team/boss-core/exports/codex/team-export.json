@@ -1,0 +1,65 @@
+{
+  "target": "codex",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+    "version": "documentation inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "Standalone agent files are supported. A Codex plugin agents manifest field is not verified; no such field is emitted.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Review and merge .codex/agents and optional .codex/config.toml into the project; config values are native Codex options."
+  ],
+  "files": [
+    {
+      "file": ".codex/agents/boss-lead.toml",
+      "sha256": "44663e7ab06a10d30e8a82228f1f311efbe5b8d4772ab44373ec69fc952a79fe"
+    },
+    {
+      "file": ".codex/agents/boss-product.toml",
+      "sha256": "7b943c2108a361eef0971af9174c457f4b837cf24135cc29b05a49c5f4193f61"
+    },
+    {
+      "file": ".codex/agents/boss-ux.toml",
+      "sha256": "69c4371cd7da38aee0a550f3cf7c78bbfaabe9d3079f692da7efa703f7400b8a"
+    },
+    {
+      "file": ".codex/agents/boss-renderer.toml",
+      "sha256": "b45c63b036fb35338cf9adaad1f13be372c1d82165bbc5ad069ee1940b6c1d75"
+    },
+    {
+      "file": ".codex/agents/boss-desktop.toml",
+      "sha256": "05cbf1c343fe71b660393f3f9953bde4efb167982293280a7c513dc1011356c3"
+    },
+    {
+      "file": ".codex/agents/boss-runtime.toml",
+      "sha256": "469d170bcaf39553ffa36f3af65ab5fc93e2c663c665a2f64ffc38bb29166fda"
+    },
+    {
+      "file": ".codex/agents/boss-providers.toml",
+      "sha256": "d09e1783dde8c87c527c879456bf8109424b4aa7ff92dac4b9a158e7a905821e"
+    },
+    {
+      "file": ".codex/agents/boss-data.toml",
+      "sha256": "2e6966e58b8a452412e5c407649b3070d41e756baa0ed7b4856017249127985e"
+    },
+    {
+      "file": ".codex/agents/boss-security.toml",
+      "sha256": "67979655f05bb03879e6ff855bf4d323ddf792845d37a59baa94bac7459cb13d"
+    },
+    {
+      "file": ".codex/agents/boss-verifier.toml",
+      "sha256": "8d54ff9c19b5366cef5f2b5ca61deab861f13192ec80be66b80b7457699998de"
+    },
+    {
+      "file": "export-receipt.json",
+      "sha256": "79a96a2a760a9f4fbab6c092ddf03fc862ec306e5753df21adcfee91655e73e8"
+    }
+  ]
+}

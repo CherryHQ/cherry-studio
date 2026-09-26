@@ -1,0 +1,10 @@
+{
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "error": "ETIMEDOUT",
+  "parentNode": "v26.5.0",
+  "jsonParsed": false,
+  "keys": [],
+  "providers": null,
+  "diagnostic": ""
+}

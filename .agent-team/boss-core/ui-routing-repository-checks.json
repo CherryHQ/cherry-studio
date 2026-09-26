@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-26T05:04:02.209Z",
+  "lint": {
+    "command": "pnpm lint",
+    "status": "failed",
+    "stage": "oxlint",
+    "errorCount": 50,
+    "files": [
+      "resources/skills/agent-team-creator/runtime/src/models-http.mts",
+      "resources/skills/agent-team-creator/scripts/models-http.mjs",
+      "resources/skills/agent-team-creator/runtime/test-src/kbd.integration.mts",
+      "resources/skills/agent-team-creator/runtime/test-src/state.integration.mts",
+      "resources/skills/agent-team-creator/runtime/test-src/export.integration.mts",
+      "resources/skills/agent-team-creator/tests/state.integration.mjs",
+      "resources/skills/agent-team-creator/runtime/test-src/models-memory.integration.mts",
+      "resources/skills/agent-team-creator/tests/kbd.integration.mjs",
+      "resources/skills/agent-team-creator/tests/export.integration.mjs",
+      "resources/skills/agent-team-creator/tests/models-memory.integration.mjs"
+    ],
+    "logSha256": "4aec5068beef09ede4d60b0c2bcd34a776ed8fbe95d63edbf133028710c0f249",
+    "note": "Existing packaged agent-team-creator integration tests trigger no-floating-promises. No diagnostics named the changed Boss production files. Unrelated autofixes to three bundled runtime source files and UarSidecarService.ts were reverted; later lint pipeline stages were not reached."
+  },
+  "docs": {
+    "command": "pnpm docs:check",
+    "status": "passed",
+    "checks": [
+      "links (345 Markdown files)",
+      "structure",
+      "frontmatter",
+      "generated index"
+    ],
+    "logSha256": "36d53de382506bf6e734902cbdf7cd2a9ef4d506a0a00aae695091172daa65c4"
+  }
+}

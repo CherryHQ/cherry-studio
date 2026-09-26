@@ -1,0 +1,53 @@
+{
+  "target": "opencode",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://opencode.ai/docs/agents/",
+    "version": "deployed singular agent schema inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "nativeProvenance": null,
+  "nativeOptions": null,
+  "roleOverrides": {
+    "boss-lead": {
+      "mode": "primary"
+    },
+    "boss-product": {
+      "mode": "subagent"
+    },
+    "boss-ux": {
+      "mode": "subagent"
+    },
+    "boss-renderer": {
+      "mode": "subagent"
+    },
+    "boss-desktop": {
+      "mode": "subagent"
+    },
+    "boss-runtime": {
+      "mode": "subagent"
+    },
+    "boss-providers": {
+      "mode": "subagent"
+    },
+    "boss-data": {
+      "mode": "subagent"
+    },
+    "boss-security": {
+      "mode": "subagent"
+    },
+    "boss-verifier": {
+      "mode": "subagent"
+    }
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "OpenCode JS/TS or npm plugins are separate from agent definitions; no agent marketplace manifest is invented.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Review .opencode/agents/*.md and optional opencode.json. Native configuration uses singular agent and permission keys."
+  ]
+}

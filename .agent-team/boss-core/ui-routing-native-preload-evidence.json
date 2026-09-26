@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-26T05:12:16.220Z",
+  "platform": "darwin",
+  "node": "v26.5.0",
+  "status": "passed",
+  "results": [
+    {
+      "status": "passed",
+      "name": "real export and installed Claude definitions defer conditional and user-only skills while retaining manifest bindings"
+    },
+    {
+      "status": "passed",
+      "name": "explicit native override retained with incompatible-preload diagnostic before invocation"
+    }
+  ],
+  "limitations": [
+    "Serialized and installed native artifacts were inspected; no Claude agent was invoked."
+  ]
+}

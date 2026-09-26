@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "roles": {
+    "boss-lead": [
+      {
+        "id": "agent-team-creator",
+        "path": ".agents/skills/agent-team-creator/SKILL.md"
+      },
+      {
+        "id": "agent-team-manage",
+        "path": ".agents/skills/agent-team-manage/SKILL.md"
+      },
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      },
+      {
+        "id": "agent-team-models",
+        "path": ".agents/skills/agent-team-models/SKILL.md"
+      },
+      {
+        "id": "openspec-propose",
+        "path": ".agents/skills/openspec-propose/SKILL.md"
+      }
+    ],
+    "boss-product": [
+      {
+        "id": "create-prd",
+        "path": ".agents/skills/create-prd/SKILL.md"
+      },
+      {
+        "id": "stakeholder-map",
+        "path": ".agents/skills/stakeholder-map/SKILL.md"
+      },
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      }
+    ],
+    "boss-ux": [
+      {
+        "id": "a11y-gate",
+        "path": ".agents/skills/a11y-gate/SKILL.md"
+      },
+      {
+        "id": "cherry-electron-dev",
+        "path": ".agents/skills/cherry-electron-dev/SKILL.md"
+      },
+      {
+        "id": "vercel-composition-patterns",
+        "path": ".agents/skills/vercel-composition-patterns/SKILL.md"
+      },
+      {
+        "id": "prometheus-ui-ux",
+        "path": "resources/skills/prometheus-ui-ux/SKILL.md"
+      }
+    ],
+    "boss-renderer": [
+      {
+        "id": "cherry-electron-dev",
+        "path": ".agents/skills/cherry-electron-dev/SKILL.md"
+      },
+      {
+        "id": "vercel-react-best-practices",
+        "path": ".agents/skills/vercel-react-best-practices/SKILL.md"
+      },
+      {
+        "id": "vercel-composition-patterns",
+        "path": ".agents/skills/vercel-composition-patterns/SKILL.md"
+      },
+      {
+        "id": "a11y-gate",
+        "path": ".agents/skills/a11y-gate/SKILL.md"
+      },
+      {
+        "id": "prometheus-ui-ux",
+        "path": "resources/skills/prometheus-ui-ux/SKILL.md"
+      }
+    ],
+    "boss-desktop": [
+      {
+        "id": "cherry-electron-dev",
+        "path": ".agents/skills/cherry-electron-dev/SKILL.md"
+      },
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      }
+    ],
+    "boss-runtime": [
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      },
+      {
+        "id": "cherry-electron-dev",
+        "path": ".agents/skills/cherry-electron-dev/SKILL.md"
+      }
+    ],
+    "boss-providers": [
+      {
+        "id": "agent-team-models",
+        "path": ".agents/skills/agent-team-models/SKILL.md"
+      },
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      }
+    ],
+    "boss-data": [
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      },
+      {
+        "id": "cherry-electron-dev",
+        "path": ".agents/skills/cherry-electron-dev/SKILL.md"
+      }
+    ],
+    "boss-security": [
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      },
+      {
+        "id": "prometheus-ui-review",
+        "path": "resources/skills/prometheus-ui-review/SKILL.md"
+      }
+    ],
+    "boss-verifier": [
+      {
+        "id": "cherry-regression-test",
+        "path": ".agents/skills/cherry-regression-test/SKILL.md"
+      },
+      {
+        "id": "agent-team-handoff",
+        "path": ".agents/skills/agent-team-handoff/SKILL.md"
+      },
+      {
+        "id": "prometheus-ui-review",
+        "path": "resources/skills/prometheus-ui-review/SKILL.md"
+      }
+    ]
+  }
+}

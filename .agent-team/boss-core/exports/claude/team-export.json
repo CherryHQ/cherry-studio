@@ -1,0 +1,113 @@
+{
+  "target": "claude",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://code.claude.com/docs/en/sub-agents",
+    "version": "documentation inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "These are native subagents; installing them does not create an experimental Claude agent team or enable that feature.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Choose project .claude/agents or the staged local marketplace/plugin. Do not install both copies. Settings options are a proposed project .claude/settings.json."
+  ],
+  "files": [
+    {
+      "file": ".claude/agents/boss-lead.md",
+      "sha256": "8c98a0779a53699949ee6a770fbae2c54d5c8eb9c0a6846ccb3f6014dfc03b27"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-lead.md",
+      "sha256": "8c98a0779a53699949ee6a770fbae2c54d5c8eb9c0a6846ccb3f6014dfc03b27"
+    },
+    {
+      "file": ".claude/agents/boss-product.md",
+      "sha256": "929decd927d68ca1b84081456939a5ca4b7b82fc6f0878935d794afb8fbe5fc6"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-product.md",
+      "sha256": "929decd927d68ca1b84081456939a5ca4b7b82fc6f0878935d794afb8fbe5fc6"
+    },
+    {
+      "file": ".claude/agents/boss-ux.md",
+      "sha256": "0d6590ae0b7560ce1d19f489a693306fa5a3f523816e778ffa7e321da08738bd"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-ux.md",
+      "sha256": "0d6590ae0b7560ce1d19f489a693306fa5a3f523816e778ffa7e321da08738bd"
+    },
+    {
+      "file": ".claude/agents/boss-renderer.md",
+      "sha256": "8b4c3f087a23a27598888c10df9ee6d902eef022555d2b913664a4614b382164"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-renderer.md",
+      "sha256": "8b4c3f087a23a27598888c10df9ee6d902eef022555d2b913664a4614b382164"
+    },
+    {
+      "file": ".claude/agents/boss-desktop.md",
+      "sha256": "94928708e90dcf6e49fb9979070ac2b745a4186dbba51c5c12491f3e8e1c5d50"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-desktop.md",
+      "sha256": "94928708e90dcf6e49fb9979070ac2b745a4186dbba51c5c12491f3e8e1c5d50"
+    },
+    {
+      "file": ".claude/agents/boss-runtime.md",
+      "sha256": "c771b1c1f6c02bf3bfafc72625b9ec5ea5fe13f8be06f59fc4e0ec1418043e3c"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-runtime.md",
+      "sha256": "c771b1c1f6c02bf3bfafc72625b9ec5ea5fe13f8be06f59fc4e0ec1418043e3c"
+    },
+    {
+      "file": ".claude/agents/boss-providers.md",
+      "sha256": "d856342a088ace5427cf30879e03dbaad9712e7aa95eecc9a2096f2ce421a920"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-providers.md",
+      "sha256": "d856342a088ace5427cf30879e03dbaad9712e7aa95eecc9a2096f2ce421a920"
+    },
+    {
+      "file": ".claude/agents/boss-data.md",
+      "sha256": "d53f92d58a67e083665bb0a15c963c570c8b2034003d251affada5af20adf195"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-data.md",
+      "sha256": "d53f92d58a67e083665bb0a15c963c570c8b2034003d251affada5af20adf195"
+    },
+    {
+      "file": ".claude/agents/boss-security.md",
+      "sha256": "9daadbcf0d197fcc30542e848d7319a88b9ad799fd120df77c0fbdff4999510b"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-security.md",
+      "sha256": "9daadbcf0d197fcc30542e848d7319a88b9ad799fd120df77c0fbdff4999510b"
+    },
+    {
+      "file": ".claude/agents/boss-verifier.md",
+      "sha256": "084311b6a0cf5aca96fe9d36c3362c9de96fd4caae135806a751cf3d3953dabf"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-verifier.md",
+      "sha256": "084311b6a0cf5aca96fe9d36c3362c9de96fd4caae135806a751cf3d3953dabf"
+    },
+    {
+      "file": "plugins/boss-core/.claude-plugin/plugin.json",
+      "sha256": "c9e7e3195e35feda5619580aa45b7d64b7d0e7cd6c9785a529edc3f45c32fae1"
+    },
+    {
+      "file": ".claude-plugin/marketplace.json",
+      "sha256": "5a6b10eb4de6cb8e40f4e0bc1e185c5e94436ffc5137b073e2b7749762d68146"
+    },
+    {
+      "file": "export-receipt.json",
+      "sha256": "77ac74fc93abbbf3f438abe4c75b88073221f1f4e1957cba152c5b8491bd0f08"
+    }
+  ]
+}

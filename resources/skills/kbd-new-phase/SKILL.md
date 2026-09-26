@@ -58,7 +58,7 @@ Completed kbd-new-phase — <name> ready for /kbd-assess
 ## How to invoke
 
 ```bash
-boss-mini kbd-new-phase.mjs <name> [goal-1] [goal-2] …
+node scripts/kbd-new-phase.mjs <name> [goal-1] [goal-2] …
 ```
 
 ## Examples

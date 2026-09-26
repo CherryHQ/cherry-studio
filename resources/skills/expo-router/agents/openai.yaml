@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo Router"
+  short_description: "Navigate and structure Expo Router apps: file-based routes, links, native stacks, modals, sheets, native tabs, headers, and search"
+  default_prompt: "Use $expo-router to structure file-based routes, wire up navigation with Link previews and context menus, configure native Stack screens, modals, form sheets, NativeTabs, headers, toolbars, and search bars."

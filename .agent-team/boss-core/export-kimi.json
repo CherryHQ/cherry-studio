@@ -1,0 +1,5 @@
+{
+  "state": ".agent-team/boss-core/state.json",
+  "target": "kimi",
+  "out": ".agent-team/boss-core/exports/kimi"
+}

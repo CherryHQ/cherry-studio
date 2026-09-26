@@ -6,6 +6,8 @@
   "endOfLine": "lf",
   "ignorePatterns": [
     "**/*.md",
+    ".agent-team/**",
+    ".agents/skills/**",
     ".claude/**",
     ".conductor/**",
     ".kbd-orchestrator/**",

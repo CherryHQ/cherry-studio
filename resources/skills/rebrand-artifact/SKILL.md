@@ -34,7 +34,7 @@ Parse the arguments for:
 Dispatch to the orchestration script:
 
 ```bash
-boss-mini rebrand-artifact.mjs \
+node scripts/rebrand-artifact.mjs \
   --source "${SOURCE}" \
   --from-brand "${FROM_BRAND}" \
   --to-brand "${TO_BRAND}" \

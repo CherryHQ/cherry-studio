@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-09-24T23:42:45.911Z",
+  "manifestSha256": "673e108a34a9cd51b37d1d3ac9fa5c6ba932f82069cb13e30286204411001b8b",
+  "roles": 10,
+  "nativeDefinitions": 50,
+  "skillsAdded": 8,
+  "applicationFilesChanged": 0,
+  "peerRepositoryWrites": 0,
+  "globalConfigurationChanges": 0,
+  "commitsCreated": 0,
+  "graphAndMcp": "preserved",
+  "checks": [
+    "creator validate/init/export",
+    "50 native syntax/prompt/hash checks",
+    "OpenCode boss-lead native discovery",
+    "pnpm skills:check",
+    "pnpm docs:check",
+    "OpenSpec strict validation",
+    "launcher syntax/help",
+    "git diff --check",
+    "fresh-context independent review with same-family limitation",
+    "sycophancy detection"
+  ],
+  "limitations": [
+    "mcode 0.5.4 installed; custom-agent execution and provider readiness remain unverified",
+    "native inference/activation across all harnesses untested",
+    "REST MiniMax judge timed out; native Kimi judge lacked entitlement",
+    "Compass graph remains partial static evidence"
+  ],
+  "updatedAt": "2026-09-24T23:52:12.811Z",
+  "minimaxFollowup": ".agent-team/boss-core/research/minimax-installed.json"
+}

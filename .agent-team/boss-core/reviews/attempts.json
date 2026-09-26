@@ -1,0 +1,20 @@
+{
+  "attempts": [
+    {
+      "model": "MiniMax-M3",
+      "transport": "REST gateway localhost:4000",
+      "result": "timeout after one attempt at 60000 ms; no verdict"
+    },
+    {
+      "model": "kimi-k3:cloud",
+      "transport": "native fresh-context",
+      "result": "failed before review: account model entitlement unavailable; no verdict"
+    },
+    {
+      "model": "GPT-6-native-fallback",
+      "transport": "native fresh-context",
+      "result": "Final PASS, zero findings, after supplied native-evidence supplement",
+      "limitation": "Same model family as producer; weaker independence than cross-model review"
+    }
+  ]
+}

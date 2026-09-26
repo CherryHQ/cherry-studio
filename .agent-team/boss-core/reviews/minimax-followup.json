@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "verdict": "PASS",
+  "producer_model": "GPT-6",
+  "judge_model": "GPT-6-native-fallback",
+  "isolation_mode": "harness-native-fresh-context",
+  "cross_model_check": "same-family-fallback",
+  "review_scope": "Static review of the supplied launcher, documentation, and MiniMax evidence receipts; no runtime commands, inference, or custom-agent selection were executed by this reviewer.",
+  "findings": [],
+  "checked_classes": [
+    "Observed ABI mismatch — the npm JavaScript mcode entry is resolved from PATH and launched with the adjacent Node executable; that directory is prepended to the child PATH.",
+    "Environment leakage and harness regressions — MiniMax receives a copied environment with project MINIMAX_DATA_DIR and its adjusted PATH; the other harnesses retain their existing launch paths and arguments.",
+    "Argument forwarding and project location — the resolved mcode JavaScript path precedes forwarded native arguments, and the launcher derives the repository working directory and project data directory from import.meta.url.",
+    "Runtime availability overclaims — README explicitly leaves native custom-agent selection and inference unverified; model-policy leaves custom-role execution and provider readiness unverified.",
+    "Contradictory verification evidence — the explicit Node 24 provider exit code is distinguished from the timed-out launcher probe; both receipts preserve the launcher timeout, and minimax-installed.json explicitly marks project provider readiness unresolved.",
+    "Scope and credential boundary — the launcher changes executable selection and child environment only; the supplied documentation forbids copying global credentials, and the receipts contain no credentials."
+  ],
+  "limitations": [
+    "The bounded launcher provider probe timed out, so successful provider startup through this launcher remains unproved.",
+    "No inference or native selection of the ten custom agents is established by this review.",
+    "Review used a fresh-context same-family fallback, not a different-family judge."
+  ]
+}

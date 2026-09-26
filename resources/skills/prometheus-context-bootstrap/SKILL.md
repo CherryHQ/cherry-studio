@@ -25,8 +25,8 @@ Unit, mock-only, filtered-function, and per-edit test loops do not count as proo
 From a standalone mini checkout:
 
 ```text
-boss-mini prometheus-context-bootstrap.mjs --path <project> --stacks rust,typescript
-boss-mini prometheus-context-bootstrap.mjs --path <project> --stacks rust,typescript --check
+node scripts/prometheus-context-bootstrap.mjs --path <project> --stacks rust,typescript
+node scripts/prometheus-context-bootstrap.mjs --path <project> --stacks rust,typescript --check
 ```
 
 From the copy vendored inside `the-boss`:
@@ -54,3 +54,6 @@ The Rust path rule loads `prometheus-rust-workspace`, which routes
 `rust-best-practices`, `rust-async-patterns`, `rust-mcp-server-generator`, and
 the specialized catalog only when relevant. Dependency and protocol pins in the
 target project remain authoritative.
+
+## Shared UI and team defaults
+Bootstrap also installs the offline UI catalog, shared protocol (preserving a project override), short UI pointers in both entrypoints and recovery data. It adopts a sole or explicitly selected existing project team using creator install-project; ambiguous teams require selection. UI roles use prometheus-ui-ux, reviewers prometheus-ui-review, backend-only work no UI context. New helpers use TypeScript 7 compiled to Node .mjs.

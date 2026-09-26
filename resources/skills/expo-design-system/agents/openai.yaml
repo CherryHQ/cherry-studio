@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo Design Systems"
+  short_description: "Build a design system in an Expo app: a token theme (color, spacing, typography, radius, shadow, motion), reusable component conventions, and audits for design-system drift (hardcoded style values)"
+  default_prompt: "Use $expo-design-system to set up or maintain the app's design system: create the src/theme token files, shape reusable components with variant/size/state props, decide when a repeated view becomes a shared component, and audit screens for design-system drift (hardcoded style values)."

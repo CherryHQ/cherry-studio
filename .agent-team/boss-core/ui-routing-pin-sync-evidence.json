@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-26T05:26:35.404Z",
+  "miniRevision": "16f3688d729cd9bc7b26a1efe6eb4595e6f3c436",
+  "source": "resources/prometheus-skills-mini",
+  "builtinSync": {
+    "command": "pnpm skills:sync:prometheus",
+    "skills": 97,
+    "status": "passed"
+  },
+  "builtinDrift": {
+    "command": "pnpm skills:sync:prometheus:check",
+    "status": "passed"
+  },
+  "catalog": {
+    "skills": 41,
+    "sha256": "cdfaf343ed87445f868d1153ada3ec2a2cd5c518b99d4e72c5a8e9e6afec565f"
+  },
+  "projectRefresh": {
+    "command": "node resources/prometheus-skills-mini/skills/prometheus-ui-ux/scripts/cli.mjs install --project .",
+    "changed": 662,
+    "checkChanged": 0,
+    "agentEntrypointLink": "CLAUDE.md",
+    "nativeDefinitionsPreserved": 50
+  },
+  "antiShadowing": {
+    "statement": "The full-pack detection and refusal to copy mini into global/home or project skill roots when a full pack is present are unchanged. Mini runtime provisioning remains inside The Boss application data; this source-project refresh does not install into developer-global locations. This is source/hash preservation evidence, not a new installed-application runtime test.",
+    "files": [
+      {
+        "file": "src/main/services/prometheus/fullPackDetection.ts",
+        "sha256": "6a22c5dd5baed2bcf687f5b4d7e0425efee7ee7790ed06fcbdf1cab8b78601fd",
+        "unchangedFromHead": true
+      },
+      {
+        "file": "src/main/services/prometheus/pushSkills.ts",
+        "sha256": "4395658a4573645a6e07699bc9ea182860fa14bed87a714b4326c7c79ffed0b1",
+        "unchangedFromHead": true
+      },
+      {
+        "file": "src/main/services/prometheus/workspaceMcp.ts",
+        "sha256": "6f3f68bf673ce72b2af3cc662323bd650317e4d3403302fa25a718a06fd17b0d",
+        "unchangedFromHead": true
+      }
+    ]
+  },
+  "limitations": [
+    "No full Electron build, native harness invocation or Windows execution was performed at this artifact boundary.",
+    "Host recovery snapshots stay untracked and must not be committed."
+  ],
+  "implementationRevision": "93fdc5ab08eaa564780a9da7fbb6b17325400085",
+  "finalPinUpdate": {
+    "recordedAt": "2026-09-26T05:29:28.480Z",
+    "docsOnly": true,
+    "changedFiles": [
+      "docs/research/ui-ux-routing/DELIVERY.md",
+      "openspec/changes/ui-ux-routing-and-team-defaults/tasks.md"
+    ],
+    "note": "Original builtin synchronization/drift and protocol checks ran at implementationRevision. Final pin changes only DELIVERY/tasks documentation; no runtime checks were repeated."
+  },
+  "commitHookBoundary": {
+    "observed": "Initial pre-commit Oxfmt rewrote source-controlled team evidence and imported .agents skills.",
+    "resolution": "Restored generated/imported bytes from the staged index; added .agent-team/** and .agents/skills/** to the existing formatter exclusions; retained formatter output for four edited Boss production files.",
+    "runtimeChange": false
+  },
+  "prIntegration": {
+    "miniRevision": "0bfa619f638292f859ad17068ec319c828a1538b",
+    "bossMain": "75b1438b2e63b89a5b24817f373ab1187a230558",
+    "packagingResolution": "Preserve upstream liter-llm catalog revision/checksum packaging and mini revision guard while retaining the shared offline copy helper and skill-local Node rendering.",
+    "checks": [
+      "97 built-in skills current",
+      "6 packaged UI/team integration cases passed",
+      "mini submodule and both integration manifest revisions match"
+    ],
+    "scope": "Merge reconciliation and packaged helper validation; no full installed Electron or native Windows claim."
+  },
+  "finalDocumentationPin": {
+    "revision": "cbaa3128489ca19507369aae9da33e2cb3f69c26",
+    "change": "Clarify absent proposed/upstream maintenance scripts; update catalog digests and distributions. Runtime code unchanged.",
+    "verification": "six carried-payload checks passed in mini; Boss normal skill sync/check follows"
+  }
+}

@@ -1,0 +1,977 @@
+{
+  "CSV_CONFIG": {
+    "style": {
+      "file": "styles.csv",
+      "search_cols": [
+        "Style ID",
+        "Style Category",
+        "Aliases",
+        "Keywords",
+        "Best For",
+        "Type",
+        "AI Prompt Keywords"
+      ],
+      "output_cols": [
+        "Style ID",
+        "Style Category",
+        "Aliases",
+        "Status",
+        "Parent Style ID",
+        "Preferred Mode",
+        "Type",
+        "Keywords",
+        "Primary Colors",
+        "Effects & Animation",
+        "Best For",
+        "Light Mode ✓",
+        "Dark Mode ✓",
+        "Performance",
+        "Accessibility",
+        "Framework Compatibility",
+        "Complexity",
+        "AI Prompt Keywords",
+        "CSS/Technical Keywords",
+        "Implementation Checklist",
+        "Design System Variables"
+      ]
+    },
+    "color": {
+      "file": "colors.csv",
+      "search_cols": [
+        "Product Type",
+        "Notes"
+      ],
+      "output_cols": [
+        "Product Type",
+        "Primary",
+        "On Primary",
+        "Secondary",
+        "On Secondary",
+        "Accent",
+        "On Accent",
+        "Background",
+        "Foreground",
+        "Card",
+        "Card Foreground",
+        "Muted",
+        "Muted Foreground",
+        "Border",
+        "Destructive",
+        "On Destructive",
+        "Ring",
+        "Notes"
+      ]
+    },
+    "chart": {
+      "file": "charts.csv",
+      "search_cols": [
+        "Data Type",
+        "Keywords",
+        "Best Chart Type",
+        "When to Use",
+        "When NOT to Use",
+        "Accessibility Notes"
+      ],
+      "output_cols": [
+        "Data Type",
+        "Keywords",
+        "Best Chart Type",
+        "Secondary Options",
+        "When to Use",
+        "When NOT to Use",
+        "Data Volume Threshold",
+        "Color Guidance",
+        "Accessibility Grade",
+        "Accessibility Risk",
+        "Accessibility Notes",
+        "A11y Fallback",
+        "Library Recommendation",
+        "Interactive Level"
+      ]
+    },
+    "landing": {
+      "file": "landing.csv",
+      "search_cols": [
+        "Pattern ID",
+        "Pattern Name",
+        "Aliases",
+        "Keywords",
+        "Conversion Optimization",
+        "Section Order"
+      ],
+      "output_cols": [
+        "Pattern ID",
+        "Pattern Name",
+        "Aliases",
+        "Keywords",
+        "Section Order",
+        "Primary CTA Placement",
+        "Color Strategy",
+        "Conversion Optimization"
+      ]
+    },
+    "product": {
+      "file": "products.csv",
+      "search_cols": [
+        "Product Type",
+        "Keywords",
+        "Primary Style Recommendation",
+        "Key Considerations"
+      ],
+      "output_cols": [
+        "Product Type",
+        "Keywords",
+        "Primary Style Recommendation",
+        "Secondary Styles",
+        "Landing Page Pattern",
+        "Dashboard Style (if applicable)",
+        "Color Palette Focus"
+      ]
+    },
+    "ux": {
+      "file": "ux-guidelines.csv",
+      "search_cols": [
+        "Category",
+        "Issue",
+        "Description",
+        "Platform"
+      ],
+      "output_cols": [
+        "Category",
+        "Issue",
+        "Platform",
+        "Description",
+        "Do",
+        "Don't",
+        "Code Example Good",
+        "Code Example Bad",
+        "Severity"
+      ]
+    },
+    "typography": {
+      "file": "typography.csv",
+      "search_cols": [
+        "Font Pairing Name",
+        "Category",
+        "Mood/Style Keywords",
+        "Best For",
+        "Heading Font",
+        "Body Font"
+      ],
+      "output_cols": [
+        "Font Pairing Name",
+        "Category",
+        "Heading Font",
+        "Body Font",
+        "Mood/Style Keywords",
+        "Best For",
+        "Google Fonts URL",
+        "CSS Import",
+        "Tailwind Config",
+        "Notes"
+      ]
+    },
+    "icons": {
+      "file": "icons.csv",
+      "search_cols": [
+        "Category",
+        "Icon Name",
+        "Keywords",
+        "Best For",
+        "Library"
+      ],
+      "output_cols": [
+        "Category",
+        "Icon Name",
+        "Keywords",
+        "Library",
+        "Import Code",
+        "Usage",
+        "Best For",
+        "Style",
+        "Semantic Role",
+        "Allowed Contexts"
+      ]
+    },
+    "gsap": {
+      "file": "motion.csv",
+      "search_cols": [
+        "Category",
+        "Intensity Tier",
+        "Keywords",
+        "Trigger"
+      ],
+      "output_cols": [
+        "Category",
+        "Intensity Tier",
+        "Trigger",
+        "Duration",
+        "Easing",
+        "GSAP Snippet",
+        "Framework Notes",
+        "Do",
+        "Don't",
+        "Performance Notes"
+      ]
+    },
+    "react": {
+      "file": "react-performance.csv",
+      "search_cols": [
+        "Category",
+        "Issue",
+        "Keywords",
+        "Description"
+      ],
+      "output_cols": [
+        "Category",
+        "Issue",
+        "Platform",
+        "Description",
+        "Do",
+        "Don't",
+        "Code Example Good",
+        "Code Example Bad",
+        "Severity"
+      ]
+    },
+    "web": {
+      "file": "app-interface.csv",
+      "search_cols": [
+        "Category",
+        "Issue",
+        "Keywords",
+        "Description"
+      ],
+      "output_cols": [
+        "Category",
+        "Issue",
+        "Platform",
+        "Description",
+        "Do",
+        "Don't",
+        "Code Example Good",
+        "Code Example Bad",
+        "Severity"
+      ]
+    },
+    "google-fonts": {
+      "file": "google-fonts.csv",
+      "search_cols": [
+        "Family",
+        "Category",
+        "Stroke",
+        "Classifications",
+        "Keywords",
+        "Subsets",
+        "Designers"
+      ],
+      "output_cols": [
+        "Family",
+        "Category",
+        "Stroke",
+        "Classifications",
+        "Styles",
+        "Variable Axes",
+        "Subsets",
+        "Designers",
+        "Popularity Rank",
+        "Google Fonts URL"
+      ]
+    }
+  },
+  "STACK_CONFIG": {
+    "react": {
+      "file": "stacks/react.csv"
+    },
+    "nextjs": {
+      "file": "stacks/nextjs.csv"
+    },
+    "vue": {
+      "file": "stacks/vue.csv"
+    },
+    "svelte": {
+      "file": "stacks/svelte.csv"
+    },
+    "astro": {
+      "file": "stacks/astro.csv"
+    },
+    "swiftui": {
+      "file": "stacks/swiftui.csv"
+    },
+    "react-native": {
+      "file": "stacks/react-native.csv"
+    },
+    "flutter": {
+      "file": "stacks/flutter.csv"
+    },
+    "nuxtjs": {
+      "file": "stacks/nuxtjs.csv"
+    },
+    "nuxt-ui": {
+      "file": "stacks/nuxt-ui.csv"
+    },
+    "html-tailwind": {
+      "file": "stacks/html-tailwind.csv"
+    },
+    "shadcn": {
+      "file": "stacks/shadcn.csv"
+    },
+    "jetpack-compose": {
+      "file": "stacks/jetpack-compose.csv"
+    },
+    "threejs": {
+      "file": "stacks/threejs.csv"
+    },
+    "angular": {
+      "file": "stacks/angular.csv"
+    },
+    "laravel": {
+      "file": "stacks/laravel.csv"
+    },
+    "javafx": {
+      "file": "stacks/javafx.csv"
+    },
+    "wpf": {
+      "file": "stacks/wpf.csv"
+    },
+    "winui": {
+      "file": "stacks/winui.csv"
+    },
+    "avalonia": {
+      "file": "stacks/avalonia.csv"
+    },
+    "uno": {
+      "file": "stacks/uno.csv"
+    },
+    "uwp": {
+      "file": "stacks/uwp.csv"
+    }
+  },
+  "STACK_COLS": {
+    "search_cols": [
+      "Category",
+      "Guideline",
+      "Description",
+      "Do",
+      "Don't",
+      "Code Good",
+      "Code Bad"
+    ],
+    "output_cols": [
+      "Category",
+      "Guideline",
+      "Description",
+      "Do",
+      "Don't",
+      "Code Good",
+      "Code Bad",
+      "Severity",
+      "Docs URL",
+      "Applies To",
+      "Status",
+      "Verified At"
+    ]
+  },
+  "synonyms": {
+    "q&a": "question answer",
+    "e-commerce": "ecommerce",
+    "dark-mode": "dark",
+    "darkmode": "dark",
+    "light-mode": "light",
+    "lightmode": "light",
+    "a11y": "accessibility",
+    "nav": "navigation",
+    "sign-up": "signup",
+    "log-in": "login",
+    "colour": "color",
+    "colours": "colors",
+    "customisation": "customization",
+    "organisation": "organization",
+    "behaviour": "behavior",
+    "ux/ui": "ux ui"
+  },
+  "stopwords": [
+    "to",
+    "in",
+    "on",
+    "at",
+    "is",
+    "of",
+    "by",
+    "or",
+    "an",
+    "if",
+    "no",
+    "so",
+    "do",
+    "be",
+    "we",
+    "it",
+    "as",
+    "the",
+    "and",
+    "for",
+    "are",
+    "was"
+  ],
+  "domainKeywords": {
+    "color": [
+      "color",
+      "palette",
+      "hex",
+      "rgb",
+      "token",
+      "semantic",
+      "accent",
+      "destructive",
+      "muted",
+      "foreground"
+    ],
+    "chart": [
+      "time series",
+      "chart",
+      "graph",
+      "visualization",
+      "trend",
+      "bar chart",
+      "pie",
+      "scatter",
+      "heatmap",
+      "funnel",
+      "forecast"
+    ],
+    "landing": [
+      "landing",
+      "page",
+      "cta",
+      "conversion",
+      "hero",
+      "testimonial",
+      "pricing",
+      "section"
+    ],
+    "product": [],
+    "style": [
+      "style",
+      "design",
+      "ui",
+      "minimalism",
+      "glassmorphism",
+      "neumorphism",
+      "brutalism",
+      "dark mode",
+      "flat",
+      "aurora",
+      "css",
+      "implementation",
+      "variable",
+      "checklist",
+      "tailwind"
+    ],
+    "ux": [
+      "ux",
+      "usability",
+      "accessibility",
+      "wcag",
+      "touch",
+      "scroll",
+      "animation",
+      "keyboard",
+      "navigation",
+      "mobile"
+    ],
+    "typography": [
+      "font pairing",
+      "typography pairing",
+      "heading font",
+      "body font"
+    ],
+    "google-fonts": [
+      "google font",
+      "font family",
+      "font weight",
+      "font style",
+      "variable font",
+      "noto",
+      "font for",
+      "find font",
+      "font subset",
+      "font language",
+      "monospace font",
+      "serif font",
+      "sans serif font",
+      "display font",
+      "handwriting font",
+      "font",
+      "typography",
+      "serif",
+      "sans"
+    ],
+    "icons": [
+      "icon",
+      "icons",
+      "lucide",
+      "phosphor",
+      "heroicons",
+      "symbol",
+      "glyph",
+      "pictogram",
+      "svg icon"
+    ],
+    "gsap": [
+      "gsap",
+      "quickto",
+      "scrolltrigger",
+      "stagger",
+      "magnetic cursor",
+      "parallax",
+      "page transition",
+      "scroll reveal",
+      "scroll-triggered",
+      "scrollytelling",
+      "flip plugin",
+      "splittext",
+      "shimmer",
+      "skeleton loader"
+    ],
+    "react": [
+      "react",
+      "next.js",
+      "nextjs",
+      "suspense",
+      "memo",
+      "usecallback",
+      "useeffect",
+      "rerender",
+      "bundle",
+      "waterfall",
+      "barrel",
+      "dynamic import",
+      "rsc",
+      "server component"
+    ],
+    "web": [
+      "aria",
+      "focus",
+      "outline",
+      "semantic",
+      "virtualize",
+      "autocomplete",
+      "form",
+      "input type",
+      "preconnect",
+      "drag reorder",
+      "single pointer",
+      "touch target",
+      "native accessibility"
+    ]
+  },
+  "domainRewrites": {
+    "color": {},
+    "landing": {
+      "testimonial": "testimonials"
+    },
+    "style": {},
+    "ux": {
+      "ux": "accessibility",
+      "usability": "accessibility",
+      "wcag": "accessibility"
+    },
+    "google-fonts": {
+      "typography": "font"
+    },
+    "icons": {},
+    "gsap": {
+      "gsap": "animation",
+      "scrolltrigger": "scroll"
+    },
+    "react": {
+      "nextjs": "react",
+      "usecallback": "memoization",
+      "useeffect": "effects"
+    },
+    "web": {
+      "aria": "accessibility",
+      "outline": "focus",
+      "autocomplete": "input"
+    }
+  },
+  "conditions": {
+    "if_booking": [
+      "booking",
+      "appointment",
+      "calendar"
+    ],
+    "if_boutique": [
+      "boutique"
+    ],
+    "if_casual": [
+      "casual",
+      "playful"
+    ],
+    "if_checkout": [
+      "checkout",
+      "payment",
+      "purchase"
+    ],
+    "if_children": [
+      "child",
+      "children",
+      "kids"
+    ],
+    "if_collaboration": [
+      "collaboration",
+      "multiplayer",
+      "co-edit"
+    ],
+    "if_competitive": [
+      "competitive",
+      "leaderboard"
+    ],
+    "if_content_focused": [
+      "content",
+      "article",
+      "reading",
+      "documentation"
+    ],
+    "if_conversion_focused": [
+      "conversion",
+      "sales",
+      "signup",
+      "purchase"
+    ],
+    "if_creative_field": [
+      "creative",
+      "artist",
+      "portfolio"
+    ],
+    "if_crop_focused": [
+      "crop",
+      "farm",
+      "agriculture"
+    ],
+    "if_dashboard": [
+      "dashboard",
+      "operations",
+      "monitoring"
+    ],
+    "if_data_heavy": [
+      "data heavy",
+      "data-heavy",
+      "analytics",
+      "large dataset"
+    ],
+    "if_delivery": [
+      "delivery",
+      "courier",
+      "shipping"
+    ],
+    "if_discovery_focused": [
+      "discover",
+      "discovery",
+      "browse",
+      "directory"
+    ],
+    "if_engagement_metric": [
+      "engagement",
+      "retention",
+      "contribution"
+    ],
+    "if_experience_focused": [
+      "experience",
+      "immersive",
+      "journey"
+    ],
+    "if_gamification": [
+      "gamification",
+      "badges",
+      "streak"
+    ],
+    "if_health": [
+      "health",
+      "medical",
+      "patient"
+    ],
+    "if_hero_needed": [
+      "hero",
+      "showcase",
+      "launch"
+    ],
+    "if_large_dataset": [
+      "large dataset",
+      "thousands",
+      "millions"
+    ],
+    "if_light_mode_needed": [
+      "light mode",
+      "light theme"
+    ],
+    "if_low_performance": [
+      "low performance",
+      "low-end",
+      "slow device"
+    ],
+    "if_luxury": [
+      "luxury",
+      "premium",
+      "high-end"
+    ],
+    "if_medication": [
+      "medication",
+      "medicine",
+      "prescription"
+    ],
+    "if_meditation": [
+      "meditation",
+      "breathing",
+      "mindfulness"
+    ],
+    "if_minimal_portfolio": [
+      "minimal portfolio",
+      "simple portfolio"
+    ],
+    "if_mobile": [
+      "mobile",
+      "phone",
+      "tablet",
+      "ios",
+      "android"
+    ],
+    "if_personalized": [
+      "personalized",
+      "personalised",
+      "recommendation"
+    ],
+    "if_pre_launch": [
+      "pre-launch",
+      "prelaunch",
+      "coming soon",
+      "waitlist"
+    ],
+    "if_salary_focused": [
+      "salary",
+      "compensation",
+      "pay range"
+    ],
+    "if_team_collaboration": [
+      "team collaboration",
+      "team workspace"
+    ],
+    "if_trust_needed": [
+      "trust",
+      "secure",
+      "verified",
+      "authority"
+    ],
+    "if_ux_focused": [
+      "ux",
+      "usability",
+      "accessibility",
+      "accessible"
+    ],
+    "if_video_ready": [
+      "video ready",
+      "product video",
+      "demo video"
+    ]
+  },
+  "dials": {
+    "variance": [
+      [
+        1,
+        3,
+        {
+          "label": "Centered / Minimal",
+          "style_keywords": [
+            "Minimalism",
+            "Exaggerated Minimalism",
+            "centered",
+            "symmetric",
+            "grid-based"
+          ]
+        }
+      ],
+      [
+        4,
+        7,
+        {
+          "label": "Balanced / Modern",
+          "style_keywords": [
+            "modern",
+            "structured",
+            "balanced"
+          ]
+        }
+      ],
+      [
+        8,
+        10,
+        {
+          "label": "Bold / Asymmetric",
+          "style_keywords": [
+            "Brutalism",
+            "Bento Grids",
+            "asymmetric",
+            "experimental"
+          ]
+        }
+      ]
+    ],
+    "motion": [
+      [
+        1,
+        3,
+        {
+          "label": "Subtle",
+          "tier": "Subtle"
+        }
+      ],
+      [
+        4,
+        7,
+        {
+          "label": "Standard",
+          "tier": "Standard"
+        }
+      ],
+      [
+        8,
+        10,
+        {
+          "label": "Complex",
+          "tier": "Complex"
+        }
+      ]
+    ],
+    "density": [
+      [
+        1,
+        3,
+        {
+          "label": "Spacious",
+          "spacing": {
+            "xs": "4px",
+            "sm": "8px",
+            "md": "24px",
+            "lg": "32px",
+            "xl": "48px",
+            "2xl": "64px",
+            "3xl": "96px"
+          }
+        }
+      ],
+      [
+        4,
+        7,
+        {
+          "label": "Standard",
+          "spacing": {
+            "xs": "4px",
+            "sm": "8px",
+            "md": "16px",
+            "lg": "24px",
+            "xl": "32px",
+            "2xl": "48px",
+            "3xl": "64px"
+          }
+        }
+      ],
+      [
+        8,
+        10,
+        {
+          "label": "Dense / Dashboard",
+          "spacing": {
+            "xs": "2px",
+            "sm": "4px",
+            "md": "8px",
+            "lg": "12px",
+            "xl": "16px",
+            "2xl": "24px",
+            "3xl": "32px"
+          }
+        }
+      ]
+    ]
+  },
+  "versions": {
+    "react": [
+      19
+    ],
+    "nextjs": [
+      16
+    ],
+    "vue": [
+      3
+    ],
+    "svelte": [
+      5
+    ],
+    "astro": [
+      7
+    ],
+    "angular": [
+      22
+    ],
+    "html-tailwind": [
+      4
+    ],
+    "nuxtjs": [
+      4
+    ],
+    "nuxt-ui": [
+      4
+    ],
+    "react-native": [
+      0,
+      86
+    ],
+    "flutter": [
+      3,
+      44
+    ],
+    "swiftui": [
+      16
+    ],
+    "jetpack-compose": [
+      1,
+      11
+    ],
+    "avalonia": [
+      12
+    ],
+    "winui": [
+      3
+    ],
+    "javafx": [
+      26
+    ],
+    "threejs": [
+      0,
+      185
+    ],
+    "laravel": [
+      13
+    ]
+  },
+  "stackQueryNames": {
+    "react": "react",
+    "nextjs": "next(?:\\.js|js)?",
+    "vue": "vue",
+    "svelte": "svelte",
+    "astro": "astro",
+    "angular": "angular",
+    "html-tailwind": "tailwind(?:\\s*css)?",
+    "nuxtjs": "nuxt(?:\\.js|js)?",
+    "nuxt-ui": "nuxt\\s*ui",
+    "react-native": "react[\\s-]*native",
+    "flutter": "flutter",
+    "swiftui": "(?:ios|swiftui\\s+ios)",
+    "jetpack-compose": "(?:jetpack\\s*)?compose",
+    "avalonia": "avalonia",
+    "winui": "winui",
+    "javafx": "javafx",
+    "threejs": "three(?:\\.js|js)?",
+    "laravel": "laravel"
+  }
+}
