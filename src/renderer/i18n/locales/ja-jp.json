@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "ブラウザ",
   "agent.right_pane.tabs.files": "ファイル",
   "agent.right_pane.tabs.status": "ステータス",
+  "agent.runtime_mode.label": "Agent ランタイムモード：{{mode}}",
   "agent.session.add.title": "セッションを追加",
   "agent.session.agent.delete.content": "このエージェントに関連付けられたすべてのセッションを削除します。エージェント自体は削除されません。",
   "agent.session.agent.delete.title": "すべてのセッションを削除",

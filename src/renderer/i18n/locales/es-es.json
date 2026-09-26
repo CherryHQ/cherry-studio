@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "Navegador",
   "agent.right_pane.tabs.files": "Archivos",
   "agent.right_pane.tabs.status": "Estado",
+  "agent.runtime_mode.label": "Modo de ejecución del agente: {{mode}}",
   "agent.session.add.title": "Agregar una sesión",
   "agent.session.agent.delete.content": "Se eliminarán todas las sesiones asociadas con este agente. El agente no se eliminará.",
   "agent.session.agent.delete.title": "Eliminar todas las sesiones",

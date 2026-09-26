@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "Browser",
   "agent.right_pane.tabs.files": "Fișiere",
   "agent.right_pane.tabs.status": "Stare",
+  "agent.runtime_mode.label": "Mod de execuție Agent: {{mode}}",
   "agent.session.add.title": "Adaugă o sesiune",
   "agent.session.agent.delete.content": "Vor fi șterse toate sesiunile asociate acestui agent. Agentul în sine nu va fi șters.",
   "agent.session.agent.delete.title": "Șterge toate sesiunile",

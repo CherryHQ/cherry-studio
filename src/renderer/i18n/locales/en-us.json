@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "Browser",
   "agent.right_pane.tabs.files": "Files",
   "agent.right_pane.tabs.status": "Status",
+  "agent.runtime_mode.label": "Agent runtime mode: {{mode}}",
   "agent.session.add.title": "Add a session",
   "agent.session.agent.delete.content": "Delete all sessions associated with this Agent. The Agent itself will not be deleted.",
   "agent.session.agent.delete.title": "Delete all sessions",

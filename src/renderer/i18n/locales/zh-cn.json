@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "浏览器",
   "agent.right_pane.tabs.files": "文件",
   "agent.right_pane.tabs.status": "状态",
+  "agent.runtime_mode.label": "智能体运行时模式：{{mode}}",
   "agent.session.add.title": "添加会话",
   "agent.session.agent.delete.content": "删除该智能体关联的全部会话；智能体本身不会被删除。",
   "agent.session.agent.delete.title": "删除全部会话",

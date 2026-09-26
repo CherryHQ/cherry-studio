@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "瀏覽器",
   "agent.right_pane.tabs.files": "檔案",
   "agent.right_pane.tabs.status": "狀態",
+  "agent.runtime_mode.label": "Agent 執行模式：{{mode}}",
   "agent.session.add.title": "新增工作階段",
   "agent.session.agent.delete.content": "刪除與此 Agent 關聯的所有工作階段；Agent 本身不會被刪除。",
   "agent.session.agent.delete.title": "刪除所有工作階段",

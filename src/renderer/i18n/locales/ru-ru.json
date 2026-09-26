@@ -196,6 +196,7 @@
   "agent.right_pane.tabs.browser": "Браузер",
   "agent.right_pane.tabs.files": "Файлы",
   "agent.right_pane.tabs.status": "Статус",
+  "agent.runtime_mode.label": "Режим выполнения агента: {{mode}}",
   "agent.session.add.title": "Добавить сеанс",
   "agent.session.agent.delete.content": "Будут удалены все сеансы, связанные с этим агентом. Сам агент не будет удалён.",
   "agent.session.agent.delete.title": "Удалить все сеансы",
