@@ -10,6 +10,11 @@ import {
 /** `sendToHost` channel the shared webview preload uses to reach its host window. */
 export const WEBVIEW_KEYDOWN_CHANNEL = 'webview:keydown'
 
+/** Guest IME composition lifecycle for host-side caret re-sync gating. */
+export const WEBVIEW_COMPOSITION_CHANNEL = 'webview:composition'
+
+export type WebviewCompositionPayload = { composing: boolean }
+
 /** Keyboard data forwarded from a webview guest, shaped for `new KeyboardEvent()`. */
 export type WebviewKeyPayload = {
   key: string
