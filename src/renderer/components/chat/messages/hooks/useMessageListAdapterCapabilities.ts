@@ -21,6 +21,7 @@ import { useMessageUiStateCache } from './useMessageUiStateCache'
 interface UseMessageListAdapterCapabilitiesOptions {
   topicId: string
   topicName: string
+  workspacePath?: string
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -39,6 +40,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
 export function useMessageListAdapterCapabilities({
   topicId,
   topicName,
+  workspacePath,
   messages,
   partsByMessageId,
   streamingLayers,
@@ -50,7 +52,7 @@ export function useMessageListAdapterCapabilities({
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName })
+  const exportActions = useMessageExportActions({ topicName, workspacePath })
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()

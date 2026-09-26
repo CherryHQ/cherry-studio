@@ -11,6 +11,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -30,7 +31,12 @@ interface ReportArtifactsViewModel {
 
 export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolResponse): boolean {
   const toolName = toolResponse.tool.name
-  return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+  return (
+    toolName === REPORT_ARTIFACTS_TOOL_NAME ||
+    toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ||
+    (toolResponse.status === 'done' &&
+      getConvertedDocumentArtifacts(toolName, toolResponse.arguments, toolResponse.response).length > 0)
+  )
 }
 
 export function getReportArtifactsViewModel(
@@ -41,6 +47,16 @@ export function getReportArtifactsViewModel(
 
   for (const toolResponse of toolResponses) {
     if (!isReportArtifactsToolResponse(toolResponse)) continue
+
+    const convertedDocuments = getConvertedDocumentArtifacts(
+      toolResponse.tool.name,
+      toolResponse.arguments,
+      toolResponse.response
+    )
+    if (convertedDocuments.length) {
+      for (const output of convertedDocuments) artifactByPath.set(output.path, { path: output.path })
+      continue
+    }
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
     if (!parsed.success) continue

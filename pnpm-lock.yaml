@@ -395,6 +395,9 @@ importers:
         specifier: ^8.21.0
         version: 8.21.3
     devDependencies:
+      pptxgenjs:
+        specifier: 4.0.1
+        version: 4.0.1
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.96
         version: 4.0.96(zod@4.3.4)
@@ -16844,6 +16847,22 @@ packages:
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
+
+  pptxgenjs@4.0.1:
+    resolution:
+      integrity: sha512-TeJISr8wouAuXw4C1F/mC33xbZs/FuEG6nH9FG1Zj+nuPcGMP5YRHl6X+j3HSUnS1f3at6k75ZZXPMZlA5Lj9A==
+  https@1.0.0:
+    resolution:
+      integrity: sha512-4EC57ddXrkaF0x83Oj8sM6SLQHAWXw90Skqu2M4AEWENZ3F02dFJE/GARA8igO79tcgYqGrD7ae4f5L3um2lgg==
+  image-size@1.2.1:
+    resolution:
+      integrity: sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==
+    engines:
+      node: ">=16.x"
+    hasBin: true
+  queue@6.0.2:
+    resolution:
+      integrity: sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==
 
 snapshots:
 
@@ -33595,3 +33614,17 @@ snapshots:
   zwitch@1.0.5: {}
 
   zwitch@2.0.4: {}
+
+  pptxgenjs@4.0.1:
+    dependencies:
+      "@types/node": 22.20.4
+      https: 1.0.0
+      image-size: 1.2.1
+      jszip: 3.10.1
+  https@1.0.0: {}
+  image-size@1.2.1:
+    dependencies:
+      queue: 6.0.2
+  queue@6.0.2:
+    dependencies:
+      inherits: 2.0.4

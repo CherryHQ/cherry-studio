@@ -6,6 +6,8 @@ import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { isConvertToDocumentTool } from '@shared/ai/documentConversionTool'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -221,7 +223,12 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const cherryMetadata = extractCherryToolMetadata(toolPart)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
-  const response = status === 'error' ? normalizeErrorOutput(toolPart) : rawResponse
+  const response =
+    status === 'error'
+      ? normalizeErrorOutput(toolPart)
+      : isConvertToDocumentTool(toolName) || toolName === PI_TOOL_CALL_TOOL_NAME
+        ? toolPart.output
+        : rawResponse
   const parentToolUseId = extractParentToolUseId(toolPart)
 
   const partialArguments =

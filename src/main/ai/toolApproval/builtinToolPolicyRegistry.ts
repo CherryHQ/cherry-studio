@@ -37,6 +37,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { CONVERT_TO_DOCUMENT_TOOL_NAME } from '@shared/ai/documentConversionTool'
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
@@ -101,6 +102,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
+  cherryConvertToDocument: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONVERT_TO_DOCUMENT_TOOL_NAME, 'required'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),

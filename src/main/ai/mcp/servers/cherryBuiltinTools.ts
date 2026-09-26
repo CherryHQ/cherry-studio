@@ -242,7 +242,7 @@ export class CherryBuiltinToolsServer {
         return cli.call(name, request.params.arguments)
       }
       if (documents.handles(name)) {
-        return documents.call(request.params.arguments, extra.signal)
+        return documents.call(request.params.arguments, extra.signal, name)
       }
       if (autonomy.handles(name)) {
         return autonomy.call(name, request.params.arguments ?? {})

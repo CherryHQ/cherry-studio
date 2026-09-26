@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { documentArtifactSchema, documentFormatSchema } from '@shared/types/documentConversion'
+
 import { defineRoute } from '../define'
 
 /**
@@ -9,6 +11,16 @@ import { defineRoute } from '../define'
  * ExportService / ObsidianVaultService singletons.
  */
 export const exportRequestSchemas = {
+  'export.document.convert_and_save': defineRoute({
+    input: z.object({
+      markdown: z.string(),
+      format: documentFormatSchema,
+      defaultName: z.string(),
+      sourcePath: z.string().optional(),
+      assetRoot: z.string().optional()
+    }),
+    output: documentArtifactSchema.nullable()
+  }),
   'export.word.from_markdown': defineRoute({
     input: z.object({ markdown: z.string(), fileName: z.string() }),
     output: z.void()

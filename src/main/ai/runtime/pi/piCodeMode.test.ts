@@ -1,16 +1,20 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { readUIMessageStream } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import {
   PI_TOOL_CALL_TOOL_NAME,
   PI_TOOL_DESCRIBE_TOOL_NAME,
   PI_TOOL_EXEC_TOOL_NAME,
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 import type { PiToolAuthorizer } from './approvalExtension'
 import { createPiCodeModeTools } from './piCodeMode'
 import type { PiMcpToolDefinition } from './piMcpToolAdapter'
+import { PiStreamAdapter } from './piStreamAdapter'
 
 function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>): ToolDefinition {
   return {
@@ -39,6 +43,149 @@ function codeModeTools(
 }
 
 describe('createPiCodeModeTools', () => {
+  it.each([
+    { ending: "return 'Finished'", successful: true, error: undefined },
+    {
+      ending: "await tools.invoke('convert', { output_path: 'failed.pdf' }); return 'unreachable'",
+      successful: true,
+      error: 'conversion failed'
+    },
+    { ending: '', successful: true, error: 'add an explicit return' },
+    { ending: 'const cycle = {}; cycle.self = cycle; return cycle', successful: true, error: 'JSON-serializable' },
+    { ending: '', successful: false, error: 'conversion failed' }
+  ])(
+    'persists successful child receipts independently of the outer result: $ending',
+    async ({ ending, successful, error }) => {
+      const name = 'mcp__cherry-tools__convert_to_document'
+      const converter = tool({
+        name,
+        execute: async (_id, params) => {
+          const outputPath = (params as { output_path: string }).output_path
+          if (outputPath === 'failed.pdf') throw new Error('conversion failed')
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ path: outputPath, format: 'pdf', mime: 'application/pdf' }) }
+            ],
+            details: null
+          }
+        }
+      })
+      const unrelated = tool({
+        name: 'mcp__example__read',
+        execute: async () => ({
+          content: [
+            { type: 'text', text: JSON.stringify({ path: 'unrelated.pdf', format: 'pdf', mime: 'application/pdf' }) }
+          ],
+          details: null
+        })
+      })
+      const exec = codeModeTools([converter, unrelated]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+      const input = {
+        code: `await tools.invoke('${name}', { output_path: '${successful ? 'one.pdf' : 'failed.pdf'}' }); await tools.invoke('mcp__example__read', {}); ${ending.replace("'convert'", `'${name}'`)}`
+      }
+      const chunks: CherryUIMessageChunk[] = []
+      const adapter = new PiStreamAdapter({ enqueue: (chunk) => chunks.push(chunk) })
+      adapter.handleEvent({
+        type: 'tool_execution_start',
+        toolCallId: 'documents',
+        toolName: PI_TOOL_EXEC_TOOL_NAME,
+        args: input
+      })
+      const execution = exec.execute(
+        'documents',
+        input,
+        undefined,
+        (partialResult) => {
+          const update = {
+            type: 'tool_execution_update' as const,
+            toolCallId: 'documents',
+            toolName: PI_TOOL_EXEC_TOOL_NAME,
+            args: input,
+            partialResult
+          }
+          adapter.handleEvent(update)
+          adapter.handleEvent(update)
+        },
+        {} as never
+      )
+      if (!error) {
+        const result = await execution
+        adapter.handleEvent({
+          type: 'tool_execution_end',
+          toolCallId: 'documents',
+          toolName: PI_TOOL_EXEC_TOOL_NAME,
+          result,
+          isError: false
+        })
+      } else {
+        await expect(execution).rejects.toThrow(error)
+        adapter.handleEvent({
+          type: 'tool_execution_end',
+          toolCallId: 'documents',
+          toolName: PI_TOOL_EXEC_TOOL_NAME,
+          result: { content: [{ type: 'text', text: error }] },
+          isError: true
+        })
+      }
+      const stream = new ReadableStream<CherryUIMessageChunk>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      const persisted: CherryUIMessage = JSON.parse(JSON.stringify(message))
+      const parts = persisted.parts.filter((part) => part.type === 'dynamic-tool')
+      expect(parts.find((part) => part.toolCallId === 'documents')?.state).toBe(
+        error ? 'output-error' : 'output-available'
+      )
+      const children = parts.filter((part) => part.toolCallId !== 'documents')
+      expect(children).toHaveLength(successful ? 2 : 0)
+      expect(new Set(children.map((part) => part.toolCallId)).size).toBe(children.length)
+      for (const child of children) {
+        expect(child.state).toBe('output-available')
+        expect(child.callProviderMetadata?.cherry?.parentToolCallId).toBe('documents')
+      }
+      expect(parts.flatMap((part) => getConvertedDocumentArtifacts(part.toolName, part.input, part.output))).toEqual(
+        successful ? [{ path: 'one.pdf', format: 'pdf', mime: 'application/pdf' }] : []
+      )
+    }
+  )
+
+  it('publishes a completed child before an invalid declared output fails decoding', async () => {
+    const output = { content: [{ type: 'text' as const, text: 'saved' }], details: undefined }
+    const exec = codeModeTools([
+      {
+        ...tool({ name: 'save', execute: async () => output }),
+        outputSchema: { type: 'object' }
+      }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+    const updates: unknown[] = []
+    await expect(
+      exec.execute(
+        'save-parent',
+        { code: 'return await tools.invoke("save", {})' },
+        undefined,
+        (update) => updates.push(update),
+        {} as never
+      )
+    ).rejects.toThrow('invalid JSON')
+    expect(updates).toEqual([
+      {
+        content: [],
+        details: {
+          childToolResult: {
+            toolCallId: expect.stringContaining('save-parent::exec::'),
+            toolName: 'save',
+            input: {},
+            output
+          }
+        }
+      }
+    ])
+  })
+
   it('searches names and descriptions and returns TypeScript declarations', async () => {
     const searchIssues = tool({ name: 'mcp__github__search_issues', description: 'Find repository issues' })
     const listFiles = tool({ name: 'mcp__files__list', description: 'List files' })
