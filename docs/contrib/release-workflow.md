@@ -7,7 +7,6 @@ sources:
   - .github/workflows/release.yml
   - .github/workflows/backport-release-fixes.yml
   - .github/workflows/post-release.yml
-  - .github/workflows/publish-release.yml
   - .github/workflows/ci.yml
   - .agents/skills/prepare-release/SKILL.md
   - electron-builder.cn.config.cjs
@@ -29,7 +28,8 @@ The release branch is the source of every installer and release asset. `main` re
 | Dispatch | Successful release-branch **CI** | **Auto Release Build** | Starts one exact-head all-platform build |
 | Build | `release/v<version>` | **Release** | Creates or moves the draft tag, uploads artifacts, and composes the release body |
 | Hotfix | Merged `main` pull request | **Backport Release Hotfixes** | Opens a backport pull request against the active release branch |
-| Approve and publish | Successful exact-head all-platform build | **Publish Release** | Waits for the `release` Environment approval, revalidates, and publishes the draft |
+| Approve and publish | Successful exact-head all-platform build | **Release** | Waits for the `release` Environment approval, revalidates, and publishes the draft |
+| Mirror packages | Published GitHub Release | **Release** | Uploads Global and CN assets to GitCode from the same build archive |
 | Synchronize | Published GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
 | Close | `release-sync/v<version>` | **CI** | Validates the metadata pull request before it is merged into `main` |
 
@@ -59,7 +59,7 @@ Confirm all of the following:
 
 Do not create the release branch, release tag, or metadata synchronization pull request by hand during the normal flow. Do not publish from the GitHub Releases page. The workflows own those operations and serialize them with the repository-wide `release-state` concurrency group.
 
-An administrator must create the `release` Environment before this flow is enabled and configure the trusted people or teams who may approve publication. GitHub enforces the Environment's current protection rules before **Publish Release** continues.
+An administrator must create the `release` Environment before this flow is enabled and configure the trusted people or teams who may approve publication. GitHub enforces the Environment's current protection rules before the **Release** approval job continues. Allow trusted `release/v*` branches in that Environment; approvals now run on release branches rather than a separate default-branch workflow.
 
 ## 1. Prepare the Release Branch
 
@@ -95,7 +95,9 @@ To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BR
 
 ## 2. Wait for Release Branch CI
 
-Pushing `release/v<version>` automatically starts **CI**. After CI succeeds, **Auto Release Build** rechecks that the successful SHA is still the live branch head and dispatches **Release** with `all`. A stale CI completion is ignored, and an exact-head build is never dispatched twice.
+Pushing `release/v<version>` automatically starts **CI**. After CI succeeds, **Auto Release Build** rechecks that the successful SHA is still the live branch head and dispatches **Release** on `main` with `all`, the release tag, and the exact release SHA. A stale CI completion is ignored, and an exact-head build is never dispatched twice.
+
+The workflow and publication scripts are pinned to the selected `main` commit; only build jobs execute release-branch code. Release metadata is read as data by the trusted control jobs. The run title and archive metadata identify the release SHA, while the Actions run `head_sha` identifies the control workflow SHA.
 
 The **Release** workflow checks GitHub Actions for a successful `ci.yml` push run whose `head_sha` exactly equals the commit being released. A successful run for an older commit does not satisfy this gate.
 
@@ -116,26 +118,29 @@ The first release-branch CI run happens before a draft GitHub Release exists, so
 The initial build and every rebuild after a release-branch change start automatically when exact-head CI succeeds. Use the manual **Release** control only to retry a failed build:
 
 1. Open **Actions** → **Release** → **Run workflow**.
-2. Select `release/v<version>` in the branch selector. Never select `main`.
-3. Select `all` to retry the complete build, or `windows`, `mac`, or `linux` to replace only that platform's artifacts for the exact commit already referenced by the draft tag.
+2. Select `main` in the branch selector. Set `tag=v<version>` and `expected_sha` to the full 40-character SHA of the current `release/v<version>` head.
+3. Leave `mode=release`. Select `all` to retry the complete build, or `windows`, `mac`, or `linux` to replace only that platform's artifacts for the exact commit already referenced by the draft tag.
 4. Run the workflow and wait for every selected build job to finish.
 
 Before building, the workflow verifies that:
 
-- It was started from a `release/v<semver>` branch.
+- The workflow was started from `main`, with a valid tag and exact release SHA.
 - The branch version matches `package.json`.
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-Each selected platform builds both the existing global edition and the China edition from the same commit. Their release asset names, package IDs, and update channels identify the edition, while their installed product name, executable, shortcut, protocol, and `userData` location stay the same. Both Windows installers also retain the existing global NSIS GUID, so installing either edition replaces the same installation instead of creating a second app. Each runner validates and stages only its own edition and platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft by release ID, and only then creates or moves `v<version>` to the exact validated branch commit. A single-platform retry rebuilds both editions for that platform, downloads the existing draft assets, overlays the replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
+Each selected platform builds both the existing global edition and the China edition from the same commit. Their release asset names, package IDs, and update channels identify the edition, while their installed product name, executable, shortcut, protocol, and `userData` location stay the same. Both Windows installers also retain the existing global NSIS GUID, so installing either edition replaces the same installation instead of creating a second app. Each runner validates and stages only its own edition and platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft by release ID, and only then creates or moves `v<version>` to the exact validated branch commit. Windows uses the self-hosted `windows-signing` runner and signs each edition once. GitHub receives only Global packages, blockmaps, update manifests and shared release history; GitCode receives both editions. A complete `release-bundle-v<version>` Actions artifact retains both editions, checksums, release notes and source metadata for 90 days. After the complete archive uploads successfully, a separate cleanup job deletes only this run's platform staging artifacts and standalone history artifact. Failed archive creation leaves them available for retry. Cleanup can be retried independently without rerunning draft assembly; the complete archive and individual CN installers are retained. A single-platform retry rebuilds both editions for that platform, restores the newest retained complete archive from the same SHA, replaces the platform directories, and never moves the tag. If no matching archive exists, rerun an `all` build. No CN package is recovered from GitHub Release attachments. Tag movement is allowed only while the release is still a draft.
 
 After the tag is exact, the workflow builds the GitHub Release body from the bilingual `electron-builder.yml` notes, a separator, and GitHub's generated `What's Changed` and contributor list. Stable release history remains generated during **Pre Release** in `resources/cherry-studio/release-history.json`; it is not maintained separately during publication.
+
+To test an individual CN installer before approval, open the **Release** run summary and its **CN installer downloads** table. Each Windows `setup.exe`, macOS `.dmg`, and Linux `.AppImage` for x64/arm64 is uploaded as an unarchived, individually downloadable Actions artifact retained for 7 days. Sign in to GitHub to download. Single-platform retries list only the installers uploaded by that run; failed builds may leave a partial table. Global installers remain directly downloadable from the GitHub draft. These download entries do not change the complete dual-edition archive used for publishing and recovery.
 
 Before publishing, inspect the draft release and confirm:
 
 - The tag and release branch point to the same commit.
 - All expected platform jobs succeeded.
-- Global and China edition installers, archives, update manifests, blockmaps, and release notes are present.
+- GitHub contains only Global installers, archives, update manifests, blockmaps and release notes.
+- The complete Actions archive contains both Global and China editions, with manifests referencing only their own edition packages.
 - The version and release notes match the intended release.
 
 Keep the release as a draft while testing or while hotfixes are still expected.
@@ -205,12 +210,25 @@ If the workflow reports multiple active release branches, leave only the intende
 Publish only after the latest release branch commit has passed CI and an `all`-platform build for that exact commit has completed successfully.
 
 1. Open the draft under **Releases** and confirm the tag, target commit, bilingual notes, generated changes, and artifacts one final time. Do not select **Publish release** on this page.
-2. Open the **Publish Release** run created by the successful exact-head `all` build.
+2. Open the same **Release** run and its **Approve production release** job after the exact-head `all` build and draft update succeed.
 3. Approve its deployment to the protected `release` Environment. Stable releases are marked latest; prereleases remain prereleases and do not replace the latest stable release.
 
 The approval job does not hold the release-state lock. After approval, the publication job acquires that lock and takes one final state snapshot. It requires the approved run, draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; and confirms that notes and artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. If the release branch changed while approval was waiting, publication fails closed and the new exact-head build creates a new approval. The fetched `main` SHA in the final snapshot is the hotfix cutoff for the release; a hotfix merged after it belongs to the next release. Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
-Publishing triggers **Post Release** automatically.
+Publishing triggers **Post Release** automatically. GitCode synchronization then runs in the same **Release** workflow using the complete archive; Global files must match the published GitHub attachments byte for byte. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
+
+### Retry GitCode Synchronization
+
+1. Open **Actions** → **Release** → **Run workflow**, selecting `main` for current synchronization scripts.
+2. Set `mode=sync-only`, `tag=v<version>`, and `run_id` to the original all-platform release run ID.
+3. Optionally set `dry_run=true` to validate and preview the payload and files without GitCode writes or Feishu notifications.
+4. Run synchronization. It requires an already published GitHub Release, matching repository/tag/SHA, a retained complete archive, and matching Global files. An existing GitCode Release is updated and files are uploaded again, with package files before update manifests.
+
+The archive expires after 90 days (subject to repository retention limits). Missing or expired archives fail closed; synchronization never rebuilds or re-signs historical packages. Use **Re-run failed jobs** for a failed synchronization within the original run. The `clean` input only removes signing-runner dependencies before a normal Windows build.
+
+Preparation, build, draft finalization, approval, publication, cleanup, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
+
+The repository needs the existing `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
 
 ## 6. Merge the Release Metadata Pull Request
 
@@ -261,7 +279,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
 - Never merge all of `main` into an active release branch.
 - Never publish a draft until the exact release commit passes CI and all required artifacts are present.
-- Publish only through the protected **Publish Release** approval; never publish directly from the Releases page.
+- Publish only through the protected **Release** approval; never publish directly from the Releases page.
 - Never move a published release tag.
 - Never merge the complete release branch back into `main`.
 - Keep the metadata synchronization pull request title and body boundary marker unchanged, squash-merge it, and finish it before preparing the next release.
