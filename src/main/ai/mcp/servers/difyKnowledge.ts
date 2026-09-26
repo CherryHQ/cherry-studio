@@ -115,7 +115,7 @@ class DifyKnowledgeServer {
             return await this.performSearchKnowledge(
               parsed.data.id,
               parsed.data.query,
-              parsed.data.topK || 6,
+              parsed.data.topK ?? 6,
               this.config.difyKey,
               this.config.apiHost
             )
