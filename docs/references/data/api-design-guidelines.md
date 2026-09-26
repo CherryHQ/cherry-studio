@@ -196,7 +196,7 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
-Provider enablement is a narrow exception: `PATCH /providers/:providerId` atomically moves that provider to the first position only when `isEnabled` transitions from `false` to `true`. This provider-specific invariant does not establish a general permission for resource updates to mutate ordering. Redundant provider `true` updates preserve the user's existing order, and explicit reorder requests still use the canonical order routes.
+Provider enablement does not mutate ordering: `PATCH /providers/:providerId` preserves the current order when enabling or disabling an existing provider. Only `POST /providers` inserts at the first position. Resource updates still must not mutate ordering; explicit reorder requests use the canonical order routes.
 
 
 ```typescript
@@ -498,6 +498,7 @@ Fences (all hard):
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
 | `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
 | `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
+| `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
 
 ### Why Misuse is Harmful
 

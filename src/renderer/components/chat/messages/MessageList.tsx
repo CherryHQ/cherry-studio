@@ -177,9 +177,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 
 interface MessageListProps {
   enableSearch?: boolean
+  scrollPositionKey?: string
 }
 
-const MessageList = ({ enableSearch = false }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -554,7 +555,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
     return new Promise<void>((resolve, reject) => {
       const scrollContainer = scrollContainerRef.current
-      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      // Feed the clone the page's rendered .narrow-mode width — the scroll
+      // container's clientWidth (scrollbar + rail gutter) squeezes its column.
+      const narrowWidth = scrollContainer?.querySelector<HTMLElement>('.narrow-mode')?.getBoundingClientRect().width
+      const captureWidth =
+        (narrowWidth && Math.ceil(narrowWidth)) ||
+        scrollContainer?.clientWidth ||
+        scrollContainer?.getBoundingClientRect().width ||
+        undefined
       const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
@@ -799,7 +807,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu>
+      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
@@ -812,7 +820,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-            topicId={topic.id}
+            topicId={scrollPositionKey ?? topic.id}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}

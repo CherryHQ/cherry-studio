@@ -396,7 +396,7 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.disposed).toBe(true)
   })
 
-  it('retires watermark-covered sibling readers without reporting an implicit success', async () => {
+  it.each([0, 2])('retires sibling readers after %i microtasks without reporting success', async (turns) => {
     const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
     const consumer = {}
@@ -409,6 +409,7 @@ describe('ExecutionStreamOverlayService', () => {
 
     streamText(sub, A, 't1', 'failed partial', 'anchor-a', 1)
     streamText(sub, B, 't2', 'final answer', 'anchor-b', 2)
+    for (let turn = 0; turn < turns; turn++) await Promise.resolve()
     sub.retire([{ executionId: A, attemptId: 1, anchorMessageId: 'anchor-a' }])
     sub.terminal(B, { isAbort: false, isError: false }, 'anchor-b', 2)
     await drainStreamMicrotasks()

@@ -237,8 +237,13 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
+  const persistedPartsByMessageId = useMemo(
+    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
+    [uiMessages]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })
@@ -458,13 +463,15 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await send({ text, options })
+        const sent = await send({ text, options })
+        if (sent) scrollToBottom()
+        return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [send]
+    [scrollToBottom, send]
   )
 
   return {

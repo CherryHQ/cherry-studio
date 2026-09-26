@@ -15,6 +15,7 @@ import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import {
+  describeErrorChain,
   evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
@@ -64,7 +65,7 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   dialog.showErrorBox(
     'Data Location Error - Application Cannot Start',
     `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
-      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
+      `Check that there is free disk space and that ${application.getPath('cherry.home')} is writable, then try again. The application will now exit.`
   )
   application.quit()
   return 'handled'
@@ -82,7 +83,8 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
     } catch (error) {
       if (isDev || !isMigrationStorageError(error)) throw error
 
-      logger.error('Migration database unavailable', error as Error)
+      const reason = describeErrorChain(error)
+      logger.error(`Migration database unavailable: ${reason}`, error as Error)
       migrationEngine.close()
       await app.whenReady()
       const language = resolveSystemLanguage(app.getLocale())
@@ -191,7 +193,10 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     if (result === null) return 'handled'
     needsMigration = result
   } catch (error) {
-    logger.error('Migration status check failed', error as Error)
+    // The driver reason lives in `.cause`, which neither `error.message` nor the
+    // winston serializer carries — flatten it or the failure is undiagnosable.
+    const reason = describeErrorChain(error)
+    logger.error(`Migration status check failed: ${reason}`, error as Error)
     await app.whenReady()
 
     // Dev-only: when the disposable migration SQL is regenerated/deleted but
@@ -209,7 +214,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           `  ${paths.databaseFile}\n\n` +
           `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
           `Then start the app again (pnpm dev).\n\n` +
-          `Original error: ${(error as Error).message}`
+          `Original error: ${reason}`
       )
       logger.error('Exiting application due to schema out of sync (dev)')
       application.quit()
@@ -225,7 +230,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       dialog.showErrorBox(
         'Migration Failed (Dev) - Application Cannot Start',
         `Startup migration failed while applying schema changes:\n\n` +
-          `  ${(error as Error).message}\n\n` +
+          `  ${reason}\n\n` +
           `In development this is usually one of:\n\n` +
           `  1. Your local database predates a schema change (incompatible legacy data). ` +
           `If this is throwaway dev data, reset it and restart:\n` +
@@ -238,7 +243,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     } else {
       dialog.showErrorBox(
         'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
+        `Could not complete data migration:\n\n  ${reason}\n\n` +
           `The application will now exit. Please try again, and contact support if the problem persists.`
       )
     }

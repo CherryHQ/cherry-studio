@@ -31,6 +31,8 @@ interface AgentChatMainProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
+  startEditing: (messageId: string) => Promise<void>
+  editBusy: boolean
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
 }
 
@@ -51,6 +53,8 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
   if (placement !== 'docked' || !sessionMessagesEnabled) {
@@ -58,7 +62,7 @@ export default function AgentChatMain({
   }
 
   return (
-    <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 w-full flex-1 translate-z-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1">
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
@@ -75,6 +79,8 @@ export default function AgentChatMain({
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}
+          startEditing={agentId ? startEditing : undefined}
+          editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
         />
       </div>
@@ -83,12 +89,23 @@ export default function AgentChatMain({
 }
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { canOpenAgentToolFlow, canOpenArtifactFile, openAgentToolFlow, openArtifactFile } = useAgentRightPaneActions()
+  const {
+    isAgentToolFlowActive,
+    canOpenAgentToolFlow,
+    canOpenArtifactFile,
+    openAgentToolFlow,
+    openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl
+  } = useAgentRightPaneActions()
   return (
     <AgentSessionMessages
       {...props}
+      isAgentToolFlowActive={isAgentToolFlowActive}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      openBrowserUrl={openBrowserUrl}
+      openExternalUrl={openExternalUrl}
     />
   )
 }

@@ -71,11 +71,14 @@ const defaultResolveResult = {
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
-    // The gate imports the error predicates through the barrel. Keep the real
-    // implementations so the fixtures exercise production classification.
-    const { isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
+    // The gate now imports the version-policy fns and the error helpers through the
+    // barrel, so they live on this mock. The helpers are pure — keep the real
+    // implementations so schemaOutOfSyncError() fixtures are still detected and the
+    // dialogs carry the real flattened cause chain.
+    const { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
       '@data/migration/v2/core/migrationErrors'
     )) as {
+      describeErrorChain: (error: unknown) => string
       isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
@@ -100,6 +103,7 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
+      describeErrorChain,
       isMigrationStorageError,
       isSchemaOutOfSyncError
     }
@@ -126,6 +130,7 @@ function stubElectron() {
 function stubApplication() {
   vi.doMock('@application', () => ({
     application: {
+      getPath: vi.fn((key: string) => (key === 'cherry.home' ? '/mock/cherry-home' : undefined)),
       quit: appQuitMock,
       relaunch: appRelaunchMock
     }
@@ -355,6 +360,7 @@ describe('runV2MigrationGate', () => {
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
+      const { loggerService } = await import('@logger')
 
       expect(result).toBe('skipped')
       expect(initializeMock).toHaveBeenCalledTimes(2)
@@ -370,6 +376,14 @@ describe('runV2MigrationGate', () => {
         cancelId: 1
       })
       expect(JSON.stringify(showMessageBoxMock.mock.calls[0][0])).not.toContain('/Users/private')
+      const storageLog = vi
+        .mocked(loggerService.error)
+        .mock.calls.map(([message]) => String(message))
+        .find((message) => message.startsWith('Migration database unavailable:'))
+      expect(storageLog).toContain(
+        '[SQLITE_READONLY] attempt to write a readonly database at /Users/private/cherrystudio.sqlite'
+      )
+      expect(storageLog?.match(/attempt to write a readonly database/g)).toHaveLength(1)
       expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
     })
@@ -754,6 +768,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock.mock.calls[0][1]).toContain('/mock/cherry-home')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })
