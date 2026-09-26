@@ -5,8 +5,7 @@ import { getComposerTextFromMessage, getComposerTokenClipboardText } from '@rend
 import { getNamingTextContent, getToolCitationExport } from '@renderer/utils/message/find'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { FileUrlString } from '@shared/types/file'
-import { fileUrlToPath } from '@shared/utils/file'
+import { tryFileUrlToPath } from '@shared/utils/file'
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -96,7 +95,8 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 
 /**
  * Reads each pasted-text file part's stored content, keyed by `fileTokenSourceId`, so
- * copy reproduces the pasted text; an unreadable file falls back to the token label.
+ * copy reproduces the pasted text. An unreadable file, or a URL that is not a file path,
+ * falls back to the token label.
  * Distinct source IDs are read concurrently; duplicate IDs retry later paths until one succeeds.
  */
 async function readPastedTextFileContents(messages: readonly ExportableMessage[]): Promise<Map<string, string>> {
@@ -106,7 +106,8 @@ async function readPastedTextFileContents(messages: readonly ExportableMessage[]
       if (part.type !== 'file') continue
       const meta = readCherryMeta(part)
       if (meta?.composerFileKind !== 'pasted-text' || !meta.fileTokenSourceId) continue
-      const path = fileUrlToPath(part.url as FileUrlString)
+      const path = part.url ? tryFileUrlToPath(part.url) : undefined
+      if (path === undefined) continue
       const existing = candidatesBySourceId.get(meta.fileTokenSourceId)
       if (existing) existing.push(path)
       else candidatesBySourceId.set(meta.fileTokenSourceId, [path])

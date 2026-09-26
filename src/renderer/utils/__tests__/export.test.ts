@@ -468,6 +468,34 @@ describe('export', () => {
       expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/recovered.txt')
     })
 
+    // Catches fileUrlToPath throwing on a malformed or non-file pasted-text URL and
+    // rejecting the whole export instead of leaving that token's display label.
+    it('falls back to the token label when a pasted-text URL is malformed or not a file', async () => {
+      ;(window.api.fs.readText as any).mockImplementation((path: string) => {
+        if (path === '/tmp/ok.txt') return Promise.resolve('recovered body')
+        return Promise.reject(new Error(`unexpected read ${path}`))
+      })
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const malformed = createPastedTextExportView('bad-src', 'file:///tmp/100%.txt', {
+        label: 'Broken paste.txt',
+        preface: 'Bad:'
+      })
+      const nonFile = createPastedTextExportView('http-src', 'https://example.com/paste.txt', {
+        label: 'Remote paste.txt',
+        preface: 'Remote:'
+      })
+      const readable = createPastedTextExportView('ok-src', 'file:///tmp/ok.txt', { preface: 'Ok:' })
+
+      const result = await messagesToPlainText([malformed, nonFile, readable])
+
+      expect(result).toContain('Bad:Broken paste.txt')
+      expect(result).toContain('Remote:Remote paste.txt')
+      expect(result).toContain('Ok:recovered body')
+      expect(window.api.fs.readText).toHaveBeenCalledTimes(1)
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/ok.txt')
+    })
+
     // Catches parallel fan-out that re-reads every duplicate path after the first success.
     it('does not re-read a duplicate sourceId after the first successful read', async () => {
       ;(window.api.fs.readText as any).mockResolvedValue('first-success')
