@@ -1,5 +1,6 @@
-import { MIGRATION_LOCAL_STORAGE_KEYS, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MIGRATION_LOCAL_STORAGE_KEYS, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 import { LocalStorageExporter } from '../LocalStorageExporter'
 

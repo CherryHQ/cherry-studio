@@ -249,7 +249,7 @@ describe('useChatWriteActions — clear context', () => {
     vi.mocked(cache.createMessageTrigger).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveCreate = resolve as typeof resolveCreate
+          resolveCreate = resolve
         }) as never
     )
     const { actions, result } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)

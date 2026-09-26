@@ -47,6 +47,12 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^nova-2' },
   // anthropic
   {
+    pattern: '^(?:anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: false,
+    wireDialect: 'effort'
+  },
+  {
     pattern: '^(?:anthropic\\.)?claude-fable',
     effort: ['low', 'medium', 'high', 'max'],
     toggle: false,
@@ -136,6 +142,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^north-mini-code' },
   // deepseek
   { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'low', 'high', 'max'] },
+  { pattern: '^deepseek-flash', effort: ['none', 'low', 'high', 'max'] },
   { pattern: 'deepseek-(?:chat|v3(?:\\.\\d|-\\d))', toggle: true, template: true },
   { pattern: '(\\w+-)?deepseek-v3(?:\\.\\d|-\\d)(?:(\\.|-)(?!speciale$)\\w+)?$' },
   { pattern: 'deepseek-chat' },
@@ -171,10 +178,20 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-omni-flash' },
   { pattern: '^gemini-robotics' },
   { pattern: 'gemma-?4' },
+  // iflytek
+  { pattern: '^xopdeepseekv3\\d', toggle: true },
+  { pattern: '^xopdeepseekv[4-9]', effort: ['none', 'high', 'max'] },
+  { pattern: '^xopkimik(?:2[5-9]\\d*|[3-9]\\d*)', toggle: true },
+  { pattern: '^xopqwen3[5-9]\\d*', budget: { min: 0, max: 81920 } },
+  { pattern: '^xopqwen3[5-9]\\d*', toggle: true },
+  { pattern: '^xopglmv?(?:4[5-7]|5\\d*)', toggle: true },
+  { pattern: '^xsparkx2', toggle: true },
   // inception
   { pattern: '^mercury-2' },
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
+  // meta
+  { pattern: '^muse-spark' },
   // minimax
   { pattern: 'minimax-m\\d' },
   // mistral
@@ -184,13 +201,16 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^mistral-(?:small|medium)(?!.*instruct)' },
   // moonshot
   { pattern: '^kimi-k2[.-]7-code', toggle: false },
-  { pattern: '^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)', toggle: true },
+  { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
+  { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
+  { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
   { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
   { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
   { pattern: '^muse-glimmer' },
   // openai
+  { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
   { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
   { pattern: '^gpt-5[.-]1-codex', effort: ['medium', 'high'] },
@@ -201,6 +221,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gpt-5[.-]\\d+-codex', effort: ['low', 'medium', 'high', 'xhigh'] },
   { pattern: '^gpt-5[.-]\\d+(?!.*chat)', effort: ['none', 'low', 'medium', 'high', 'xhigh'] },
   { pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', effort: ['minimal', 'low', 'medium', 'high'] },
+  { pattern: '^gpt-6', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-oss', effort: ['low', 'medium', 'high'] },
   { pattern: '^o1(?!-preview|-mini)|^o3|^o4', effort: ['low', 'medium', 'high'] },
   { pattern: '^o\\d+(?:-[\\w-]+)?$' },
@@ -229,11 +250,15 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^laguna-s' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
+  { pattern: '^grok-4[.-][67](?!.*non-reasoning)', effort: ['low', 'medium', 'high', 'xhigh'] },
   { pattern: '^grok-3-mini', effort: ['low', 'high'] },
   { pattern: '\\bgrok-(?:3-mini|4|4-fast)(?:-[\\w-]+)?\\b' },
   { pattern: 'grok-build' },
   // xiaomi
-  { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
+  {
+    pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2[.-]6-(?:flash|pro|pro-ultraspeed)(?!-)|mimo-v2-(?:flash|pro|omni)',
+    toggle: true
+  },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
   { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },

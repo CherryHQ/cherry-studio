@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getCurrentConfig: vi.fn(),
-  isRunning: vi.fn(),
-  getPreference: vi.fn()
+  isRunning: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -12,7 +11,6 @@ vi.mock('@application', () => ({
       if (name === 'ApiGatewayService') {
         return { getCurrentConfig: mocks.getCurrentConfig, isRunning: mocks.isRunning }
       }
-      if (name === 'PreferenceService') return { get: mocks.getPreference }
       throw new Error(`unexpected service ${name}`)
     }
   }
@@ -22,19 +20,22 @@ import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
 describe('gatewayCredentialsFingerprint', () => {
   beforeEach(() => {
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true })
+    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
     mocks.isRunning.mockReturnValue(true)
-    mocks.getPreference.mockReturnValue('gw-key-1')
   })
 
   it('changes when the gateway key rotates', () => {
     const before = gatewayCredentialsFingerprint()
-    mocks.getPreference.mockReturnValue('gw-key-2')
+    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-2' })
     expect(gatewayCredentialsFingerprint()).not.toBe(before)
   })
 
-  it('changes when the gateway enabled/running state flips', () => {
+  it('changes when the gateway address or enabled/running state changes', () => {
     const before = gatewayCredentialsFingerprint()
+    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 24444, apiKey: 'gw-key-1' })
+    expect(gatewayCredentialsFingerprint()).not.toBe(before)
+
+    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
     mocks.isRunning.mockReturnValue(false)
     expect(gatewayCredentialsFingerprint()).not.toBe(before)
   })

@@ -358,6 +358,7 @@ export default defineProvider({
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
   name: 'Bailian',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

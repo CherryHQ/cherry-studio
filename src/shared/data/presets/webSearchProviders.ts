@@ -4,7 +4,7 @@ import {
   WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_PROVIDER_IDS,
   WEB_SEARCH_PROVIDER_TYPES,
-  type WebSearchProvider,
+  type WebSearchCapability,
   type WebSearchProviderCapabilityOverride,
   type WebSearchProviderCapabilityOverrides,
   type WebSearchProviderId,
@@ -206,6 +206,18 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         apiHost: 'https://api.parallel.ai'
       }
     ]
+  },
+  serply: {
+    name: 'Serply',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 
@@ -214,27 +226,7 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
 
-/** Whether the selected client provider has enough local configuration to execute a capability. */
-export function isWebSearchProviderReady(
-  provider: WebSearchProvider | undefined,
-  feature: WebSearchProviderFeatureCapability['feature']
-): boolean {
-  if (!provider) return false
-
-  const capability = provider.capabilities.find((candidate) => candidate.feature === feature)
-  if (!capability) return false
-
-  if (capability.requiresApiHost) {
-    const apiHost = capability.apiHost?.trim()
-    if (!apiHost) return false
-
-    try {
-      const protocol = new URL(apiHost).protocol
-      if (protocol !== 'http:' && protocol !== 'https:') return false
-    } catch {
-      return false
-    }
-  }
-
-  return !capability.requiresApiKey || provider.apiKeys.some((apiKey) => apiKey.trim().length > 0)
-}
+export const WEB_SEARCH_FALLBACK_PROVIDER_IDS_BY_CAPABILITY = {
+  searchKeywords: ['exa-mcp'],
+  fetchUrls: ['fetch', 'jina']
+} as const satisfies Record<WebSearchCapability, readonly WebSearchProviderId[]>

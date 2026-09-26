@@ -1,13 +1,15 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { AgentEditDialog } from './AgentEditDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
@@ -18,7 +20,6 @@ type ResourceEditDialogHostProps = {
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
-
 export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -78,6 +79,7 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
+  const assistantModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   useEffect(() => {
     if (!error) return
@@ -91,7 +93,7 @@ function AssistantEditDialogHost({
       open={open}
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
-      modelFilter={(candidate) => !isNonChatModel(candidate)}
+      modelFilter={assistantModelFilter}
       initialTab={target.initialTab}
     />
   )
@@ -108,6 +110,7 @@ function AgentEditDialogHost({
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
   const modelFilter = useAgentModelFilter(agent?.type)
+  const isModelDisabled = useAgentModelDisabled(open)
 
   useEffect(() => {
     if (!error) return
@@ -122,6 +125,7 @@ function AgentEditDialogHost({
       resource={agent ?? null}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={target.initialTab}
     />
   )

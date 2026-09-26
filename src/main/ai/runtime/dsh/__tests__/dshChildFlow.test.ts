@@ -1,6 +1,7 @@
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DshSubagentCoordinator, type DshSubagentSink } from '../dshChildFlow'
 
@@ -30,7 +31,7 @@ function spawnAnchor(callId: string, description: string, toolName = 'subagent')
     toolCallId: callId,
     toolName,
     input: { description, prompt: 'go' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
@@ -39,11 +40,11 @@ function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
     toolCallId: callId,
     toolName: 'send_message',
     input: { subagent_id: subagentId, message: 'go on' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function toolError(callId: string): CherryUIMessageChunk {
-  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' } as CherryUIMessageChunk
+  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' }
 }
 
 function makeSink() {
@@ -72,6 +73,18 @@ beforeEach(() => {
 })
 
 describe('DshSubagentCoordinator binding', () => {
+  it('holds work when the SDK creation arrives before the lifecycle pipe', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'review'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true])
+    coordinator.handleLifecycle(startEdge('child', 'run'))
+    coordinator.handleLifecycle(endEdge('child', 'run'))
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitTasks.mock.lastCall?.[0]).toEqual([])
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+  })
+
   it('binds the child to its spawning tool call and parents its content chunks', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
@@ -193,7 +206,7 @@ describe('DshSubagentCoordinator binding', () => {
       toolCallId: 'call-x',
       toolName: 'read',
       input: { file_path: 'a.txt' }
-    } as CherryUIMessageChunk)
+    })
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleChildEvent('child-1', textDelta(0, 0, 'x'))
     // No anchor → still buffered, nothing mis-parented under call-x.

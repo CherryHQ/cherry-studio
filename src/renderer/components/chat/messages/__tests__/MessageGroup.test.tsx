@@ -1,10 +1,11 @@
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps, ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   editMessageBlocks: vi.fn(),
   resendUserMessageWithEdit: vi.fn(),
   scrollIntoView: vi.fn(),
+  scrollByWheel: vi.fn(() => false),
   setTimeoutTimer: vi.fn(),
   settings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
@@ -175,8 +177,27 @@ vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
 }))
 
+vi.mock('../blocks/ImageBlock', () => ({
+  default: ({ images }: { images: string[] }) => (
+    <div data-testid="hoisted-image-block" data-images={JSON.stringify(images)} />
+  )
+}))
+
+vi.mock('../frame/MessageAttachments', () => ({
+  default: ({ handle, name }: { handle: unknown; name: string }) => (
+    <div data-testid="hoisted-attachment" data-handle={JSON.stringify(handle)}>
+      {name}
+    </div>
+  )
+}))
+
 vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
+}))
+
+vi.mock('../list/ScrollOwnershipContext', () => ({
+  useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
+  useScrollRuntimeNavigation: () => () => false
 }))
 
 vi.mock('../MessageListProvider', () => ({
@@ -211,7 +232,9 @@ vi.mock('../MessageListProvider', () => ({
     mocks.messageListUiSelectors().getMessageActivityState?.(message) ?? {
       isProcessing: false,
       isStreamTarget: false,
-      isApprovalAnchor: false
+      isApprovalAnchor: false,
+      isActiveTurnProcessing: false,
+      isStreamLive: false
     },
   useMessageListUiStatic: () => ({})
 }))
@@ -298,6 +321,7 @@ describe('MessageGroup', () => {
     mocks.messageListSelection.mockReturnValue(undefined)
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
+    mocks.scrollByWheel.mockReturnValue(false)
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {
@@ -587,6 +611,71 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
+  it('renders sent attachments outside the user bubble', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(
+      <MessageGroup
+        messages={messages}
+        partsByMessageId={{
+          'msg-1': [
+            {
+              type: 'text',
+              text: 'look at this',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:doc-1',
+                        kind: 'file',
+                        label: 'report.pdf',
+                        index: 0,
+                        textOffset: 0,
+                        payload: { origin_name: 'report.pdf', ext: '.pdf', size: 2048 }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' },
+            {
+              type: 'file',
+              url: 'file:///tmp/Application%20Support/report.pdf',
+              mediaType: 'application/pdf',
+              filename: 'report.pdf',
+              providerMetadata: { cherry: { fileTokenSourceId: 'doc-1' } }
+            }
+          ] as CherryMessagePart[]
+        }}
+      />
+    )
+
+    const bubble = container.querySelector('#message-msg-1 .message-content-container')
+    const imageBlock = screen.getByTestId('hoisted-image-block')
+    const attachment = screen.getByTestId('hoisted-attachment')
+    expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    expect(bubble?.contains(imageBlock)).toBe(false)
+    expect(bubble?.contains(attachment)).toBe(false)
+    // The card is handed a handle, never a path it assembled: Main resolves it, and the
+    // decode happens once so "%20" never reaches fs.
+    expect(attachment).toHaveAttribute(
+      'data-handle',
+      JSON.stringify({ kind: 'path', path: '/tmp/Application Support/report.pdf' })
+    )
+  })
+
   it('renders adapter-owned tail content only after its target assistant message', () => {
     const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
 
@@ -667,7 +756,7 @@ describe('MessageGroup', () => {
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
 
-  it('prevents vertical wheel on non-content areas from bubbling to the outer chat scroll in horizontal layout', () => {
+  it('lets vertical wheel input on non-content areas bubble to the outer chat scroll in horizontal layout', () => {
     const parentWheel = vi.fn()
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
 
@@ -694,7 +783,36 @@ describe('MessageGroup', () => {
     const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120 })
     fireEvent(horizontalGroup, wheelEvent)
 
+    expect(wheelEvent.defaultPrevented).toBe(false)
+    expect(parentWheel).toHaveBeenCalledOnce()
+  })
+
+  it('forwards dominant vertical trackpad input with a small horizontal delta to the outer scroll runtime', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaX: 2, deltaY: -120 })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
+    expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(0)
   })
 
   it('supports horizontal wheel scrolling on non-content areas in horizontal layout', () => {
@@ -716,6 +834,50 @@ describe('MessageGroup', () => {
     fireEvent(horizontalGroup, wheelEvent)
 
     expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it('contains Shift+wheel input at the horizontal scroll boundary', () => {
+    const parentWheel = vi.fn()
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 500,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120, shiftKey: true })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(500)
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+  })
+
+  it('registers horizontal wheel handling as a native non-passive listener', () => {
+    const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
+
+    try {
+      render(
+        <MessageGroup messages={[createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]} />
+      )
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function), {
+        capture: true,
+        passive: false
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
   })
 
   it('preserves visible content overflow for non-horizontal layouts', () => {
@@ -1108,6 +1270,53 @@ describe('MessageGroup', () => {
     })
     expect(updateMessageUiState).toHaveBeenCalledWith('model-a', { foldSelected: false })
     expect(updateMessageUiState).toHaveBeenCalledWith('model-b', { foldSelected: true })
+  })
+
+  it('keeps another model selected while the active reply continues streaming', async () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const setActiveBranch = vi.fn().mockResolvedValue(undefined)
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const streamingMessage = {
+      ...createMessage('model-a', 0, 'fold'),
+      isActiveBranch: true,
+      status: 'pending'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const otherMessage = {
+      ...createMessage('model-b', 1, 'fold'),
+      isActiveBranch: false
+    }
+
+    const { container, rerender } = render(<MessageGroup messages={[streamingMessage, otherMessage]} />)
+    const lastMenuCall = mocks.MessageGroupMenuBar.mock.calls.at(-1) as unknown as [
+      {
+        setSelectedMessage: (message: MessageListItem) => void
+      }
+    ]
+    const menuProps = lastMenuCall[0]
+
+    act(() => {
+      menuProps.setSelectedMessage(otherMessage)
+    })
+
+    await waitFor(() => expect(container.querySelector('#message-model-b')).toHaveClass('selected'))
+
+    rerender(<MessageGroup messages={[{ ...streamingMessage }, { ...otherMessage }]} />)
+
+    expect(container.querySelector('#message-model-b')).toHaveClass('selected')
+    expect(container.querySelector('#message-model-a')).not.toHaveClass('selected')
+    expect(setActiveBranch).toHaveBeenCalledOnce()
+    expect(setActiveBranch).toHaveBeenCalledWith('model-b')
   })
 
   it('shows the context indicator on the active branch instead of stale useful UI state', () => {

@@ -1,6 +1,7 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 
 describe('@cherrystudio/ui ContextMenu test mock', () => {
   it('keeps uncontrolled content hidden until the trigger is opened', () => {

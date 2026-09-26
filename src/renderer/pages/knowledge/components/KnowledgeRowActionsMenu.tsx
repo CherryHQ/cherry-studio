@@ -1,8 +1,9 @@
+import { MoreHorizontal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
-import { MoreHorizontal } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 interface KnowledgeRowActionsMenuProps {
   /** Same item model the row's right-click menu uses, so both entry points stay in sync. */
@@ -28,7 +29,7 @@ const KnowledgeRowActionsMenu = ({ items, className }: KnowledgeRowActionsMenuPr
         // Keep the click from also activating the row (select base / open source / drill in).
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          'size-6 rounded-md text-muted-foreground opacity-0 transition-[opacity,color,background-color] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:bg-muted data-[state=open]:text-foreground data-[state=open]:opacity-100',
+          'size-6 rounded-md text-muted-foreground opacity-0 transition-[opacity,color,background-color] group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 data-[state=open]:bg-muted data-[state=open]:text-foreground data-[state=open]:opacity-100',
           className
         )}>
         <MoreHorizontal className="size-3.5" />

@@ -13,6 +13,7 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
@@ -92,6 +93,10 @@ const sessionState = () => application.get('ClaudeCodeSessionStateService')
 const OUT_OF_TURN_APPROVAL_DENIAL =
   'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
 
+// Claude has no cleanup-off value while transcript persistence remains enabled.
+// Cherry owns transcript retention through Agent Session purge and orphan reconciliation.
+const CLAUDE_SESSION_RETENTION_DAYS = 365_000
+
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function disposeToolPolicySnapshot(sessionId: string): void {
   sessionState().disposeToolPolicySnapshot(sessionId)
@@ -117,6 +122,8 @@ export interface ClaudeCodeSessionOptions {
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
   maxOutputTokens?: number
+  /** Materialized effective language; when omitted the preference is read live. */
+  effectiveLanguage?: string | null
   /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
@@ -168,7 +175,10 @@ export async function buildClaudeCodeSessionSettings(
   const notificationContext =
     options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
-  const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
+  const mountedServers = resolveMountedMcpServers(agent, {
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    channelLinked: linkedChannelSnapshot !== null
+  })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -226,7 +236,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    agentsMdContext
+    agentsMdContext,
+    options?.effectiveLanguage
   )
 
   // 6. MCP servers (session + built-in)
@@ -304,6 +315,10 @@ export async function buildClaudeCodeSessionSettings(
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
+  // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
+  // every other value (including an unreadable preference), so nothing changes unless asked.
+  const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
+
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
@@ -315,12 +330,16 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
+      cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
       // Disable Claude Code's separate auto-memory store so the preset does not introduce a
       // second, conflicting memory contract.
       autoMemoryEnabled: false,
       ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
-      fastMode: options?.fastMode === true
+      fastMode: options?.fastMode === true,
+      // Left unset while attribution is on: the runtime then signs with its own default text,
+      // and an explicit `attribution` in the user's own Claude Code settings file still wins.
+      ...(hideCommitAttribution ? { attribution: { commit: '', pr: '' } } : {})
     },
     includePartialMessages: true,
     agentProgressSummaries: true,
@@ -490,7 +509,11 @@ async function buildToolPermissions(
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
-    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
+    if (
+      toolName !== ASK_USER_QUESTION_TOOL_NAME &&
+      !approvalHoldsInThisMode &&
+      (policy?.approval === 'auto' || access?.approval === 'auto')
+    ) {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -586,7 +609,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
-  agentsMdContext?: string
+  agentsMdContext?: string,
+  /** Materialized effective language; when omitted the preference is read live. */
+  effectiveLanguage?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -608,7 +633,8 @@ export async function buildSystemPrompt(
     agent,
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
-    customBaseContext
+    customBaseContext,
+    effectiveLanguage
   })
 
   // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.

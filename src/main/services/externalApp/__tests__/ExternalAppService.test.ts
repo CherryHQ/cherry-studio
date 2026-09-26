@@ -1,5 +1,6 @@
 import type * as NodeFs from 'node:fs'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +40,7 @@ vi.mock('../defaultApplication', () => ({
 
 describe('ExternalAppService', () => {
   beforeEach(() => {
-    vi.resetModules()
+    MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
     mocks.isSafeExternalUrl.mockReturnValue(true)

@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
@@ -7,7 +9,6 @@ import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { isAbortError } from '@main/utils/error'
 import { getPathStatus } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 import {
   assertWorkspacePathUnchanged,

@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   type BridgeResult,
   MINI_APP_EVENT_CHANNEL,
   MINI_APP_GUEST_LIMITS,
   MINI_APP_STREAM_CHANNEL
 } from '@shared/ipc/schemas/miniAppBridge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const exposeInMainWorld = vi.fn()
 // Typed to the wire contract: inferred from the default implementation, the mock's
@@ -36,7 +37,9 @@ const push = (channel: string, payload: unknown) => channels.get(channel)!(undef
 const requestIdOf = (call: number) => (invoke.mock.calls[call][1] as { requestId: string }).requestId
 
 describe('the guest bridge', () => {
-  beforeEach(() => invoke.mockClear())
+  beforeEach(() => {
+    invoke.mockClear()
+  })
 
   it('reports a guest-side refusal through the promise, not the call stack', async () => {
     // `cherry.d.ts` types every method as returning a Promise, and the gates run BEFORE
@@ -56,7 +59,7 @@ describe('the guest bridge', () => {
     invoke.mockResolvedValueOnce({ ok: true, value: undefined })
     const buffer = new ArrayBuffer(64 << 20)
 
-    await cherry.storage.set('k', buffer as never)
+    await cherry.storage.set('k', buffer)
 
     const { params } = invoke.mock.calls[0][1] as { params: { key: string; value: unknown } }
     expect(typeof params.value).toBe('string')
@@ -66,7 +69,7 @@ describe('the guest bridge', () => {
   it('forwards the string it measured, not the object it was handed', async () => {
     invoke.mockResolvedValueOnce({ ok: true, value: undefined })
 
-    await cherry.storage.set('k', { toString: () => 'coerced' } as never)
+    await cherry.storage.set('k', { toString: () => 'coerced' })
 
     expect(invoke.mock.calls[0][1]).toMatchObject({ params: { key: 'k', value: 'coerced' } })
   })
@@ -241,13 +244,13 @@ describe('null arguments', () => {
   // `cherry.d.ts` promises, and undetectable by the `catch (e) { e.name }` it tells authors
   // to write. `ai.chat` was already safe because `gateChat` coerced; now all of them do.
   it.each([
-    ['ai.getCapabilities', () => cherry.ai.getCapabilities(null as never)],
-    ['network.fetch', () => cherry.network.fetch(null as never)],
-    ['clipboard.write', () => cherry.clipboard.write(null as never)],
-    ['notification.show', () => cherry.notification.show(null as never)],
-    ['ai.chat', () => cherry.ai.chat(null as never, {})],
-    ['ai.chat options', () => cherry.ai.chat({ messages: [] }, null as never)],
-    ['file.export options', () => cherry.file.export('export.txt', null as never)]
+    ['ai.getCapabilities', () => cherry.ai.getCapabilities(null)],
+    ['network.fetch', () => cherry.network.fetch(null)],
+    ['clipboard.write', () => cherry.clipboard.write(null)],
+    ['notification.show', () => cherry.notification.show(null)],
+    ['ai.chat', () => cherry.ai.chat(null, {})],
+    ['ai.chat options', () => cherry.ai.chat({ messages: [] }, null)],
+    ['file.export options', () => cherry.file.export('export.txt', null)]
   ])('%s treats null like an absent argument', async (_name, call) => {
     await expect(call()).resolves.toBeDefined()
   })

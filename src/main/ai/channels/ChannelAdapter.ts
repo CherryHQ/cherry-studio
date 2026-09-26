@@ -1,7 +1,8 @@
+import { EventEmitter } from 'events'
+
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
-import { EventEmitter } from 'events'
 
 import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
 
@@ -184,12 +185,15 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Disconnect the adapter. Aborts any in-progress connect, then calls performDisconnect.
    */
   async disconnect(): Promise<void> {
-    if (this.connectAbort) {
-      this.connectAbort.abort()
-      this.connectAbort = null
-    }
+    this.abortConnect()
     this._connected = false
     await this.performDisconnect()
+  }
+
+  /** Abort in-progress connection work before the owning runtime reconciles a newer target. */
+  abortConnect(): void {
+    this.connectAbort?.abort()
+    this.connectAbort = null
   }
 
   /**

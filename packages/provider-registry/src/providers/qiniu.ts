@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'qiniu',
   name: 'Qiniu',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.qnaigc.com',
   anthropic: 'https://api.qnaigc.com',
   website: {

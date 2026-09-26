@@ -118,6 +118,82 @@ describe('Markdown sanitize schema', () => {
     expect(output).not.toContain('onclick')
   })
 
+  it('keeps preview-safe semantic HTML', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process(
+          [
+            '<mark>Important</mark>',
+            '<u>Underline</u><small>Small</small>',
+            '<progress value="72" max="100">72%</progress>',
+            '<iframe src="https://example.com/embed"></iframe>'
+          ].join('')
+        )
+    )
+
+    expect(output).toContain('<mark>Important</mark>')
+    expect(output).toContain('<u>Underline</u><small>Small</small>')
+    expect(output).toContain('<progress value="72" max="100">72%</progress>')
+    expect(output).not.toContain('iframe')
+  })
+
+  it('keeps color-only span styles and strips unsafe declarations', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process(
+          [
+            '<span style="color: #ef4444">Red</span>',
+            '<span style="background-color: rgb(254, 226, 226)">Tint</span>',
+            '<span style="color: red; background: url(https://attacker.example/leak)">Unsafe</span>'
+          ].join('')
+        )
+    )
+
+    expect(output).toContain('<span style="color: #ef4444">Red</span>')
+    expect(output).toContain('<span style="background-color: rgb(254, 226, 226)">Tint</span>')
+    expect(output).toContain('<span>Unsafe</span>')
+    expect(output).not.toContain('attacker.example')
+  })
+
+  it('keeps schemeless workspace file links through sanitize while blocking file:/drive/unsafe protocols', async () => {
+    // This exercises the sanitize schema in isolation. The production pipeline also runs
+    // hardening, with local hrefs temporarily preserved around both security plugins.
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const run = (html: string) =>
+      unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process(html)
+        .then(String)
+
+    // Relative + POSIX-absolute workspace file links survive sanitize unchanged —
+    // this is exactly what the markdown file-link (open-in-preview) feature relies on.
+    expect(await run('<a href="./README.md">x</a>')).toContain('href="./README.md"')
+    expect(await run('<a href=".agents/skills/gh-create-pr/SKILL.md">x</a>')).toContain(
+      'href=".agents/skills/gh-create-pr/SKILL.md"'
+    )
+    expect(await run('<a href="/Users/alice/notes.md">x</a>')).toContain('href="/Users/alice/notes.md"')
+    // In this isolated sanitize pass, drive paths (`c:`), file: URLs and unsafe protocols
+    // are dropped. The production pipeline preserves supported drive paths around sanitization.
+    expect(await run('<a href="C:/Users/Alice/README.md">x</a>')).not.toContain('C:/Users')
+    expect(await run('<a href="file:///C:/Users/x.md">x</a>')).not.toContain('file:///C:/Users/x.md')
+    expect(await run('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:')
+  })
+
   it('keeps only opaque numeric citation ids', async () => {
     const { sanitize } = defaultRehypePlugins as Record<string, any>
     const [sanitizeFn, schema] = sanitize

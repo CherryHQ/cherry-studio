@@ -4,7 +4,10 @@ sources:
   - src/shared/ipc/schemas/translate.ts
   - src/main/ipc/handlers/translate.ts
   - src/main/services/translate/translateService.ts
+  - src/shared/data/preference/preferenceSchemas.ts
   - src/renderer/utils/translate/translateText.ts
+  - src/renderer/pages/translate/TranslateSettings.tsx
+  - src/renderer/pages/translate/useTranslateReasoningEffort.ts
   - src/renderer/pages/home/messages/homeMessageListAdapter.tsx
 ---
 
@@ -43,7 +46,7 @@ The responsibilities deliberately split at the renderer/Main boundary:
 | Renderer caller | Decide what the translated text means and whether to persist it |
 | `translateText` | Generate a stream ID, subscribe before opening, accumulate chunks, and bridge abort |
 | `translate.open` handler | Validate the managed-window sender and delegate to the service |
-| `translateService` | Resolve the configured model and language, build the prompt, and open the prompt stream |
+| `translateService` | Resolve the configured model and language, build the prompt, gate the configured model parameters against that model, and open the prompt stream |
 | `AiStreamManager` | Run the prompt stream and deliver chunks through `WebContentsListener` |
 
 `translateService` is a direct-import singleton because it owns no long-lived
@@ -72,6 +75,14 @@ ipcApi.request('translate.open', {
 
 The route has no `messageId` or `sourceLangCode`. Main therefore has no message
 target and cannot persist chat data from this route.
+
+Model parameters do not cross the wire either. Temperature, top-p and reasoning
+effort live in Preference under `feature.translate.*`, so Main
+reads them itself — every caller of `translate.open` gets the same settings
+without having to pass them, and a renderer cannot ask for a value the user did
+not configure. (Layout-preserving PDF translation does not go through this
+route: `PdfTranslationService` drives BabelDoc via the API gateway and reads
+none of `feature.translate.*`.)
 
 ## Home message persistence
 
@@ -117,6 +128,7 @@ consumer and a lifecycle that the existing caller-owned flow cannot satisfy.
 - `src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx`
   covers keeping the translation active until its final write settles.
 - `src/main/services/translate/__tests__/translateService.test.ts` covers
-  model/prompt resolution, request validation, and stream dispatch.
+  model/prompt resolution, model-parameter gating, request validation, and
+  stream dispatch.
 - `src/main/ipc/handlers/__tests__/translate.test.ts` covers sender resolution
   and handler delegation.

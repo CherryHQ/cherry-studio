@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
@@ -6,6 +8,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -13,6 +16,7 @@ import type {
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
+import type { FileHandle } from '@shared/data/types/file'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -24,14 +28,25 @@ import type {
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
-import type { ReactNode } from 'react'
+
+import type { ActionAvailabilityInput } from '../actions/actionTypes'
 
 export type { MessageUiState } from '@renderer/types/message'
+
+export type SelectAllState = boolean | 'indeterminate'
+
+// Lives in `@renderer/types/message` so data hooks can import it without
+// reaching into the component layer; re-exported for component consumers.
+export type { MessageListSelectAllPagination } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean
   isMultiSelectMode: boolean
   selectedMessageIds?: readonly string[]
+  selectAllState?: SelectAllState
+  selectAllDisabled?: boolean
+  /** True while select-all is waiting for older message pages to finish loading. */
+  isSelectAllLoading?: boolean
 }
 
 export interface MessageListRuntime {
@@ -59,16 +74,30 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+  isActiveTurnProcessing: boolean
+  isStreamLive: boolean
 }
 
 export interface MessageActivityStore {
   getSnapshot: (message: MessageListItem) => MessageActivityState
-  subscribe: (messageId: string, listener: () => void) => () => void
+  subscribe: (message: MessageListItem, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
   displayName: string
   previewUrl?: FileUrlString
+}
+
+/**
+ * A message attachment the user can open or preview.
+ *
+ * Carries a `FileHandle` rather than a path: Main owns path resolution, so no
+ * renderer surface reconstructs one from the part's `file://` URL.
+ */
+export interface MessageAttachmentTarget {
+  handle: FileHandle
+  name: string
+  ext: string
 }
 
 export interface MessageMenuExportOptions {
@@ -127,12 +156,6 @@ export interface MessageErrorDiagnosisResult {
   steps: MessageErrorDiagnosisStep[]
 }
 
-export interface MessageErrorDiagnosisContext {
-  errorSource?: string
-  providerName?: string
-  modelId?: string
-}
-
 export interface MessageErrorDiagnosisInput {
   message: MessageListItem
   partId: string
@@ -165,8 +188,7 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-  diagnosisContext?: MessageErrorDiagnosisContext
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {
@@ -198,6 +220,7 @@ export interface MessageListItem {
   isActiveBranch?: boolean
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string
     name: string
@@ -226,6 +249,7 @@ export interface AnchorMessage {
 }
 
 export interface MessageRenderConfig {
+  subagentListTitle?: string
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle
@@ -314,7 +338,7 @@ export interface MessageListState {
   messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
-  getFileView?: (file: FileMetadata) => MessageFileView
+  getFileView?: (file: Pick<FileMetadata, 'origin_name' | 'ext' | 'created_at'>) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,
@@ -331,13 +355,14 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
-  saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
@@ -352,10 +377,13 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
-  openFile?: (file: FileMetadata) => void | Promise<void>
+  isDirectory?: (path: string) => Promise<boolean>
+  openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
+  openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
@@ -370,7 +398,7 @@ export interface MessageListActions {
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
   notifyError?: (message: string) => void
-  previewFile?: (file: FileMetadata) => void | Promise<void>
+  previewFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)
   respondToolApproval?: (input: MessageToolApprovalInput) => void | Promise<void>
@@ -387,12 +415,15 @@ export interface MessageListActions {
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
+  toggleSelectAllMessages?: (checked: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
+  canEditMessage?: (message: MessageListItem) => boolean
+  editLabel?: string
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (
@@ -403,6 +434,11 @@ export interface MessageListActions {
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
+  forkSession?: {
+    label: string
+    availability: (message: MessageListItem) => ActionAvailabilityInput
+    run: (messageId: string) => void | Promise<void>
+  }
   copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>

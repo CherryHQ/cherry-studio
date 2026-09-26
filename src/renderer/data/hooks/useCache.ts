@@ -1,3 +1,7 @@
+import { isPlainObject } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
+
 import type { CacheSetStateAction, ReadonlyValue } from '@data/CacheService'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
@@ -12,9 +16,6 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
-import { isPlainObject } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
 
 const logger = loggerService.withContext('useCache')
 
@@ -49,8 +50,8 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
   // Then, check template patterns
   const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
   for (const schemaKey of schemaKeys) {
-    if (isTemplateKey(schemaKey as string)) {
-      const regex = templateToRegex(schemaKey as string)
+    if (isTemplateKey(schemaKey)) {
+      const regex = templateToRegex(schemaKey)
       if (regex.test(key)) {
         return schemaKey
       }
@@ -159,6 +160,7 @@ export function useCache<K extends UseCacheKey>(
 ): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue!
 
   /**
    * Subscribe to cache changes using React's useSyncExternalStore
@@ -211,23 +213,24 @@ export function useCache<K extends UseCacheKey>(
    * Memoized setter function for updating the cache value.
    * Accepts a concrete value or a functional updater `(prev) => next`. The
    * updater is resolved against the latest stored value via the same default
-   * fallback chain as the hook return (`get ?? initValue ?? schema default`),
-   * so it stays correct across an `await`.
+   * fallback chain as the hook return, treating only undefined as absent,
+   * so it preserves explicit null values and stays correct across an `await`.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
     (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
       if (typeof newValue === 'function') {
-        const prev = (cacheService.get(key) ?? initValue ?? defaultValue) as ReadonlyValue<InferUseCacheValue<K>>
+        const storedValue = cacheService.get(key)
+        const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<InferUseCacheValue<K>>
         cacheService.set(key, newValue(prev))
       } else {
         cacheService.set(key, newValue)
       }
     },
-    [key, initValue, defaultValue]
+    [key, fallbackValue]
   )
 
-  return [value ?? initValue ?? defaultValue!, setValue]
+  return [value !== undefined ? value : fallbackValue, setValue]
 }
 
 /**

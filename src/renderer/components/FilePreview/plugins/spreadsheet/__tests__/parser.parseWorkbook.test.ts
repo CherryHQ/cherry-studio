@@ -384,7 +384,7 @@ describe('parseWorkbook — formulas: shared formula text is translated per cell
       ref: 'O6:O7',
       shareType: 'shared'
     }
-    ws.getCell('O6').value = cachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('O6').value = cachedSharedFormulaMaster
     ws.getCell('O7').value = { sharedFormula: 'O6', result: 5 } satisfies ExcelJS.CellSharedFormulaValue
 
     const uncachedSharedFormulaMaster: SharedFormulaMaster = {
@@ -392,7 +392,7 @@ describe('parseWorkbook — formulas: shared formula text is translated per cell
       ref: 'P6:P7',
       shareType: 'shared'
     }
-    ws.getCell('P6').value = uncachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('P6').value = uncachedSharedFormulaMaster
     ws.getCell('P7').value = { sharedFormula: 'P6' } satisfies ExcelJS.CellSharedFormulaValue
 
     const buffer = await toArrayBuffer(wb)
@@ -561,7 +561,7 @@ describe('parseWorkbook — floating images', () => {
     ws.addImage(imgId, {
       tl: { col: 1, row: 1 },
       ext: { width: 20, height: 10 }
-    } as unknown as ExcelJS.ImagePosition)
+    })
     // twoCellAnchor: tl + br
     ws.addImage(imgId, { tl: { col: 3, row: 3 }, br: { col: 5, row: 5 } } as unknown as ExcelJS.ImageRange)
 
@@ -614,7 +614,7 @@ describe('parseWorkbook — floating images', () => {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
-    ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } } as unknown as ExcelJS.ImagePosition)
+    ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } })
 
     const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
     const drawingPath = 'xl/drawings/drawing1.xml'

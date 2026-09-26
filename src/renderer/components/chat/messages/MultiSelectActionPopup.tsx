@@ -1,16 +1,23 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Save, X } from 'lucide-react'
+import type { FC, HTMLAttributes } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import { cn } from '@renderer/utils/style'
-import { Save, X } from 'lucide-react'
-import type { FC, HTMLAttributes } from 'react'
-import { useTranslation } from 'react-i18next'
+
+import type { SelectAllState } from './types'
 
 interface Props {
   selectedMessageIds: readonly string[]
   isMultiSelectMode: boolean
+  selectAllState?: SelectAllState
+  selectAllDisabled?: boolean
+  isSelectAllLoading?: boolean
+  onToggleSelectAll?: (checked: boolean) => void
   onSave?: () => void
   onCopy?: () => void
   onDelete?: () => void
@@ -21,6 +28,10 @@ interface Props {
 const MultiSelectActionPopup: FC<Props> = ({
   selectedMessageIds,
   isMultiSelectMode,
+  selectAllState,
+  selectAllDisabled,
+  isSelectAllLoading,
+  onToggleSelectAll,
   onSave,
   onCopy,
   onDelete,
@@ -37,7 +48,18 @@ const MultiSelectActionPopup: FC<Props> = ({
   return (
     <Container>
       <ActionBar>
-        <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
+        <div className="flex shrink-0 items-center gap-2 pl-2">
+          {onToggleSelectAll && (
+            <Checkbox
+              size="sm"
+              checked={selectAllState}
+              disabled={selectAllDisabled || isSelectAllLoading}
+              aria-label={t('common.select_all')}
+              onCheckedChange={(checked) => onToggleSelectAll(Boolean(checked))}
+            />
+          )}
+          <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
+        </div>
         <ActionButtons>
           {onSave && (
             <Tooltip content={t('common.save')}>
@@ -96,7 +118,7 @@ const ActionButtons: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props
 )
 
 const SelectionCount: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('shrink-0 pl-2 text-[14px] text-muted-foreground', className)} {...props} />
+  <div className={cn('shrink-0 text-[14px] text-muted-foreground', className)} {...props} />
 )
 
 export default MultiSelectActionPopup

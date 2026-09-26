@@ -14,14 +14,20 @@
  * - data-video parts with same filePath → video block row
  */
 
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { Check, ChevronDown } from 'lucide-react'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
+import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
+import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
+  isCitationSourcePart,
   type MessageCitations,
   resolveCitationMarkerParts,
   type ResolvedCitationMarkers,
@@ -35,36 +41,40 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { classifyTurn } from '@shared/ai/transport'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageListActions, useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListActiveTurnStatus,
+  useMessageListItemActivityState,
+  useMessagePriorCitationParts,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
-  SessionResultCards
+  SessionResultCards,
+  getSubagentTaskStatus
 } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
-import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
-import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -180,6 +190,8 @@ const AnimatedBlockWrapper: React.FC<{
 
 interface Props {
   message: MessageListItem
+  /** File attachments are rendered outside this subtree (see `getHoistedAttachments`). */
+  hoistAttachments?: boolean
 }
 
 // ============================================================================
@@ -196,6 +208,52 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   if (part.type !== 'file' || !('url' in part)) return undefined
   const filePart = part as { url?: string; mediaType?: string }
   return filePart.url || undefined
+}
+
+function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
+  const url = extractImageUrl(part)
+  return url ? { handle: fileHandleFromPart(part), url } : undefined
+}
+
+export interface HoistedFileAttachment {
+  key: string
+  handle: FileHandle
+  name: string
+  ext: string
+}
+
+function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAttachment | undefined {
+  const handle = fileHandleFromPart(part)
+  if (!handle) return undefined
+
+  const name = (part as { filename?: string }).filename ?? ''
+  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '' }
+}
+
+// Must agree with what the hoisting container actually renders, or a dropped entry
+// leaves no attachment at all.
+function isHoistableFilePart(part: CherryMessagePart): boolean {
+  if ((part.type as string) !== 'file') return false
+  return isImageFilePart(part) ? !!extractImageUrl(part) : !!fileHandleFromPart(part)
+}
+
+/** Attachments a hoisting container renders in place of the inline file blocks. */
+export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
+  const images: MessageImageSource[] = []
+  const files: HoistedFileAttachment[] = []
+
+  parts.forEach((part, index) => {
+    if ((part.type as string) !== 'file') return
+    if (isImageFilePart(part)) {
+      const source = toImageSource(part)
+      if (source) images.push(source)
+      return
+    }
+    const attachment = toFileAttachment(part, `${message.id}-part-${index}`)
+    if (attachment) files.push(attachment)
+  })
+
+  return { images, files }
 }
 
 /** Get video filePath from a data-video part. */
@@ -219,16 +277,17 @@ interface RenderGroupedEntryOptions {
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
-  onRemoveTranslation?: () => void
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
+const EMPTY_HIDDEN_COMPOSER_TOKENS: ReadonlySet<ComposerMessageToken> = new Set()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -274,6 +333,7 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
 }
 
 interface VisibleComposerFileToken {
+  token: ComposerMessageToken
   sourceId?: string
   names: Set<string>
 }
@@ -316,7 +376,7 @@ function getVisibleComposerFileTokens(
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
-      return [{ sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
+      return [{ token, sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
     })
   })
 }
@@ -370,12 +430,32 @@ function findUniqueVisibleFileTokenIndex(
   return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
-function getDisplayEntries(
+// A blank text part still counts as content while it carries a visible token chip. Once every
+// one of its tokens is hoisted away, rendering it leaves an empty line inside the bubble.
+function rendersOnlyHoistedTokens(entry: PartEntry, hiddenTokens: ReadonlySet<ComposerMessageToken>): boolean {
+  const { part } = entry
+  if (part.type !== 'text' || part.text?.trim()) return false
+
+  const composer = getCherryMeta(part)?.composer
+  if (!composer) return false
+  const tokens = getDisplayComposerTokens(composer)
+  return tokens.length > 0 && tokens.every((token) => hiddenTokens.has(token))
+}
+
+function getDisplayProjection(
   entries: readonly PartEntry[],
   message: MessageListItem,
-  visibleComposerFileTokens: readonly VisibleComposerFileToken[]
-): PartEntry[] {
-  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) return [...entries]
+  visibleComposerFileTokens: readonly VisibleComposerFileToken[],
+  hoistAttachments: boolean
+): { entries: PartEntry[]; hiddenImageTokens: ReadonlySet<ComposerMessageToken> } {
+  const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part)
+
+  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
+    return {
+      entries: entries.filter((entry) => !isHoistedEntry(entry)),
+      hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS
+    }
+  }
 
   const fileEntryNameCounts = new Map<string, number>()
   for (const entry of entries) {
@@ -386,34 +466,51 @@ function getDisplayEntries(
   }
 
   const usedTokenIndexes = new Set<number>()
-  return entries.filter((entry) => {
-    if ((entry.part.type as string) !== 'file') return true
+  const displayEntries: PartEntry[] = []
+  const hiddenImageTokens = new Set<ComposerMessageToken>()
+  for (const entry of entries) {
+    if ((entry.part.type as string) !== 'file') {
+      displayEntries.push(entry)
+      continue
+    }
 
     const sourceId = getFileEntrySourceId(entry)
-    const sourceMatchIndex = sourceId
+    let matchIndex = sourceId
       ? findUniqueVisibleFileTokenIndex(
           visibleComposerFileTokens,
           usedTokenIndexes,
           (token) => token.sourceId === sourceId
         )
       : undefined
-    if (sourceMatchIndex !== undefined) {
-      usedTokenIndexes.add(sourceMatchIndex)
-      return false
+
+    if (matchIndex === undefined) {
+      const name = getFileEntryName(entry)
+      matchIndex =
+        name && fileEntryNameCounts.get(name) === 1
+          ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) =>
+              token.names.has(name)
+            )
+          : undefined
     }
 
-    const name = getFileEntryName(entry)
-    const nameMatchIndex =
-      name && fileEntryNameCounts.get(name) === 1
-        ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) => token.names.has(name))
-        : undefined
-    if (nameMatchIndex !== undefined) {
-      usedTokenIndexes.add(nameMatchIndex)
-      return false
+    if (matchIndex === undefined) {
+      if (!isHoistedEntry(entry)) displayEntries.push(entry)
+      continue
     }
 
-    return true
-  })
+    usedTokenIndexes.add(matchIndex)
+    if (isHoistedEntry(entry)) {
+      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+    } else if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
+      displayEntries.push(entry)
+      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+    }
+  }
+
+  return {
+    entries: displayEntries.filter((entry) => !rendersOnlyHoistedTokens(entry, hiddenImageTokens)),
+    hiddenImageTokens
+  }
 }
 
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
@@ -459,20 +556,12 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
 /** Extract CherryProviderMetadata from a part. */
 function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
   if ('providerMetadata' in part && part.providerMetadata) {
-    return part.providerMetadata.cherry as CherryProviderMetadata | undefined
+    return part.providerMetadata.cherry
   }
   return undefined
 }
 
-/**
- * Memoized adapter from a `data-error` part to the normalized `SerializedError`
- * shape `ErrorBlock` consumes, plus the persisted AI diagnosis it rehydrates.
- * Takes the whole `part` — not pre-extracted props — so both the normalized
- * error and the parsed `cachedDiagnosis` derive their identity from the part,
- * not from whichever render of the parent triggered it. Keeping identity stable
- * lets `React.memo(ErrorBlock)` and the downstream `useMemo`s actually do their
- * job; passing a freshly-parsed object every render would break memoization.
- */
+// Keep normalized error identity stable across parent renders.
 const ErrorPartView = React.memo(function ErrorPartView({
   partId,
   part,
@@ -492,8 +581,35 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  const cachedDiagnosis = useMemo(() => readCherryMeta(part)?.diagnosis, [part])
-  return <ErrorBlock partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
+  return <ErrorBlock partId={partId} error={error} message={message} />
+})
+
+const TranslationPartView = React.memo(function TranslationPartView({
+  content,
+  id,
+  isStreaming,
+  messageId
+}: {
+  content: string
+  id: string
+  isStreaming: boolean
+  messageId: string
+}) {
+  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { t } = useTranslation()
+  const handleRemoveTranslation = React.useCallback(async () => {
+    await removeMessageTranslation?.(messageId)
+    notifySuccess?.(t('translate.closed'))
+  }, [messageId, notifySuccess, removeMessageTranslation, t])
+
+  return (
+    <TranslationBlock
+      id={id}
+      content={content}
+      isStreaming={isStreaming}
+      onDelete={removeMessageTranslation ? handleRemoveTranslation : undefined}
+    />
+  )
 })
 
 /**
@@ -551,15 +667,18 @@ function renderPart(
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
 
+    case 'data-agent-session-fork':
+      return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
+
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
-        <TranslationBlock
+        <TranslationPartView
           key={partId}
           id={partId}
           content={translationData.content}
           isStreaming={isStreaming}
-          onDelete={options?.onRemoveTranslation}
+          messageId={message.id}
         />
       )
     }
@@ -589,6 +708,7 @@ function renderPart(
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
+          hiddenComposerTokens={options?.hiddenComposerTokens}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
@@ -653,28 +773,22 @@ function renderPart(
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
       if (filePart.mediaType?.startsWith('image/')) {
-        const url = filePart.url
-        if (!url) return null
-        return <ImageBlock key={partId} images={[url]} isSingle={true} />
+        const source = toImageSource(part)
+        if (!source) return null
+        return <MessageImageBlock key={partId} sources={[source]} isSingle={true} thumbnail={message.role === 'user'} />
       }
-      if (!filePart.url) {
-        logger.warn('File part has no url, skipping', { filename: filePart.filename })
+      const attachment = toFileAttachment(part, partId)
+      if (!attachment) {
+        logger.warn('File part addresses no file, skipping', { filename: filePart.filename })
         return null
       }
       return (
         <MessageAttachments
           key={partId}
-          file={{
-            id: partId,
-            name: filePart.filename || '',
-            origin_name: filePart.filename || '',
-            path: filePart.url.replace('file://', ''),
-            size: 0,
-            ext: '',
-            type: FILE_TYPE.OTHER,
-            created_at: message.createdAt,
-            count: 0
-          }}
+          handle={attachment.handle}
+          name={attachment.name}
+          ext={attachment.ext}
+          createdAt={message.createdAt}
         />
       )
     }
@@ -825,19 +939,20 @@ function renderGroupedEntry(
     const firstPart = entry[0].part
 
     if (isImageFilePart(firstPart)) {
-      const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
+      const images = entry.map((e) => toImageSource(e.part)).filter((s) => s !== undefined)
       if (images.length === 0) return null
 
+      const thumbnail = message.role === 'user'
       if (images.length === 1) {
         return (
           <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-            <ImageBlock images={images} isSingle={true} />
+            <MessageImageBlock sources={images} isSingle={true} thumbnail={thumbnail} />
           </AnimatedBlockWrapper>
         )
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <ImageBlock images={images} isSingle={false} />
+          <MessageImageBlock sources={images} isSingle={false} thumbnail={thumbnail} />
         </AnimatedBlockWrapper>
       )
     }
@@ -1342,28 +1457,26 @@ interface MessagePartsRendererContentProps extends Props {
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
   messageParts: CherryMessagePart[]
+  priorCitationParts: readonly CherryMessagePart[]
+}
+
+const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
+  const activeTurnStatus = useMessageListActiveTurnStatus()
+  return activeTurnStatus ? activeTurnStatus(fallback) : fallback
 }
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
+  hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
   message,
-  messageParts
+  messageParts,
+  priorCitationParts
 }: MessagePartsRendererContentProps) {
-  // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
-  // renders it; the node itself renders nothing when there is no such state.
-  const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { subagentListTitle } = useMessageRenderConfig()
+  const { openAgentToolFlow, isAgentToolFlowActive } = useMessageListActions()
   const { t } = useTranslation()
-  const canRemoveTranslation = !!removeMessageTranslation
-  const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
-  removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
-  const handleRemoveTranslation = React.useCallback(async () => {
-    const { removeMessageTranslation, notifySuccess, t } = removeTranslationRef.current
-    await removeMessageTranslation?.(message.id)
-    notifySuccess?.(t('translate.closed'))
-  }, [message.id])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1423,9 +1536,51 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
   )
+  const displayProjection = useMemo(
+    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
+    [hoistAttachments, message, partEntries, visibleComposerFileTokens]
+  )
+  const subagentEntries = useMemo(
+    () =>
+      openAgentToolFlow
+        ? displayProjection.entries.filter((entry) => {
+            if (!isToolUIPart(entry.part)) return false
+            const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
+              .name
+            return name === AgentToolsType.Agent || name === AgentToolsType.Task
+          })
+        : [],
+    [displayProjection.entries, message.id, openAgentToolFlow]
+  )
+  const subagentStatuses = subagentEntries.map(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response
+      ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
+      : undefined
+  })
+  const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
+  const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
+  const stoppedSubagents = subagentStatuses.filter((status) => status === 'cancelled').length
+  const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
+  const viewingSubagent = subagentEntries.some(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
+  })
+  const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
+    'subtasks',
+    isActiveTurnProcessing || !allSubagentsCompleted || viewingSubagent,
+    message.id
+  )
+  React.useEffect(() => {
+    if (viewingSubagent) setSubagentsExpanded(true)
+  }, [viewingSubagent, setSubagentsExpanded])
+  const subagentContentId = React.useId()
   const displayEntries = useMemo(
-    () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
-    [message, partEntries, visibleComposerFileTokens]
+    () =>
+      subagentEntries.length
+        ? displayProjection.entries.filter((entry) => !subagentEntries.includes(entry))
+        : displayProjection.entries,
+    [displayProjection.entries, subagentEntries]
   )
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
@@ -1434,7 +1589,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
-  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
+  // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
+  // when a source part changes, not on every text delta.
+  const nextCitationSourceParts = useMemo(() => messageParts.filter(isCitationSourcePart), [messageParts])
+  const citationSourceParts = useStableItemArray(nextCitationSourceParts)
+  const messageCitations = useMemo(
+    () => resolveMessageCitations(citationSourceParts, message.role === 'assistant' ? priorCitationParts : undefined),
+    [citationSourceParts, message.role, priorCitationParts]
+  )
   const citationProjectionByPart = useMemo(() => {
     if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
     const textParts = messageParts.filter((part) => {
@@ -1454,19 +1616,18 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
+      hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
-      onTextPartExpandedChange: handleTextPartExpandedChange,
-      onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
+      onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
-      canRemoveTranslation,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
-      handleRemoveTranslation,
       messageCitations,
-      readOnlyFilePreviews
+      readOnlyFilePreviews,
+      displayProjection.hiddenImageTokens
     ]
   )
   const canRenderReportArtifacts =
@@ -1477,7 +1638,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Report-artifact entries don't count as renderable here: the live layout filters
   // them out and the card itself is gated on canRenderReportArtifacts, so a message
   // whose only content is report_artifacts must keep its placeholder until the card can show.
-  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
+  if (
+    partEntries.length === 0 ||
+    (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts && subagentEntries.length === 0)
+  ) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
@@ -1487,7 +1651,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
       // back to it otherwise.
       return (
-        <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
+        <AnimatePresence mode="sync">
+          <ActiveTurnStatusView fallback={placeholder} />
+        </AnimatePresence>
       )
     }
     if (message.role === 'assistant' && message.status === 'paused') {
@@ -1507,7 +1673,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {isActiveTurnProcessing && activeTurnStatus?.(null)}
+      {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
       {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards targets={sessionTargets} />
@@ -1518,28 +1684,83 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
         </AnimatedBlockWrapper>
       )}
+      {subagentEntries.length > 0 && (
+        <AnimatedBlockWrapper
+          key={`subagents-${message.id}`}
+          enableAnimation={false}
+          animation="fade"
+          className="mt-1!">
+          <div className="-mx-2 mb-3">
+            <Button
+              variant="ghost"
+              aria-expanded={showSubagents}
+              aria-controls={subagentContentId}
+              onClick={() => setSubagentsExpanded(!showSubagents)}
+              className="h-8 max-w-full justify-start gap-2 px-2 text-xs font-normal text-muted-foreground">
+              <ChevronDown
+                className={showSubagents ? 'size-3.5 shrink-0' : 'size-3.5 shrink-0 -rotate-90'}
+                aria-hidden="true"
+              />
+              <span className="flex min-w-0 items-center gap-2">
+                <span>{subagentListTitle ?? t('agent.right_pane.flow.subtasks')}</span>
+                <span>
+                  {allSubagentsCompleted ? (
+                    <>· {t('agent.right_pane.status.tasks_completed', { count: completedSubagents })}</>
+                  ) : (
+                    t('agent.right_pane.status.task_count', {
+                      completed: completedSubagents,
+                      total: subagentEntries.length
+                    })
+                  )}
+                  {failedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {failedSubagents} {t('message.tools.status.failed')}
+                    </>
+                  )}
+                  {stoppedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {stoppedSubagents} {t('message.tools.cancelled')}
+                    </>
+                  )}
+                </span>
+              </span>
+              {allSubagentsCompleted && (
+                <span className="shrink-0 text-success">
+                  <Check className="size-3.5" aria-hidden="true" />
+                </span>
+              )}
+            </Button>
+            {showSubagents && (
+              <div id={subagentContentId} className="mt-1 flex flex-col gap-1">
+                {subagentEntries.map(({ part, index }) =>
+                  renderToolPart(part, `${message.id}-part-${index}`, !isActiveTurnProcessing)
+                )}
+              </div>
+            )}
+          </div>
+        </AnimatedBlockWrapper>
+      )}
     </AnimatePresence>
   )
 })
 
-const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
+const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
   const messageParts = useMessageParts(message.id)
-  const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
-  const topicTurnState = classifyTurn(topicStreamStatus)
-  const isProcessing = useIsActiveTurnTarget(message)
-  const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
-  const isStreamLive =
-    isActiveTurnProcessing &&
-    (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
+  const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
+      hoistAttachments={hoistAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}
       message={message}
       messageParts={messageParts}
+      priorCitationParts={priorCitationParts}
     />
   )
 }

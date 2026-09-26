@@ -1,0 +1,5 @@
+export { EmbeddingInferenceService } from './capabilities/embedding/EmbeddingInferenceService'
+export { LOCAL_EMBEDDING_MAX_INPUT_TOKENS, LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS } from './capabilities/embedding/limits'
+export { OcrInferenceService } from './capabilities/ocr/OcrInferenceService'
+export type { OcrLine, OcrRecognizeSource } from './capabilities/ocr/protocol'
+export { LocalModelService } from './LocalModelService'

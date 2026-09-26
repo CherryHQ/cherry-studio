@@ -124,6 +124,7 @@ vi.mock('electron', () => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
         const created = {
+          fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),
@@ -197,23 +198,27 @@ vi.mock('winston', () => ({
 
 // Mock winston-daily-rotate-file
 vi.mock('winston-daily-rotate-file', () => {
-  return vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    log: vi.fn()
-  }))
+  return vi.fn().mockImplementation(function DailyRotateFileMock() {
+    return {
+      on: vi.fn(),
+      log: vi.fn()
+    }
+  })
 })
 
 // Mock electron-store to avoid file system operations
 vi.mock('electron-store', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-      set: vi.fn(),
-      delete: vi.fn(),
-      clear: vi.fn(),
-      has: vi.fn(() => false),
-      store: {}
-    }))
+    default: vi.fn().mockImplementation(function ElectronStoreMock() {
+      return {
+        get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+        set: vi.fn(),
+        delete: vi.fn(),
+        clear: vi.fn(),
+        has: vi.fn(() => false),
+        store: {}
+      }
+    })
   }
 })
 

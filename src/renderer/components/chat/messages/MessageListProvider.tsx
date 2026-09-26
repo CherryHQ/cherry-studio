@@ -1,5 +1,14 @@
 import type { Context, ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import {
+  buildCitationPartsRegistry,
+  type CitationPartsRegistry,
+  EMPTY_CITATION_PARTS_REGISTRY,
+  getPriorCitationParts
+} from '@renderer/utils/message/citations'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import type {
@@ -89,9 +98,27 @@ const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
 const MessageListActivityContext = createContext<MessageListActivityValue | null>(null)
 const MessageListEditingContext = createContext<string | null>(null)
+const MessageListCitationRegistryContext = createContext<CitationPartsRegistry | null>(null)
+
+/**
+ * Cross-turn citation registry. Keyed on the stable id order and the history
+ * parts layer (never the streaming overlay), so a streaming chunk does not
+ * rebuild it; `previous` keeps the identity when nothing citable changed.
+ */
+function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistry {
+  const messageIds = useStableStringArray(useMemo(() => state.messages.map((message) => message.id), [state.messages]))
+  const partsSource = state.streamingLayers?.historyPartsByMessageId ?? state.partsByMessageId
+  const previousRef = useRef(EMPTY_CITATION_PARTS_REGISTRY)
+  return useMemo(() => {
+    const next = buildCitationPartsRegistry(messageIds, partsSource, previousRef.current)
+    previousRef.current = next
+    return next
+  }, [messageIds, partsSource])
+}
 
 export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
   const { state, actions, meta } = value
+  const citationRegistry = useCitationPartsRegistry(state)
 
   const data = useMemo<MessageListDataValue>(
     () => ({
@@ -168,23 +195,25 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
         <PartsProvider value={state.partsByMessageId}>
-          <MessageListActionsContext value={actions}>
-            <MessageListMetaContext value={meta}>
-              <MessageListRenderConfigContext value={state.renderConfig}>
-                <MessageListSelectionContext value={state.selection}>
-                  <MessageListUiStaticContext value={uiStatic}>
-                    <MessageListUiSelectorsContext value={uiSelectors}>
-                      <MessageListActivityContext value={activity}>
-                        <MessageListEditingContext value={state.editingMessageId ?? null}>
-                          {children}
-                        </MessageListEditingContext>
-                      </MessageListActivityContext>
-                    </MessageListUiSelectorsContext>
-                  </MessageListUiStaticContext>
-                </MessageListSelectionContext>
-              </MessageListRenderConfigContext>
-            </MessageListMetaContext>
-          </MessageListActionsContext>
+          <MessageListCitationRegistryContext value={citationRegistry}>
+            <MessageListActionsContext value={actions}>
+              <MessageListMetaContext value={meta}>
+                <MessageListRenderConfigContext value={state.renderConfig}>
+                  <MessageListSelectionContext value={state.selection}>
+                    <MessageListUiStaticContext value={uiStatic}>
+                      <MessageListUiSelectorsContext value={uiSelectors}>
+                        <MessageListActivityContext value={activity}>
+                          <MessageListEditingContext value={state.editingMessageId ?? null}>
+                            {children}
+                          </MessageListEditingContext>
+                        </MessageListActivityContext>
+                      </MessageListUiSelectorsContext>
+                    </MessageListUiStaticContext>
+                  </MessageListSelectionContext>
+                </MessageListRenderConfigContext>
+              </MessageListMetaContext>
+            </MessageListActionsContext>
+          </MessageListCitationRegistryContext>
         </PartsProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
@@ -236,15 +265,17 @@ export const useMessageListUiSelectors = (): MessageListUiSelectorsValue => {
 const INACTIVE_MESSAGE_ACTIVITY_STATE = Object.freeze({
   isProcessing: false,
   isStreamTarget: false,
-  isApprovalAnchor: false
+  isApprovalAnchor: false,
+  isActiveTurnProcessing: false,
+  isStreamLive: false
 })
 
 export const useMessageListItemActivityState = (message: MessageListItem) => {
   const activity = useRequiredContext(MessageListActivityContext, 'useMessageListItemActivityState')
   const store = activity.messageActivityStore
   const subscribe = useCallback(
-    (listener: () => void) => store?.subscribe(message.id, listener) ?? (() => {}),
-    [message.id, store]
+    (listener: () => void) => store?.subscribe(message, listener) ?? (() => {}),
+    [message, store]
   )
   const getSnapshot = useCallback(
     () => store?.getSnapshot(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE,
@@ -261,7 +292,7 @@ export const useAnyMessageListItemProcessing = (messages: readonly MessageListIt
   const subscribe = useCallback(
     (listener: () => void) => {
       if (!store) return () => {}
-      const unsubscribes = messages.map((message) => store.subscribe(message.id, listener))
+      const unsubscribes = messages.map((message) => store.subscribe(message, listener))
       return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
     },
     [messages, store]
@@ -326,6 +357,12 @@ export const useMessageListSelection = (): MessageListSelectionState | undefined
 /** Id of the message currently being edited (null when none). Non-throwing: "not editing"
  * is a valid state, so embeds that never set it simply get null. */
 export const useMessageListEditingId = (): string | null => use(MessageListEditingContext)
+
+/** Citable tool parts of every message before `messageId` in list order; empty outside a provider. */
+export const useMessagePriorCitationParts = (messageId: string): readonly CherryMessagePart[] => {
+  const registry = use(MessageListCitationRegistryContext) ?? EMPTY_CITATION_PARTS_REGISTRY
+  return useMemo(() => getPriorCitationParts(registry, messageId), [registry, messageId])
+}
 
 /**
  * Back-compat hook: merged static + selectors UI value. Required variant

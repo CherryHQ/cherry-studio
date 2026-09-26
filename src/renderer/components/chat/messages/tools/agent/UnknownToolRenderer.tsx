@@ -49,7 +49,7 @@ function extractMcpContent(
  * Fallback renderer for unknown tool types
  * Uses shared ArgsTable for consistent styling with MCP tools
  */
-export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToolProps): ToolDisclosureItem {
+export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const isMcpTool = toolName.startsWith('mcp__')
   const displayName = getToolDisplayName(toolName)
@@ -105,7 +105,7 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
           />
         ))}
         {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && (
-          <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
+          <div className="text-foreground-500 p-3 text-xs">{t('message.tools.noData')}</div>
         )}
       </div>
     )

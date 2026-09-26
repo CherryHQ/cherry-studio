@@ -1,3 +1,6 @@
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -11,10 +14,10 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/modelSync'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
+import { serializeHealthCheckError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
@@ -163,12 +166,19 @@ export function useProviderModelPullReconcile(providerId: string) {
       setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
 
       if (!hasLoadedAllModels) {
+        // A bare "failed to pull models" hides the one failure the user can actually act on
+        // — a TLS/proxy interception (`error.diagnosis.proxy`) or an unreachable network —
+        // so show the classified diagnosis instead when there is one.
+        const classification = classifyError(serializeHealthCheckError(loadError), providerId)
         logger.error('Failed to load provider models for manage drawer', {
           providerId,
           catalogFailed: catalogResult.status === 'rejected',
-          upstreamFailed: fetchedResult.status === 'rejected'
+          upstreamFailed: fetchedResult.status === 'rejected',
+          category: classification.category
         })
-        setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
+        setLoadErrorMessage(
+          t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
+        )
       }
 
       return {

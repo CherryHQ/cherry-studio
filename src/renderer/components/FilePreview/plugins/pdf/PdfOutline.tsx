@@ -1,6 +1,7 @@
-import { Button, Scrollbar } from '@cherrystudio/ui'
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Scrollbar } from '@cherrystudio/ui'
 
 export type PdfDestination = string | unknown[]
 
