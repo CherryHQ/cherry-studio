@@ -47,7 +47,7 @@ import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { MB } from '@shared/utils/constants'
+import { MAX_TRANSLATE_IMAGE_BYTES, MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
@@ -55,10 +55,11 @@ import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import {
   ingestTranslateClipboardImage,
   shouldPreferTranslateClipboardImage,
-  TRANSLATE_CLIPBOARD_IMAGE_EXTS
+  TRANSLATE_CLIPBOARD_IMAGE_EXTS,
+  type TranslateClipboardImage
 } from './clipboardImagePaste'
 import TranslateHistoryList from './components/TranslateHistory'
-import TranslateInputPane, { type TranslateClipboardImage } from './components/TranslateInputPane'
+import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
 import TranslateOutputPane from './components/TranslateOutputPane'
 import type {
@@ -263,10 +264,28 @@ const TranslatePage: FC = () => {
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
   const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
+  const mountedRef = useRef(true)
+  const clipboardImageRef = useRef<TranslateClipboardImage | null>(null)
+  const updateClipboardImage = useCallback((next: TranslateClipboardImage | null) => {
+    const previous = clipboardImageRef.current
+    clipboardImageRef.current = next
+    setClipboardImage(next)
+    if (previous && previous.previewUrl !== next?.previewUrl) URL.revokeObjectURL(previous.previewUrl)
+  }, [])
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
   const isTranslationRunning = isTranslating || pdfStatus.running
   const babelDoc = useBabelDoc(isPdfMode)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      const current = clipboardImageRef.current
+      clipboardImageRef.current = null
+      if (current) URL.revokeObjectURL(current.previewUrl)
+    }
+  }, [])
 
   const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -383,7 +402,7 @@ const TranslatePage: FC = () => {
       const translated = await runTranslate(
         rawText,
         actualTargetLanguage,
-        image?.path ? { imagePath: image.path } : undefined
+        image ? { image: { data: image.data, filename: image.name } } : undefined
       )
       if (!translated) {
         return
@@ -626,7 +645,7 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
-        setClipboardImage(null)
+        updateClipboardImage(null)
         textRequestIdRef.current += 1
         if (isTranslating) cancel()
         smoothReset('')
@@ -634,7 +653,7 @@ const TranslatePage: FC = () => {
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
-        setClipboardImage(null)
+        updateClipboardImage(null)
         textRequestIdRef.current += 1
         if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
@@ -657,7 +676,8 @@ const TranslatePage: FC = () => {
       setTranslateInput,
       smoothReset,
       t,
-      targetLanguage
+      targetLanguage,
+      updateClipboardImage
     ]
   )
 
@@ -691,17 +711,18 @@ const TranslatePage: FC = () => {
   )
 
   const attachClipboardImage = useCallback(
-    (file: FileMetadata) => {
+    (image: TranslateClipboardImage) => {
+      if (!mountedRef.current) {
+        URL.revokeObjectURL(image.previewUrl)
+        return
+      }
       resetPdfMode()
-      setClipboardImage({
-        path: AbsoluteFilePathSchema.parse(file.path),
-        name: file.origin_name || file.name
-      })
+      updateClipboardImage(image)
     },
-    [resetPdfMode]
+    [resetPdfMode, updateClipboardImage]
   )
 
-  const clearClipboardImage = useCallback(() => setClipboardImage(null), [])
+  const clearClipboardImage = useCallback(() => updateClipboardImage(null), [updateClipboardImage])
 
   const replaceClipboardImage = useCallback(async () => {
     if (selecting || isTranslationRunning || isOcrRunning) return
@@ -709,7 +730,20 @@ const TranslatePage: FC = () => {
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
       if (file && isImageFileMetadata(file)) {
-        attachClipboardImage(file)
+        if (file.size <= 0 || file.size > MAX_TRANSLATE_IMAGE_BYTES) {
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${MAX_TRANSLATE_IMAGE_BYTES / MB} MB)`)
+          return
+        }
+        const data = new Uint8Array(await window.api.fs.read(file.path))
+        if (data.byteLength <= 0 || data.byteLength > MAX_TRANSLATE_IMAGE_BYTES) {
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${MAX_TRANSLATE_IMAGE_BYTES / MB} MB)`)
+          return
+        }
+        attachClipboardImage({
+          name: file.origin_name || file.name,
+          data,
+          previewUrl: URL.createObjectURL(new Blob([data]))
+        })
       } else if (file) {
         toast.info(t('common.file.not_supported', { type: getFileExtension(file.path) }))
       }
@@ -801,7 +835,7 @@ const TranslatePage: FC = () => {
           toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
           return
         }
-        setClipboardImage(null)
+        updateClipboardImage(null)
         pdfTextRequestIdRef.current += 1
         pdfTextCacheRef.current = null
         pdfTextFallbackStartedRef.current = false
@@ -814,14 +848,14 @@ const TranslatePage: FC = () => {
       }
 
       resetPdfMode()
-      setClipboardImage(null)
+      updateClipboardImage(null)
       if (isImageFileMetadata(file)) {
         await startOcr(file)
       } else {
         await readFile(file)
       }
     },
-    [readFile, resetPdfMode, startOcr, t, translateOutput]
+    [readFile, resetPdfMode, startOcr, t, translateOutput, updateClipboardImage]
   )
 
   const handleSelectFile = useCallback(async () => {
@@ -916,16 +950,12 @@ const TranslatePage: FC = () => {
         if (!file) return
 
         if (preferClipboardImage || file.type.startsWith('image/')) {
-          const selectedFile = await ingestTranslateClipboardImage(file)
-          if (!selectedFile) {
+          const ingestedImage = await ingestTranslateClipboardImage(file)
+          if (!ingestedImage) {
             toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
             return
           }
-          if (!isImageFileMetadata(selectedFile)) {
-            toast.info(t('common.file.not_supported', { type: getFileExtension(selectedFile.path) }))
-            return
-          }
-          attachClipboardImage(selectedFile)
+          attachClipboardImage(ingestedImage)
           return
         }
 

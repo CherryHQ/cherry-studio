@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MAX_TRANSLATE_IMAGE_BYTES } from '@shared/utils/constants'
 
 import {
   ingestTranslateClipboardImage,
@@ -6,22 +8,11 @@ import {
   TRANSLATE_CLIPBOARD_IMAGE_EXTS
 } from '../clipboardImagePaste'
 
-const fileApi = vi.hoisted(() => ({
-  getPathForFile: vi.fn(),
-  createTempFile: vi.fn(),
-  write: vi.fn(),
-  get: vi.fn()
-}))
+const createObjectURLMock = vi.fn(() => 'blob:translate-preview')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  ;(window as any).api = {
-    file: fileApi
-  }
-})
-
-afterEach(() => {
-  delete (window as any).api
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURLMock })
 })
 
 describe('shouldPreferTranslateClipboardImage', () => {
@@ -42,43 +33,46 @@ describe('shouldPreferTranslateClipboardImage', () => {
 })
 
 describe('ingestTranslateClipboardImage', () => {
-  it('returns metadata for a path-backed clipboard file', async () => {
-    fileApi.getPathForFile.mockReturnValue('/tmp/shot.png')
-    fileApi.get.mockResolvedValue({ path: '/tmp/shot.png', type: 'image', name: 'shot.png' })
-
-    const file = { name: 'shot.png', type: 'image/png' } as File
-    await expect(ingestTranslateClipboardImage(file)).resolves.toEqual({
-      path: '/tmp/shot.png',
-      type: 'image',
-      name: 'shot.png'
-    })
-    expect(fileApi.createTempFile).not.toHaveBeenCalled()
-  })
-
-  it('writes pathless image bytes to a temp file before resolving metadata', async () => {
-    fileApi.getPathForFile.mockReturnValue('')
-    fileApi.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileApi.get.mockResolvedValue({ path: '/tmp/pasted.png', type: 'image', name: 'pasted.png' })
-
-    const file = {
-      name: 'pasted.png',
+  const imageFile = (size: number, bytes = new Uint8Array(size), overrides?: Partial<File>) =>
+    ({
+      name: 'shot.png',
       type: 'image/png',
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(4))
-    } as File
+      size,
+      arrayBuffer: () => Promise.resolve(bytes.buffer),
+      ...overrides
+    }) as File
+
+  it('captures bytes and creates an object URL without filesystem IPC', async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4])
+    const file = imageFile(bytes.byteLength, bytes)
 
     await expect(ingestTranslateClipboardImage(file)).resolves.toEqual({
-      path: '/tmp/pasted.png',
-      type: 'image',
-      name: 'pasted.png'
+      name: 'shot.png',
+      data: bytes,
+      previewUrl: 'blob:translate-preview'
     })
-    expect(fileApi.createTempFile).toHaveBeenCalledWith('pasted.png')
-    expect(fileApi.write).toHaveBeenCalled()
+    expect(createObjectURLMock).toHaveBeenCalledWith(file)
   })
 
-  it('rejects pathless non-image clipboard files', async () => {
-    fileApi.getPathForFile.mockReturnValue('')
-    const file = { name: 'notes.txt', type: 'text/plain' } as File
+  it('rejects non-image clipboard files before creating a preview', async () => {
+    const file = imageFile(4, new Uint8Array(4), { name: 'notes.txt', type: 'text/plain' })
     await expect(ingestTranslateClipboardImage(file)).resolves.toBeNull()
-    expect(fileApi.createTempFile).not.toHaveBeenCalled()
+    expect(createObjectURLMock).not.toHaveBeenCalled()
+  })
+
+  it.each([0, MAX_TRANSLATE_IMAGE_BYTES + 1])('rejects image size %s before reading bytes', async (size) => {
+    const arrayBuffer = vi.fn(() => Promise.resolve(new ArrayBuffer(size)))
+
+    await expect(ingestTranslateClipboardImage(imageFile(size, new Uint8Array(0), { arrayBuffer }))).resolves.toBeNull()
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it('accepts an image at the exact size limit', async () => {
+    const file = imageFile(MAX_TRANSLATE_IMAGE_BYTES)
+
+    await expect(ingestTranslateClipboardImage(file)).resolves.toMatchObject({
+      data: { byteLength: MAX_TRANSLATE_IMAGE_BYTES }
+    })
+    expect(createObjectURLMock).toHaveBeenCalledWith(file)
   })
 })

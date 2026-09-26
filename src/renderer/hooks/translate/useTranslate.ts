@@ -30,7 +30,6 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { AbsoluteFilePath } from '@shared/types/file'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
@@ -64,8 +63,8 @@ export interface UseTranslateOptions {
 }
 
 export type TranslateCallOptions = {
-  /** Optional clipboard/screenshot image path sent with the translate prompt. */
-  imagePath?: AbsoluteFilePath
+  /** Clipboard/screenshot bytes captured during the user's paste/select action. */
+  image?: { data: Uint8Array; filename: string }
 }
 
 export interface UseTranslateResult {
@@ -146,8 +145,8 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       }
 
       try {
-        const result = callOptions?.imagePath
-          ? await translateText(text, targetLanguage, guardedOnResponse, controller.signal, callOptions.imagePath)
+        const result = callOptions?.image
+          ? await translateText(text, targetLanguage, guardedOnResponse, controller.signal, callOptions.image)
           : await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the

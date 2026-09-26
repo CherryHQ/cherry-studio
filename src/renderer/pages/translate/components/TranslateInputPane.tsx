@@ -11,15 +11,9 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
 
+import type { TranslateClipboardImage } from '../clipboardImagePaste'
 import IconButton from './IconButton'
-
-export type TranslateClipboardImage = {
-  path: AbsoluteFilePath
-  name: string
-}
 
 type Props = {
   ref?: Ref<HTMLDivElement>
@@ -84,7 +78,7 @@ const TranslateInputPane = ({
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
   const showUploadArea = !text && !clipboardImage
-  const previewUrl = clipboardImage ? toFileUrl(clipboardImage.path) : null
+  const previewUrl = clipboardImage?.previewUrl ?? null
 
   return (
     <div
