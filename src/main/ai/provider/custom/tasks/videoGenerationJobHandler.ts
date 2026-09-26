@@ -35,7 +35,7 @@ export const videoGenerationJobHandler: JobHandler<VideoGenerationJobInput> = {
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Video generation job: model '${modelId}' not found`)
 
-    const { value: apiKey } = providerService.resolveApiKey(providerId)
+    const { value: apiKey } = providerService.resolveApiKey(providerId, undefined, input.uniqueModelId)
 
     const transport = resolveVideoTransport(providerId, apiKey)
     if (!transport) {
