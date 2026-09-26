@@ -16,7 +16,7 @@ function makeOptions(experimental_context: unknown): ToolExecutionOptions {
     toolCallId: 'call-1',
     messages: [],
     experimental_context
-  } as ToolExecutionOptions
+  }
 }
 
 describe('getToolCallContext', () => {

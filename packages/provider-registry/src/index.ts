@@ -70,6 +70,7 @@ export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
+  ProviderEdition,
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
@@ -81,6 +82,7 @@ export type {
 } from './schemas/provider'
 export {
   FastModeTransportSchema,
+  ProviderEditionSchema,
   REASONING_FORMAT_TYPES,
   ServerToolConfigSchema,
   ServiceTierDeliverySchema,

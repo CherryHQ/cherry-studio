@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 
 import HtmlArtifactsCard from '../HtmlArtifactsCard'
 

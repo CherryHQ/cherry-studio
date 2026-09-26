@@ -25,6 +25,7 @@ export interface ImageGenerationJobPayload {
   prompt?: string
   n: number
   size?: string
+  aspectRatio?: string
   seed?: number
   inputFileIds?: string[]
   maskFileId?: string

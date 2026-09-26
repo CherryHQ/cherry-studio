@@ -1,4 +1,42 @@
 import {
+  Activity,
+  ArrowLeft,
+  Bot,
+  CheckCircle,
+  Circle,
+  CircleStop,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  Package,
+  Terminal,
+  Waypoints,
+  Workflow
+} from 'lucide-react'
+import { Globe } from 'lucide-react'
+import type { ReactNode } from 'react'
+import {
+  createContext,
+  lazy,
+  memo,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
   Button,
   CircularProgress,
   ConfirmDialog,
@@ -11,6 +49,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -41,20 +80,28 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import Scrollbar from '@renderer/components/Scrollbar'
+import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import type { SelectionReference } from '@renderer/types/selectionReference'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -62,50 +109,29 @@ import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
-import {
-  Activity,
-  ArrowLeft,
-  Bot,
-  CheckCircle,
-  Circle,
-  CircleStop,
-  FileText,
-  FolderOpen,
-  GitBranch,
-  Loader2,
-  Package,
-  Terminal,
-  Waypoints,
-  Workflow
-} from 'lucide-react'
-import type { ReactNode } from 'react'
-import {
-  createContext,
-  lazy,
-  memo,
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
+import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
+import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
+import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
+import { AgentBrowserView } from './AgentBrowserView'
 import {
   type AgentArtifactFile,
+  type AgentPreviewUrlCandidate,
+  type AgentPreviewUrlFrontier,
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentRunTask,
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection
+  buildAgentToolFlowProjection,
+  findAgentPreviewUrlCandidates,
+  getAgentPreviewUrlFrontier,
+  isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
+import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 
 const logger = loggerService.withContext('AgentRightPane')
 
@@ -114,6 +140,14 @@ const logger = loggerService.withContext('AgentRightPane')
 const FLOW_TAB_PREFIX = 'flow:'
 const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+/** HTML artifacts open in the browser pane instead of the file preview. */
+function toBrowsableHtmlUrl(filePath: string): string | null {
+  const extension = getFilePreviewExtension(filePath)
+  if (extension !== 'html' && extension !== 'htm') return null
+  const absolutePath = AbsoluteFilePathSchema.safeParse(filePath)
+  return absolutePath.success ? toSafeFileUrl(absolutePath.data, extension) : null
+}
 
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
@@ -184,6 +218,23 @@ interface AgentRightPaneMeta {
 interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  browserUrl: string | null
+  browserProfile:
+    | typeof WebviewSecurityProfile.AgentBrowser
+    | typeof WebviewSecurityProfile.AgentDevPreview
+    | typeof WebviewSecurityProfile.AgentHtmlArtifact
+  openBrowserUrl: (url: string) => void
+  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlCandidate | null) => void
+}
+
+interface ExplicitBrowserBaseline {
+  liveCandidateKeys: Set<string>
+  candidateKeys: Set<string>
+  openedAt: number
+  sessionId?: string
+  frontier: AgentPreviewUrlFrontier | null
+  waitingForHistory: boolean
+  url: string
 }
 
 interface AgentRightPaneFileState {
@@ -200,10 +251,13 @@ type AgentFileEditorMode = 'preview' | 'edit'
 export type AgentFileNavigationRequest = (transition: () => void) => void
 
 interface AgentRightPaneActions {
+  isAgentToolFlowActive: (toolCallId: string) => boolean
   canOpenAgentToolFlow: boolean
   canOpenArtifactFile: boolean
-  openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
+  openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
   openArtifactFile: (path: string) => void
+  openBrowserUrl?: (url: string) => void
+  openExternalUrl: (url: string) => void
   closeFilePreview: () => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setSelectedFile: (file: string | null) => void
@@ -212,10 +266,13 @@ interface AgentRightPaneActions {
 }
 
 interface AgentRightPanelScope {
+  browserTitle: string
   developerMode: boolean
   hasSystemWorkspaceFiles: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
+  previousFlowTab: AgentFlowTab | null
+  goBackFlow: () => void
   meta: AgentRightPaneMeta
   resourcePane: ResourcePaneConfig | null
   statusTitle: string
@@ -235,6 +292,8 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
+  streamingLayers?: MessageStreamingLayers
+  isMessageHistoryLoading?: boolean
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
@@ -274,11 +333,13 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  artifactOpenRequestRef: { current: number }
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
   workspacePath?: string
-  replaceFlowTab: (input: AgentToolFlowOpenInput) => void
+  replaceFlowTab: (input: AgentToolFlowOpenInput, nested?: boolean) => void
+  openBrowserUrl: (url: string) => void
   closeFilePreview: () => void
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
   selectFile: (file: string | null) => void
@@ -289,11 +350,13 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  artifactOpenRequestRef,
   children,
   conversationState,
   sessionId,
   workspacePath,
   replaceFlowTab,
+  openBrowserUrl,
   closeFilePreview,
   requestFileSelection,
   selectFile,
@@ -302,8 +365,38 @@ function AgentRightPaneActionsProvider({
   setFileTreeSearchKeyword,
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
+  const { t } = useTranslation()
+  const [openLinksInBrowser] = usePreference('app.browser.open_links_in_browser')
   const panelActions = useRightPanelActions()
-  const artifactOpenRequestRef = useRef(0)
+  const panelState = useRightPanelState()
+  const isAgentToolFlowActive = useCallback(
+    (toolCallId: string) => panelState.isActive(getFlowTabValue(toolCallId)),
+    [panelState.isActive]
+  )
+  const canOpenBrowser = panelActions.canOpen(BROWSER_PANE_ID)
+  const openBrowserPanel = useCallback(
+    (url: string) => {
+      openBrowserUrl(url)
+      panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+    },
+    [openBrowserUrl, panelActions]
+  )
+  const openExternalUrl = useCallback(
+    (url: string) => {
+      if (openLinksInBrowser && /^https?:\/\//i.test(url) && canOpenBrowser) {
+        openBrowserPanel(url)
+        return
+      }
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    [canOpenBrowser, openBrowserPanel, openLinksInBrowser]
+  )
+  useIpcOn('browser.pane.open_requested', (request) => {
+    if (request.sessionId !== sessionId) return
+    if (request.url) openBrowserUrl(request.url)
+    panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
+  })
+
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
@@ -311,13 +404,13 @@ function AgentRightPaneActionsProvider({
     return () => {
       artifactOpenRequestRef.current += 1
     }
-  }, [sessionId, workspacePath])
+  }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
-    (input: AgentToolFlowOpenInput) => {
+    (input: AgentToolFlowOpenInput, nested = false) => {
       if (!canOpenAgentToolFlow) return
-      replaceFlowTab(input)
+      replaceFlowTab(input, nested)
       panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
@@ -328,6 +421,12 @@ function AgentRightPaneActionsProvider({
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
+      if (htmlUrl) {
+        openBrowserUrl(htmlUrl)
+        panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+        return
+      }
       panelActions.tryOpen('files', { userInitiated: true })
 
       if (!selection) {
@@ -335,26 +434,44 @@ function AgentRightPaneActionsProvider({
         return
       }
 
-      void ipcApi
-        .request('file.get_metadata', createFilePathHandle(getArtifactPaneSelectionPath(selection)))
-        .then((metadata) => {
+      const targetPath = getArtifactPaneSelectionPath(selection)
+      void openFileTarget(targetPath, {
+        openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        })
-        .catch(() => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
           requestFileSelection(selection)
-        })
+        },
+        openPath: async (path) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          await window.api.file.openPath(path)
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(null)
+        },
+        isDirectory: async () => {
+          try {
+            const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(targetPath))
+            return metadata?.kind === 'directory'
+          } catch {
+            // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+            return false
+          }
+        },
+        onError: () => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          toast.error(t('chat.input.tools.open_file_error', { path: targetPath }))
+        }
+      })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+    [artifactOpenRequestRef, canOpenArtifactFile, openBrowserUrl, panelActions, requestFileSelection, t, workspacePath]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
+      isAgentToolFlowActive,
       canOpenAgentToolFlow,
       canOpenArtifactFile,
       openAgentToolFlow,
       openArtifactFile,
+      openBrowserUrl: canOpenBrowser ? openBrowserPanel : undefined,
+      openExternalUrl,
       closeFilePreview,
       setFileEditMode,
       setSelectedFile: selectFile,
@@ -362,11 +479,15 @@ function AgentRightPaneActionsProvider({
       setFileTreeSearchKeyword
     }),
     [
+      isAgentToolFlowActive,
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canOpenBrowser,
+      openBrowserPanel,
       closeFilePreview,
       openAgentToolFlow,
       openArtifactFile,
+      openExternalUrl,
       selectFile,
       setFileEditMode,
       setFileTreeExpandedIds,
@@ -398,28 +519,152 @@ function AgentRightPaneStateProvider({
   onOpenChange,
   onFileNavigationRequestChange,
   userOpenIntentSeq,
-  revealRequest
+  revealRequest,
+  streamingLayers,
+  isMessageHistoryLoading = false
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tab: AgentFlowTab | null }>(() => ({
+  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tabs: AgentFlowTab[] }>(() => ({
     sessionId,
-    tab: null
+    tabs: []
   }))
+  const [browserUrlState, setBrowserUrlState] = useState<{
+    sessionId?: string
+    url: string | null
+    profile?: AgentRightPaneRuntime['browserProfile']
+  }>(() => ({
+    sessionId,
+    url: null
+  }))
+  const explicitBrowserBaselineRef = useRef<ExplicitBrowserBaseline | null>(null)
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
+  const browserOwnerTabId = useCurrentTabId()
+  useLayoutEffect(() => {
+    if (sessionId && browserOwnerTabId) agentBrowserRuntimeService.declare(sessionId, browserOwnerTabId)
+  }, [browserOwnerTabId, sessionId])
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
   // chance to confirm. Keep the file tree and editor on one committed workspace
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
-  const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
-  const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const flowTabs = flowTabState.sessionId === sessionId ? flowTabState.tabs : []
+  const flowTab = flowTabs.at(-1) ?? null
+  const previousFlowTab = flowTabs.at(-2) ?? null
+  const goBackFlow = useCallback(() => {
+    setFlowTabState((state) => ({ ...state, tabs: state.tabs.slice(0, -1) }))
+  }, [])
+  const previewUrlFrontier = useMemo(
+    () => getAgentPreviewUrlFrontier(messages, partsByMessageId),
+    [messages, partsByMessageId]
+  )
+  const previewSourceRef = useRef({ messages, partsByMessageId })
+  const previewUrlFrontierRef = useRef(previewUrlFrontier)
+  useLayoutEffect(() => {
+    previewUrlFrontierRef.current = previewUrlFrontier
+    previewSourceRef.current = { messages, partsByMessageId }
+  }, [previewUrlFrontier, messages, partsByMessageId])
+  useLayoutEffect(() => {
+    if (explicitBrowserBaselineRef.current?.sessionId !== sessionId) explicitBrowserBaselineRef.current = null
+  }, [sessionId])
+  useLayoutEffect(() => {
+    const baseline = explicitBrowserBaselineRef.current
+    if (!baseline || !streamingLayers) return
+    const historicalKeys = new Set(
+      findAgentPreviewUrlCandidates(messages, streamingLayers.historyPartsByMessageId).map((candidate) => candidate.key)
+    )
+    for (const candidate of findAgentPreviewUrlCandidates(messages, partsByMessageId)) {
+      if (
+        streamingLayers.liveMessageIds.includes(candidate.messageId) &&
+        !historicalKeys.has(candidate.key) &&
+        !baseline.candidateKeys.has(candidate.key)
+      )
+        baseline.liveCandidateKeys.add(candidate.key)
+    }
+  }, [messages, partsByMessageId, streamingLayers])
+  // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
+  const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
+  useLayoutEffect(() => {
+    const baseline = explicitBrowserBaselineRef.current
+    if (!baseline?.waitingForHistory || isMessageHistoryLoading) return
+    if (baseline.sessionId !== sessionId || browserUrl !== baseline.url) {
+      explicitBrowserBaselineRef.current = null
+      return
+    }
+    const frontier =
+      previewUrlFrontier?.createdAt && Date.parse(previewUrlFrontier.createdAt) > baseline.openedAt
+        ? { createdAt: new Date(baseline.openedAt).toISOString(), messageId: '', partsLength: 0 }
+        : previewUrlFrontier
+    explicitBrowserBaselineRef.current = { ...baseline, frontier, waitingForHistory: false }
+  }, [browserUrl, isMessageHistoryLoading, previewUrlFrontier, sessionId])
+  const acceptDetectedBrowserUrl = useCallback(
+    (url: string | null, source: AgentPreviewUrlCandidate | null) => {
+      if (!url || !source) return
+      const baseline = explicitBrowserBaselineRef.current
+      const isNewLiveSource = baseline?.liveCandidateKeys.has(source.key)
+
+      if (
+        !isNewLiveSource &&
+        baseline?.waitingForHistory &&
+        (!source.createdAt || Date.parse(source.createdAt) <= baseline.openedAt)
+      )
+        return
+      if (
+        !isNewLiveSource &&
+        baseline &&
+        baseline.sessionId === sessionId &&
+        browserUrl === baseline.url &&
+        !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, partsByMessageId)
+      ) {
+        return
+      }
+      explicitBrowserBaselineRef.current = null
+      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+    },
+    [browserUrl, messages, partsByMessageId, sessionId]
+  )
+  const openBrowserUrl = useCallback(
+    (url: string) => {
+      const frontier = previewUrlFrontierRef.current
+      explicitBrowserBaselineRef.current = {
+        liveCandidateKeys: new Set(),
+        candidateKeys: new Set(
+          findAgentPreviewUrlCandidates(
+            previewSourceRef.current.messages,
+            previewSourceRef.current.partsByMessageId
+          ).map((candidate) => candidate.key)
+        ),
+        openedAt: Date.now(),
+        sessionId,
+        frontier,
+        waitingForHistory: isMessageHistoryLoading && !frontier,
+        url
+      }
+      setBrowserUrlState({
+        sessionId,
+        url,
+        profile: url.startsWith('file:')
+          ? WebviewSecurityProfile.AgentHtmlArtifact
+          : WebviewSecurityProfile.AgentBrowser
+      })
+    },
+    [isMessageHistoryLoading, sessionId]
+  )
+  const browserProfile =
+    browserUrlState.sessionId === sessionId
+      ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
+      : WebviewSecurityProfile.AgentBrowser
+  const runtime = useMemo<AgentRightPaneRuntime>(
+    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
+    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
+  )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
@@ -440,7 +685,7 @@ function AgentRightPaneStateProvider({
   }, [systemWorkspaceRoot, systemWorkspaceTreeVersion])
 
   useEffect(() => {
-    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
+    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tabs: [] }))
   }, [sessionId])
 
   const requestFileTransition = useCallback(
@@ -478,6 +723,7 @@ function AgentRightPaneStateProvider({
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
+      artifactOpenRequestRef.current += 1
       requestFileTransition(() => {
         setEditMode('preview')
         setPreviewFileSelection(selection)
@@ -500,13 +746,16 @@ function AgentRightPaneStateProvider({
   )
 
   const replaceFlowTab = useCallback(
-    (input: AgentToolFlowOpenInput) => {
+    (input: AgentToolFlowOpenInput, nested = false) => {
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
         title: getFlowTabTitle(input)
       }
-      setFlowTabState({ sessionId, tab: nextTab })
+      setFlowTabState((state) => ({
+        sessionId,
+        tabs: nested && state.sessionId === sessionId ? [...state.tabs, nextTab] : [nextTab]
+      }))
     },
     [sessionId]
   )
@@ -589,16 +838,19 @@ function AgentRightPaneStateProvider({
   )
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
+      browserTitle: t('agent.right_pane.tabs.browser'),
       developerMode: enableDeveloperMode,
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
+      previousFlowTab,
+      goBackFlow,
       meta,
       resourcePane,
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, previousFlowTab, goBackFlow, hasSystemWorkspaceFiles, meta, resourcePane, t]
   )
 
   return (
@@ -616,10 +868,12 @@ function AgentRightPaneStateProvider({
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                artifactOpenRequestRef={artifactOpenRequestRef}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
                 replaceFlowTab={replaceFlowTab}
+                openBrowserUrl={openBrowserUrl}
                 closeFilePreview={closeFilePreview}
                 requestFileSelection={requestFileSelection}
                 selectFile={selectFile}
@@ -687,7 +941,19 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     lastSelectableFileRef.current = null
     actions.setSelectedFile(null)
   }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
-  return (
+
+  const sessionId = meta.sessionId
+  const insertSelectionReference = useCallback(
+    (reference: SelectionReference) => {
+      if (!sessionId) return
+      void EventEmitter.emit(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, {
+        topicId: buildAgentSessionTopicId(sessionId),
+        reference
+      })
+    },
+    [sessionId]
+  )
+  const pane = (
     <ArtifactPaneView
       headerVariant="pane"
       paneTitle={scope.filesTitle}
@@ -704,24 +970,98 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onSelectedFileChange={actions.setSelectedFile}
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
+      onInsertSelectionReference={insertSelectionReference}
+    />
+  )
+  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
+
+  return actions.canOpenArtifactFile && workspacePath.success ? (
+    <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>
+      {pane}
+    </FilePreviewNavigationProvider>
+  ) : (
+    pane
+  )
+}
+
+const ANNOTATION_TOKEN_LABEL_MAX = 32
+
+function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const runtime = useAgentRightPaneRuntime()
+  const { acceptDetectedBrowserUrl } = runtime
+  const sessionId = scope.meta.sessionId
+  const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, runtime.partsByMessageId)
+
+  useEffect(() => {
+    if (active) acceptDetectedBrowserUrl(detectedPreview.url, detectedPreview.source)
+  }, [acceptDetectedBrowserUrl, active, detectedPreview.source, detectedPreview.url])
+
+  const target = useMemo(
+    () => ({
+      id: `agent-browser:${sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),
+      label: (scope.meta.sessionName?.trim() || scope.browserTitle).slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
+    }),
+    [scope.browserTitle, sessionId, scope.meta.sessionName]
+  )
+
+  // Every saved annotation lands in the composer as a reference chip the user can keep or delete.
+  const handleAnnotationSaved = useCallback(
+    ({ annotation, page, updated }: WebviewAnnotationSavedPayload) => {
+      if (!sessionId) return
+      const { comment } = annotation
+      const label =
+        comment.length > ANNOTATION_TOKEN_LABEL_MAX ? `${comment.slice(0, ANNOTATION_TOKEN_LABEL_MAX)}…` : comment
+      const promptText = formatAgentWebviewAnnotationPrompt({ annotation, page })
+      void EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
+        updateOnly: updated,
+        topicId: buildAgentSessionTopicId(sessionId),
+        token: {
+          id: `webview-annotation:${annotation.id}`,
+          kind: 'webviewAnnotation' as const,
+          label,
+          description: promptText,
+          promptText
+        }
+      })
+    },
+    [sessionId]
+  )
+
+  if (!sessionId) return null
+
+  return (
+    <AgentBrowserView
+      initialUrl={runtime.browserUrl ?? undefined}
+      securityProfile={runtime.browserProfile}
+      sessionId={sessionId}
+      onNavigate={runtime.openBrowserUrl}
+      target={target}
+      isHostActive={active}
+      onAnnotationSaved={handleAnnotationSaved}
+      toolbarActions={<RightPanelHeaderControls canMaximize />}
     />
   )
 }
 
 const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   messages,
-  partsByMessageId
+  partsByMessageId,
+  title,
+  toolCallId
 }: {
+  toolCallId: string
+  title: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }) {
   const actions = useAgentRightPaneActions()
+  const { t } = useTranslation()
   const meta = useAgentRightPaneMeta()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const topic = useMemo<Topic>(
     () => ({
       id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
       lastActivityAt: FALLBACK_TIMESTAMP,
@@ -731,21 +1071,23 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     }),
     [meta.agentId, meta.sessionId, meta.sessionName]
   )
+  const openNestedFlow = useCallback(
+    (input: AgentToolFlowOpenInput) => actions.openAgentToolFlow(input, true),
+    [actions.openAgentToolFlow]
+  )
   const providerValue = useAgentMessageListProviderValue({
     topic,
     messages,
     partsByMessageId,
-    assistantProfile: meta.agentName
-      ? {
-          name: meta.agentName,
-          avatar: meta.agentAvatar
-        }
-      : undefined,
+    assistantProfile: { name: title },
     assistantId: meta.agentId,
     isLoading: false,
     hasOlder: false,
-    openAgentToolFlow: actions.openAgentToolFlow,
-    openArtifactFile: actions.openArtifactFile,
+    openAgentToolFlow: openNestedFlow,
+    isAgentToolFlowActive: actions.isAgentToolFlowActive,
+    openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
+    openBrowserUrl: actions.openBrowserUrl,
+    openExternalUrl: actions.openExternalUrl,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.
@@ -760,17 +1102,19 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         renderConfig: {
           ...providerValue.state.renderConfig,
           collapseCompletedToolHistory: true,
+          subagentListTitle: t('agent.right_pane.flow.child_subtasks'),
+          fontSize: 14,
           messageStyle: 'bubble' as const
         }
       }
     }),
-    [providerValue]
+    [providerValue, t]
   )
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
-        <MessageList />
+      <div className="h-full min-h-0 [&_.narrow-mode]:px-4! [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden [&_.message-user>div>div]:max-w-full [&_.message-user_.message-content-container]:rounded-lg [&_.message-user_.message-content-container]:bg-background-subtle [&_.message-user_.message-content-container]:text-muted-foreground [&_.message-header-info-wrap]:hidden">
+        <MessageList scrollPositionKey={`${topic.id}:flow:${toolCallId}`} />
       </div>
     </MessageListProvider>
   )
@@ -778,6 +1122,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
+  const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const deferredToolResult = useMemo(
@@ -809,14 +1154,72 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     )
   }
 
+  const taskPath = [tab.title]
+  const visited = new Set([tab.toolCallId])
+  let parentId = flow.selectedTool?.parentToolCallId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = flow.toolNodes.find((node) => node.toolCallId === parentId)
+    if (!parent) break
+    taskPath.unshift(parent.title ?? parent.toolName)
+    parentId = parent.parentToolCallId
+  }
+  taskPath.unshift(t('agent.right_pane.flow.main_task'))
+  const pathLabel = taskPath.join(' › ')
+  const task = status.runTasks.find((task) => task.toolUseId === tab.toolCallId)
+  const statusLabels = {
+    pending: t('message.tools.pending'),
+    in_progress: t('message.tools.status.running'),
+    completed: t('common.completed'),
+    error: t('message.tools.status.error'),
+    stopped: t('message.tools.cancelled')
+  }
+
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5 text-sm text-muted-foreground">
+          <span className="flex size-5 shrink-0 items-center justify-center">
+            <Bot size={16} aria-hidden="true" />
+          </span>
+          <Tooltip content={pathLabel} asChild>
+            <Breadcrumb className="min-w-0" aria-label={t('agent.right_pane.flow.main_task')}>
+              <BreadcrumbList className="min-w-0 flex-nowrap">
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage className="truncate font-normal text-muted-foreground">{pathLabel}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </Tooltip>
+        </div>
+        {task && (
+          <Badge variant="outline" className="gap-1 border-border-subtle font-normal" role="status">
+            <TaskStatusIcon status={task.status} />
+            {statusLabels[task.status]}
+          </Badge>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        <AgentToolFlowMessageList
+          toolCallId={tab.toolCallId}
+          title={tab.title}
+          messages={flow.messages}
+          partsByMessageId={flow.partsByMessageId}
+        />
+      </div>
     </div>
   )
 }
 
-function AgentFlowPanelTitle({ title }: { title: string }) {
+function AgentFlowPanelTitle({
+  title,
+  previousTab,
+  goBack
+}: {
+  title: string
+  previousTab: AgentFlowTab | null
+  goBack: () => void
+}) {
   const panelActions = useRightPanelActions()
   const { t } = useTranslation()
 
@@ -827,9 +1230,16 @@ function AgentFlowPanelTitle({ title }: { title: string }) {
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="text-muted-foreground shrink-0 hover:bg-accent hover:text-foreground"
           aria-label={t('common.back')}
-          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
+          onClick={() => {
+            if (previousTab) {
+              goBack()
+              panelActions.requestOpen(getFlowTabValue(previousTab.toolCallId), { userInitiated: true })
+            } else {
+              panelActions.tryOpen(STATUS_PANE_ID)
+            }
+          }}>
           <ArrowLeft size={16} />
         </Button>
       </Tooltip>
@@ -858,7 +1268,7 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
         variant="ghost"
         disabled={stopping}
         aria-label={label}
-        className="-mt-0.5 shrink-0 text-muted-foreground"
+        className="text-muted-foreground -mt-0.5 shrink-0"
         onClick={async () => {
           setStopping(true)
           try {
@@ -905,10 +1315,10 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
               {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
               </div>
-              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground mt-0.5 truncate text-[11px]">
                 {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
                   .filter(Boolean)
                   .join(' · ')}
@@ -955,20 +1365,20 @@ function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sess
             className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.workflowName ?? task.title}
               </div>
               {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word">
                   {task.summary}
                 </div>
               ) : null}
               {activity && activity !== task.title && activity !== task.summary ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word">
                   {activity}
                 </div>
               ) : null}
-              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
+              {metadata ? <div className="text-muted-foreground mt-0.5 truncate text-[11px]">{metadata}</div> : null}
             </div>
             {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
           </div>
@@ -1125,7 +1535,7 @@ export function AgentTaskProgressCapsule() {
                     <TaskStatusIcon status={displayStatus} />
                     <span
                       className={cn(
-                        'wrap-break-word min-w-0 flex-1 whitespace-normal text-xs leading-5',
+                        'min-w-0 flex-1 text-xs leading-5 wrap-break-word whitespace-normal',
                         displayStatus === 'completed' ? 'text-muted-foreground' : 'text-foreground'
                       )}>
                       {displayStatus === 'in_progress' && task.activeText ? task.activeText : task.title}
@@ -1192,6 +1602,7 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 
 /** Stable capability registry; runtime messages are intentionally absent. */
 const TRACE_PANE_ID = 'trace'
+const BROWSER_PANE_ID = 'browser'
 const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
   instanceKey: 'agent-resources'
 })
@@ -1202,6 +1613,17 @@ const AGENT_TRACE_PANE_CAPABILITY = {
     instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
     title: scope.traceTitle,
     readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
+const AGENT_BROWSER_PANE_CAPABILITY = {
+  component: AgentBrowserRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: BROWSER_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:browser`,
+    title: scope.browserTitle,
+    readiness: scope.meta.sessionId && scope.meta.conversationState !== 'unavailable' ? 'ready' : 'unavailable',
+    headerMode: 'content',
+    canMaximize: true
   })
 } satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
@@ -1217,6 +1639,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
+  AGENT_BROWSER_PANE_CAPABILITY,
   {
     component: AgentStatusRightPanel,
     resolve: (scope) => ({
@@ -1235,7 +1658,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: <AgentFlowPanelTitle title={tab.title} />,
+        title: <AgentFlowPanelTitle title={tab.title} previousTab={scope.previousFlowTab} goBack={scope.goBackFlow} />,
         readiness: scope.meta.conversationState
       }
     }
@@ -1262,10 +1685,10 @@ function AgentRightPaneHighlightSection({
       className={cn(
         'space-y-1.5',
         compact
-          ? 'border-border-subtle border-t pt-2.5 first:border-t-0 first:pt-0'
+          ? 'border-t border-border-subtle pt-2.5 first:border-t-0 first:pt-0'
           : 'rounded-md border border-border-subtle px-3 py-2'
       )}>
-      <h3 className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+      <h3 className="flex items-center gap-1.5 text-xs font-medium text-foreground">
         {icon}
         {title}
       </h3>
@@ -1290,7 +1713,7 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
               type="button"
               onClick={() => actions.openArtifactFile(artifact.path)}
               title={artifact.path}
-              className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+              className="text-muted-foreground flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-accent hover:text-accent-foreground">
               <FileText size={14} className="shrink-0" />
               <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
             </button>
@@ -1404,8 +1827,13 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   )
 }
 
-const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
+const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
+  browserEnabled = true
+}: {
+  browserEnabled?: boolean
+}) {
   const { t } = useTranslation()
+  const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
 
   return (
     <>
@@ -1414,6 +1842,13 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
       />
+      {browserEnabled && browserControlEnabled && (
+        <RightPanelShortcut
+          tab={BROWSER_PANE_ID}
+          label={t('agent.right_pane.tabs.browser')}
+          icon={<Globe className="size-3.5" />}
+        />
+      )}
       <AgentRightPaneStatusShortcut />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>

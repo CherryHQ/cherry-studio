@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { ovmsErrorCodes } from '@shared/ipc/errors/ovms'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetOptionalMock, getCpuNameMock, runInstallScriptMock, platform } = vi.hoisted(() => ({
   appGetOptionalMock: vi.fn(),

@@ -1,15 +1,17 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  withFullMarkdown: vi.fn(() => ({}))
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -52,7 +54,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  withFullMarkdown: () => ({})
+  withFullMarkdown: mocks.withFullMarkdown
 }))
 
 vi.mock('react-i18next', () => ({
@@ -74,7 +76,7 @@ function renderPreview(
     <MarkdownFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'README.md'}
-      metadata={{ size: overrides.size ?? 15 }}
+      metadata={{ size: overrides.size ?? 15, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
     />
@@ -98,6 +100,7 @@ describe('MarkdownFilePreview', () => {
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(mocks.withFullMarkdown).toHaveBeenCalledWith({ singleDollarMath: true })
   })
 
   it('shows the empty state for empty content', async () => {
@@ -148,10 +151,15 @@ describe('MarkdownFilePreview', () => {
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
   })
 
-  it('hides the source switch for artifact previews whose host owns editing', async () => {
+  it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
+    mocks.readText.mockResolvedValueOnce(
+      '---\r\nname: Writer\r\ndescription: Draft clear prose\r\n---\r\n# File preview'
+    )
     renderPreview({ type: 'artifact' })
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('name: Writer')
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('description: Draft clear prose')
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
@@ -162,12 +170,22 @@ describe('MarkdownFilePreview', () => {
     await screen.findByTestId('markdown-preview')
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={1} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
@@ -186,7 +204,12 @@ describe('MarkdownFilePreview', () => {
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="SECOND.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="SECOND.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# Second file')
 

@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
@@ -6,9 +10,6 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   type: 'test.echo',
@@ -488,8 +489,8 @@ describe('JobService.addFileRefsTx', () => {
 
   it('writes input and mask refs for an enqueued job', () => {
     const job = jobService.create(baseRow())
-    const input = seedEntry('019606a0-0000-7000-8000-0000000000f1' as FileEntryId)
-    const mask = seedEntry('019606a0-0000-7000-8000-0000000000f2' as FileEntryId)
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f1')
+    const mask = seedEntry('019606a0-0000-7000-8000-0000000000f2')
 
     application.get('DbService').withWriteTx((tx) => {
       jobService.addFileRefsTx(tx, [
@@ -514,7 +515,7 @@ describe('JobService.addFileRefsTx', () => {
 
   it('releases the refs when the job row is pruned (FK cascade frees the inputs for reclaim)', () => {
     const job = jobService.create(baseRow({ status: 'completed' }))
-    const input = seedEntry('019606a0-0000-7000-8000-0000000000f3' as FileEntryId)
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f3')
     application.get('DbService').withWriteTx((tx) => {
       jobService.addFileRefsTx(tx, [{ fileEntryId: input.id, sourceId: job.id, role: 'input' }])
     })
@@ -526,5 +527,59 @@ describe('JobService.addFileRefsTx', () => {
 
     expect(refsFor(job.id)).toHaveLength(0)
     expect(fileEntryService.findById(input.id)).not.toBeNull()
+  })
+})
+
+describe('JobService.pruneTerminalKeepLatestPerSchedule', () => {
+  setupTestDatabase()
+
+  const gcTrigger: Trigger = { kind: 'interval', ms: 60_000 }
+
+  it('keeps the latest N per schedule — a chatty schedule does not evict sibling run history', () => {
+    // The budget is per schedule: a default-on producer ticking every 30
+    // minutes (the agent heartbeat) must not push a quiet sibling schedule's
+    // terminal rows out — the failure circuit breaker and the run log read
+    // that per-schedule history.
+    const chatty = jobScheduleService.create({
+      type: 'agent.task',
+      name: 'chatty',
+      trigger: gcTrigger,
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const quiet = jobScheduleService.create({
+      type: 'agent.task',
+      name: 'quiet',
+      trigger: gcTrigger,
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const now = Date.now()
+    for (let i = 0; i < 5; i++) {
+      jobService.create(
+        baseRow({ type: 'agent.task', scheduleId: chatty.id, status: 'completed', finishedAt: now - i * 1_000 })
+      )
+    }
+    for (let i = 0; i < 2; i++) {
+      jobService.create(
+        baseRow({ type: 'agent.task', scheduleId: quiet.id, status: 'completed', finishedAt: now - 10_000 - i * 1_000 })
+      )
+    }
+
+    expect(jobService.pruneTerminalKeepLatestPerSchedule(3)).toBe(2)
+
+    expect(jobService.list({ scheduleId: chatty.id })).toHaveLength(3)
+    // Untouched — under the old per-type budget these would have been evicted.
+    expect(jobService.list({ scheduleId: quiet.id })).toHaveLength(2)
+  })
+
+  it('shares one per-type budget across schedule-less (ad-hoc) jobs', () => {
+    const now = Date.now()
+    for (let i = 0; i < 4; i++) {
+      jobService.create(baseRow({ status: 'completed', finishedAt: now - i * 1_000 }))
+    }
+
+    expect(jobService.pruneTerminalKeepLatestPerSchedule(2)).toBe(2)
+    expect(jobService.list({ type: 'test.echo' })).toHaveLength(2)
   })
 })

@@ -1,11 +1,4 @@
 import '@renderer/assets/styles/vendor/pdf-viewer.css'
-
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -19,14 +12,23 @@ import {
 // oxlint-disable-next-line import/default -- Vite exposes ?url imports as default asset URLs.
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
+
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
 import { type PdfDestination, PdfOutline, type PdfOutlineItem, type PdfOutlineStatus } from './PdfOutline'
+import { pageToPdfAnchor } from './pdfSelectionAnchor'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -39,7 +41,6 @@ const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
-const PDF_PAGE_FOREGROUND = 'CanvasText'
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
 type PdfJsLinkService = InstanceType<typeof PDFLinkService>
@@ -121,7 +122,22 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
-export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+/**
+ * PDF preview with page-level selection picking. The anchor names a page and the excerpt comes from
+ * the pdf.js document proxy rather than the DOM: text-layer order is not reading order, and a page's
+ * text layer may not be rendered yet. The pick lives in React state and the DOM marker is derived
+ * from it, because pdf.js rebuilds the page elements it renders and a DOM-only truth would be wiped
+ * along with them. `preventDefault` on a click covers external `href` annotations only — pdf.js binds
+ * an internal destination with `link.onclick`, which runs first and jumps instead of picking (known
+ * limitation, see the FilePreview README).
+ */
+export default function PdfFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -139,6 +155,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const [isOutlineOpen, setIsOutlineOpen] = useState(false)
   const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([])
   const [outlineStatus, setOutlineStatus] = useState<PdfOutlineStatus>('loading')
+  const [pickedPage, setPickedPage] = useState<number | null>(null)
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -183,6 +200,90 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       focusContainer()
     },
     [focusContainer, pageCount]
+  )
+
+  // The token guards against a slow text fetch reporting a stale pick: a new pick empties the host
+  // while that page's text is in flight, so the chip can never quote the page the marker just left.
+  const pickTokenRef = useRef(0)
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelectionReference || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+
+      const resolved = pageToPdfAnchor(event.target)
+      const token = ++pickTokenRef.current
+      if (!resolved || resolved.page === pickedPage || !documentProxy) {
+        setPickedPage(null)
+        onSelectionReference(null)
+        return
+      }
+
+      setPickedPage(resolved.page)
+      onSelectionReference(null)
+      void documentProxy
+        .getPage(resolved.page)
+        .then(async (page) => {
+          const content = await page.getTextContent()
+          if (token !== pickTokenRef.current) return
+          const excerpt = content.items.map((item) => ('str' in item ? item.str : '')).join(' ')
+          const reference = createSelectionReference({
+            filePath,
+            anchor: { format: 'pdf', page: resolved.page },
+            excerpt,
+            metadata
+          })
+          // A page with no text at all: drop the marker the click put on, so no page stays outlined
+          // as picked while the host holds nothing.
+          if (!reference) setPickedPage(null)
+          onSelectionReference(reference)
+        })
+        .catch((error: unknown) => {
+          if (token !== pickTokenRef.current) return
+          setPickedPage(null)
+          logger.warn(`Failed to read PDF page text for a pick: ${filePath}`, error as Error)
+          onSelectionReference(null)
+        })
+    },
+    [documentProxy, filePath, metadata, onSelectionReference, pickedPage]
+  )
+
+  // Sole owner of the marker: pdf.js rebuilds the viewer's page divs, so a childList mutation (or a
+  // `zoom` change, which re-renders in place) repaints it. A rebuild is not a pick — report nothing.
+  useEffect(() => {
+    const viewerElement = viewerRef.current
+    if (!viewerElement) return
+
+    const applyMarker = () => {
+      viewerElement.querySelectorAll('[data-pdf-picked]').forEach((marked) => marked.removeAttribute('data-pdf-picked'))
+      if (pickedPage === null) return
+      viewerElement.querySelector(`.page[data-page-number="${pickedPage}"]`)?.setAttribute('data-pdf-picked', 'true')
+    }
+
+    applyMarker()
+    const observer = new MutationObserver(applyMarker)
+    observer.observe(viewerElement, { childList: true })
+    return () => observer.disconnect()
+  }, [pickedPage, zoom])
+
+  useEffect(() => {
+    if (onSelectionReference) return
+    pickTokenRef.current += 1
+    setPickedPage(null)
+  }, [onSelectionReference])
+
+  // A different document — or the same one reloaded — carries no pick; the host drops its reference
+  // on refresh too.
+  useEffect(() => {
+    pickTokenRef.current += 1
+    setPickedPage(null)
+  }, [filePath, refreshKey])
+
+  // An in-flight page-text fetch must not reach the host after the preview is gone.
+  useEffect(
+    () => () => {
+      pickTokenRef.current += 1
+    },
+    []
   )
 
   const zoomBy = useCallback(
@@ -233,10 +334,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
     if (pdfViewer) {
-      pdfViewer.pageColors = {
-        ...(background ? { background } : {}),
-        foreground: PDF_PAGE_FOREGROUND
-      }
+      pdfViewer.pageColors = background ? { background } : null
     }
     applyViewerBackground(background)
   }, [applyViewerBackground, background])
@@ -335,7 +433,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       .getOutline()
       .then((items) => {
         if (cancelled) return
-        setOutlineItems((items ?? []) as PdfOutlineItem[])
+        setOutlineItems(items ?? [])
         setOutlineStatus('ready')
       })
       .catch((error: unknown) => {
@@ -368,10 +466,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
         linkService,
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE,
-        pageColors: {
-          ...(backgroundRef.current ? { background: backgroundRef.current } : {}),
-          foreground: PDF_PAGE_FOREGROUND
-        },
+        ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
         supportsPinchToZoom: true
       }
       pdfViewer = new PDFViewer(viewerOptions)
@@ -580,10 +675,12 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
                   <div
                     ref={containerRef}
                     data-testid="pdfjs-viewer-container"
+                    data-picker={onSelectionReference ? 'true' : undefined}
                     role="region"
                     aria-label={fileName}
-                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                    tabIndex={0}>
+                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-2 [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_.page]:cursor-pointer [&_.page[data-pdf-picked=true]]:outline [&_.page[data-pdf-picked=true]]:outline-2 [&_.page[data-pdf-picked=true]]:outline-primary"
+                    tabIndex={0}
+                    onClick={handlePick}>
                     <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer selectable" />
                   </div>
                 </div>
@@ -591,7 +688,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
               {status === 'loading' ? (
                 <div
                   role="status"
-                  className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+                  className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden />
                   <span>{t('file_preview.loading')}</span>
                 </div>

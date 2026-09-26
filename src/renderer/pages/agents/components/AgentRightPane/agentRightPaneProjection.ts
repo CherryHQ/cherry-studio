@@ -1,3 +1,5 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -12,16 +14,17 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
-export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
+export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
 export interface AgentToolFlowOpenInput {
   toolCallId: string
@@ -30,6 +33,7 @@ export interface AgentToolFlowOpenInput {
 }
 
 export interface AgentToolFlowNode {
+  title?: string
   toolCallId: string
   toolName: string
   parentToolCallId?: string
@@ -205,12 +209,16 @@ function createFlowTextMessage(
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
     }
-  } as CherryUIMessage
+  }
+}
+
+function getStableMessageCreatedAt(message: CherryUIMessage | undefined): string | null {
+  const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
+  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : null)
 }
 
 function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
-  const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
-  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : new Date(0).toISOString())
+  return getStableMessageCreatedAt(message) ?? new Date(0).toISOString()
 }
 
 function getOrderedMessageParts(
@@ -234,12 +242,167 @@ function getOrderedMessageParts(
           status: 'pending',
           createdAt: new Date(0).toISOString()
         }
-      } as CherryUIMessage,
+      },
       parts
     })
   }
 
   return entries
+}
+
+const PREVIEW_URL_TOOL_NAMES = new Set<string>([
+  AgentToolsType.Bash,
+  AgentToolsType.BashOutput,
+  AgentToolsType.TaskOutput
+])
+const ANSI_ESCAPE_CHARACTER = String.fromCodePoint(27)
+const LOCAL_PREVIEW_URL_PATTERN =
+  /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
+const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
+
+export interface AgentPreviewUrlSource {
+  createdAt: string | null
+  messageId: string
+  partIndex: number
+}
+
+export interface AgentPreviewUrlFrontier {
+  createdAt: string | null
+  messageId: string
+  partsLength: number
+}
+
+export type AgentPreviewUrlCandidate = AgentPreviewUrlSource &
+  ({ key: string; type: 'url'; url: string } | { key: string; type: 'deferred'; ref: DeferredToolResultRef })
+
+function extractLatestLocalPreviewUrl(text: string): string | null {
+  const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
+  if (!matches?.length) return null
+
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const candidate = matches[index].split(ANSI_ESCAPE_CHARACTER, 1)[0].replace(TRAILING_URL_PUNCTUATION_PATTERN, '')
+    try {
+      const url = new URL(candidate)
+      if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
+      return url.toString()
+    } catch {
+      // Keep looking in case an earlier match in the same output is valid.
+    }
+  }
+  return null
+}
+
+/** Extracts the last usable loopback URL from one resolved tool output. */
+export function findAgentPreviewUrlInOutput(output: unknown): string | null {
+  const text = textFromContent(output)
+  return text ? extractLatestLocalPreviewUrl(text) : null
+}
+
+/** Builds newest-first candidates, stopping once an inline or excerpt URL makes older output irrelevant. */
+export function findAgentPreviewUrlCandidates(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): AgentPreviewUrlCandidate[] {
+  const candidates: AgentPreviewUrlCandidate[] = []
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+
+  for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
+    const { message, parts } = entries[entryIndex]
+    const createdAt = getStableMessageCreatedAt(message)
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
+
+      const output = getToolPartOutput(part)
+      if (isDeferredToolOutput(output)) {
+        const excerpt = output.excerpt
+        const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
+        if (excerptUrl) {
+          candidates.push({
+            createdAt,
+            key: `url:${message.id}\0${partIndex}\0${excerptUrl}`,
+            messageId: message.id,
+            partIndex,
+            type: 'url',
+            url: excerptUrl
+          })
+          return candidates
+        }
+        const ref = output.$deferredToolResult
+        candidates.push({
+          createdAt,
+          key: `deferred:${message.id}\0${partIndex}\0${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
+          messageId: message.id,
+          partIndex,
+          type: 'deferred',
+          ref
+        })
+        continue
+      }
+
+      const url = findAgentPreviewUrlInOutput(output)
+      if (!url) continue
+      candidates.push({
+        createdAt,
+        key: `url:${message.id}\0${partIndex}\0${url}`,
+        messageId: message.id,
+        partIndex,
+        type: 'url',
+        url
+      })
+      return candidates
+    }
+  }
+
+  return candidates
+}
+
+/** Captures the current time frontier without materializing deferred outputs. */
+export function getAgentPreviewUrlFrontier(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): AgentPreviewUrlFrontier | null {
+  const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
+  return entry
+    ? {
+        createdAt: getStableMessageCreatedAt(entry.message),
+        messageId: entry.message.id,
+        partsLength: entry.parts.length
+      }
+    : null
+}
+
+/** Returns whether a source was appended after a previously captured time frontier. */
+export function isAgentPreviewUrlSourceAfterFrontier(
+  source: AgentPreviewUrlSource,
+  frontier: AgentPreviewUrlFrontier | null,
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): boolean {
+  if (!frontier) return true
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+  const frontierIndex = entries.findIndex(({ message }) => message.id === frontier.messageId)
+  const sourceIndex = entries.findIndex(({ message }) => message.id === source.messageId)
+  if (sourceIndex < 0) return false
+  if (frontierIndex < 0) {
+    if (!source.createdAt || !frontier.createdAt) return false
+    const sourceTimestamp = Date.parse(source.createdAt)
+    const frontierTimestamp = Date.parse(frontier.createdAt)
+    if (!Number.isFinite(sourceTimestamp) || !Number.isFinite(frontierTimestamp)) return false
+    if (sourceTimestamp !== frontierTimestamp) return sourceTimestamp > frontierTimestamp
+    return source.messageId.localeCompare(frontier.messageId) > 0
+  }
+  if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
+  return source.partIndex >= frontier.partsLength
+}
+
+/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
+export function findLatestAgentPreviewUrl(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string | null {
+  const candidate = findAgentPreviewUrlCandidates(messages, partsByMessageId)[0]
+  return candidate?.type === 'url' ? candidate.url : null
 }
 
 function isTerminalToolState(state: string | undefined): boolean {
@@ -266,7 +429,14 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
+      const input = getToolPartInput(part)
+      const title = isRecord(input)
+        ? [input.description, input.subject, input.title, input.name].find(
+            (value) => typeof value === 'string' && value.trim()
+          )
+        : undefined
       const node: AgentToolFlowNode = {
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,
@@ -312,13 +482,31 @@ export function buildAgentToolFlowProjection(
     )
     if (promptMessage) {
       flowMessages.push(promptMessage)
-      flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
+      flowPartsByMessageId[promptMessage.id] = promptMessage.parts
+    }
+
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
     }
 
     const assistantParts: CherryMessagePart[] = []
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) assistantParts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
@@ -343,7 +531,7 @@ export function buildAgentToolFlowProjection(
     const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
       ? undefined
       : selectedOutputText
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -549,7 +737,7 @@ export function buildAgentRightPaneStatus(
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
@@ -560,9 +748,12 @@ export function buildAgentRightPaneStatus(
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
-      if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
-      const todoSnapshot = getTodoSnapshot(part)
-      if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
+      if (!hasPartParentToolCallId(part)) {
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        const todoSnapshot = getTodoSnapshot(part)
+        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      }
 
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))

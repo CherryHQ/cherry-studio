@@ -24,20 +24,29 @@
 | [AI Reference](./references/ai/README.md) | Entry point mapping the AI pipeline docs, src/main/ai code layout, chat-turn flow, runtimes, and key invariants |
 | [Adapter Family](./references/ai/adapter-family.md) | How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it |
 | [Adding an Agent Runtime](./references/ai/adding-a-runtime.md) | Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package |
+| [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
+| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
+| [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
+| [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
 | [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
 | [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
+| [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
 | [Provider Resolution](./references/ai/provider-resolution.md) | Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants |
 | [Provider State Ownership](./references/ai/provider-state-ownership.md) | Ownership rules for provider facts, endpoint dialects, user connection overrides, and per-request controls |
+| [Remote Agent API Design](./references/ai/remote-agent-access.md) | JSON-RPC 2.0 remote API with Agent contracts, incremental events, resumable subscriptions, command receipts, and portable package exports |
+| [Remote Protocol and Desktop Implementation Design](./references/ai/remote-agent-implementation.md) | Proposed remote-protocol files and Desktop function contracts for RPC dispatch, atomic admission, journals, checkpoints, and lifecycle ownership |
+| [Remote Agent Sequences and Modules](./references/ai/remote-agent-sequences.md) | Target remote Agent sequence diagrams, connection states, module ownership, and failure-recovery acceptance scenarios |
+| [Remote Agent Testing Specification](./references/ai/remote-agent-testing.md) | Local WebSocket client acceptance specification for remote protocol conformance, real Desktop execution, recovery, security, and weak-network budgets |
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
@@ -48,6 +57,8 @@
 | Document | Description |
 |----------|-------------|
 | [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients |
+| [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan |
+| [Remote Connectivity Design](./references/api-gateway/remote-connectivity.md) | Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect |
 
 ### Architecture
 
@@ -58,6 +69,7 @@
 | [Naming Conventions](./references/architecture/naming-conventions.md) | Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies |
 | [Renderer Architecture](./references/architecture/renderer.md) | Canonical reference for the src/renderer type-by-domain layout and its strictly downward dependency layering |
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
+| [Utility Process Architecture](./references/architecture/utility-process.md) | Architecture of the utility-process subsystem — ownership, lifecycle boundaries, build isolation, design decisions, and historical experiment evidence |
 
 ### Binary Manager
 
@@ -234,9 +246,18 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing Reference](./references/testing/README.md) | Home for testing reference docs covering frontend test policy and the SQLite database test harness |
+| [Testing Reference](./references/testing/README.md) | Frontend, SQLite, and remote Agent protocol testing references |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
+
+### Utility Process
+
+| Document | Description |
+|----------|-------------|
+| [Utility Process Reference](./references/utility-process/README.md) | Entry point for core/utilityProcess — what the layer owns, how a consumer declares and calls a utility process, and the boundaries lint enforces |
+| [Utility Process Future Work](./references/utility-process/utility-process-future.md) | What core/utilityProcess V1 leaves out on purpose, in what order it should land, and when a worker thread is the better answer |
+| [Utility Process Protocol & State Machine](./references/utility-process/utility-process-protocol.md) | Wire protocol, generation state machine, cancellation, circuit breaker, and the stop budget of core/utilityProcess |
+| [Testing Utility Processes](./references/utility-process/utility-process-testing.md) | How core/utilityProcess is verified — unit contracts against an in-memory adapter and the manual real-Electron smoke harness |
 
 ### Window Manager
 

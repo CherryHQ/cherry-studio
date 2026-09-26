@@ -61,6 +61,14 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
       return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
     }
+  },
+  tokenhub: {
+    supports: () => true,
+    poll: true,
+    load: async (settings) => {
+      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
+      return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
+    }
   }
 }
 

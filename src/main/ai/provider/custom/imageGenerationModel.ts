@@ -1,4 +1,5 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
+
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createAbortError } from './transportUtils'
@@ -45,6 +46,7 @@ export interface ImageGenerationSubmitInput {
   prompt: string | undefined
   n: number
   size: `${number}x${number}` | undefined
+  aspectRatio?: `${number}:${number}`
   seed: number | undefined
   files: ImageModelV3CallOptions['files']
   mask: ImageModelV3CallOptions['mask']
@@ -103,6 +105,7 @@ export function createImageGenerationModel(
         prompt: options.prompt,
         n: options.n,
         size: options.size,
+        aspectRatio: options.aspectRatio,
         seed: options.seed,
         files: options.files,
         mask: options.mask,

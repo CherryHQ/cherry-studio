@@ -1,10 +1,11 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -133,16 +134,15 @@ vi.mock('../PaintingSettings', () => ({
 // Imported after mocks are registered.
 const { default: PaintingComposer } = await import('../PaintingComposer')
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingComposer>> = {}) => {
   const onPromptChange = vi.fn()
@@ -163,10 +163,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   return {
     onPromptChange,
     onGenerate,
-    rerenderPainting: (painting: PaintingData) =>
-      view.rerender(
-        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
-      )
+    rerenderPainting: (painting: PaintingData) => view.rerender(<PaintingComposer {...handlers} painting={painting} />)
   }
 }
 

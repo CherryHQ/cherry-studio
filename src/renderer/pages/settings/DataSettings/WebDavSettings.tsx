@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
@@ -13,11 +19,6 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
-import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -100,7 +101,7 @@ const WebDavSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-host" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
@@ -112,7 +113,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-user" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.user')}
@@ -123,7 +124,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-password" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
         <Input
           type="password"
@@ -135,7 +136,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}

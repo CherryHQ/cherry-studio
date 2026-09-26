@@ -1,5 +1,6 @@
-import type { Model } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
 
 import { DEFAULT_AGENT_CONTEXT_WINDOW, resolveAgentContextWindow } from '../agentContextWindow'
 

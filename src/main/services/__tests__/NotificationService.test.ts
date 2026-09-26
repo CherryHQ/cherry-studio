@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentSessionGetById: vi.fn(),
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   electronNotifications: [] as Array<{
     options: { title: string; body: string }
     click?: () => void
-    show: ReturnType<typeof vi.fn>
+    show: ReturnType<typeof vi.fn<() => void>>
   }>,
   focusOrOpen: vi.fn(() => Promise.resolve()),
   getWindowInfosByType: vi.fn(),

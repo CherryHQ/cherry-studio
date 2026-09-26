@@ -1,7 +1,8 @@
-import { Button, PageSidePanelSection, Separator } from '@cherrystudio/ui'
 import { ArrowLeftRight, RotateCcw } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, PageSidePanelSection, Separator } from '@cherrystudio/ui'
 
 import MiniAppListColumn from './MiniAppListColumn'
 import type { MiniAppVisibility } from './useMiniAppVisibility'

@@ -14,6 +14,7 @@ import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -22,10 +23,11 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
@@ -57,16 +59,16 @@ export class DshMissingApiKeyError extends Error {
 }
 
 export type DshInputModality = 'text' | 'image'
-export type DshReasoningEffort = Exclude<ReasoningEffort, 'none' | 'auto'> | 'off'
+const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+export type DshReasoningEffort = (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number] | 'off'
 export type DshReasoningEfforts = Partial<Record<DshReasoningEffort, string | null>>
-
-const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 
 function isDshAdjustableReasoningEffort(
   value: ReasoningEffort | undefined
-): value is Exclude<ReasoningEffort, 'none' | 'auto'> {
+): value is (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number] {
   return (
-    value !== undefined && DSH_ADJUSTABLE_REASONING_EFFORTS.includes(value as Exclude<ReasoningEffort, 'none' | 'auto'>)
+    value !== undefined &&
+    DSH_ADJUSTABLE_REASONING_EFFORTS.includes(value as (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number])
   )
 }
 
@@ -75,7 +77,7 @@ function resolveDshAutoReasoningEffort(model: Model): Exclude<DshReasoningEffort
   return isDshAdjustableReasoningEffort(defaultEffort) ? defaultEffort : 'high'
 }
 
-/** Project Cherry's reasoning selection onto the levels supported by dsh rc.6. */
+/** Project Cherry's reasoning selection onto the levels supported by dsh. */
 export function resolveDshReasoningEffort(
   model: Model,
   selection: ReasoningEffortOption = 'default'
@@ -86,7 +88,7 @@ export function resolveDshReasoningEffort(
   if (!selectable.includes(selection)) return undefined
   if (selection === 'none') return 'off'
   if (selection === 'auto') return resolveDshAutoReasoningEffort(model)
-  return selection
+  return isDshAdjustableReasoningEffort(selection) ? selection : undefined
 }
 
 function buildDshReasoningEfforts(model: Model, selected?: DshReasoningEffort): false | DshReasoningEfforts {
@@ -164,6 +166,11 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
   return mapEndpointToDshApi(resolvedEndpoint.endpointType, adapterFamily)
 }
 
+/** Whether DSH must use the local Gateway by provider policy or protocol fallback. */
+export function usesDshGateway(provider: Provider, model: Model): boolean {
+  return requiresAgentGateway(provider.id) || resolveDshInjectionApi(provider, model) === undefined
+}
+
 /**
  * Pure mapping: build the dsh provider injection from an already-resolved
  * Cherry `Provider`, `Model`, and API key. Kept free of service/IO so it is
@@ -191,11 +198,11 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
+  const headers = toAgentProviderHeaders(getExtraHeaders(provider))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
-    // rc.6 reaches Google Generate Content only through pi-ai's built-in catalog route.
+    // This composition reaches Google Generate Content through pi-ai's built-in catalog route.
     providerName: api === 'google-generative-ai' ? 'google' : provider.id,
     api,
     baseUrl,
@@ -241,8 +248,8 @@ export function buildDshProviderInjection(
 }
 
 /**
- * Gateway-route counterpart of {@link buildDshProviderInjection}: the local API
- * Gateway fronts a model with no native dsh wire family as OpenAI-compatible.
+ * Gateway-route counterpart of {@link buildDshProviderInjection}: provider policy
+ * or a missing native dsh wire family routes the model through the local API Gateway.
  * The gateway key is a secret like any native key — it reaches the child only
  * through `CHERRY_DSH_API_KEY`, never the YAML. The session usage headers ride
  * the route's `headers` so the gateway can attach provider usage to the owning
@@ -259,10 +266,11 @@ export function buildDshGatewayInjection(
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
+  const api = resolveDshInjectionApi(provider, model) ?? 'openai-completions'
   return {
     providerName: provider.id,
-    api: 'openai-completions',
-    baseUrl: formatDshBaseUrl(gateway.baseUrl, 'openai-completions'),
+    api,
+    baseUrl: formatDshBaseUrl(gateway.baseUrl, api),
     ...(Object.keys(gateway.usageHeaders).length ? { headers: gateway.usageHeaders } : {}),
     apiKey: gateway.apiKey,
     modelId,
@@ -274,7 +282,7 @@ export function buildDshGatewayInjection(
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
-      compat: { supportsDeveloperRole: true }
+      ...(api === 'openai-completions' || api === 'openai-responses' ? { compat: { supportsDeveloperRole: true } } : {})
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
     usageCapture: { owner: 'provider-calls' }
@@ -304,23 +312,36 @@ export async function resolveDshProviderInjectionFromSnapshot(
   enabledApiKeys?: readonly ApiKeyEntry[],
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
-  if (resolveDshInjectionApi(provider, model) === undefined) {
-    // Claude's gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
+  if (usesDshGateway(provider, model)) {
+    // Shared gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
-  if (!resolvedApiKey.value.trim()) throw new DshMissingApiKeyError(provider.id)
+  if (!resolvedApiKey.value.trim()) {
+    // Keyless local servers (registry authOptional) need no credential; dsh
+    // still wants a non-empty credential value.
+    if (provider.authOptional !== true) throw new DshMissingApiKeyError(provider.id)
+    return buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+  }
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
   }
-  return buildDshProviderInjection(
+  const injection = buildDshProviderInjection(
     provider,
     model,
     resolvedApiKey.value,
     resolvedApiKey.apiKeySelection,
     reasoningEffort
   )
+  // OpenCode Go/Zen reject requests without this header; a header the operator set wins.
+  if (
+    matchesPreset(provider, SystemProviderIds.opencode) &&
+    !Object.keys(injection.headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+  ) {
+    injection.headers = { ...injection.headers, 'x-opencode-session': sessionId }
+  }
+  return injection
 }
 
 /**
@@ -330,10 +351,14 @@ export async function resolveDshProviderInjectionFromSnapshot(
  */
 export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
+
+  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
+  if (requiresAgentGateway(provider.id)) {
+    if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
+    return
+  }
 
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
@@ -343,5 +368,8 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
     return
   }
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
-  if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
+  // Keyless local servers (registry authOptional) carry no credential at all.
+  if (!apiKeys.some((entry) => entry.key.trim()) && provider.authOptional !== true) {
+    throw new DshMissingApiKeyError(providerId)
+  }
 }

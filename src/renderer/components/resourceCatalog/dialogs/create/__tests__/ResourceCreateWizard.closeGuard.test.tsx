@@ -25,7 +25,13 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: undefined })
+  useDefaultModel: () => ({ defaultModel: undefined }),
+  useModels: () => ({ models: [] })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => () => true,
+  useAgentModelDisabled: () => () => false
 }))
 
 vi.mock('@renderer/ipc', () => ({

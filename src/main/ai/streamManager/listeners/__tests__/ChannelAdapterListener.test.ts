@@ -1,8 +1,8 @@
-import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { StreamDoneResult, StreamPausedResult } from '../../types'
+import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
+
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
 
 // C3 (channels-core-1 ∪ channel-adapters-1): the live IM delivery path must redact
@@ -23,7 +23,7 @@ function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
 }
 
 function delta(text: string): UIMessageChunk {
-  return { type: 'text-delta', id: 't', delta: text } as UIMessageChunk
+  return { type: 'text-delta', id: 't', delta: text }
 }
 
 describe('ChannelAdapterListener', () => {
@@ -49,7 +49,7 @@ describe('ChannelAdapterListener', () => {
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta(`final answer ${SECRET} done`))
-    await listener.onDone({ status: 'success' } as StreamDoneResult)
+    await listener.onDone({ status: 'success' })
 
     // onStreamComplete (finalize UI) gets the sanitized text; sendMessage falls back since it returned false.
     expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).not.toContain(SECRET)
@@ -85,7 +85,7 @@ describe('ChannelAdapterListener', () => {
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('Literal [cite:unfinished'))
-    await listener.onDone({ status: 'success' } as StreamDoneResult)
+    await listener.onDone({ status: 'success' })
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
   })
@@ -94,7 +94,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    await listener.onDone({ status: 'success' } as StreamDoneResult)
+    await listener.onDone({ status: 'success' })
 
     expect(adapter.onStreamComplete).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
@@ -105,7 +105,7 @@ describe('ChannelAdapterListener', () => {
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('partial answer'))
-    await listener.onPaused({ status: 'paused' } as StreamPausedResult)
+    await listener.onPaused({ status: 'paused' })
 
     // onStreamComplete (finalize UI) gets the plain text; sendMessage falls back
     // since it returned false, and carries the truncation suffix.
@@ -117,7 +117,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    await listener.onPaused({ status: 'paused' } as StreamPausedResult)
+    await listener.onPaused({ status: 'paused' })
 
     expect(adapter.onStreamComplete).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()

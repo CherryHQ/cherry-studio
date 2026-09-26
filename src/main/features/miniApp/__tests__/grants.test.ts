@@ -1,7 +1,8 @@
-import { miniAppTable } from '@data/db/schemas/miniApp'
-import { declaredGrantKeys, type MiniAppManifest, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
+
+import { miniAppTable } from '@data/db/schemas/miniApp'
+import { declaredGrantKeys, type MiniAppManifest, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 
 import {
   assertGranted,

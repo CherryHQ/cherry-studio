@@ -1,3 +1,6 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Check, CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
+
 import {
   Button,
   Input,
@@ -9,8 +12,6 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Check, CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
 
 const meta: Meta<typeof Popover> = {
   title: 'Components/Primitives/Popover',

@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm'
+
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { preferenceTable } from '@data/db/schemas/preference'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
@@ -7,6 +9,7 @@ import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import {
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -16,7 +19,6 @@ import {
   CHERRYAI_PROVIDER_NAME
 } from '@shared/data/presets/cherryai'
 import type { ModelCapability } from '@shared/data/types/model'
-import { and, eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -31,7 +33,7 @@ export const DEFAULT_MODEL_PREFERENCE_KEYS = [
 ] as const
 
 type TxLike = Pick<DbType, 'select' | 'insert' | 'update'>
-type CherryAiProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
+type ManagedCherryProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
 type CherryAiDefaultModelRow = Omit<InsertUserModelRow, 'orderKey'>
 type DefaultModelPreferenceRow = {
   scope: typeof DEFAULT_MODEL_PREFERENCE_SCOPE
@@ -39,7 +41,7 @@ type DefaultModelPreferenceRow = {
   value: typeof CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
 }
 
-function createCherryAiProviderRow(): CherryAiProviderRow {
+function createCherryAiProviderRow(): ManagedCherryProviderRow {
   return {
     providerId: CHERRYAI_PROVIDER_ID,
     presetProviderId: CHERRYAI_PROVIDER_ID,
@@ -50,6 +52,19 @@ function createCherryAiProviderRow(): CherryAiProviderRow {
       }
     },
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    authConfig: null,
+    providerSettings: null,
+    isEnabled: true
+  }
+}
+
+function createCherryCloudProviderRow(): ManagedCherryProviderRow {
+  return {
+    providerId: CHERRY_CLOUD_PROVIDER_ID,
+    presetProviderId: CHERRYAI_PROVIDER_ID,
+    name: CHERRYAI_PROVIDER_NAME,
+    endpointConfigs: null,
+    defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
     authConfig: null,
     providerSettings: null,
     isEnabled: true
@@ -88,6 +103,11 @@ export function ensureCherryAiDefaultProviderAndModelTx(tx: TxLike): void {
   const insertedProviderCount = providerService.batchUpsertTx(tx, [createCherryAiProviderRow()])
   if (insertedProviderCount > 0) {
     logger.warn('Self-healed missing CherryAI default provider', { providerId: CHERRYAI_PROVIDER_ID })
+  }
+
+  const insertedCloudProviderCount = providerService.batchUpsertTx(tx, [createCherryCloudProviderRow()])
+  if (insertedCloudProviderCount > 0) {
+    logger.warn('Self-healed missing Cherry Cloud provider', { providerId: CHERRY_CLOUD_PROVIDER_ID })
   }
 
   const [existing] = tx
@@ -143,12 +163,13 @@ function ensureCherryAiDefaultModelSetupTx(tx: TxLike): void {
 
 export class CherryAiDefaultModelSeeder implements ISeeder {
   readonly name = 'cherryaiDefaultModel'
-  readonly description = 'Ensure CherryAI default provider, model, and default model preferences'
+  readonly description = 'Ensure CherryAI providers, default model, and default model preferences'
   readonly version: string
 
   constructor() {
     this.version = hashObject({
       provider: createCherryAiProviderRow(),
+      cloudProvider: createCherryCloudProviderRow(),
       model: createCherryAiDefaultModelRow(),
       preferences: createDefaultModelPreferenceRows()
     })

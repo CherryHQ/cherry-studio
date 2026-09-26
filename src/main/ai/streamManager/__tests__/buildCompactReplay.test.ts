@@ -6,10 +6,10 @@ import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../bui
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
     const result = buildCompactReplay([
-      { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk },
-      { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk }
+      { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'hel' } },
+      { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'lo' } },
+      { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } }
     ])
 
     expect(result).toEqual([
@@ -24,37 +24,37 @@ describe('buildCompactReplay', () => {
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk
+        chunk: { type: 'text-start', id: 'p1' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk
+        chunk: { type: 'text-delta', id: 'p1', delta: 'hel' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
-        chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk
+        chunk: { type: 'text-start', id: 'p1' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'xx' } as UIMessageChunk
+        chunk: { type: 'text-delta', id: 'p1', delta: 'xx' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk
+        chunk: { type: 'text-delta', id: 'p1', delta: 'lo' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk
+        chunk: { type: 'text-end', id: 'p1' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
-        chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk
+        chunk: { type: 'text-end', id: 'p1' }
       }
     ])
 
@@ -105,15 +105,15 @@ describe('buildCompactReplay', () => {
     const result = buildCompactReplay([
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } as UIMessageChunk
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' }
       },
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hel' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hel' }
       },
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' }
       }
     ])
 
@@ -127,15 +127,15 @@ describe('buildCompactReplay', () => {
     const result = buildCompactReplay([
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
       },
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' }
       },
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' }
       },
       {
         topicId: 'topic-1',
@@ -144,11 +144,11 @@ describe('buildCompactReplay', () => {
           toolCallId: 'tc1',
           toolName: 'search',
           input: { q: 'hello' }
-        } as UIMessageChunk
+        }
       },
       {
         topicId: 'topic-1',
-        chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
+        chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } }
       }
     ])
 
@@ -168,22 +168,22 @@ describe('buildCompactReplay', () => {
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }
       },
       {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
-        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' }
       }
     ])
 
@@ -218,11 +218,11 @@ describe('buildCompactReplay', () => {
     it('synthesizes the evicted start for a surviving text/reasoning delta run', () => {
       const result = buildCompactReplay([
         // reasoning-start for r1 was evicted; its tail deltas + end survived.
-        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'tail ' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'text' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'answer' } as UIMessageChunk }
+        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'tail ' } },
+        { topicId: 'topic-1', chunk: { type: 'reasoning-delta', id: 'r1', delta: 'text' } },
+        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'answer' } }
       ])
 
       expect(result).toEqual([
@@ -236,9 +236,9 @@ describe('buildCompactReplay', () => {
 
     it('drops an end whose start and content were all evicted', () => {
       const result = buildCompactReplay([
-        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } as UIMessageChunk }
+        { topicId: 'topic-1', chunk: { type: 'reasoning-end', id: 'r1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-end', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }
       ])
 
       expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
@@ -293,9 +293,9 @@ describe('buildCompactReplay', () => {
     it('keeps attach-time compaction under the same delta byte ceiling', () => {
       const result = buildCompactReplay(
         [
-          { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk },
-          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } as UIMessageChunk }
+          { topicId: 't', chunk: { type: 'text-start', id: 'p1' } },
+          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } },
+          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } }
         ],
         4
       )

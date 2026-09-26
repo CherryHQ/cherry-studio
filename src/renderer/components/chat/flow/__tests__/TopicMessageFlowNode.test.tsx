@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: mocks.useQuery
+  useQuery: mocks.useQuery,
+  useDataChange: vi.fn()
 }))
 
 vi.mock('@xyflow/react', () => ({

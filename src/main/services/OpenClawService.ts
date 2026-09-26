@@ -8,12 +8,12 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -43,13 +43,18 @@ const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.
 const DEFAULT_GATEWAY_PORT = 18790
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
+const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
 const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
 const OPENCLAW_CONFIG_FILE_MODE = 0o600
 
-type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
+type OpenClawPreflightFailureKind =
+  | 'binary_incompatible'
+  | 'external_config_invalid'
+  | 'preflight_failed'
+  | 'preflight_timeout'
 
 type OpenClawRuntime = {
   path: AbsoluteFilePath
@@ -65,6 +70,8 @@ type OpenClawCommandResult = {
 
 type OpenClawCommandOptions = {
   stdoutLimitBytes?: number
+  timeoutMs?: number
+  timeoutFailureKind?: 'preflight_failed' | 'preflight_timeout'
 }
 
 type OpenClawValidationIssue = {
@@ -316,6 +323,13 @@ export interface OpenClawModelConfig {
     output: number
     cacheRead?: number
     cacheWrite?: number
+    tieredPricing?: Array<{
+      input: number
+      output: number
+      cacheRead: number
+      cacheWrite: number
+      range: [number, number] | [number]
+    }>
   }
   [key: string]: unknown
 }
@@ -384,7 +398,6 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -397,7 +410,7 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    // IPC handlers migrated to IpcApi (openclaw.*)
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   protected async onReady(): Promise<void> {
@@ -428,20 +441,14 @@ export class OpenClawService extends BaseService {
     await this.stopGateway()
   }
 
-  /** Single gateway-status-transition point: assign, then broadcast; same-value calls are not transitions. */
+  /** Single gateway-status-transition point for the main-owned shared snapshot. */
   private setGatewayStatus(status: GatewayStatus, options?: { force?: boolean }): void {
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
     // Becoming idle is the moment a port preference change deferred during a run takes effect.
     if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
-    try {
-      application.get('IpcApiService').broadcast('openclaw.status_changed', { status: this.gatewayStatus })
-    } catch (err) {
-      // A lost broadcast is corrected by the next transition or a request-completion
-      // rebroadcast; it must never abort the transition itself.
-      logger.warn('Failed to broadcast OpenClaw gateway status change', err as Error)
-    }
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   /**
@@ -531,6 +538,8 @@ export class OpenClawService extends BaseService {
 
       const stdoutCapture = this.createOutputCapture(options.stdoutLimitBytes)
       const stderrCapture = this.createOutputCapture()
+      const timeoutMs = options.timeoutMs ?? OPENCLAW_COMMAND_TIMEOUT_MS
+      const timeoutFailureKind = options.timeoutFailureKind ?? 'preflight_failed'
       let outputTruncated = false
       let settled = false
 
@@ -545,9 +554,13 @@ export class OpenClawService extends BaseService {
         if (settled) return
         proc.kill('SIGKILL')
         settled = true
-        logger.warn('OpenClaw preflight command timed out', { timeoutMs: OPENCLAW_COMMAND_TIMEOUT_MS })
-        reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
-      }, OPENCLAW_COMMAND_TIMEOUT_MS)
+        logger.warn('OpenClaw preflight command timed out', { timeoutMs })
+        const message =
+          timeoutFailureKind === 'preflight_timeout'
+            ? t('openclaw.errors.preflight_timeout', { seconds: timeoutMs / 1000 })
+            : t('openclaw.errors.preflight_failed')
+        reject(new OpenClawPreflightError(timeoutFailureKind, message))
+      }, timeoutMs)
 
       proc.on('error', (error) => {
         if (settled) return
@@ -713,9 +726,16 @@ export class OpenClawService extends BaseService {
           ...runtime.env,
           OPENCLAW_CONFIG_PATH: openclawConfigPath()
         },
-        { stdoutLimitBytes: OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES }
+        {
+          stdoutLimitBytes: OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES,
+          timeoutMs: OPENCLAW_SCHEMA_TIMEOUT_MS,
+          timeoutFailureKind: 'preflight_timeout'
+        }
       )
     } catch (error) {
+      if (error instanceof OpenClawPreflightError && error.kind === 'preflight_timeout') {
+        throw error
+      }
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
 
@@ -738,7 +758,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -817,12 +837,16 @@ export class OpenClawService extends BaseService {
     // On Windows, avoid detached: true as it creates a visible console window.
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
+    // Copy before stripping: removeEnvProxy mutates in place, and shellEnv is reused
+    // for other OpenClaw commands. OpenClaw's undici EnvHttpProxyAgent rejects socks5://.
+    const env = { ...shellEnv }
+    removeEnvProxy(env)
     const proc = crossPlatformSpawn(openclawPath, args, {
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
       env: {
-        ...shellEnv,
+        ...env,
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
@@ -1117,12 +1141,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
-      providerService.getApiKeys(providerId, { enabled: true })
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {
@@ -1168,11 +1190,13 @@ export class OpenClawService extends BaseService {
     }
 
     const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
-    if (provider.authType === 'api-key' && !noKeyPlaceholder) {
+    if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
 
-    return noKeyPlaceholder ?? ''
+    // Keyless providers honour authOptional even without a per-provider
+    // placeholder; OpenClaw itself still needs a non-empty value.
+    return noKeyPlaceholder ?? (provider.authOptional === true ? 'no-key-required' : '')
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
@@ -1242,6 +1266,39 @@ export class OpenClawService extends BaseService {
     }
     if (pricing.cacheWrite?.perMillionTokens != null && isUsd(pricing.cacheWrite.currency)) {
       cost.cacheWrite = pricing.cacheWrite.perMillionTokens
+    }
+    if (pricing.inputTokenTiers?.length) {
+      const baseRates = {
+        input: cost.input,
+        output: cost.output,
+        cacheRead: cost.cacheRead ?? cost.input,
+        cacheWrite: cost.cacheWrite ?? cost.input
+      }
+      const tieredPricing: NonNullable<NonNullable<OpenClawModelConfig['cost']>['tieredPricing']> = [
+        { ...baseRates, range: [0, pricing.inputTokenTiers[0].minInputTokens] }
+      ]
+
+      for (const [index, tier] of pricing.inputTokenTiers.entries()) {
+        if (
+          tier.input.perMillionTokens === null ||
+          tier.output.perMillionTokens === null ||
+          !isUsd(tier.input.currency) ||
+          !isUsd(tier.output.currency) ||
+          (tier.cacheRead && !isUsd(tier.cacheRead.currency)) ||
+          (tier.cacheWrite && !isUsd(tier.cacheWrite.currency))
+        ) {
+          return cost
+        }
+        const nextTier = pricing.inputTokenTiers[index + 1]
+        tieredPricing.push({
+          input: tier.input.perMillionTokens,
+          output: tier.output.perMillionTokens,
+          cacheRead: tier.cacheRead?.perMillionTokens ?? tier.input.perMillionTokens,
+          cacheWrite: tier.cacheWrite?.perMillionTokens ?? tier.input.perMillionTokens,
+          range: nextTier ? [tier.minInputTokens, nextTier.minInputTokens] : [tier.minInputTokens]
+        })
+      }
+      cost.tieredPricing = tieredPricing
     }
     return cost
   }
@@ -1345,6 +1402,7 @@ export class OpenClawService extends BaseService {
       )
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
+      const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
 
       const openclawProvider: OpenClawProviderConfig = {
         ...existingProviderOverrides,
@@ -1354,6 +1412,11 @@ export class OpenClawService extends BaseService {
         models: provider.models.map((m) => {
           const synced = m as OpenClawSyncModel
           const existing = existingModelMap.get(m.id)
+          let cost = synced.cost
+          if (cost && !supportsTieredPricing) {
+            cost = { ...cost }
+            delete cost.tieredPricing
+          }
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1362,7 +1425,7 @@ export class OpenClawService extends BaseService {
               ? { reasoning: synced.reasoning }
               : {}),
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
-            ...(supportsModelField('cost') && synced.cost ? { cost: synced.cost } : {}),
+            ...(supportsModelField('cost') && cost ? { cost } : {}),
             ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
             ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
             id: m.id,

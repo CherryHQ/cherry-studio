@@ -1,3 +1,7 @@
+import { FolderOpen, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InputGroup,
@@ -17,9 +21,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { FolderOpen, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
@@ -82,7 +83,7 @@ const MarkdownExportSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.markdown_export.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
         <RowFlex className="w-78.75 items-center gap-1.25">
           <InputGroup className="h-8 w-62.5">
@@ -121,7 +122,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-topic-naming" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
         <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
       </SettingRow>
@@ -129,7 +130,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-model-name" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
         <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
       </SettingRow>
@@ -137,7 +138,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-model-provider" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
         <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
       </SettingRow>
@@ -153,7 +154,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-citations" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
         <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
       </SettingRow>

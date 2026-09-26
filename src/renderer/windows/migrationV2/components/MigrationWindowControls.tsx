@@ -1,10 +1,11 @@
+import { Minus, X } from 'lucide-react'
+import type React from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { Minus, X } from 'lucide-react'
-import type React from 'react'
-import { useTranslation } from 'react-i18next'
 
 const controlButtonClass =
   'h-full w-12 rounded-none text-muted-foreground shadow-none transition-[background,color] duration-150 hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none'

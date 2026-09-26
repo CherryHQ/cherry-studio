@@ -36,6 +36,9 @@ describe('buildPathRegistry', () => {
 
     expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
     expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+    expect(registry['feature.cherry_account.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'cherry-account.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {
@@ -53,6 +56,13 @@ describe('buildPathRegistry', () => {
       path.join(registry['app.root.resources'], 'code-cli-skills')
     )
     expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
+  it('keeps utility-process entry bundles read-only under the app root', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['app.utility_process']).toBe(path.join('/mock/app', 'out', 'utility-process'))
+    expect(shouldAutoEnsure('app.utility_process')).toBe(false)
   })
 
   it('keeps pi runtime state under the Agents data directory', () => {
@@ -137,9 +147,58 @@ describe('buildPathRegistry', () => {
     )
   })
 
+  it('keeps Dia and Comet profiles separate from Chrome without creating external directories', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.browser.dia']).toBe(path.join(os.homedir(), 'Library/Application Support/Dia/User Data'))
+    expect(registry['external.browser.comet']).toBe(
+      process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData/Local'), 'Perplexity/Comet/User Data')
+        : path.join(os.homedir(), 'Library/Application Support/Comet')
+    )
+    for (const browser of ['dia', 'comet'] as const) {
+      expect(registry[`external.browser.${browser}`]).not.toBe(registry['external.browser.chrome'])
+      expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    }
+  })
+
+  it('locates standard Vivaldi, Opera and Chromium data in their platform directories', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue('/browser-owner')
+    vi.stubEnv('LOCALAPPDATA', '/local')
+    vi.stubEnv('APPDATA', '/roaming')
+    vi.stubEnv('XDG_CONFIG_HOME', '/config')
+    try {
+      const expected =
+        process.platform === 'darwin'
+          ? [
+              '/browser-owner/Library/Application Support/Vivaldi',
+              '/browser-owner/Library/Application Support/com.operasoftware.Opera',
+              '/browser-owner/Library/Application Support/Chromium'
+            ]
+          : process.platform === 'win32'
+            ? ['/local/Vivaldi/User Data', '/roaming/Opera Software/Opera Stable', '/local/Chromium/User Data']
+            : ['/config/vivaldi', '/config/opera', '/config/chromium']
+      const registry = buildPathRegistry()
+      expect(
+        (['vivaldi', 'opera', 'chromium'] as const).map((browser) => registry[`external.browser.${browser}`])
+      ).toEqual(expected.map((directory) => path.normalize(directory)))
+      for (const browser of ['vivaldi', 'opera', 'chromium'] as const)
+        expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers standalone Pi settings as external data', () => {
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
   })
 
   it('registers the platform-native default Hermes home as external data', () => {

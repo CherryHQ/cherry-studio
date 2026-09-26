@@ -1,10 +1,11 @@
+import { useMemo } from 'react'
+
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { useMemo } from 'react'
 
 export interface AgentConversationResources {
   agent?: AgentEntity

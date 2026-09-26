@@ -1,3 +1,12 @@
+import { mockToast } from '@test-mocks/renderer/toast'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Editor } from '@tiptap/core'
+import type * as TiptapReact from '@tiptap/react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
+import { useState } from 'react'
+import { flushSync } from 'react-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
@@ -6,13 +15,10 @@ import {
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
-import { useState } from 'react'
-import { flushSync } from 'react-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ComposerContextProvider } from '../ComposerContext'
+import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
+import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
+import type * as ComposerPreset from '../composerPreset'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -66,7 +72,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelUpdateList: vi.fn(),
   pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
-  translate: (key: string) => key,
+  translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
 
@@ -91,6 +97,7 @@ function getMockEditorScrollHeight(node: HTMLElement) {
 }
 
 vi.mock('@cherrystudio/ui', () => ({
+  Kbd: ({ children, ...props }: HTMLAttributes<HTMLElement>) => <kbd {...props}>{children}</kbd>,
   Button: ({
     children,
     size,
@@ -269,7 +276,8 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   }
 }))
 
-vi.mock('@tiptap/react', () => ({
+vi.mock('@tiptap/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof TiptapReact>()),
   EditorContent: ({ style, onFocus }: { style?: React.CSSProperties; onFocus?: () => void }) => (
     <div data-testid="editor-content" style={style} onFocus={onFocus}>
       <div
@@ -289,6 +297,7 @@ vi.mock('@tiptap/react', () => ({
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
+  ComposerToolFooterActionsSync: () => null,
   ComposerToolMenu: () => <button type="button">add tool</button>,
   useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
@@ -591,6 +600,23 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
+  it('does not render a visual focus reminder', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('聚焦输入框')).not.toBeInTheDocument()
+  })
+
+  it('renders the AI-generated content disclaimer when the composer enables it', () => {
+    const view = render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('内容由 AI 生成，仅供参考')).not.toBeInTheDocument()
+
+    view.rerender(<ComposerSurface {...baseProps} showAiDisclaimer />)
+
+    expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
+  })
+
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
@@ -689,24 +715,89 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
   })
 
-  it('closes an open QuickPanel before an override is shown', () => {
+  it('keeps the active editor panel open and releases it only when the composer layer changes', () => {
     mocks.quickPanelIsVisible = true
 
-    render(
-      <ComposerContextProvider
-        value={{
-          overrides: [
-            {
-              id: 'tool-permission:approval-1',
-              render: () => null
-            }
-          ]
-        }}>
-        <ComposerSurface {...baseProps} quickPanelEnabled />
+    const layer = (active: boolean) => (
+      <ComposerContextProvider value={{ overrides: [{ id: 'edit', render: () => null }] }}>
+        <ComposerLayerActiveProvider value={active}>
+          <ComposerSurface {...baseProps} quickPanelEnabled />
+        </ComposerLayerActiveProvider>
       </ComposerContextProvider>
     )
+    const view = render(layer(true))
+    expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
 
+    view.rerender(layer(false))
     expect(mocks.quickPanelClose).toHaveBeenCalledWith('composer_override')
+    expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+    mocks.quickPanelClose = vi.fn()
+    view.rerender(layer(false))
+    expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+
+    view.rerender(layer(true))
+    expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
+  })
+
+  it.each(['/', '@'])('lets only the active composer control %s suggestions', async (trigger) => {
+    const suggestionSources = [{ pluginKey: 'resource', char: '@', items: () => [] }]
+    const layer = (active: boolean) => (
+      <ComposerLayerActiveProvider value={active}>
+        <ComposerSurface {...baseProps} quickPanelEnabled suggestionSources={suggestionSources} />
+      </ComposerLayerActiveProvider>
+    )
+    const view = render(layer(false))
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
+
+    try {
+      await act(async () => {
+        editor.commands.insertContent(trigger)
+      })
+      expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+
+      view.rerender(layer(true))
+      await act(async () => {
+        editor.commands.insertContent('a')
+      })
+      expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerInfo: expect.objectContaining({ originalText: `${trigger}a` })
+        })
+      )
+
+      mocks.quickPanelIsVisible = true
+      mocks.quickPanelSymbol = mocks.quickPanelOpen.mock.lastCall![0].symbol
+      view.rerender(layer(true))
+      vi.useFakeTimers()
+      await act(async () => {
+        editor.commands.clearContent()
+      })
+      view.rerender(layer(false))
+      mocks.quickPanelClose.mockClear()
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+      expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+
+      view.rerender(layer(true))
+      await act(async () => {
+        editor.commands.insertContent(trigger)
+      })
+      await act(async () => {
+        editor.commands.clearContent()
+      })
+      mocks.quickPanelClose.mockClear()
+      mocks.quickPanelGeneration += 1
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+      expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+    } finally {
+      editor.destroy()
+      vi.useRealTimers()
+    }
   })
 
   it('exposes stable UI contract anchors', () => {
@@ -721,6 +812,14 @@ describe('ComposerSurface', () => {
       'data-ui',
       'chat.composer.action.send'
     )
+  })
+
+  it('keeps regular editor padding independent of the overlay corner control', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
   it('exposes the pause anchor while a response is streaming', () => {
@@ -1349,9 +1448,8 @@ describe('ComposerSurface', () => {
   })
 
   it('keeps token structure when an external text update matches the current content', async () => {
-    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
-    // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
-    // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
+    // An external same-text update (e.g. a tool writing the text back) must skip the rebuild:
+    // it only re-tokenizes prompt variables, so the quote token would degrade to plain text.
     mocks.getJSON.mockReturnValue({
       type: 'doc',
       content: [
@@ -1858,14 +1956,6 @@ describe('ComposerSurface', () => {
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
         rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        rootPanelAdditionalItems={[
-          {
-            id: 'composer:customize-toolbar',
-            label: 'Customize toolbar',
-            icon: 'settings',
-            fixedToBottom: true
-          }
-        ]}
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
           <>
             <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
@@ -1887,8 +1977,7 @@ describe('ComposerSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
 
     mocks.quickPanelOpen.mockClear()
@@ -1899,8 +1988,6 @@ describe('ComposerSurface', () => {
         list: [expect.objectContaining({ id: 'thinking-low' })],
         // Opening a launcher directly is an explicit request, so its parentPanel is the
         // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
-        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
-        // category view (seeded with the "Thinking" search text).
         parentPanel: expect.objectContaining({
           list: [
             expect.objectContaining({ id: 'new-topic' }),
@@ -1919,8 +2006,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
       'new-topic',
       'thinking',
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
   })
 
@@ -3119,6 +3205,51 @@ describe('ComposerSurface', () => {
     expect(fileUpdater([pastedFile])).toEqual([])
   })
 
+  it('refuses to replace the pasted text token when the file exceeds the input limit', async () => {
+    const pastedFile = {
+      id: 'file-2',
+      name: 'pasted_text.txt',
+      origin_name: '已粘贴的文本.txt',
+      path: '/tmp/pasted_text.txt',
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    }
+    const pastedToken = {
+      id: 'file:file-2',
+      kind: 'file' as const,
+      label: '已粘贴的文本.txt',
+      payload: pastedFile
+    }
+    const setFiles = vi.fn()
+
+    // Silently truncating here would drop the tail of the file the moment the
+    // token is replaced — the refusal must keep the token and the file intact.
+    mocks.fsReadText.mockResolvedValue('x'.repeat(COMPOSER_INPUT_MAX_LENGTH + 1))
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(pastedToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
+    expect(mocks.deleteRange).not.toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(mockToast.error).toHaveBeenCalledWith('chat.input.paste_text_too_long')
+  })
+
   it('does not notify token changes when only text changes', async () => {
     const onTextChange = vi.fn()
     const onTokensChange = vi.fn()
@@ -3981,6 +4112,40 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }])
     expect(mocks.insertContent).toHaveBeenCalledTimes(1)
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it('inserts Excel clipboard text when HTML and plain text accompany a supported image', async () => {
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} supportedExts={['.png']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const pastedText = 'Product\tUnits\nRevenue\t42'
+    const pastedHtml =
+      '<table><tbody><tr><td>Product</td><td>Units</td></tr><tr><td>Revenue</td><td>42</td></tr></tbody></table>'
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({
+      extensions: createComposerEditorPreset(mocks.editorPresetOptions),
+      editorProps: { handlePaste: mocks.editorOptions.handlePaste }
+    })
+
+    try {
+      fireEvent.paste(editor.view.dom, {
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return pastedText
+            if (type === 'text/html') return pastedHtml
+            return ''
+          },
+          files: [new File(['png'], 'excel.png', { type: 'image/png' })]
+        }
+      })
+
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(pastedText)
+      expect(setFiles).not.toHaveBeenCalled()
+    } finally {
+      editor.destroy()
+    }
   })
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
@@ -5428,7 +5593,10 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         title: 'Thinking',
         symbol: 'thinking',
-        queryAnchor: 0,
+        queryAnchor: undefined,
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         parentPanel: expect.objectContaining({
           title: 'settings.quickPanel.title',
           symbol: '/',

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -8,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { useTranslation } from 'react-i18next'
 
 export interface AssistantPresetPreviewDialogPreset {
   description?: string
@@ -55,7 +56,7 @@ export function AssistantPresetPreviewDialog({
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0"
         onPointerDownOutside={(event) => adding && event.preventDefault()}>
-        <DialogHeader className="shrink-0 border-border-subtle border-b px-5 pt-5 pr-12 pb-4 text-left">
+        <DialogHeader className="shrink-0 border-b border-border-subtle px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
               {preset.emoji || '🤖'}
@@ -68,7 +69,7 @@ export function AssistantPresetPreviewDialog({
                     <Badge
                       key={group}
                       variant="secondary"
-                      className="border-0 bg-secondary px-1.5 py-px text-muted-foreground text-xs">
+                      className="border-0 bg-secondary px-1.5 py-px text-xs text-muted-foreground">
                       {group}
                     </Badge>
                   ))}
@@ -78,27 +79,27 @@ export function AssistantPresetPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
           {description && (
             <section>
-              <div className="mb-2 text-muted-foreground text-sm">
+              <div className="mb-2 text-sm text-muted-foreground">
                 {t('library.assistant_catalog.preview_description')}
               </div>
-              <p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{description}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{description}</p>
             </section>
           )}
 
           {prompt && (
             <section>
-              <div className="mb-2 text-muted-foreground text-sm">{t('library.assistant_catalog.preview_prompt')}</div>
-              <p className="whitespace-pre-wrap rounded-md border border-border-subtle bg-muted p-4 text-muted-foreground text-sm leading-relaxed">
+              <div className="mb-2 text-sm text-muted-foreground">{t('library.assistant_catalog.preview_prompt')}</div>
+              <p className="rounded-md border border-border-subtle bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
                 {prompt}
               </p>
             </section>
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-border-subtle border-t px-5 py-4">
+        <DialogFooter className="shrink-0 border-t border-border-subtle px-5 py-4">
           <Button variant="outline" disabled={adding} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>

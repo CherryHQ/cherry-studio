@@ -5,16 +5,17 @@
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
 
+import dayjs from 'dayjs'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import { getBackupErrorTitleKey, getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { AutoBackupType } from '@shared/types/backup'
-import dayjs from 'dayjs'
 
 import { notificationService } from './notification'
 
@@ -91,7 +92,7 @@ export async function restore() {
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
       void popup.error({
-        title: i18n.t('error.backup.file_format'),
+        title: i18n.t(getBackupErrorTitleKey(error)),
         content: getLocalizedBackupErrorMessage(error, 'error.backup.file_format'),
         centered: true
       })

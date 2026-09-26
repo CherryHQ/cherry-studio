@@ -1,12 +1,14 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Eye } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ExtraProps } from 'streamdown'
 
-interface SvgProps extends React.SVGProps<SVGSVGElement> {
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { isKatexGeneratedSvg, makeSvgSizeAdaptive } from '@renderer/utils/image'
+
+interface SvgProps extends React.SVGProps<SVGSVGElement>, ExtraProps {
   'data-needs-measurement'?: 'true'
 }
 
@@ -25,7 +27,7 @@ interface SvgProps extends React.SVGProps<SVGSVGElement> {
  *     the original `width` and `height` props after the mutation is complete.
  */
 const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
-  const { 'data-needs-measurement': needsMeasurement, ...restProps } = props
+  const { 'data-needs-measurement': needsMeasurement, node, ...restProps } = props
   const svgRef = useRef<SVGSVGElement>(null)
   const isMeasuredRef = useRef(false)
   const { t } = useTranslation()
@@ -62,9 +64,12 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
     [t, onPreview]
   )
 
+  const svg = <svg ref={svgRef} {...finalProps} />
+  if (isKatexGeneratedSvg(node)) return svg
+
   return (
     <CommandContextMenu location="webcontents.context" extraItems={items}>
-      <svg ref={svgRef} {...finalProps} />
+      {svg}
     </CommandContextMenu>
   )
 }

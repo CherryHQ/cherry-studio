@@ -7,13 +7,15 @@
  * This file lives inside migration/v2/ so it is removed when migration is deleted.
  */
 
+import fs from 'fs'
+import path from 'path'
+
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
 import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import fs from 'fs'
-import path from 'path'
 
 import type { MigrationPaths } from './MigrationPaths'
 
@@ -69,8 +71,7 @@ export class MigrationDbService {
       } catch {
         // Best-effort — the original error is more important.
       }
-      const msg = error instanceof Error ? error.message : String(error)
-      throw new Error(`Database schema migration failed: ${msg}`, { cause: error })
+      throw new Error('Database schema migration failed', { cause: error })
     }
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent

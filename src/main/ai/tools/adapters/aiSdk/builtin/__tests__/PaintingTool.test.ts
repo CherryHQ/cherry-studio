@@ -1,19 +1,26 @@
 import { resolve } from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
-import type { Assistant } from '@shared/data/types/assistant'
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { Assistant } from '@shared/data/types/assistant'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
+
 import type { ToolApplyScope } from '../../types'
 
-const { getPreference, getImageGenerationSupport, generateImage, fileRead } = vi.hoisted(() => ({
+const { getPreference, getModelByKey, getImageGenerationSupport, generateImage, fileRead } = vi.hoisted(() => ({
   getPreference: vi.fn(),
+  getModelByKey: vi.fn(),
   getImageGenerationSupport: vi.fn(),
   generateImage: vi.fn(),
   fileRead: vi.fn()
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: getModelByKey }
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
@@ -52,7 +59,7 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
     toolCallId: 't1',
     messages: [],
     experimental_context: { requestId: 'r1', abortSignal }
-  } as ToolExecutionOptions
+  }
 }
 
 function callExecute(
@@ -106,9 +113,11 @@ function getZhipuCogViewSupport(): ImageGenerationSupport {
 describe('generate_image', () => {
   beforeEach(() => {
     getPreference.mockReset()
+    getModelByKey.mockReset()
     getImageGenerationSupport.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
+    getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
   })
 
@@ -220,6 +229,19 @@ describe('generate_image', () => {
     expect(result).toEqual({ error: PAINTING_MODEL_NOT_CONFIGURED_NOTE })
     expect(result.error).toContain('No painting model is configured')
     expect(result.error).toContain('do not retry')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('treats a model unavailable in the current edition as not configured', async () => {
+    getPreference.mockReturnValue('global-only::image-model')
+    getModelByKey.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Model', 'global-only::image-model')
+    })
+
+    const result = await callExecute({ prompt: 'a cat' })
+
+    expect(result).toEqual({ error: PAINTING_MODEL_NOT_CONFIGURED_NOTE })
+    expect(getImageGenerationSupport).not.toHaveBeenCalled()
     expect(generateImage).not.toHaveBeenCalled()
   })
 

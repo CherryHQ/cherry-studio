@@ -1360,7 +1360,7 @@ export const ContactForm: Story = {
             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
             buttonProps={{
               label: submitted ? '✓ Sent' : 'Send',
-              onClick: (e) => handleSubmit(e as unknown as React.FormEvent)
+              onClick: (e) => handleSubmit(e)
             }}
           />
         </div>

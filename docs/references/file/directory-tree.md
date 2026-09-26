@@ -21,7 +21,8 @@ artifact file tree.
 
 `DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and watcher.
 `DirectoryTreeManager` owns builder sharing and renderer consumers. `useDirectoryTree` owns a
-renderer mirror and the snapshot-to-stream handshake.
+private `DirectoryTreeSession` for the renderer mirror and snapshot-to-stream handshake, and
+subscribes React to its external snapshot. The session is not an app-level service or public API.
 
 The primitive is separate from FileManager because its identity and lifecycle differ:
 
@@ -53,7 +54,7 @@ src/main/services/file/
 
 src/shared/utils/file/tree.ts      # options, DTOs, mutation types, TreeNode classes
 src/shared/ipc/schemas/file.ts     # file.tree.* request/event contracts
-src/renderer/hooks/useDirectoryTree.ts
+src/renderer/hooks/useDirectoryTree.ts # React subscription and private retained session
 ```
 
 ### 2.1 Shared Contract
@@ -144,7 +145,7 @@ until the renderer:
 4. calls `file.tree.activate` with the snapshot revision.
 
 Activation sends buffered mutations before it returns. The pending queue is capped at 1,000
-events; overflow disposes that consumer. `useDirectoryTree` retries a refused activation with a
+events; overflow disposes that consumer. `DirectoryTreeSession` retries a refused activation with a
 fresh snapshot up to three times.
 
 Each push carries a monotonic revision. The renderer ignores duplicates, but a gap is terminal for
@@ -165,9 +166,9 @@ presentation layer.
 
 ### 4.3 Ownership
 
-The request handler resolves the caller's managed `WebContents`. Follow-up operations verify that
-the calling window owns the `treeId`; the ID alone is not treated as authority. Mutation events are
-sent only to the owning WebContents, not broadcast to all windows.
+The request handler resolves the caller's managed window: its `WindowId` and its `WebContents`.
+Follow-up operations verify that the calling window owns the `treeId`; the ID alone is not treated
+as authority. Mutation events are sent only to the owning WebContents, not broadcast to all windows.
 
 ### 4.4 Explicit Rename
 
@@ -188,8 +189,10 @@ dedupe key, and concurrent creates share the same in-flight build.
 
 ## 6. Resource Lifecycle
 
-Destroying a WebContents releases all of its tree IDs. Service shutdown disposes every consumer and
-awaits watcher closure. The last-consumer grace window is described in §3.2.
+When WindowManager destroys the owning managed window (`onWindowDestroyed`), all of its tree IDs
+are released; pool release and singleton hide keep the window alive and release nothing. Service
+shutdown disposes every consumer and awaits watcher closure. The last-consumer grace window is
+described in §3.2.
 
 ## 7. Failure Behavior
 
@@ -212,6 +215,23 @@ awaits watcher closure. The last-consumer grace window is described in §3.2.
 The root object mutates in place, so derived React values must depend on `version`. A side consumer
 that must observe every mutation uses the hook's `onMutation` callback; subscribing later with the
 published `treeId` can miss mutations flushed during activation.
+
+The hook retains one directory session per root. Activity suspension unsubscribes React immediately,
+so mutations update the mirror without scheduling view projections. The IPC stream remains active
+for a ten-second idle grace period, matching the artifact tree's lazy watcher retention. Returning
+within that period with the same root reuses the mirror and tree ID; after release, returning takes
+a fresh snapshot. A visible root change immediately retires the previous session, including an
+in-flight create. While hidden, a root change leaves the previous session alive until the original
+idle deadline or visibility resumes, whichever comes first. Further hidden root changes do not
+extend that deadline or create new native consumers. On resume, the hook loads the current root.
+Unmounts release after the same bounded grace period; closing the renderer releases native consumers
+through `DirectoryTreeManager`. There is no persistent cache or always-on directory watcher.
+
+The `onMutation` callback remains a business-side subscription during the grace period, including
+activation replay and brief Activity suspension. Once the hook renders a different root, events
+from the previous root are no longer forwarded to that callback. Rendering and expensive projections
+belong to React subscribers; callbacks that need filesystem events must not be conditional on view visibility.
+Revision gaps remain terminal, so retaining the mirror never hides missed mutations.
 
 Options are sampled when a root mounts. Changing the options object while `rootPath` is unchanged
 does not rebuild the tree.

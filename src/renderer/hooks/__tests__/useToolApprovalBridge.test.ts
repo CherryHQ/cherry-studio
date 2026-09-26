@@ -1,7 +1,8 @@
-import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 

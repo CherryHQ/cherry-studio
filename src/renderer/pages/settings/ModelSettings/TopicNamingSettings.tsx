@@ -1,3 +1,7 @@
+import { CircleHelp } from 'lucide-react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ColFlex,
@@ -13,9 +17,6 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
-import { CircleHelp } from 'lucide-react'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')

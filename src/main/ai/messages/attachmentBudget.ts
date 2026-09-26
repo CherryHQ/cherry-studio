@@ -1,3 +1,5 @@
+import type { ToolSet, UIMessage } from 'ai'
+
 /**
  * Request-level token budget for attachment text inlined into the prompt.
  *
@@ -21,7 +23,6 @@ import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaSt
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { ToolSet, UIMessage } from 'ai'
 
 import type { MediaCapabilities } from './messageCapabilities'
 import { toModelMessages } from './messageRules'

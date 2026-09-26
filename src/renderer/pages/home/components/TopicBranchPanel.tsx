@@ -1,3 +1,8 @@
+import { CopyPlus, GitBranch } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -15,10 +20,6 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, GitBranch } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 

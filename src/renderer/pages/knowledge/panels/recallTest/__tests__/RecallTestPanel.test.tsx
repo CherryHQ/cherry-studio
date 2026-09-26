@@ -1,7 +1,8 @@
-import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import type RecallResultCardComponent from '../RecallResultCard'
 import RecallTestPanel from '../RecallTestPanel'

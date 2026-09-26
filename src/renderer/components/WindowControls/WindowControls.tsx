@@ -1,11 +1,12 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isLinux, isWin } from '@renderer/utils/platform'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { isLinux, isWin } from '@renderer/utils/platform'
 
 import { ControlButton, WindowControlsContainer } from './WindowControls.styled'
 

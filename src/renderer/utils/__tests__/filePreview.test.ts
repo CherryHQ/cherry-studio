@@ -25,6 +25,13 @@ describe('file preview paths', () => {
     expect(getFilePreviewFileName(path)).toBe('report.docx')
   })
 
+  it.each([
+    ['\\\\server\\share\\notes\\..\\report.docx', '\\\\server\\share\\report.docx'],
+    ['//server/share/notes/../report.docx', '\\\\server\\share\\report.docx']
+  ])('normalizes UNC paths without losing the share root', (input, expected) => {
+    expect(normalizeFilePreviewPath(input)).toBe(expected)
+  })
+
   it('preserves Unicode bytes without NFC normalization (an NFC rewrite would ENOENT on Linux)', () => {
     // Byte-faithful, like the rest of the path layer: an NFD-composed name is NOT
     // rewritten to NFC, so the preview path still reaches the file on
@@ -61,6 +68,14 @@ describe('file preview route target', () => {
     expect(createFilePreviewTabTarget('/tmp/notes/../report.md').url).toBe(
       createFilePreviewTabTarget('/tmp/report.md').url
     )
+  })
+
+  it('preserves a UNC route target', () => {
+    expect(createFilePreviewTabTarget('\\\\server\\share\\docs\\report.md')).toEqual({
+      filePath: '\\\\server\\share\\docs\\report.md',
+      title: 'report.md',
+      url: '/app/file-preview?path=%5C%5Cserver%5Cshare%5Cdocs%5Creport.md'
+    })
   })
 
   it('parses valid search paths and contains invalid route input', () => {

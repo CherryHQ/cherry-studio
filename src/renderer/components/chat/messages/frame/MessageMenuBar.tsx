@@ -1,16 +1,19 @@
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
-import { classNames } from '@renderer/utils/style'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
+import { classNames } from '@renderer/utils/style'
+
 import { useMessageParts } from '../blocks/MessagePartsContext'
+import { useOptionalMessageCaptureLease } from '../list/MessageCaptureLeaseContext'
 import {
   useMessageListActions,
   useMessageListSelection,
   useMessageListUi,
+  useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageMenuConfig, type MessageListItem } from '../types'
@@ -59,6 +62,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const renderConfig = useMessageRenderConfig()
+  const messageCaptureLease = useOptionalMessageCaptureLease()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translateLanguages = useMemo(() => messageUi.translationLanguages ?? [], [messageUi.translationLanguages])
@@ -67,13 +71,19 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const messageParts = useMessageParts(message.id)
-  const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
+  const messageForExport = useMemo(
+    () => createMessageExportView(message, messageParts, priorCitationParts),
+    [message, messageParts, priorCitationParts]
+  )
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
-  const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
+  const isEditable =
+    actions.canEditMessage?.(message) ??
+    (isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts))
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
   const isSelectedForContext = !!message.isActiveBranch
@@ -89,6 +99,8 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageParts,
       messageForExport,
       messageContainerRef,
+      acquireMessageCaptureLease: messageCaptureLease?.acquireMessageCaptureLease,
+      getRenderedMessageElement: messageCaptureLease?.getRenderedMessageElement,
       mainTextContent,
       selection,
       menuConfig,
@@ -126,6 +138,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       menuConfig,
       message,
       messageContainerRef,
+      messageCaptureLease,
       messageUi.getTranslationLanguageLabel,
       messageUi.translationLanguagesStatus,
       messageForExport,

@@ -1,5 +1,6 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { memo } from 'react'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
 
 interface ImageToolButtonProps {
   tooltip: string

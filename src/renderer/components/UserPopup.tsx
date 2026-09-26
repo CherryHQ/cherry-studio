@@ -1,3 +1,6 @@
+import React, { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Avatar,
   AvatarImage,
@@ -17,13 +20,13 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import React, { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
 
@@ -33,12 +36,27 @@ type AvatarPopoverView = 'menu' | 'emoji'
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
+  // The stored name is always trimmed; the draft keeps the raw text so a space can be typed
+  // mid-name, and stays unset until typed so the input follows the preference until then.
+  const [userNameDraft, setUserNameDraft] = useState<string>()
 
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
+  const isCnEdition = getAppEdition() === 'cn'
+  const {
+    status: cloudStatus,
+    loadState: cloudStatusLoadState,
+    reload: loadCloudStatus,
+    login: handleCloudLogin,
+    cancelLogin: handleCloudLoginCancel,
+    revokeSession: handleCloudLogout,
+    isCancellingLogin,
+    isRevokingSession,
+    isAuthorizing
+  } = useCherryAccountSession(open)
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -166,12 +184,67 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         <RowFlex className="items-center gap-2.5 p-5">
           <Input
             placeholder={t('settings.general.user_name.placeholder')}
-            value={userName}
-            onChange={(e) => setUserName(e.target.value.trim())}
+            value={userNameDraft ?? userName}
+            onChange={(e) => {
+              setUserNameDraft(e.target.value)
+              void setUserName(e.target.value.trim())
+            }}
             className="w-full flex-1 text-center"
             maxLength={30}
           />
         </RowFlex>
+        {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
+          <RowFlex className="border-border-subtle border-t px-5 py-4">
+            {cloudStatusLoadState === 'error' ? (
+              <ColFlex className="w-full gap-2">
+                <div
+                  role="alert"
+                  className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-center text-error-subtle-foreground text-xs">
+                  {t('error.http.503')}
+                </div>
+                <Button className="w-full" onClick={() => void loadCloudStatus()} variant="outline">
+                  {t('common.retry')}
+                </Button>
+              </ColFlex>
+            ) : cloudStatus?.phase === 'signed-in' ? (
+              <ColFlex className="w-full items-center gap-1.5">
+                <Button
+                  className="w-full"
+                  loading={isRevokingSession}
+                  onClick={() => void handleCloudLogout()}
+                  variant="outline">
+                  {t('settings.provider.cherry_cloud.logout')}
+                </Button>
+                {cloudStatus.displayName ? (
+                  <div role="status" className="max-w-full truncate text-foreground-tertiary text-xs leading-tight">
+                    {cloudStatus.displayName}
+                  </div>
+                ) : null}
+              </ColFlex>
+            ) : (
+              <ColFlex className="w-full gap-2">
+                <Button
+                  className="w-full"
+                  loading={cloudStatusLoadState === 'loading' || isAuthorizing}
+                  onClick={() => void handleCloudLogin()}
+                  variant="emphasis">
+                  {isAuthorizing
+                    ? t('settings.provider.cherry_cloud.signing_in')
+                    : t('settings.provider.cherry_cloud.login')}
+                </Button>
+                {isAuthorizing ? (
+                  <Button
+                    className="w-full"
+                    loading={isCancellingLogin}
+                    onClick={() => void handleCloudLoginCancel()}
+                    variant="outline">
+                    {t('common.cancel')}
+                  </Button>
+                ) : null}
+              </ColFlex>
+            )}
+          </RowFlex>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

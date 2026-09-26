@@ -113,12 +113,12 @@ describe('CodeViewer', () => {
 
   it('highlights only viewport-visible viewers immediately when many code blocks mount together', async () => {
     vi.useFakeTimers()
-    const rectSpy = vi.spyOn(window.HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      const viewportState = this.closest('[data-viewport-state]')?.getAttribute('data-viewport-state')
-      return viewportState === 'visible' ? new DOMRect(10, 10, 320, 80) : new DOMRect(10, 10_000, 320, 80)
-    })
+    const rectSpy = vi
+      .spyOn(window.HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const viewportState = this.closest('[data-viewport-state]')?.getAttribute('data-viewport-state')
+        return viewportState === 'visible' ? new DOMRect(10, 10, 320, 80) : new DOMRect(10, 10_000, 320, 80)
+      })
     const lineCounts = Array.from({ length: 12 }, (_, index) => index + 1)
     const requestedCounts = () => mocks.highlightLines.mock.calls.map(([count]) => count).sort((a, b) => a - b)
 

@@ -3,13 +3,14 @@ import { release } from 'node:os'
 import path from 'node:path'
 import { type Readable, Transform } from 'node:stream'
 
+import { ZipArchive } from 'archiver'
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createAtomicWriteStream } from '@main/utils/file'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { ZipArchive } from 'archiver'
-import { app } from 'electron'
 
 import { isValidLocalDate } from './utils/localDate'
 

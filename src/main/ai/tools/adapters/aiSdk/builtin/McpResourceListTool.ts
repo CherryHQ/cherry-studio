@@ -9,13 +9,14 @@
  * Servers are request scope, not a model argument, so the tool takes no input.
  */
 
+import { tool } from 'ai'
+
 import { loggerService } from '@logger'
 import {
   MCP_RESOURCE_LIST_TOOL_NAME,
   mcpResourceListInputSchema,
   mcpResourceListOutputSchema
 } from '@shared/ai/builtinTools'
-import { tool } from 'ai'
 
 import { getToolCallContext } from '../context'
 import { resolveMcpResourceServers } from '../mcp/resolveAssistantMcpTools'

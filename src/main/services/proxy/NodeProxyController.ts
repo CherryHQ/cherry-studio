@@ -7,12 +7,7 @@ import {
   type NodeProxyConfig,
   normalizeProxyBypassRules
 } from './proxyEnv'
-import {
-  createProxyRoutingSnapshot,
-  normalizeProxyEndpoint,
-  type ProxyEndpoint,
-  type ProxyRoutingSnapshot
-} from './proxyRouting'
+import { normalizeProxyEndpoint } from './proxyRouting'
 
 const PROXY_ENV_KEYS = [
   CHERRY_NODE_PROXY_RULES_ENV,
@@ -32,9 +27,6 @@ const PROXY_ENV_KEYS = [
 
 export class NodeProxyController {
   private currentConfigKey: string | null = null
-  private proxyEndpoint: ProxyEndpoint | null = null
-  private normalizedBypassRules: string[] = []
-  private routingVersion = 0
   private backendPromise: Promise<NodeProxyBackend> | undefined
 
   constructor(private logger?: NodeProxyLogger) {}
@@ -42,6 +34,12 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
+    // Keep local services reachable independently of the configured proxy.
+    if (proxyUrl) {
+      for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
+        if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
+      }
+    }
     const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
     if (this.currentConfigKey === configKey) return
 
@@ -62,14 +60,7 @@ export class NodeProxyController {
       this.setEnvironment(undefined, normalizedBypassRules)
     }
 
-    this.proxyEndpoint = proxyEndpoint
-    this.normalizedBypassRules = normalizedBypassRules
-    this.routingVersion += 1
     this.currentConfigKey = configKey
-  }
-
-  getRoutingSnapshot(): ProxyRoutingSnapshot {
-    return createProxyRoutingSnapshot(this.routingVersion, this.proxyEndpoint, this.normalizedBypassRules)
   }
 
   private getBackend(): Promise<NodeProxyBackend> {
