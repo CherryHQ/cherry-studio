@@ -49,7 +49,7 @@ export function DictationControls({
     <div className="flex flex-wrap items-center gap-1">
       {snapshot.phase !== 'idle' && (
         <span role="status" className="text-xs text-muted-foreground">
-          {t(PHASE_KEYS[snapshot.phase])}
+          {t(snapshot.error === 'no_speech' ? 'settings.voice.status.no_speech' : PHASE_KEYS[snapshot.phase])}
           {snapshot.phase === 'recording' &&
             ` ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(snapshot.elapsedMs / 1_000) })}`}
         </span>

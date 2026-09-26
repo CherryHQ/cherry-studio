@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "状态",
   "settings.voice.status.model_load_failed": "无法加载本地语音模型。",
   "settings.voice.status.model_required": "下载 FunASR 模型后即可使用本地语音识别。",
+  "settings.voice.status.no_speech": "未检测到语音，请检查麦克风后重新录音。",
   "settings.voice.status.not_installed": "需要其他语音资源",
   "settings.voice.status.operation_failed": "语音操作失败，请重试。",
   "settings.voice.status.ready": "就绪",

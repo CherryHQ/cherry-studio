@@ -104,7 +104,7 @@ function statusKey(status: StatusState): string {
 function errorKey(error: boolean | string): string {
   if (
     typeof error === 'string' &&
-    ['download_failed', 'model_load_failed', 'worker_crashed', 'timeout'].includes(error)
+    ['download_failed', 'model_load_failed', 'no_speech', 'worker_crashed', 'timeout'].includes(error)
   )
     return `settings.voice.status.${error}`
   return 'settings.voice.status.operation_failed'
@@ -393,14 +393,9 @@ function VoiceSettings() {
         targetId: 'voice-settings-transcription-test',
         owner: window,
         sourceEntityId: 'voice-settings',
-        captureReplaceRange: () => {
-          const field = transcriptRef.current
-          return field ? { from: field.selectionStart, to: field.selectionEnd } : null
-        },
-        replaceRange: ({ from, to }, text) => {
-          const current = transcriptValueRef.current
-          if (from > current.length || to > current.length) return false
-          setTranscript(`${current.slice(0, from)}${text}${current.slice(to)}`)
+        captureReplaceRange: () => (transcriptRef.current ? { from: 0, to: transcriptValueRef.current.length } : null),
+        replaceRange: (_range, text) => {
+          setTranscript(text)
           return true
         }
       }),
@@ -477,6 +472,7 @@ function VoiceSettings() {
       void dictationService.stop().catch(() => setActionFailed(true))
       return
     }
+    setTranscript('')
     voiceTargetManager.markCurrent('voice-settings-transcription-test')
     const run = dictationService.startScoped()
     dictationRunRef.current = run

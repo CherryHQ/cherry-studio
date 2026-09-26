@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Status",
   "settings.voice.status.model_load_failed": "The local speech model could not be loaded.",
   "settings.voice.status.model_required": "Download the FunASR model to use local speech recognition.",
+  "settings.voice.status.no_speech": "No speech was detected. Check your microphone and record again.",
   "settings.voice.status.not_installed": "Additional speech assets are required",
   "settings.voice.status.operation_failed": "The voice operation failed. Try again.",
   "settings.voice.status.ready": "Ready",

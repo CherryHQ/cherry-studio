@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Κατάσταση",
   "settings.voice.status.model_load_failed": "Δεν ήταν δυνατή η φόρτωση του τοπικού μοντέλου ομιλίας.",
   "settings.voice.status.model_required": "Κατεβάστε το μοντέλο FunASR για να χρησιμοποιήσετε την τοπική αναγνώριση ομιλίας.",
+  "settings.voice.status.no_speech": "Δεν εντοπίστηκε ομιλία. Ελέγξτε το μικρόφωνό σας και κάντε νέα εγγραφή.",
   "settings.voice.status.not_installed": "Απαιτούνται πρόσθετοι πόροι ομιλίας",
   "settings.voice.status.operation_failed": "Η λειτουργία φωνής απέτυχε. Δοκιμάστε ξανά.",
   "settings.voice.status.ready": "Έτοιμο",

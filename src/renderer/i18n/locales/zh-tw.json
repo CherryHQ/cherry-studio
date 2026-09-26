@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "狀態",
   "settings.voice.status.model_load_failed": "無法載入本機語音模型。",
   "settings.voice.status.model_required": "下載 FunASR 模型後即可使用本機語音辨識。",
+  "settings.voice.status.no_speech": "未偵測到語音，請檢查麥克風後重新錄音。",
   "settings.voice.status.not_installed": "需要其他語音資源",
   "settings.voice.status.operation_failed": "語音操作失敗，請再試一次。",
   "settings.voice.status.ready": "就緒",

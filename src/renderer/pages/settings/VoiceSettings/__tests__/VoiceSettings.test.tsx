@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
 function deferred<T>() {
@@ -41,8 +42,7 @@ const voice = vi.hoisted(() => {
     funAsrCancel: vi.fn(),
     funAsrRemove: vi.fn(),
     funAsrModel: { status: 'not_downloaded', percent: 0, isStatusResolved: true } as any,
-    bind: vi.fn(() => vi.fn()),
-    markCurrent: vi.fn(() => true)
+    targetManager: undefined as VoiceTargetManager | undefined
   }
 })
 
@@ -79,7 +79,9 @@ vi.mock('@renderer/services/voice', () => ({
     start: voice.speechStart,
     stop: voice.speechStop
   },
-  voiceTargetManager: { bind: voice.bind, markCurrent: voice.markCurrent }
+  get voiceTargetManager() {
+    return voice.targetManager
+  }
 }))
 
 vi.mock('@renderer/hooks/useFunAsrModel', () => ({
@@ -110,6 +112,7 @@ describe('VoiceSettings', () => {
 
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
+    voice.targetManager = new VoiceTargetManager()
     voice.microphone.mockReset()
     voice.openMicrophoneSettings.mockReset()
     voice.listModels.mockResolvedValue({ models })
@@ -490,6 +493,63 @@ describe('VoiceSettings', () => {
       sourceLabel: 'preview',
       sourceEntityId: 'voice-settings'
     })
+  })
+
+  it('replaces the full test text instead of inserting at a moved cursor', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    const transcript = screen.getByRole('textbox', { name: /recognition test transcript/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    await user.click(record)
+    const target = voice.targetManager!.captureCurrent()!
+
+    await user.type(transcript, 'Edited test text.')
+    await user.keyboard('{Home}{ArrowRight}')
+    act(() => {
+      voice.targetManager!.insert(target, 'Current recording.')
+    })
+    expect(transcript).toHaveValue('Current recording.')
+  })
+
+  it('explains when no speech was detected and allows a new recording', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.dictation = {
+      phase: 'failed',
+      elapsedMs: 2000,
+      recoveryAvailable: false,
+      retryAvailable: false,
+      error: 'no_speech'
+    }
+    render(<VoiceSettings />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No speech was detected. Check your microphone and record again.'
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: /record test/i })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument()
+  })
+
+  it('clears the previous result when starting a new recording test', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    const transcript = screen.getByRole('textbox', { name: /recognition test transcript/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    await user.click(record)
+    const target = voice.targetManager!.captureCurrent()!
+    act(() => {
+      voice.targetManager!.insert(target, 'Previous result.')
+    })
+    expect(transcript).toHaveValue('Previous result.')
+
+    await user.click(record)
+
+    expect(transcript).toHaveValue('')
   })
 
   it('persists the local-only disclosure before enabling auto-read and restores focus', async () => {

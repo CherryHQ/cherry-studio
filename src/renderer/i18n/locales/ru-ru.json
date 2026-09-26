@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Состояние",
   "settings.voice.status.model_load_failed": "Не удалось загрузить локальную речевую модель.",
   "settings.voice.status.model_required": "Загрузите модель FunASR, чтобы использовать локальное распознавание речи.",
+  "settings.voice.status.no_speech": "Речь не обнаружена. Проверьте микрофон и повторите запись.",
   "settings.voice.status.not_installed": "Требуются дополнительные речевые ресурсы",
   "settings.voice.status.operation_failed": "Голосовая операция не выполнена. Повторите попытку.",
   "settings.voice.status.ready": "Готово",

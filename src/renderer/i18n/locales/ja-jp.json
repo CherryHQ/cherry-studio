@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "状態",
   "settings.voice.status.model_load_failed": "ローカル音声モデルを読み込めませんでした。",
   "settings.voice.status.model_required": "ローカル音声認識を使用するには FunASR モデルをダウンロードしてください。",
+  "settings.voice.status.no_speech": "音声が検出されませんでした。マイクを確認して、もう一度録音してください。",
   "settings.voice.status.not_installed": "追加の音声アセットが必要です",
   "settings.voice.status.operation_failed": "音声操作に失敗しました。もう一度お試しください。",
   "settings.voice.status.ready": "準備完了",

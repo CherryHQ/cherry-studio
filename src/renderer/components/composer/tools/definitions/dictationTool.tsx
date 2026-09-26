@@ -37,6 +37,7 @@ function dictationErrorKey(error?: DictationErrorCategory) {
     case 'unsupported':
     case 'asset_required':
     case 'voice_unavailable':
+    case 'no_speech':
       return `settings.voice.status.${error}` as const
     case 'microphone_permission':
       return 'settings.voice.microphone.denied'

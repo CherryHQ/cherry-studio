@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
 import { DictationService } from '../DictationService'
-import type { VoiceCommandEvent } from '../VoiceService'
+import type { ResolvedTranscriptionPreferences, VoiceCommandEvent } from '../VoiceService'
 import { VoiceTargetManager } from '../VoiceTargetManager'
 
 const WEBM_HEADER = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])
@@ -85,8 +85,8 @@ function createHarness(
       commandListeners.add(listener)
       return () => commandListeners.delete(listener)
     }),
-    resolveTranscriptionPreferences: vi.fn(async () => ({
-      modelId: 'local-voice::apple-system-asr' as const,
+    resolveTranscriptionPreferences: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
+      modelId: APPLE_ASR_MODEL_ID,
       language: 'zh-CN'
     })),
     startRecording: vi.fn(() => {
@@ -179,12 +179,13 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
-  it('uses centrally resolved recognition preferences and the bound source entity', async () => {
+  it('uses the recognition preferences captured at recording start and the bound source entity', async () => {
     const harness = createHarness()
 
-    await startAndStop(harness.service)
+    await harness.service.start()
+    harness.voice.resolveTranscriptionPreferences.mockResolvedValue({ modelId: FUNASR_MODEL_ID })
+    await harness.service.stop()
 
-    expect(harness.voice.resolveTranscriptionPreferences).toHaveBeenCalledOnce()
     expect(harness.voice.startRecording).toHaveBeenCalledWith({ source: 'dictation', sourceEntityId: 'topic-a' })
     expect(harness.voice.transcribe).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -192,6 +193,7 @@ describe('DictationService recording lifecycle', () => {
         language: 'zh-CN'
       })
     )
+    expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
   })
 
   it('waits for Main admission before requesting the microphone and uses the exact WebM recorder type', async () => {
@@ -469,6 +471,56 @@ describe('DictationService recording lifecycle', () => {
 })
 
 describe('DictationService failure and retry', () => {
+  it.each([true, false])(
+    'releases a no-speech recording without insertion, recovery or retry (target available: %s)',
+    async (targetAvailable) => {
+      const harness = createHarness()
+      if (!targetAvailable) harness.unbind()
+      harness.voice.transcribe.mockImplementationOnce(() =>
+        operation('session-1', 'request-asr', Promise.reject({ reason: 'no_speech' }))
+      )
+
+      await startAndStop(harness.service)
+
+      expect(harness.service.getSnapshot()).toEqual({
+        phase: 'failed',
+        elapsedMs: 0,
+        recoveryAvailable: false,
+        error: 'no_speech'
+      })
+      expect(harness.replaceRange).not.toHaveBeenCalled()
+      expect(harness.service.insertRecovery()).toBe('unavailable')
+      await expect(harness.service.copyRecovery()).resolves.toBe(false)
+      expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+      await harness.service.retry()
+      expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
+
+      await harness.service.start()
+      expect(harness.service.getSnapshot().phase).toBe('recording')
+      await harness.service.cancel()
+    }
+  )
+
+  it('preserves a no-speech cleanup failure and lets the user discard again', async () => {
+    const harness = createHarness()
+    harness.voice.transcribe.mockImplementationOnce(() =>
+      operation('session-1', 'request-asr', Promise.reject({ reason: 'no_speech' }))
+    )
+    harness.voice.discardSession.mockRejectedValueOnce({ reason: 'operation_failed' })
+
+    await startAndStop(harness.service)
+
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: 'failed',
+      elapsedMs: 0,
+      recoveryAvailable: false,
+      error: 'operation_failed'
+    })
+    await harness.service.discard()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+    expect(harness.voice.discardSession).toHaveBeenCalledTimes(2)
+  })
+
   it('does not touch the target when microphone permission is denied', async () => {
     const getUserMedia = vi.fn().mockRejectedValue(new DOMException('private permission detail', 'NotAllowedError'))
     const harness = createHarness({ getUserMedia })
@@ -487,7 +539,7 @@ describe('DictationService failure and retry', () => {
     expect(harness.service.getSnapshot()).not.toHaveProperty('retryAvailable')
   })
 
-  it('retains the same FileEntry after ASR failure and retries it with a new request', async () => {
+  it('retains the same FileEntry after ASR failure and retries with the latest recognition preferences', async () => {
     const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
     const retry = deferred<{ sessionId: string; requestId: string; text: string }>()
     const audioCanary = new Blob([WEBM_HEADER, 'PRIVATE_AUDIO_CANARY'])
@@ -511,6 +563,7 @@ describe('DictationService failure and retry', () => {
     expect(harness.voice.discardSession).not.toHaveBeenCalled()
     expect(harness.replaceRange).not.toHaveBeenCalled()
 
+    harness.voice.resolveTranscriptionPreferences.mockResolvedValue({ modelId: FUNASR_MODEL_ID })
     const retrying = harness.service.retry()
     await vi.waitFor(() => expect(harness.voice.retryTranscription).toHaveBeenCalledOnce())
     expect((harness.service as unknown as { active?: { chunks: Blob[] } }).active?.chunks).toEqual([])
@@ -520,12 +573,90 @@ describe('DictationService failure and retry', () => {
     expect(harness.voice.retryTranscription).toHaveBeenCalledWith({
       sessionId: 'session-1',
       fileEntryId: 'file-1',
-      modelId: APPLE_ASR_MODEL_ID,
-      language: 'zh-CN'
+      modelId: FUNASR_MODEL_ID
     })
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'recovered text')
     expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
     expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('prevents duplicate retries while loading the latest language', async () => {
+    const preferences = deferred<ResolvedTranscriptionPreferences>()
+    const harness = createHarness()
+    harness.voice.transcribe.mockImplementationOnce(() =>
+      operation('session-1', 'request-asr', Promise.reject({ reason: 'operation_failed' }))
+    )
+    await startAndStop(harness.service)
+    harness.voice.resolveTranscriptionPreferences.mockReturnValueOnce(preferences.promise)
+
+    const retrying = harness.service.retry()
+    await harness.service.retry()
+    expect(harness.service.getSnapshot().phase).toBe('transcribing')
+    expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
+    preferences.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
+    await retrying
+
+    expect(harness.voice.retryTranscription).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 'session-1',
+      fileEntryId: 'file-1',
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'en-US'
+    })
+    expect(harness.replaceRange).toHaveBeenCalledExactlyOnceWith({ from: 2, to: 5 }, 'retry text')
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it.each(['cancel', 'replace'] as const)('does not revive a pending retry after %s', async (action) => {
+    const preferences = deferred<ResolvedTranscriptionPreferences>()
+    const harness = createHarness()
+    harness.voice.transcribe.mockImplementationOnce(() =>
+      operation('session-1', 'request-asr', Promise.reject({ reason: 'operation_failed' }))
+    )
+    await startAndStop(harness.service)
+    harness.voice.resolveTranscriptionPreferences.mockReturnValueOnce(preferences.promise)
+
+    const retrying = harness.service.retry()
+    await harness.service.cancel()
+    if (action === 'replace') {
+      harness.voice.resolveTranscriptionPreferences.mockReset().mockResolvedValue({ modelId: APPLE_ASR_MODEL_ID })
+      await harness.service.start()
+    }
+    preferences.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
+    await retrying
+
+    expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
+    expect(harness.replaceRange).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: action === 'replace' ? 'recording' : 'idle',
+      elapsedMs: 0,
+      recoveryAvailable: false
+    })
+    await harness.service.cancel()
+  })
+
+  it('keeps the recording retryable if resolving updated preferences fails', async () => {
+    const harness = createHarness()
+    harness.voice.transcribe.mockImplementationOnce(() =>
+      operation('session-1', 'request-asr', Promise.reject({ reason: 'operation_failed' }))
+    )
+    await startAndStop(harness.service)
+    harness.voice.resolveTranscriptionPreferences.mockRejectedValueOnce({ reason: 'unsupported' })
+
+    await harness.service.retry()
+
+    expect(harness.service.getSnapshot()).toMatchObject({
+      phase: 'failed',
+      error: 'unsupported',
+      retryAvailable: true,
+      recoveryAvailable: false
+    })
+    expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
+
+    await harness.service.retry()
+    expect(harness.replaceRange).toHaveBeenCalledExactlyOnceWith({ from: 2, to: 5 }, 'retry text')
+    expect(harness.service.getSnapshot().phase).toBe('idle')
   })
 
   it('aborts transcription and prevents late injection when its scoped owner cancels', async () => {

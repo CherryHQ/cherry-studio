@@ -8,6 +8,7 @@ import { application } from '@application'
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
+import { loggerService } from '@logger'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import {
   APPLE_ASR_MODEL_ID,
@@ -21,6 +22,8 @@ import {
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { voiceAudioProcess } from './voiceAudioProcess'
+
+const logger = loggerService.withContext('AppleVoiceAdapter')
 
 function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
@@ -45,9 +48,12 @@ function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeErr
     error instanceof UtilityProcessError &&
     typeof error.remote?.code === 'string' &&
     ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote?.code ?? '')
-  )
+  ) {
+    logger.warn('Apple voice operation failed', { stage: 'decode', code: error.remote?.code })
     return new VoiceRuntimeError('invalid_audio')
+  }
   if (error instanceof SystemSpeechError) {
+    if (error.code !== 'cancelled') logger.warn('Apple voice operation failed', { stage: 'native', code: error.code })
     switch (error.code) {
       case 'cancelled':
         return new VoiceRuntimeError('aborted')
@@ -63,7 +69,9 @@ function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeErr
       case 'invalid_request':
         return new VoiceRuntimeError('invalid_request')
     }
+    return new VoiceRuntimeError('operation_failed')
   }
+  logger.warn('Apple voice operation failed', { stage: 'adapter', code: 'operation_failed' })
   return new VoiceRuntimeError('operation_failed')
 }
 

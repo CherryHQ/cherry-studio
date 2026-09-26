@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Estado",
   "settings.voice.status.model_load_failed": "Não foi possível carregar o modelo de voz local.",
   "settings.voice.status.model_required": "Transfira o modelo FunASR para utilizar o reconhecimento de voz local.",
+  "settings.voice.status.no_speech": "Não foi detetada fala. Verifique o microfone e grave novamente.",
   "settings.voice.status.not_installed": "São necessários recursos de voz adicionais",
   "settings.voice.status.operation_failed": "A operação de voz falhou. Tente novamente.",
   "settings.voice.status.ready": "Pronto",

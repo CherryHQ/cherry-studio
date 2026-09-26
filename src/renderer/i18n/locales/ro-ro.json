@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Stare",
   "settings.voice.status.model_load_failed": "Modelul vocal local nu a putut fi încărcat.",
   "settings.voice.status.model_required": "Descarcă modelul FunASR pentru a utiliza recunoașterea vocală locală.",
+  "settings.voice.status.no_speech": "Nu a fost detectată vorbire. Verificați microfonul și înregistrați din nou.",
   "settings.voice.status.not_installed": "Sunt necesare resurse vocale suplimentare",
   "settings.voice.status.operation_failed": "Operațiunea vocală a eșuat. Încearcă din nou.",
   "settings.voice.status.ready": "Gata",

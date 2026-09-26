@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Trạng thái",
   "settings.voice.status.model_load_failed": "Không thể tải mô hình giọng nói cục bộ.",
   "settings.voice.status.model_required": "Hãy tải mô hình FunASR để sử dụng nhận dạng giọng nói cục bộ.",
+  "settings.voice.status.no_speech": "Không phát hiện giọng nói. Hãy kiểm tra micrô và ghi âm lại.",
   "settings.voice.status.not_installed": "Cần thêm tài nguyên giọng nói",
   "settings.voice.status.operation_failed": "Thao tác giọng nói thất bại. Hãy thử lại.",
   "settings.voice.status.ready": "Sẵn sàng",

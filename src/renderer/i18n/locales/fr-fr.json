@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "État",
   "settings.voice.status.model_load_failed": "Le modèle vocal local n’a pas pu être chargé.",
   "settings.voice.status.model_required": "Téléchargez le modèle FunASR pour utiliser la reconnaissance vocale locale.",
+  "settings.voice.status.no_speech": "Aucune parole détectée. Vérifiez votre microphone et recommencez l’enregistrement.",
   "settings.voice.status.not_installed": "Des ressources vocales supplémentaires sont requises",
   "settings.voice.status.operation_failed": "L’opération vocale a échoué. Réessayez.",
   "settings.voice.status.ready": "Prêt",

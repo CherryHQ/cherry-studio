@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Durum",
   "settings.voice.status.model_load_failed": "Yerel konuşma modeli yüklenemedi.",
   "settings.voice.status.model_required": "Yerel konuşma tanımayı kullanmak için FunASR modelini indirin.",
+  "settings.voice.status.no_speech": "Konuşma algılanmadı. Mikrofonunuzu kontrol edip yeniden kaydedin.",
   "settings.voice.status.not_installed": "Ek konuşma varlıkları gerekli",
   "settings.voice.status.operation_failed": "Ses işlemi başarısız oldu. Yeniden deneyin.",
   "settings.voice.status.ready": "Hazır",

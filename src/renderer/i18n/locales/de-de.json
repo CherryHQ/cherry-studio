@@ -5572,6 +5572,7 @@
   "settings.voice.status.label": "Status",
   "settings.voice.status.model_load_failed": "Das lokale Sprachmodell konnte nicht geladen werden.",
   "settings.voice.status.model_required": "Laden Sie das FunASR-Modell herunter, um die lokale Spracherkennung zu verwenden.",
+  "settings.voice.status.no_speech": "Es wurde keine Sprache erkannt. Prüfen Sie Ihr Mikrofon und nehmen Sie erneut auf.",
   "settings.voice.status.not_installed": "Zusätzliche Sprachressourcen sind erforderlich",
   "settings.voice.status.operation_failed": "Der Sprachvorgang ist fehlgeschlagen. Versuche es erneut.",
   "settings.voice.status.ready": "Bereit",
