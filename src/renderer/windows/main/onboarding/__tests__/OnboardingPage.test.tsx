@@ -8,8 +8,7 @@ import {
   MockUsePreferenceUtils
 } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   CHERRY_CLOUD_PROVIDER_ID,
@@ -20,20 +19,8 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
-const addApiKeyMock = vi.fn()
-const updateProviderMock = vi.fn()
-const oauthWithCherryInMock = vi.fn()
-const syncProviderModelsMock = vi.fn()
-const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
 const modelSettingsPropsMock = vi.fn()
-const cloudMocks = vi.hoisted(() => ({
-  appEdition: 'global' as 'cn' | 'global',
-  ipcRequest: vi.fn(),
-  statusListener: undefined as
-    | ((status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void)
-    | undefined
-}))
 const dataApiMocks = vi.hoisted(() => ({
   get: vi.fn(),
   patch: vi.fn()
@@ -65,27 +52,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 
-vi.mock('@renderer/utils/appEdition', () => ({
-  getAppEdition: () => cloudMocks.appEdition
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: cloudMocks.ipcRequest },
-  useIpcOn: vi.fn(
-    (
-      event: string,
-      listener: (status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void
-    ) => {
-      if (event === 'cherry_cloud.status_changed') cloudMocks.statusListener = listener
-    }
-  )
-}))
-
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({
-    addApiKey: addApiKeyMock,
-    updateProvider: updateProviderMock
-  }),
   useProviders: () => ({ providers: enabledProvidersMock, isLoading: false })
 }))
 
@@ -94,13 +61,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: enabledModelsMock, isLoading: false })
 }))
 
-vi.mock('@renderer/services/oauth', () => ({
-  oauthWithCherryIn: (...args: unknown[]) => oauthWithCherryInMock(...args)
-}))
-
 vi.mock('@renderer/services/toast', () => ({
   toast: {
-    success: (...args: unknown[]) => toastSuccessMock(...args),
     error: (...args: unknown[]) => toastErrorMock(...args)
   }
 }))
@@ -110,11 +72,7 @@ vi.mock('@renderer/components/WindowControls', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
-  ProviderSettingsPage: () => <div data-testid="provider-settings" />,
-  useProviderModelSync: () => ({
-    syncProviderModels: syncProviderModelsMock,
-    isSyncingModels: false
-  })
+  ProviderSettingsPage: () => <div data-testid="provider-settings" />
 }))
 
 vi.mock('@renderer/pages/settings/ModelSettings/ModelSettings', () => ({
@@ -167,17 +125,6 @@ async function openModelSelection() {
 describe('OnboardingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    cloudMocks.appEdition = 'global'
-    cloudMocks.statusListener = undefined
-    cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
-      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.models.sync') {
-        return { entitledModelIds: [], quotaExhaustedModelIds: [] }
-      }
-      throw new Error(`Unexpected IPC route: ${route}`)
-    })
     if (defaultUsePreferenceImplementation) {
       mockUsePreference.mockImplementation(defaultUsePreferenceImplementation)
     }
@@ -186,10 +133,6 @@ describe('OnboardingPage', () => {
     }
     MockUsePreferenceUtils.resetMocks()
     i18nMock.changeLanguage.mockResolvedValue(undefined)
-    oauthWithCherryInMock.mockResolvedValue('sk-test')
-    addApiKeyMock.mockResolvedValue(undefined)
-    updateProviderMock.mockResolvedValue(undefined)
-    syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
     dataApiMocks.get.mockImplementation(async (path: string) => {
       if (path === '/assistants') return { items: [], total: 0 }
       if (path === '/agents') return { items: [], total: 0 }
@@ -211,8 +154,13 @@ describe('OnboardingPage', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
+  it('offers provider setup without CherryIN or Cherry Cloud welcome actions', () => {
+    render(<OnboardingPage />)
+
+    expect(screen.getByRole('button', { name: 'onboarding.welcome.other_provider' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
   })
 
   it('shows provider setup when choosing another provider', async () => {
@@ -629,85 +577,6 @@ describe('OnboardingPage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
   })
 
-  it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
-    const user = userEvent.setup()
-    cloudMocks.appEdition = 'cn'
-    render(<OnboardingPage enableCherryAccountLogin />)
-
-    expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' }))
-
-    expect(cloudMocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.start')
-    expect(oauthWithCherryInMock).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toBeDisabled()
-
-    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
-
-    expect(cloudMocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
-    expect(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' })).toBeEnabled()
-  })
-
-  it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {
-    const firstCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::first-agent-model`
-    const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`
-    cloudMocks.appEdition = 'cn'
-    cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.models.sync') {
-        return {
-          entitledModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
-          quotaExhaustedModelIds: []
-        }
-      }
-      throw new Error(`Unexpected IPC route: ${route}`)
-    })
-    dataApiMocks.get.mockImplementation(async (path: string) => {
-      if (path === '/agents') {
-        return {
-          items: [
-            { id: 'assistant-agent', model: null, configuration: { builtin_role: 'assistant' } },
-            { id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }
-          ],
-          total: 2
-        }
-      }
-      throw new Error(`Unexpected path: ${path}`)
-    })
-    render(<OnboardingPage enableCherryAccountLogin />)
-
-    await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
-
-    await waitFor(() => {
-      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
-        body: { model: firstCloudAgentModelId }
-      })
-      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
-        body: { model: firstCloudAgentModelId }
-      })
-      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('skipped')
-    })
-    expect(dataApiMocks.patch).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ body: { model: secondCloudAgentModelId } })
-    )
-  })
-
-  it('opens provider setup after the warning even when an ordinary chat model is available', async () => {
-    const user = userEvent.setup()
-    cloudMocks.appEdition = 'cn'
-    render(<OnboardingPage enableCherryAccountLogin />)
-
-    await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
-
-    expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
-
-    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
-  })
-
   it('skips onboarding without privacy acceptance and disables data collection', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '')
     render(<OnboardingPage />)
@@ -844,5 +713,4 @@ describe('OnboardingPage', () => {
     expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN')
     await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe('zh-CN'))
   })
-
 })
