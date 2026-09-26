@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getAgent: vi.fn(),
@@ -173,7 +174,8 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+          finalizeHeldTopicStream: mocks.finalizeHeldTopicStream
         }
       }
       if (name === 'CacheService') {

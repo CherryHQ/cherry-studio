@@ -9,7 +9,7 @@ import { defangSystemReminderTags } from './untrustedContent'
 const SYSTEM_REMINDER_OPEN = '<system-reminder>'
 const SYSTEM_REMINDER_CLOSE = '</system-reminder>'
 
-export function wrapSteerReminder(text: string): string {
+export function wrapSteerReminder(text: string, backgroundTasksNote?: string): string {
   // Defang any literal <system-reminder> open/close tags in the user text by escaping their `<`, so a
   // steer containing `</system-reminder>` can't terminate the wrapper and forge reminder-priority
   // instructions. Only the exact delimiter is touched; ordinary `<`/`>` in the message are preserved.
@@ -20,7 +20,28 @@ export function wrapSteerReminder(text: string): string {
     safe,
     '',
     'Please address this message and continue with your tasks.',
+    ...(backgroundTasksNote ? ['', backgroundTasksNote] : []),
     SYSTEM_REMINDER_CLOSE
+  ].join('\n')
+}
+
+/**
+ * Render the still-running detached background work for a turn that starts before it drains: the
+ * model learns the earlier results are pending delivery and must not be re-launched. Descriptions
+ * come from the driver's normalized task snapshot (untrusted text — defanged by the wrapper above).
+ */
+export function renderBackgroundTasksNote(descriptions: readonly string[]): string | undefined {
+  if (descriptions.length === 0) return undefined
+  const total = descriptions.length
+  // Task descriptions are model-authored text: defang so a literal reminder tag cannot terminate
+  // the wrapper the caller will embed this note inside.
+  const shown = descriptions.slice(0, 5).map((description) => `- ${defangSystemReminderTags(description)}`)
+  const overflow = total - shown.length
+  return [
+    `${total} background task${total === 1 ? '' : 's'} started by earlier turn${total === 1 ? '' : 's'} ${total === 1 ? 'is' : 'are'} still running:`,
+    ...shown,
+    ...(overflow > 0 ? [`- … and ${overflow} more`] : []),
+    "Their results will be delivered when they complete. Do not start duplicate work in the meantime; address the user's message now."
   ].join('\n')
 }
 

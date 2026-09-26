@@ -1423,6 +1423,9 @@ export class AiStreamManager extends BaseService {
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
+    // Record the hold so a later "the successor never came" edge can settle this stream instead of
+    // leaving it in `activeStreams` forever (agent sessions: `finalizeHeldTopicStream`).
+    stream.heldForContinuation = chaining
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
@@ -1632,6 +1635,43 @@ export class AiStreamManager extends BaseService {
     this.runTerminalLifecycle(stream)
   }
 
+  /**
+   * Clean twin of `terminateHeldTopicStream`: settle a stream a chaining turn kept alive
+   * (`isTopicDone=false`, terminal lifecycle skipped) when its successor will never arrive — an agent
+   * session held it for a receive-only wake that is not coming (task stopped/killed, headless
+   * responder). The completion that opened the hold already finalised and persisted its bubble, so
+   * this only closes the topic: notify subscribers (persistence skipped), write the terminal status
+   * and run the terminal lifecycle. No-op unless the stream is still held, so one already in its
+   * eviction grace period never gets a duplicate terminal notification.
+   */
+  finalizeHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream?.heldForContinuation) return
+    const exec = modelId ? stream.executions.get(modelId) : undefined
+    const result: StreamDoneResult = {
+      ...(exec ? { finalMessage: exec.finalMessage } : {}),
+      status: 'success',
+      modelId,
+      attemptId: exec?.attemptId,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      anchorMessageId: exec?.anchorMessageId,
+      isTopicDone: true,
+      ...(exec ? { timings: { ...exec.timings }, runtimeTiming: exec.runtimeTiming.snapshot() } : {})
+    }
+    for (const listener of stream.listeners.values()) {
+      if (listener.id.startsWith('persistence:')) continue
+      try {
+        void listener.onDone(result)
+      } catch (err) {
+        logger.warn('finalizeHeldTopicStream listener threw', { topicId, err })
+      }
+    }
+    // The hold only exists across a `done` topic gap, so this restates the value the settling
+    // execution resolved rather than overriding a live status.
+    stream.status = 'done'
+    this.runTerminalLifecycle(stream)
+  }
+
   /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every
    *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
   private beginTerminalDispatch(topicId: string): () => void {
@@ -1659,6 +1699,7 @@ export class AiStreamManager extends BaseService {
 
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
+    stream.heldForContinuation = false
     stream.lifecycle.onTerminal(stream)
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
