@@ -40,7 +40,8 @@ vi.mock('@main/utils/markdownParser', () => ({
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnvModule>()),
-  getShellEnv: vi.fn().mockResolvedValue({})
+  getShellEnv: vi.fn().mockResolvedValue({}),
+  getRawShellEnv: vi.fn().mockResolvedValue({})
 }))
 
 const executeCommandMock = vi.hoisted(() => vi.fn())
