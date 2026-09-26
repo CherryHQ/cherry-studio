@@ -6,6 +6,7 @@ import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { CodeCli } from '@shared/types/codeCli'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
@@ -61,6 +62,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   isSidebarPinned,
   onToggleSidebar
 }) => {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const { t } = useTranslation()
 
   return (
@@ -75,7 +77,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
               const isSelected = selectedCliTool === tool.value
               const summary = providerSummaries[tool.value]
               const sidebarPinned = isSidebarPinned(tool.value)
-              const canManageSidebar = statuses[tool.value]?.installed === true || sidebarPinned
+              const canManageSidebar = sidebarAvailable && (statuses[tool.value]?.installed === true || sidebarPinned)
               const contextMenuItems: readonly CommandContextMenuExtraItem[] = canManageSidebar
                 ? [
                     {

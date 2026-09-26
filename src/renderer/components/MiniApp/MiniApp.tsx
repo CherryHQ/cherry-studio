@@ -13,6 +13,7 @@ import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPe
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -35,7 +36,7 @@ interface Props {
   isActive: boolean
   size?: number
   isLast?: boolean
-  variant?: 'default' | 'launchpad'
+  variant?: 'default' | 'launchpad' | 'launchpad-compact'
   /** Renders the tile as unavailable: not activatable, not in the tab order. */
   disabled?: boolean
 }
@@ -60,6 +61,7 @@ const MiniApp: FC<Props> = ({
   variant = 'default',
   disabled = false
 }) => {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const { t } = useTranslation()
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)
@@ -106,18 +108,19 @@ const MiniApp: FC<Props> = ({
     e.preventDefault()
     handleClick()
   }
-  const activationProps =
-    variant === 'launchpad'
-      ? ({
-          onKeyDown: handleKeyDown,
-          // Keyboard users must not be able to reach or activate a disabled
-          // tile — `pointer-events-none` alone only stops the mouse.
-          tabIndex: disabled ? -1 : 0,
-          role: 'button',
-          'aria-disabled': disabled || undefined,
-          'aria-label': displayName
-        } as const)
-      : {}
+  const compact = variant === 'launchpad-compact'
+  const isLaunchpad = variant !== 'default'
+  const activationProps = isLaunchpad
+    ? ({
+        onKeyDown: handleKeyDown,
+        // Keyboard users must not be able to reach or activate a disabled
+        // tile — `pointer-events-none` alone only stops the mouse.
+        tabIndex: disabled ? -1 : 0,
+        role: 'button',
+        'aria-disabled': disabled || undefined,
+        'aria-label': displayName
+      } as const)
+    : {}
 
   const reportFailure = (fallbackKey: string) => (err: unknown) => {
     const e = toDataApiError(err)
@@ -162,8 +165,6 @@ const MiniApp: FC<Props> = ({
     }
   }
 
-  const isLaunchpad = variant === 'launchpad'
-
   const answerPending = async (route: 'mini_app.grant.approve_pending' | 'mini_app.grant.snooze_pending') => {
     setPendingBusy(true)
     try {
@@ -186,12 +187,16 @@ const MiniApp: FC<Props> = ({
 
   const contextMenuItems: CommandContextMenuExtraItem[] = [
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
-    {
-      type: 'item',
-      id: 'mini-app.toggle-sidebar-favorite',
-      label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
-      onSelect: handleToggleSidebarFavorite
-    },
+    ...(sidebarAvailable
+      ? [
+          {
+            type: 'item' as const,
+            id: 'mini-app.toggle-sidebar-favorite',
+            label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+            onSelect: handleToggleSidebarFavorite
+          }
+        ]
+      : []),
     ...(!isPinned
       ? ([
           { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }
@@ -266,8 +271,9 @@ const MiniApp: FC<Props> = ({
             'flex flex-col items-center justify-center overflow-hidden outline-none',
             disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
-              : 'min-h-[85px]'
+              ? 'bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
+              : 'min-h-[85px]',
+            isLaunchpad && (compact ? 'w-full min-w-0' : 'min-h-[104px] w-[92px]')
           )}
           onClick={handleClick}
           {...activationProps}>
@@ -286,7 +292,8 @@ const MiniApp: FC<Props> = ({
               className={cn(
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
-                  'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+                  'rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
+                isLaunchpad && (compact ? 'size-[42px]' : 'size-[58px]')
               )}>
               {icon}
               {updating && (
@@ -342,7 +349,9 @@ const MiniApp: FC<Props> = ({
             className={cn(
               'w-full select-none text-center text-muted-foreground',
               isLaunchpad
-                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? compact
+                  ? 'mt-1 truncate text-xs'
+                  : 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

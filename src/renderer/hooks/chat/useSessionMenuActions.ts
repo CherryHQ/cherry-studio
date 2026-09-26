@@ -6,6 +6,7 @@ import {
   resolveSessionMenuActions,
   type SessionActionContext
 } from '@renderer/components/chat/actions/sessionItemActions'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 
 export function createSessionActionContext(context: SessionActionContext): SessionActionContext {
   return context
@@ -38,12 +39,14 @@ export function useSessionMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => SessionActionContext
 }): SessionMenuPreset<TItem> {
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const getActionContextWithOverride = useCallback(
     (item: TItem, contextOverride?: SessionMenuActionContextOverride) => ({
       ...getActionContext(item),
-      ...contextOverride
+      ...contextOverride,
+      sidebarAvailable
     }),
-    [getActionContext]
+    [getActionContext, sidebarAvailable]
   )
   const getActions = useCallback(
     (item: TItem, contextOverride?: SessionMenuActionContextOverride) =>
@@ -61,7 +64,11 @@ export function useSessionMenuPreset<TItem>({
 }
 
 export function useSessionMenuActions(actionContext: SessionActionContext) {
-  const getActions = useCallback(() => getSessionMenuActions(actionContext), [actionContext])
+  const sidebarAvailable = !useMinimalMode()?.enabled
+  const getActions = useCallback(
+    () => getSessionMenuActions({ ...actionContext, sidebarAvailable }),
+    [actionContext, sidebarAvailable]
+  )
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<SessionActionContext>) => {
       await runSessionMenuAction(action, actionContext)

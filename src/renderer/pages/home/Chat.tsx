@@ -23,6 +23,7 @@ import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessage
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
@@ -83,6 +84,8 @@ interface CitationPanelState {
 }
 
 const Chat: FC<Props> = (props) => {
+  const minimalContext = useMinimalMode()
+  const minimalMode = minimalContext?.enabled && minimalContext.isHome ? minimalContext : null
   const { updateTopic: patchTopic } = useTopicMutations()
   const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
@@ -249,6 +252,9 @@ const Chat: FC<Props> = (props) => {
 
   return (
     <ConversationShell
+      transparentNavigation={minimalMode?.enabled}
+      navigationToggle={minimalMode?.renderSidebarToggle?.(!!props.paneOpen, props.onSidebarToggle)}
+      renderMainHeader={minimalMode ? (bar) => minimalMode.renderHomeToolbar?.(!!props.paneOpen, bar) : undefined}
       id="chat"
       className={activeTopic || centerSurface ? messageStyle : undefined}
       pane={props.pane}

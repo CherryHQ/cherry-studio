@@ -41,6 +41,7 @@ import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -122,6 +123,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  className?: string
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
   dataEnabled?: boolean
@@ -190,7 +192,9 @@ function AgentGroupMoreMenu({
   onToggleSidebar: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const actionContext: AgentGroupActionContext = {
+    sidebarAvailable,
     agentId,
     assistantIconType,
     deleteAgentDisabled,
@@ -343,6 +347,7 @@ function createSessionSeedPreservesFileWorkspace(seed: CreateSessionSeed, active
 }
 
 const Sessions = ({
+  className,
   agentSessionsSource,
   activeSessionId,
   agentIdFilter,
@@ -362,6 +367,7 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
@@ -1868,6 +1874,7 @@ const Sessions = ({
       onShowMissingAgentSelection,
       requestCreateSessionFromSeed,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -1967,6 +1974,7 @@ const Sessions = ({
         if (!agentId || !agentById.has(agentId)) return null
 
         const actionContext: AgentGroupActionContext = {
+          sidebarAvailable,
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
@@ -2028,6 +2036,7 @@ const Sessions = ({
       isUpdatingWorkspace,
       openAgentEditor,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -2100,6 +2109,7 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
+      className={className}
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
       items={visibleGroupedSessions}

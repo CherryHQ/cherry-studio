@@ -239,3 +239,14 @@ describe('session item actions', () => {
     expect(exportAction?.children.map((action) => action.id)).not.toContain('session.export.image')
   })
 })
+
+it('hides sidebar shortcuts when the sidebar is unavailable without hiding local pin actions', () => {
+  const context = createSessionActionFixture({ onToggleSidebar: vi.fn(), sidebarAvailable: false })
+  const actions = resolveSessionMenuActions(context)
+  expect(actions.some((action) => action.id === 'session.toggle-sidebar')).toBe(false)
+  const availableActions = resolveSessionMenuActions({ ...context, sidebarAvailable: true })
+  expect(availableActions.some((action) => action.id === 'session.toggle-sidebar')).toBe(true)
+  expect(actions.map((action) => action.id)).toEqual(
+    availableActions.filter((action) => action.id !== 'session.toggle-sidebar').map((action) => action.id)
+  )
+})

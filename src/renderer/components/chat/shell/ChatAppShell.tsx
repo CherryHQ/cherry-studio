@@ -23,6 +23,8 @@ import { RightPaneHost } from './RightPaneHost'
 import { clampResourceListPaneWidth } from './useResourceListPaneResize'
 
 interface ChatAppShellBaseProps {
+  mainRegionClassName?: string
+  mainHeader?: ReactNode
   topBar?: ReactNode
   pane?: ReactNode
   paneOpen?: boolean
@@ -271,6 +273,8 @@ function useResourceListAutoCollapse({
 }
 
 export function ChatAppShell({
+  mainRegionClassName,
+  mainHeader,
   topBar,
   pane,
   paneOpen,
@@ -323,43 +327,48 @@ export function ChatAppShell({
           {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
-        <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
-          <div className="relative flex min-w-0 flex-1 flex-col">
-            <motion.div
-              ref={centerRef}
-              data-ui="part:conversation-main"
-              data-chat-app-shell-center
-              id={centerId}
-              layout
-              transition={centerTransition}
-              className={cn(
-                'relative flex min-w-0 flex-1 flex-col overflow-hidden',
-                centerClassName,
-                // Let the elevated composer escape the center stacking context and paint
-                // above the full-height maximized panel without replacing its editor DOM.
-                composerElevated && '!transform-none !will-change-auto'
-              )}>
-              {topBar && (
-                <div className="relative z-10 shrink-0">
-                  <ErrorBoundary>{topBar}</ErrorBoundary>
-                </div>
-              )}
-              {hasCenterContent ? (
-                <ErrorBoundary>{centerContent}</ErrorBoundary>
-              ) : (
-                <>
-                  <ErrorBoundary>
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                  </ErrorBoundary>
-                  {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                </>
-              )}
-              {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
-            </motion.div>
-            {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
-          </div>
+        <div
+          data-chat-app-shell-main-region
+          className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', mainRegionClassName)}>
+          {mainHeader}
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div className="relative flex min-w-0 flex-1 flex-col">
+              <motion.div
+                ref={centerRef}
+                data-ui="part:conversation-main"
+                data-chat-app-shell-center
+                id={centerId}
+                layout
+                transition={centerTransition}
+                className={cn(
+                  'relative flex min-w-0 flex-1 flex-col overflow-hidden',
+                  centerClassName,
+                  // Let the elevated composer escape the center stacking context and paint
+                  // above the full-height maximized panel without replacing its editor DOM.
+                  composerElevated && '!transform-none !will-change-auto'
+                )}>
+                {topBar && (
+                  <div className="relative z-10 shrink-0">
+                    <ErrorBoundary>{topBar}</ErrorBoundary>
+                  </div>
+                )}
+                {hasCenterContent ? (
+                  <ErrorBoundary>{centerContent}</ErrorBoundary>
+                ) : (
+                  <>
+                    <ErrorBoundary>
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                    </ErrorBoundary>
+                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+                  </>
+                )}
+                {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
+              </motion.div>
+              {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+            </div>
 
-          {rightPane}
+            {rightPane}
+          </div>
         </div>
 
         <RightPaneHost open={Boolean(paneOpen && panePosition === 'right')}>{pane}</RightPaneHost>

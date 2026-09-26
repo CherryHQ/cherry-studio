@@ -55,6 +55,7 @@ import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssi
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -146,6 +147,7 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
 } as const
 
 interface Props {
+  className?: string
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
@@ -224,7 +226,9 @@ function AssistantGroupMoreMenu({
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const actionContext: AssistantGroupActionContext = {
+    sidebarAvailable,
     assistantId,
     assistantIconType,
     deleteAssistantDisabled,
@@ -260,6 +264,7 @@ function AssistantGroupMoreMenu({
 }
 
 export function Topics({
+  className,
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
@@ -428,6 +433,7 @@ export function Topics({
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
+  const sidebarAvailable = !useMinimalMode()?.enabled
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -1168,6 +1174,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -1181,6 +1188,7 @@ export function Topics({
       if (!assistantId || !assistantById.has(assistantId)) return null
 
       const actionContext: AssistantGroupActionContext = {
+        sidebarAvailable,
         assistantId,
         assistantIconType,
         deleteAssistantDisabled: deletingAssistantId !== null,
@@ -1222,6 +1230,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -1514,6 +1523,7 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
+        className={className}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         presentation={presentation}
         items={visibleFilteredTopics}

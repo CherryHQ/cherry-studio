@@ -35,6 +35,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -99,6 +100,12 @@ function getWorkspaceSourceFromSession(session: AgentSessionEntity): AgentSessio
 }
 
 const AgentPage = () => {
+  const minimalContext = useMinimalMode()
+  const minimalMode = !!minimalContext?.enabled && minimalContext.isHome
+  const [minimalPaneOpen, setMinimalPaneOpen] = useState(true)
+  useEffect(() => {
+    if (minimalMode) setMinimalPaneOpen(true)
+  }, [minimalMode])
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
@@ -127,11 +134,11 @@ const AgentPage = () => {
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
-    persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar
+    persistedPaneOpen: minimalMode ? minimalPaneOpen : showSidebar,
+    setPersistedPaneOpen: minimalMode ? setMinimalPaneOpen : setShowSidebar
   })
   const sessionListPosition: TopicTabPosition =
-    !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
+    !minimalMode && !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
@@ -976,7 +983,7 @@ const AgentPage = () => {
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onCreateSession={createAndActivateEmptySession}
         onShowMissingAgentSelection={showMissingAgentSelection}
-        onSetPanePosition={isWindowFrame ? undefined : setSessionListPosition}
+        onSetPanePosition={isWindowFrame || minimalMode ? undefined : setSessionListPosition}
         panePosition="left"
         manageAgentsActive={manageAgentsActive}
         onManageAgents={onManageAgents}
@@ -1016,7 +1023,7 @@ const AgentPage = () => {
               <ConversationResourceView
                 kind={activeResourceKind}
                 toolbarLeading={
-                  !isWindowFrame ? (
+                  !isWindowFrame && !minimalMode ? (
                     <ConversationSidebarToggleButton
                       sidebarOpen={shellPaneOpen}
                       onSidebarToggle={toggleShellPane}
@@ -1028,7 +1035,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, isWindowFrame, shellPaneOpen, toggleShellPane]
+    [activeResourceKind, isWindowFrame, minimalMode, shellPaneOpen, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -1042,7 +1049,7 @@ const AgentPage = () => {
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
             toolbarLeading={
-              !isWindowFrame ? (
+              !isWindowFrame && !minimalMode ? (
                 <ConversationSidebarToggleButton
                   sidebarOpen={shellPaneOpen}
                   onSidebarToggle={toggleShellPane}
@@ -1079,7 +1086,7 @@ const AgentPage = () => {
             onFileNavigationRequestChange={handleFileNavigationRequestChange}
             requestFileNavigation={requestFileNavigation}
             paneManualToggle={paneManualToggle}
-            showResourceListControls
+            showResourceListControls={!minimalMode}
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             missingAgentSelection={missingAgentSelection && !visibleSession}
