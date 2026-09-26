@@ -6,7 +6,7 @@ import type { Provider } from '@shared/data/types/provider'
 const services = vi.hoisted(() => ({
   ready: true,
   getToolInventory: vi.fn(),
-  getToolSnapshots: vi.fn(),
+  hasCustomDependencyDefinition: vi.fn(),
   checkClaudeLogin: vi.fn(),
   listAgents: vi.fn(),
   getProviderByProviderId: vi.fn()
@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
         return services.ready
       },
       getToolInventory: services.getToolInventory,
-      getToolSnapshots: services.getToolSnapshots
+      hasCustomDependencyDefinition: services.hasCustomDependencyDefinition
     },
     CodeCliService: {
       get isReady() {
@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   services.ready = true
   services.getToolInventory.mockResolvedValue([])
-  services.getToolSnapshots.mockResolvedValue({})
+  services.hasCustomDependencyDefinition.mockReturnValue(false)
   services.checkClaudeLogin.mockResolvedValue(true)
   services.listAgents.mockReturnValue({ agents: [], total: 0 })
   services.getProviderByProviderId.mockReturnValue(provider('claude-code', ['external-cli']))
@@ -103,18 +103,10 @@ describe('runtime-managed-tools', () => {
       actions: [{ kind: 'navigate', target: '/settings/dependencies' }],
       evidence: [{ key: 'tools', value: 'bun, uv', dataClass: 'local_only' }]
     })
-    expect(services.getToolSnapshots).not.toHaveBeenCalled()
   })
 
   it('does not send users to Dependencies for an unmanaged runtime failure', async () => {
     services.getToolInventory.mockResolvedValue([{ name: 'python', status: 'failed', recipe: 'python' }])
-    services.getToolSnapshots.mockResolvedValue({
-      python: {
-        name: 'python',
-        availability: { source: 'none' },
-        application: { status: 'broken', version: '3.12.14' }
-      }
-    })
 
     await expect(managedTools.run(ctx)).resolves.toMatchObject({
       status: 'warn',
@@ -123,7 +115,37 @@ describe('runtime-managed-tools', () => {
       actions: [],
       evidence: [{ key: 'tools', value: 'python', dataClass: 'local_only' }]
     })
-    expect(services.getToolSnapshots).toHaveBeenCalledWith(['python'])
+  })
+
+  it('keeps a failed Code CLI actionable on its own management page', async () => {
+    services.getToolInventory.mockResolvedValue([{ name: 'codex', status: 'failed', recipe: 'npm:@openai/codex' }])
+
+    await expect(managedTools.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      actions: [{ kind: 'navigate', target: '/app/code' }]
+    })
+  })
+
+  it('offers Dependencies for a persisted custom tool', async () => {
+    services.getToolInventory.mockResolvedValue([{ name: 'custom-tool', status: 'failed' }])
+    services.hasCustomDependencyDefinition.mockReturnValue(true)
+
+    await expect(managedTools.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      actions: [{ kind: 'navigate', target: '/settings/dependencies' }]
+    })
+  })
+
+  it('does not keep probing after cancellation', async () => {
+    const controller = new AbortController()
+    services.getToolInventory.mockImplementation(async () => {
+      controller.abort()
+      return [{ name: 'python', status: 'failed' }]
+    })
+
+    await expect(managedTools.run({ ...ctx, signal: controller.signal })).rejects.toThrow()
   })
 })
 

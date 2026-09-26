@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentService } from '@main/data/services/AgentService'
 import { providerService } from '@main/data/services/ProviderService'
 import { PRESETS_BINARY_TOOLS } from '@shared/data/presets/binaryTools'
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
@@ -21,18 +22,24 @@ export const managedTools = defineDoctorCheck({
     if (failed.length === 0) return { status: 'pass' }
 
     const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-    const nonPresetFailures = failed.filter((tool) => !presetNames.has(tool.name))
-    const snapshots =
-      nonPresetFailures.length > 0 ? await manager.getToolSnapshots(nonPresetFailures.map((tool) => tool.name)) : {}
-    const actionableInDependencies = failed.every(
-      (tool) => presetNames.has(tool.name) || snapshots[tool.name]?.definition !== undefined
+    const codeCliNames = new Set(CODE_CLI_TOOL_PRESETS.map((tool) => tool.executable))
+    signal.throwIfAborted()
+    const dependencies = failed.filter(
+      (tool) => presetNames.has(tool.name) || manager.hasCustomDependencyDefinition(tool.name)
     )
+    const codeClis = failed.filter((tool) => codeCliNames.has(tool.name))
+    const actionable = failed.length === dependencies.length + codeClis.length
 
     return {
       status: 'warn',
-      attribution: actionableInDependencies ? 'user-fixable' : 'app-bug',
+      attribution: actionable ? 'user-fixable' : 'app-bug',
       detail: { variant: 'failed', params: { count: failed.length } },
-      actions: actionableInDependencies ? ([{ kind: 'navigate', target: '/settings/dependencies' }] as const) : [],
+      actions: actionable
+        ? ([
+            ...(dependencies.length > 0 ? ([{ kind: 'navigate', target: '/settings/dependencies' }] as const) : []),
+            ...(codeClis.length > 0 ? ([{ kind: 'navigate', target: '/app/code' }] as const) : [])
+          ] as const)
+        : [],
       devMessage: 'Managed tools have a broken installation or failed operation',
       evidence: [{ key: 'tools', value: failed.map((tool) => tool.name).join(', '), dataClass: 'local_only' }]
     }
