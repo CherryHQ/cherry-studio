@@ -36,29 +36,42 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `storage/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
-## Local history flush
+## Agent task timing and local history
 
-The container `traceId` is persisted on the topic / agent-session row (one trace
-tree per container), but the span tree is first collected in the main-process
-`TraceStorageService` memory store.
-The durable history file is written by the stream terminal path:
+Agent sessions collect timing metadata in normal mode. One accepted user input is
+one task; coalesced steers retain each input's task and an explicit shared execution
+relationship. Receive-only background rows do not create synthetic user tasks.
+Pi and DSH spans carry task identities captured at execution time. Claude Code
+uses host tool hooks and explicit subagent lifecycle events for task association;
+its warm subprocess retains a session-level traceparent. Native spans without a
+reliable task identity remain outside task results rather than being assigned by
+time overlap or by the turn active when their delayed export arrives.
 
-- `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
-  chat turns.
-- `AgentSessionRuntimeService` attaches the same listener to
-  `agent-session:${sessionId}` turns, including queued follow-up turns.
-- On the topic-level terminal event (`done`, `paused`, or `error`),
-  `TraceFlushListener` calls `TraceStorageService.saveSpans(topicId)`.
-- Flush errors are logged as warnings and do not affect message completion.
+`TaskTimingRecorder` records task boundaries, queue/approval waits, and host tool
+boundaries using a monotonic duration clock and millisecond wall-clock timestamps.
+Claude tool hook intervals include permission waiting; separate approval nodes
+make that wait visible. Concurrent node durations are never summed into the task
+duration. Background children can finish after their launching task's response.
+Missing completions have no measured duration, including unfinished records read
+after restart. Historical traces without task associations remain readable in the
+developer trace view but are not retroactively presented as task measurements.
 
-Collection and persistence are main-process only. Spans live in
-`TraceStorageService`'s in-memory store and are flushed to the JSONL history file
-on the terminal event. The renderer trace viewer (`TracePage`) reads the persisted
-spans on demand through the `trace.getData` IPC — it never collects spans itself.
+`TraceStorageService` persists Agent starts and updates through a coalesced,
+serialized writer. It atomically replaces JSONL history and retains running or
+concurrently updated spans in memory. Terminal `TraceFlushListener` saves remain
+in place for both ordinary chat and Agent streams. Recording failures do not fail
+the execution; query results flag known persistence failures as incomplete.
 
-Trace history is stored under `{userData}/Runtime/trace/<topicId>/<traceId>`.
-The previous `~/.cherrystudio/trace` location is no longer written; it remains a
-cleanup-only target of the `normal_cache` (App cache) option.
+History remains under `{userData}/Runtime/trace/<topicId>/<traceId>` and uses the
+existing cache cleanup and retention budgets. This is local diagnostic history,
+not a permanent audit log. The old `~/.cherrystudio/trace` path is cleanup-only.
+
+The Agent side panel reads `ai.agent.session.timing`. The session-bound, read-only
+`task_timing` builtin uses the same metadata projection: list tasks, retrieve one
+(or the latest ended task), sort nodes, and paginate. It cannot access arbitrary
+sessions or execute actions. Neither query exposes captured inputs, outputs,
+events, or raw API bodies, even when developer mode is enabled. Missing records
+are unavailable, never estimates, and querying never re-executes a node.
 
 ## AdapterTracer
 
@@ -112,8 +125,8 @@ between turns, and closes unfinished spans when the connection ends.
 
 > Cross-referenced from `ClaudeCodeTraceBridgeService.prepareTrace`.
 
-The Claude Code OTLP bridge runs **only when developer mode is enabled**. When
-it does, it intentionally turns on verbose Claude Code telemetry:
+The Claude Code OTLP bridge is available for Agent tracing in normal mode.
+Only developer mode turns on verbose Claude Code telemetry:
 
 - `OTEL_LOG_USER_PROMPTS` — user prompt text
 - `OTEL_LOG_TOOL_DETAILS` / `OTEL_LOG_TOOL_CONTENT` — tool calls and their content
@@ -124,19 +137,21 @@ These payloads land in span attributes that `TraceStorageService` persists as
 (authorization headers, API keys embedded in raw bodies) alongside the prompt
 and tool content.
 
-**Redaction is deliberately not done.** Stripping secrets would mean parsing
+**Detailed developer traces are not redacted.** Stripping secrets would mean parsing
 arbitrary OTLP attribute structures across the ingest path and would risk
 dropping legitimate trace data. The accepted tradeoff is that capture is
-**local-only and developer-gated**; turning that into a redaction/threat-model
+**local-only and developer-gated**. Normal-mode storage instead uses an explicit
+metadata allowlist and discards content/events at every ingress. Turning detailed
+capture into a redaction/threat-model
 guarantee is a deferred decision. Treat exported trace files as sensitive.
 
 ## Developer-mode gating
 
-Dev mode only. The span projection (`TraceStorageService`) is built and persisted
-in the main process; the renderer trace viewer (`TracePage`) reads it on demand via
-the `trace.getData` IPC. Outside developer mode `buildTelemetry` returns `undefined`,
-so **no tracer is attached at all** and the AI SDK emits no spans — there is nothing
-to project, and the viewer shows an empty trace.
+Agent task timing is always available; detailed content capture and ordinary-chat
+tracing remain developer-only. The storage service removes non-allowlisted
+attributes and all events/links before retaining normal-mode Agent spans. Native
+Claude content logging flags are disabled in normal mode. The generic chat AI SDK
+`buildTelemetry` still returns `undefined` outside developer mode.
 
 ## Where to read more
 

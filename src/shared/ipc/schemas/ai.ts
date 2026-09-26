@@ -2,6 +2,7 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { taskTimingQuerySchema, type TaskTimingResult } from '@shared/ai/taskTiming'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -183,6 +184,10 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.agent.session.timing': defineRoute({
+    input: taskTimingQuerySchema.extend({ sessionId: z.string().min(1) }),
+    output: z.custom<TaskTimingResult>()
+  }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
