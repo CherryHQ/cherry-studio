@@ -5,8 +5,11 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 
-const { getApplicationIdMock } = vi.hoisted(() => ({
-  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+import { MAIN_LAG_HOOK_PAUSE_MS } from '../mainLagHookPolicy'
+
+const { getApplicationIdMock, platformMock } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio'),
+  platformMock: { isWin: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
@@ -17,7 +20,9 @@ vi.mock('@main/core/platform', () => ({
   isDev: false,
   isLinux: false,
   isMac: true,
-  isWin: false
+  get isWin() {
+    return platformMock.isWin
+  }
 }))
 
 const { SelectionService } = await import('../SelectionService')
@@ -297,6 +302,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     isCtrlkeyListenerActive: boolean
     pauseOsHooksForMainLag(): void
     resumeOsHooksAfterMainLag(): void
+    sampleMainLagForHooks(): void
     releaseActivationResources(): void
     isActivated: boolean
   }
@@ -326,8 +332,34 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
   })
 
   afterEach(() => {
+    platformMock.isWin = false
     BaseService.resetInstances()
     vi.restoreAllMocks()
+  })
+
+  it('drops a lag sample queued by the previous activation', async () => {
+    // Real bug: a setImmediate sample from the last session still runs after reactivation.
+    // Its elapsed time includes the gap, so it pauses the newly started hook.
+    platformMock.isWin = true
+    let now = 10_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    svc.sampleMainLagForHooks()
+    svc.releaseActivationResources()
+    hook.stop.mockClear()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+
+    await flushImmediate()
+
+    expect(hook.stop).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+
+    svc.sampleMainLagForHooks()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+    await flushImmediate()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
   })
 
   it('stops OS hooks when main-thread lag requires a pause', () => {

@@ -107,6 +107,8 @@ export class SelectionService extends BaseService implements Activatable {
   private hooksPausedForMainLag = false
   private mainLagWatchdogTimer: ReturnType<typeof setInterval> | null = null
   private mainLagSampleInFlight = false
+  /** Bumped when an activation ends so a queued lag sample cannot act on the next one. */
+  private mainLagWatchEpoch = 0
 
   //Linux wayland specific
   //isLinuxWaylandDisplay: true when running under Wayland
@@ -1040,7 +1042,10 @@ export class SelectionService extends BaseService implements Activatable {
 
     this.mainLagSampleInFlight = true
     const scheduledAt = Date.now()
+    const watchEpoch = this.mainLagWatchEpoch
     setImmediate(() => {
+      // A sample queued before releaseActivationResources must not pause the next session.
+      if (watchEpoch !== this.mainLagWatchEpoch) return
       this.mainLagSampleInFlight = false
       if (!this.selectionHook || !this.isActivated) return
 
@@ -1290,6 +1295,7 @@ export class SelectionService extends BaseService implements Activatable {
    * the user closes them (suspendPool only destroys idle, never managed).
    */
   private releaseActivationResources(): void {
+    this.mainLagWatchEpoch += 1
     this.stopMainLagHookWatchdog()
 
     if (this.selectionHook) {
