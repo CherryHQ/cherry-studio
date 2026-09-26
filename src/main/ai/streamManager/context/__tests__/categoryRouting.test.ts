@@ -58,7 +58,7 @@ describe('routeDefaultModelId', () => {
   beforeEach(() => {
     preferenceGet.mockReset()
     getByKey.mockReset()
-    getByKey.mockReturnValue({})
+    getByKey.mockReturnValue({ isEnabled: true })
     providerEnabled = true
   })
 
@@ -136,7 +136,7 @@ describe('routeDefaultModelId', () => {
     withPreferences({ categoryModels: { code: ['deleted::model'] }, derived: { code: [CODER] } })
     getByKey.mockImplementation((_providerId: string, modelId: string) => {
       if (modelId === 'model') throw new Error('model deleted')
-      return {}
+      return { isEnabled: true }
     })
 
     expect(routeDefaultModelId(textParts('bu kodu derle'), FALLBACK)).toBe(CODER)
@@ -147,7 +147,7 @@ describe('routeDefaultModelId — rescuing a broken default', () => {
   beforeEach(() => {
     preferenceGet.mockReset()
     getByKey.mockReset()
-    getByKey.mockReturnValue({})
+    getByKey.mockReturnValue({ isEnabled: true })
   })
 
   it('replaces a default whose last probe failed with the best healthy model', () => {
@@ -213,18 +213,44 @@ describe('routeDefaultModelId — default pointing at a disabled provider', () =
   beforeEach(() => {
     preferenceGet.mockReset()
     getByKey.mockReset()
-    getByKey.mockReturnValue({})
+    getByKey.mockReturnValue({ isEnabled: true })
     providerEnabled = true
   })
 
   it('moves off a default whose provider the user switched off', () => {
     withPreferences({ categoryModels: {}, health: { [CODER]: { ok: true, checkedAt: 1 } } })
     // Only the default lives on the disabled provider; the healthy rescue must still resolve.
-    getByKey.mockReturnValue({})
+    getByKey.mockReturnValue({ isEnabled: true })
     providerEnabled = false
 
     // With every provider reported off there is no rescue, so the default is kept rather than
     // swapped for something equally unusable.
+    expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
+  })
+})
+
+describe('routeDefaultModelId — candidate model itself disabled', () => {
+  beforeEach(() => {
+    preferenceGet.mockReset()
+    getByKey.mockReset()
+    getByKey.mockReturnValue({ isEnabled: true })
+    providerEnabled = true
+  })
+
+  it('skips a configured candidate the user disabled, even though its provider stays on', () => {
+    withPreferences({ categoryModels: { code: [CODER, RESEARCHER] } })
+    getByKey.mockImplementation((providerId: string) => ({ isEnabled: providerId !== 'deepseek' }))
+
+    expect(routeDefaultModelId(textParts('şu fonksiyonu refactor et'), FALLBACK)).toBe(RESEARCHER)
+  })
+
+  it('does not rescue a broken default with a candidate that is itself disabled', () => {
+    withPreferences({
+      categoryModels: {},
+      health: { [FALLBACK]: { ok: false, checkedAt: Date.now() }, [CODER]: { ok: true, checkedAt: Date.now() } }
+    })
+    getByKey.mockImplementation((providerId: string) => ({ isEnabled: providerId !== 'deepseek' }))
+
     expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
   })
 })

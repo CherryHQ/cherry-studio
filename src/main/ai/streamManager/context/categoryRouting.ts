@@ -36,12 +36,12 @@ function candidatesFor(category: TaskCategory): UniqueModelId[] {
   )
 }
 
-/** A model is only usable if it still exists *and* its provider is switched on. */
+/** A model is only usable if it still exists, is itself enabled, *and* its provider is switched on. */
 function modelExists(uniqueModelId: UniqueModelId): boolean {
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    modelService.getByKey(providerId, modelId)
-    return providerService.getByProviderId(providerId).isEnabled
+    const model = modelService.getByKey(providerId, modelId)
+    return model.isEnabled && providerService.getByProviderId(providerId).isEnabled
   } catch {
     return false
   }
