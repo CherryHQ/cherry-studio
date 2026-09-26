@@ -32,6 +32,16 @@ beforeEach(() => {
 })
 
 describe('fetchResolvedProviderModels', () => {
+  it('marks provider setup discovery for the main-process TLS policy', async () => {
+    await fetchResolvedProviderModels('openai', { requestContext: 'provider-setup' })
+
+    expect(listModelsMock).toHaveBeenCalledWith({
+      providerId: 'openai',
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    })
+  })
+
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})

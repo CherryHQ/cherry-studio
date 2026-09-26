@@ -1,5 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { net } from 'electron'
+import { net, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -1181,9 +1181,97 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
-      // A builder that installs no fetch of its own must default to the proxy-aware customFetch
-      // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
+      // TLS opt-in is off, so the default transport is still customFetch on the default session.
       expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('composes a provider wrapper onto scoped fetch only for an opted-in provider', async () => {
+      const endpointConfigs = {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          baseUrl: 'https://llm.internal/v1',
+          adapterFamily: 'openai' as const
+        }
+      }
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      const partitions = new Map<
+        string,
+        {
+          fetch: ReturnType<typeof vi.fn>
+          setCertificateVerifyProc: ReturnType<typeof vi.fn>
+          webRequest: { onBeforeSendHeaders: ReturnType<typeof vi.fn> }
+        }
+      >()
+      const original = vi.mocked(session.fromPartition).getMockImplementation()
+      vi.mocked(session.fromPartition).mockImplementation((partition: string) => {
+        let created = partitions.get(partition)
+        if (!created) {
+          created = {
+            fetch: vi.fn(async () => new Response('scoped')),
+            setCertificateVerifyProc: vi.fn(),
+            webRequest: { onBeforeSendHeaders: vi.fn() }
+          }
+          partitions.set(partition, created)
+        }
+        return created as never
+      })
+
+      try {
+        const opted = await providerToAiSdkConfig(
+          makeProvider({
+            id: 'opted',
+            presetProviderId: 'dashscope',
+            settings: { allowSelfSignedTls: true },
+            defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+            endpointConfigs
+          }),
+          model
+        )
+        const optedFetch = (opted.providerSettings as { fetch: typeof globalThis.fetch }).fetch
+        expect(optedFetch).not.toBe(customFetch)
+        expect(
+          await (
+            await optedFetch('https://llm.internal/v1/responses', {
+              method: 'POST',
+              body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+            })
+          ).text()
+        ).toBe('scoped')
+        expect([...partitions.keys()]).toEqual([expect.not.stringMatching(/^persist:/)])
+        const scopedFetch = [...partitions.values()][0].fetch
+        const requestBody = JSON.parse(vi.mocked(scopedFetch).mock.calls[0][1]?.body as string)
+        expect(requestBody.tools).toEqual([{ type: 'web_search' }, { type: 'web_extractor' }])
+        expect(net.fetch).not.toHaveBeenCalled()
+
+        for (const provider of [
+          makeProvider({
+            id: 'strict',
+            presetProviderId: 'dashscope',
+            settings: { allowSelfSignedTls: false },
+            defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+            endpointConfigs
+          }),
+          makeProvider({
+            id: 'disabled',
+            presetProviderId: 'dashscope',
+            isEnabled: false,
+            settings: { allowSelfSignedTls: true },
+            defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+            endpointConfigs
+          })
+        ]) {
+          const config = await providerToAiSdkConfig(provider, model)
+          const providerFetch = (config.providerSettings as { fetch: typeof globalThis.fetch }).fetch
+          await providerFetch('https://llm.internal/v1/responses', {
+            method: 'POST',
+            body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+          })
+          expect(net.fetch).toHaveBeenCalledTimes(1)
+          vi.mocked(net.fetch).mockClear()
+        }
+        expect(partitions.size).toBe(1)
+      } finally {
+        if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+      }
     })
 
     it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {

@@ -4908,6 +4908,8 @@
   "settings.provider.add.name.required": "Sağlayıcı adını girin",
   "settings.provider.add.title": "Sağlayıcı Ekle",
   "settings.provider.add.type": "Sağlayıcı Türü",
+  "settings.provider.allow_self_signed_tls.help": "Varsayılan olarak kapalıdır: bu sağlayıcının TLS sertifikası doğrulanır. Etkinleştirildiğinde bu sağlayıcının HTTPS API ana bilgisayarları için sertifika doğrulaması atlanır; kendinden imzalı, özel sertifika yetkililerince verilmiş, süresi dolmuş veya ana bilgisayar adı eşleşmeyen sertifikaların tümü kabul edilir ve bir saldırgan ortadaki adam saldırısıyla bu ana bilgisayarların API trafiğini ele geçirebilir.",
+  "settings.provider.allow_self_signed_tls.title": "Kendinden İmzalı Sertifikalara İzin Ver",
   "settings.provider.anthropic_api_host": "Anthropic API Sunucusu",
   "settings.provider.anthropic_api_host_preview": "Anthropic önizlemesi: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Yalnızca sağlayıcının Claude uyumlu bir temel URL sunduğu durumlarda kullanılmalıdır.",

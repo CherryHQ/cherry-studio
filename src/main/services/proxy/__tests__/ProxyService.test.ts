@@ -353,4 +353,88 @@ describe('ProxyService — preference wiring', () => {
     await reconciler.flush()
     expect(intervalRegistrations).toHaveLength(2)
   })
+
+  it('awaits the current proxy config before a dynamic session registration resolves', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', 'localhost')
+
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const dynamicSetProxy = vi.fn(() => gate)
+    let settled = false
+    const registration = manager.registerProxySession({ setProxy: dynamicSetProxy } as never).then(() => {
+      settled = true
+    })
+
+    await vi.waitFor(() => expect(dynamicSetProxy).toHaveBeenCalledTimes(1))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+    expect(dynamicSetProxy).toHaveBeenCalledWith({
+      mode: 'fixed_servers',
+      proxyRules: 'http://127.0.0.1:7890',
+      proxyBypassRules: 'localhost'
+    })
+
+    release()
+    await registration
+    expect(settled).toBe(true)
+  })
+
+  it('applies a later proxy preference change to a registered session', async () => {
+    const dynamicSetProxy = vi.fn().mockResolvedValue(undefined)
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await manager.registerProxySession({ setProxy: dynamicSetProxy } as never)
+    dynamicSetProxy.mockClear()
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', 'localhost')
+    await reconcilerOf(manager).flush()
+
+    expect(dynamicSetProxy).toHaveBeenLastCalledWith({
+      mode: 'fixed_servers',
+      proxyRules: 'http://127.0.0.1:7890',
+      proxyBypassRules: 'localhost'
+    })
+  })
+
+  it('stops applying later proxy updates after a dynamic session is unregistered', async () => {
+    const dynamicSetProxy = vi.fn().mockResolvedValue(undefined)
+    const dynamicSession = { setProxy: dynamicSetProxy } as never
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await manager.registerProxySession(dynamicSession)
+    manager.unregisterProxySession(dynamicSession)
+    dynamicSetProxy.mockClear()
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', 'localhost')
+    await reconcilerOf(manager).flush()
+
+    expect(dynamicSetProxy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a failed dynamic session registration and retries it on the next call', async () => {
+    const registrationError = new Error('Dynamic session proxy failed')
+    const dynamicSetProxy = vi.fn().mockRejectedValueOnce(registrationError).mockResolvedValue(undefined)
+    const dynamicSession = { setProxy: dynamicSetProxy } as never
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    await expect(manager.registerProxySession(dynamicSession)).rejects.toBe(registrationError)
+    expect(dynamicSetProxy).toHaveBeenCalledTimes(1)
+
+    await expect(manager.registerProxySession(dynamicSession)).resolves.toBeUndefined()
+    expect(dynamicSetProxy).toHaveBeenCalledTimes(2)
+  })
 })

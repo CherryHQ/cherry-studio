@@ -2,10 +2,12 @@ import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createProviderFetch,
   customFetch,
   HTTP_TRACE_FINAL_BODY_SLOT,
   type HttpTraceFinalBodySlot,
-  installProviderUserAgentInterceptor
+  installProviderUserAgentInterceptor,
+  type ProviderRequestSender
 } from '../customFetch'
 
 const SENTINEL_HEADER = 'x-cherry-studio-user-agent'
@@ -229,6 +231,59 @@ describe('customFetch', () => {
   })
 })
 
+describe('createProviderFetch', () => {
+  beforeEach(() => {
+    vi.mocked(net.fetch).mockReset()
+  })
+
+  it('applies redirect, trace, and User-Agent behavior on an injected sender', async () => {
+    const send = vi
+      .fn<ProviderRequestSender>()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: 'https://other.test/v1/chat' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('ok'))
+    const scopedFetch = createProviderFetch(send)
+    const slot: HttpTraceFinalBodySlot = {}
+    const init: RequestInit & { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } = {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'ScopedAgent/1.0',
+        Authorization: 'Bearer secret',
+        'Content-Type': 'application/json',
+        'X-Custom': 'keep'
+      },
+      body: '{"message":"hello"}',
+      [HTTP_TRACE_FINAL_BODY_SLOT]: slot
+    }
+
+    const response = await scopedFetch('https://api.test/v1/chat', init)
+
+    expect(await response.text()).toBe('ok')
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(net.fetch).not.toHaveBeenCalled()
+
+    const [firstUrl, firstInit] = send.mock.calls[0]
+    expect(firstUrl).toBe('https://api.test/v1/chat')
+    expect(firstInit).toMatchObject({ method: 'POST', redirect: 'manual', body: '{"message":"hello"}' })
+    expect(new Headers(firstInit?.headers).get(SENTINEL_HEADER)).toBe('ScopedAgent/1.0')
+
+    const [redirectUrl, redirectInit] = send.mock.calls[1]
+    const redirectHeaders = new Headers(redirectInit?.headers)
+    expect(redirectUrl).toBe('https://other.test/v1/chat')
+    expect(redirectInit).toMatchObject({ method: 'GET', redirect: 'manual' })
+    expect(redirectInit?.body).toBeUndefined()
+    expect(redirectHeaders.get('Authorization')).toBeNull()
+    expect(redirectHeaders.get('Content-Type')).toBeNull()
+    expect(redirectHeaders.get('X-Custom')).toBe('keep')
+    expect(redirectHeaders.get(SENTINEL_HEADER)).toBe('ScopedAgent/1.0')
+    expect(slot.body).toBeNull()
+  })
+})
+
 describe('installProviderUserAgentInterceptor', () => {
   beforeEach(() => {
     vi.mocked(session.defaultSession.webRequest.onBeforeSendHeaders).mockReset()
@@ -278,5 +333,40 @@ describe('installProviderUserAgentInterceptor', () => {
     dispose()
 
     expect(session.defaultSession.webRequest.onBeforeSendHeaders).toHaveBeenLastCalledWith(null)
+  })
+
+  it('installs the interceptor on the supplied session', () => {
+    const onBeforeSendHeaders = vi.fn()
+    const targetSession = { webRequest: { onBeforeSendHeaders } } as unknown as Electron.Session
+
+    const dispose = installProviderUserAgentInterceptor(targetSession)
+
+    expect(onBeforeSendHeaders).toHaveBeenCalledTimes(1)
+    expect(session.defaultSession.webRequest.onBeforeSendHeaders).not.toHaveBeenCalled()
+
+    const handler = onBeforeSendHeaders.mock.calls[0][0] as (
+      details: { requestHeaders: Record<string, string> },
+      callback: (response: { requestHeaders?: Record<string, string> }) => void
+    ) => void
+    const callback = vi.fn()
+    handler(
+      {
+        requestHeaders: {
+          'User-Agent': 'Chrome/Electron-default',
+          'X-Cherry-Studio-User-Agent': 'ScopedAgent/1.0',
+          Authorization: 'Bearer k'
+        }
+      },
+      callback
+    )
+
+    expect(callback).toHaveBeenCalledWith({
+      requestHeaders: { Authorization: 'Bearer k', 'User-Agent': 'ScopedAgent/1.0' }
+    })
+
+    dispose()
+
+    expect(onBeforeSendHeaders).toHaveBeenLastCalledWith(null)
+    expect(session.defaultSession.webRequest.onBeforeSendHeaders).not.toHaveBeenCalled()
   })
 })

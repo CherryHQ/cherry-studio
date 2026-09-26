@@ -4908,6 +4908,8 @@
   "settings.provider.add.name.required": "Пожалуйста, введите название провайдера",
   "settings.provider.add.title": "Добавить провайдера",
   "settings.provider.add.type": "Тип провайдера",
+  "settings.provider.allow_self_signed_tls.help": "По умолчанию выключено: TLS-сертификат этого провайдера проверяется. При включении проверка сертификатов пропускается для HTTPS API-хостов этого провайдера — принимаются любые сертификаты: самоподписанные, частного УЦ, просроченные или с неверным именем узла — злоумышленник (man-in-the-middle) сможет перехватить API-трафик этих хостов.",
+  "settings.provider.allow_self_signed_tls.title": "Разрешить самоподписанные сертификаты",
   "settings.provider.anthropic_api_host": "Адрес API Anthropic",
   "settings.provider.anthropic_api_host_preview": "Предпросмотр Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Заполняйте только когда провайдер предоставляет базовый адрес, совместимый с Claude.",

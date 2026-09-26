@@ -4908,6 +4908,8 @@
   "settings.provider.add.name.required": "Por favor ingrese el nombre del proveedor",
   "settings.provider.add.title": "Agregar proveedor",
   "settings.provider.add.type": "Tipo de proveedor",
+  "settings.provider.allow_self_signed_tls.help": "Desactivado por defecto: se verifica el certificado TLS de este proveedor. Al activarlo, se omite la verificación de certificados para los hosts de API HTTPS de este proveedor — se aceptan certificados autofirmados, de CA privada, caducados o con nombre de host incorrecto — un atacante (man-in-the-middle) podría interceptar el tráfico de API de esos hosts.",
+  "settings.provider.allow_self_signed_tls.title": "Permitir certificados autofirmados",
   "settings.provider.anthropic_api_host": "Dirección API de Anthropic",
   "settings.provider.anthropic_api_host_preview": "Vista previa de Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Rellenar solo cuando el proveedor proporcione una dirección base compatible con Claude.",

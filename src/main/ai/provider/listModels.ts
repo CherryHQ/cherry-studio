@@ -43,8 +43,8 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
+import { createProviderScopedFetch } from '../utils/providerTlsExceptions'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -88,13 +88,21 @@ const logger = loggerService.withContext('ModelListService')
  * `cache: 'no-store'` because Chromium's HTTP cache would otherwise serve a stale
  * `/models` response on a second pull, resurrecting deleted models.
  */
-const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...init, cache: 'no-store' })
+function createModelListFetch(provider: Provider): FetchFunction {
+  const providerFetch = createProviderScopedFetch(provider)
+  return (input, init) => providerFetch(input, { ...init, cache: 'no-store' })
+}
 
 // ── Types ──
 
 type ModelFetcher = {
   match: (provider: Provider) => boolean
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
+}
+
+interface ListModelsOptions {
+  throwOnError?: boolean
+  requestContext?: 'provider-setup'
 }
 
 function getErrorType(error: unknown) {
@@ -146,27 +154,30 @@ const ApiErrorSchema = z.object({
 type ApiError = z.infer<typeof ApiErrorSchema>
 type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
 
-async function getFromApi<T>({
-  url,
-  headers,
-  responseSchema,
-  abortSignal
-}: {
-  url: string
-  headers?: Record<string, string>
-  responseSchema: z.ZodType<T>
-  abortSignal?: AbortSignal
-}): Promise<T> {
+async function getFromApi<T>(
+  provider: Provider,
+  {
+    url,
+    headers,
+    responseSchema,
+    abortSignal
+  }: {
+    url: string
+    headers?: Record<string, string>
+    responseSchema: z.ZodType<T>
+    abortSignal?: AbortSignal
+  }
+): Promise<T> {
   const { value } = await aiSdkGetFromApi({
     url,
     headers,
+    fetch: createModelListFetch(provider),
     successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
     failedResponseHandler: createJsonErrorResponseHandler({
       errorSchema: zodSchema(ApiErrorSchema),
       errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
     }),
-    abortSignal,
-    fetch: modelListFetch
+    abortSignal
   })
 
   return value
@@ -241,14 +252,14 @@ async function fetchOllamaContextWindow(
     const { value } = await postJsonToApi({
       url: `${baseUrl}/api/show`,
       headers: defaultHeaders(provider),
+      fetch: createModelListFetch(provider),
       body: { model },
       successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
       failedResponseHandler: createJsonErrorResponseHandler({
         errorSchema: zodSchema(ApiErrorSchema),
         errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
       }),
-      abortSignal: signal,
-      fetch: modelListFetch
+      abortSignal: signal
     })
     return readOllamaContextLength(value.model_info)
   } catch (error) {
@@ -264,7 +275,7 @@ const ollamaFetcher: ModelFetcher = {
     const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
       .replace(/\/v1$/, '')
       .replace(/\/api$/, '')
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/api/tags`,
       headers: defaultHeaders(provider),
       responseSchema: OllamaTagsResponseSchema,
@@ -310,7 +321,7 @@ const geminiFetcher: ModelFetcher = {
     // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
     // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
     // would persist the key into local logs users attach to bug reports.
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/v1beta/models`,
       headers: mergeHeaders(
         getProviderAppHeaders(provider),
@@ -353,7 +364,7 @@ const vertexFetcher: ModelFetcher = {
               listAllVersions: 'true'
             })
             if (pageToken) searchParams.set('pageToken', pageToken)
-            const response = await getFromApi({
+            const response = await getFromApi(provider, {
               url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
               headers: request.headers,
               responseSchema: VertexPublisherModelsResponseSchema,
@@ -432,7 +443,7 @@ const copilotFetcher: ModelFetcher = {
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
       headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
@@ -459,7 +470,7 @@ const ovmsFetcher: ModelFetcher = {
     // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
     // host carries so the version below is always the one OVMS actually serves this on.
     const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
@@ -479,7 +490,7 @@ const togetherFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.together,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: TogetherModelsResponseSchema,
@@ -553,7 +564,7 @@ const newApiFetcher: ModelFetcher = {
     p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
@@ -578,7 +589,7 @@ const tokenDanceFetcher: ModelFetcher = {
     const modelsUrl =
       provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
       `${formatApiHost(getBaseUrl(provider))}/models`
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: modelsUrl,
       headers: defaultHeaders(provider),
       responseSchema: TokenDanceModelsResponseSchema,
@@ -610,13 +621,13 @@ const openRouterFetcher: ModelFetcher = {
     const headers = defaultHeaders(provider)
     const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
     const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
-      getFromApi({
+      getFromApi(provider, {
         url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
-      getFromApi({
+      getFromApi(provider, {
         url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
@@ -627,7 +638,7 @@ const openRouterFetcher: ModelFetcher = {
           endpoint: 'openrouter-embedding-models'
         })
       ),
-      getFromApi({
+      getFromApi(provider, {
         url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
@@ -664,13 +675,13 @@ const ppioFetcher: ModelFetcher = {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const headers = defaultHeaders(provider)
     const [chat, embed, reranker] = await Promise.all([
-      getFromApi({
+      getFromApi(provider, {
         url: `${baseUrl}/models`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
-      getFromApi({
+      getFromApi(provider, {
         url: `${baseUrl}/models?model_type=embedding`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
@@ -681,7 +692,7 @@ const ppioFetcher: ModelFetcher = {
           endpoint: 'ppio-embedding-models'
         })
       ),
-      getFromApi({
+      getFromApi(provider, {
         url: `${baseUrl}/models?model_type=reranker`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
@@ -721,7 +732,7 @@ const ppioFetcher: ModelFetcher = {
 const aiHubMixFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.aihubmix,
   fetch: async (provider, signal) => {
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/v1/models`,
       headers: defaultHeaders(provider),
       responseSchema: AIHubMixModelsResponseSchema,
@@ -743,7 +754,7 @@ const aiHubMixFetcher: ModelFetcher = {
 const gatewayFetcher: ModelFetcher = {
   match: (p) => isAIGatewayProvider(p),
   fetch: async (provider, signal) => {
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `https://ai-gateway.vercel.sh/v3/ai/config`,
       headers: {
         ...defaultHeaders(provider),
@@ -780,7 +791,7 @@ const anthropicFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const apiKey = providerService.getRotatedApiKey(provider.id)
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/models?limit=1000`,
       headers: mergeHeaders(
         getProviderAppHeaders(provider),
@@ -800,7 +811,7 @@ const jinaFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.jina),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
@@ -818,7 +829,7 @@ const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
@@ -836,7 +847,7 @@ async function listOpenAICompatibleModels(
   baseUrl: string,
   signal?: AbortSignal
 ): Promise<Partial<Model>[]> {
-  const response = await getFromApi({
+  const response = await getFromApi(provider, {
     url: `${baseUrl}/models`,
     headers: defaultHeaders(provider),
     responseSchema: OpenAIModelsResponseSchema,
@@ -867,7 +878,7 @@ const omlxFetcher: ModelFetcher = {
     // root, and a configured host may already carry an API version other than
     // v1, so strip any trailing version segment rather than only /v1.
     const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
-    const response = await getFromApi({
+    const response = await getFromApi(provider, {
       url: `${root}/v1/models/status`,
       headers: defaultHeaders(provider),
       responseSchema: OmlxModelStatusResponseSchema,
@@ -949,7 +960,7 @@ const lmStudioFetcher: ModelFetcher = {
     const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>
     try {
-      response = await getFromApi({
+      response = await getFromApi(provider, {
         url: `${root}/api/v1/models`,
         headers: defaultHeaders(provider),
         responseSchema: LMStudioModelsResponseSchema,
@@ -1003,7 +1014,7 @@ export async function probeOllamaModel(
     'Content-Type': 'application/json',
     ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
   })
-  const response = await fetch(`${baseUrl}/show`, {
+  const response = await createProviderScopedFetch(provider)(`${baseUrl}/show`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelApiId ?? '' }),
@@ -1044,11 +1055,14 @@ const fetchers: ModelFetcher[] = [
 export async function listModels(
   provider: Provider,
   abortSignal?: AbortSignal,
-  options?: { throwOnError?: boolean }
+  options?: ListModelsOptions
 ): Promise<Partial<Model>[]> {
   try {
-    const fetcher = fetchers.find((f) => f.match(provider))!
-    return await fetcher.fetch(provider, abortSignal, options)
+    // Setup intentionally keeps the provider disabled until its models and credentials
+    // are verified. The explicit request context activates TLS only for this discovery call.
+    const discoveryProvider = options?.requestContext === 'provider-setup' ? { ...provider, isEnabled: true } : provider
+    const fetcher = fetchers.find((f) => f.match(discoveryProvider))!
+    return await fetcher.fetch(discoveryProvider, abortSignal, options)
   } catch (error) {
     logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {

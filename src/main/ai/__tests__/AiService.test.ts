@@ -3,6 +3,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -63,6 +64,7 @@ const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
+const mockCreateProviderScopedFetch = vi.fn()
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
 
@@ -107,6 +109,11 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
   // Model listing issues its HTTP through the same fetch, so tests that exercise the
   // real listing path stub this mock with the response they expect.
   customFetch: vi.fn()
+}))
+
+vi.mock('../utils/providerTlsExceptions', () => ({
+  createProviderScopedFetch: (...args: unknown[]) => mockCreateProviderScopedFetch(...args),
+  installProviderCertificateVerifyProc: () => () => {}
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -235,6 +242,8 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
+const { customFetch: realCustomFetch } = await vi.importActual<typeof CustomFetchModule>('../utils/customFetch')
+const { customFetch: mockedCustomFetch } = await import('../utils/customFetch')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -250,6 +259,9 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(mockedCustomFetch).mockReset()
+    vi.mocked(net.fetch).mockReset()
+    mockCreateProviderScopedFetch.mockReset().mockReturnValue(mockedCustomFetch)
     mockCreateAgent.mockReset()
     mockAssistantGetById.mockReturnValue(undefined)
     mockReadRetryPolicy.mockReturnValue({
@@ -1797,10 +1809,8 @@ describe('AiService tool approval', () => {
         [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
       }
     })
-    // Listing runs on the provider fetch (`customFetch` → Electron `net.fetch`), which the
-    // module mock above stubs — feed it the `/models` payload directly.
-    const { customFetch } = await import('../utils/customFetch')
-    vi.mocked(customFetch).mockResolvedValue(
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           data: [
@@ -1814,30 +1824,26 @@ describe('AiService tool approval', () => {
       )
     )
 
-    try {
-      const [listedModel] = await listModelsFromProviderActual(provider)
-      expect(listedModel).toMatchObject({
-        apiModelId: 'deepseek-v4-flash',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-        capabilities: []
-      })
-      expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
+    const [listedModel] = await listModelsFromProviderActual(provider)
+    expect(listedModel).toMatchObject({
+      apiModelId: 'deepseek-v4-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: []
+    })
+    expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
 
-      const service = createService()
-      const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
-      mockModelGetByKey.mockReturnValue({
-        ...listedModel,
-        capabilities: [MODEL_CAPABILITY.EMBEDDING]
-      })
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      ...listedModel,
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
 
-      await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
+    await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
-      expect(embedSpy).not.toHaveBeenCalled()
-      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
-    } finally {
-      vi.mocked(customFetch).mockReset()
-    }
+    expect(embedSpy).not.toHaveBeenCalled()
+    expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
   })
 
   it('passes the selected API key override into text health checks', async () => {
@@ -1864,6 +1870,59 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
+      })
+    )
+  })
+
+  it('activates an opted-in disabled provider only for a setup model probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'test-provider',
+      name: 'Test Provider',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: { allowSelfSignedTls: true },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      },
+      isEnabled: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-model',
+      requestContext: 'provider-setup'
+    })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolvedModel: expect.objectContaining({ provider: expect.objectContaining({ isEnabled: true }) })
+      })
+    )
+  })
+
+  it('keeps an opted-in disabled provider strict for an ordinary model probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'test-provider',
+      name: 'Test Provider',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: { allowSelfSignedTls: true },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      },
+      isEnabled: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolvedModel: expect.objectContaining({ provider: expect.objectContaining({ isEnabled: false }) })
       })
     )
   })
@@ -2109,7 +2168,8 @@ describe('AiService tool approval', () => {
   it('uses lightweight /api/show probe for Ollama providers', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText')
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(new Response(null, { status: 200 }))
 
     mockProviderGetByProviderId.mockReturnValue({
       id: 'ollama',
@@ -2138,7 +2198,7 @@ describe('AiService tool approval', () => {
 
     const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
 
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(net.fetch).toHaveBeenCalledWith(
       'http://localhost:11434/api/show',
       expect.objectContaining({
         method: 'POST',
@@ -2152,7 +2212,8 @@ describe('AiService tool approval', () => {
 
   it('passes apiKeyOverride into the Ollama probe', async () => {
     const service = createService()
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(new Response(null, { status: 200 }))
 
     mockProviderGetByProviderId.mockReturnValue({
       id: 'ollama',
@@ -2185,14 +2246,15 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
-    const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
+    const [url, init] = vi.mocked(net.fetch).mock.calls.at(-1) as [string, RequestInit]
     expect(url).toContain('/api/show')
     expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
   })
 
   it('surfaces Ollama string error from /api/show', async () => {
     const service = createService()
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: 'model "nope" not found' }), { status: 404 })
     )
 
@@ -2660,6 +2722,24 @@ describe('AiService.listModels', () => {
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
+  })
+
+  it('forwards provider setup context to model discovery', async () => {
+    const service = createService()
+    const provider = { id: 'custom', modelListSource: 'api', isEnabled: false }
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue([])
+
+    await service.listModels({
+      providerId: provider.id,
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    })
+
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    })
   })
 
   it('does not impose a service-level timeout on model listing', async () => {

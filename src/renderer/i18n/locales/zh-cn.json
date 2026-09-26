@@ -4908,6 +4908,8 @@
   "settings.provider.add.name.required": "请输入提供商名称",
   "settings.provider.add.title": "添加提供商",
   "settings.provider.add.type": "提供商类型",
+  "settings.provider.allow_self_signed_tls.help": "默认关闭：将校验此供应商的 TLS 证书。开启后将跳过对该供应商 HTTPS API 主机的证书校验——自签、私有 CA、过期或域名不匹配的证书均会被接受，中间人可能截获这些主机的 API 流量。",
+  "settings.provider.allow_self_signed_tls.title": "允许自签名证书",
   "settings.provider.anthropic_api_host": "Anthropic API 地址",
   "settings.provider.anthropic_api_host_preview": "Anthropic 预览：{{url}}",
   "settings.provider.anthropic_api_host_tooltip": "仅当服务商提供 Claude 兼容的基础地址时填写。",

@@ -182,6 +182,11 @@ export const ProviderSettingsSchema = z.object({
   rateLimit: z.number().optional(),
   timeout: z.number().optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
+  /**
+   * When true, TLS certificate verification may be skipped for this provider's
+   * HTTPS API hostnames (self-signed / private CA). Off by default.
+   */
+  allowSelfSignedTls: z.boolean().optional(),
 
   // User notes
   notes: z.string().optional(),

@@ -73,7 +73,8 @@ export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGen
     apiKey: settings.apiKey ?? '',
     // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
     // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(chatBaseURL)
+    baseURL: withoutTrailingApiVersion(chatBaseURL),
+    fetch: settings.fetch
   })
 }
 
