@@ -31,6 +31,7 @@ import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { DSH_BUILTIN_TOOLS, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -440,7 +441,7 @@ export class DshStreamAdapter {
     this.sink.enqueue({
       type: 'tool-output-available',
       toolCallId,
-      output: normalizeToolOutput(output),
+      output: normalizeToolOutput(output, toolName),
       dynamic: true,
       providerExecuted: true,
       providerMetadata: toolProviderMetadata(toolName)
@@ -615,11 +616,24 @@ function parseToolArguments(raw: string): Record<string, unknown> {
 }
 
 /**
+ * Shell-class builtin tool names (the catalog's `bash` plus win32's native `pwsh` identity).
+ * Their output is verbatim command text and must never be JSON.parse'd — `cat x.json` output
+ * is legal JSON, and persisting it as an object breaks the string contract downstream (#20265).
+ */
+const DSH_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set(
+  [...DSH_BUILTIN_TOOLS, ...getDshRuntimeBuiltinTools('win32')]
+    .filter((tool) => tool.category === 'shell')
+    .map((tool) => tool.name)
+)
+
+/**
  * dsh wraps every tool result in MCP content blocks, so an all-text result hides its payload
  * inside a JSON string. Unwrap it the way the Claude Code adapter does, so downstream consumers
  * (tool cards, citation resolution, persisted projection) see one shape across runtimes.
  */
-function normalizeToolOutput(output: ContentBlock[]): unknown {
+function normalizeToolOutput(output: ContentBlock[], toolName: string): unknown {
+  if (DSH_SHELL_TOOL_NAMES.has(toolName)) return stringifyToolOutput(output)
+
   const texts = output.filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
   if (texts.length === 0 || texts.length !== output.length) return output
 

@@ -13,7 +13,8 @@ const getTextItems = (value: unknown): TextOutputItem[] => {
   return value.filter(isTextOutputItem)
 }
 
-const toOutputText = (output: unknown): string => {
+/** Normalize any persisted tool output value (string / MCP envelope / block array / object) to text. */
+export const toOutputText = (output: unknown): string => {
   if (output === undefined || output === null || output === '') return ''
   if (typeof output === 'string') return output
 
