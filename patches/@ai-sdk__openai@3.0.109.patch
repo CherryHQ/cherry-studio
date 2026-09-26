@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 48ea06e..5b7bc32 100644
+index 48ea06eecf6397b44f4176acea05664541cc4e1f..a8bf8a62784bec362d5d2d3eb4ae66035accbb83 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
@@ -139,6 +139,15 @@ index 48ea06e..5b7bc32 100644
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4241,7 +4268,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+             id: import_v422.z.string(),
+             call_id: import_v422.z.string(),
+             name: import_v422.z.string(),
+-            arguments: import_v422.z.string(),
++            arguments: import_v422.z.string().nullish().transform((v) => v ?? ""),
+             namespace: import_v422.z.string().nullish()
+           }),
+           import_v422.z.object({
 @@ -4658,6 +4685,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
          summary_index: import_v422.z.number(),
          delta: import_v422.z.string()
@@ -188,7 +197,7 @@ index 48ea06e..5b7bc32 100644
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 2648382..872c410 100644
+index 26483821603be3057bd67afc71143f97e8c33ac9..7730586ba9b178820461f0da2decb1aa2e183315 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
@@ -328,6 +337,15 @@ index 2648382..872c410 100644
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4342,7 +4369,7 @@ var openaiResponsesChunkSchema = lazySchema20(
+             id: z22.string(),
+             call_id: z22.string(),
+             name: z22.string(),
+-            arguments: z22.string(),
++            arguments: z22.string().nullish().transform((v) => v ?? ""),
+             namespace: z22.string().nullish()
+           }),
+           z22.object({
 @@ -4759,6 +4786,11 @@ var openaiResponsesChunkSchema = lazySchema20(
          summary_index: z22.number(),
          delta: z22.string()
@@ -377,7 +395,7 @@ index 2648382..872c410 100644
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index e5b1f96..eae8eb5 100644
+index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..6ef45214703dd13e41b7874089f604f34a033cec 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
@@ -517,6 +535,15 @@ index e5b1f96..eae8eb5 100644
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4185,7 +4212,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+             id: import_v418.z.string(),
+             call_id: import_v418.z.string(),
+             name: import_v418.z.string(),
+-            arguments: import_v418.z.string(),
++            arguments: import_v418.z.string().nullish().transform((v) => v ?? ""),
+             namespace: import_v418.z.string().nullish()
+           }),
+           import_v418.z.object({
 @@ -4602,6 +4629,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v418.z.number(),
          delta: import_v418.z.string()
@@ -566,7 +593,7 @@ index e5b1f96..eae8eb5 100644
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 714e237..8d7fcce 100644
+index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..c7d32c57454aa288303ec57230769f9d140bd025 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
@@ -706,6 +733,15 @@ index 714e237..8d7fcce 100644
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
+@@ -4233,7 +4260,7 @@ var openaiResponsesChunkSchema = lazySchema16(
+             id: z18.string(),
+             call_id: z18.string(),
+             name: z18.string(),
+-            arguments: z18.string(),
++            arguments: z18.string().nullish().transform((v) => v ?? ""),
+             namespace: z18.string().nullish()
+           }),
+           z18.object({
 @@ -4650,6 +4677,11 @@ var openaiResponsesChunkSchema = lazySchema16(
          summary_index: z18.number(),
          delta: z18.string()
@@ -755,7 +791,7 @@ index 714e237..8d7fcce 100644
                if (store) {
                  controller.enqueue({
 diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
-index e5bda94..f31c9ff 100644
+index e5bda94b0f26b69796d74900f975cb1f1b9ac234..f31c9ff0665366dcbd8e0dda83d15ac076749f9d 100644
 --- a/src/chat/openai-chat-language-model.ts
 +++ b/src/chat/openai-chat-language-model.ts
 @@ -211,7 +211,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
@@ -768,7 +804,7 @@ index e5bda94..f31c9ff 100644
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
-index de779ca..14b7247 100644
+index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
 --- a/src/image/openai-image-api.ts
 +++ b/src/image/openai-image-api.ts
 @@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
@@ -782,7 +818,7 @@ index de779ca..14b7247 100644
          }),
        ),
 diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
-index 41b81b2..f0858ff 100644
+index 41b81b27ccc1cd2e821573dab1e28517def1ea95..f0858ff8d6f53ef0ba1bdf898d881d01dae517c5 100644
 --- a/src/image/openai-image-model.ts
 +++ b/src/image/openai-image-model.ts
 @@ -132,7 +132,11 @@ export class OpenAIImageModel implements ImageModelV3 {
@@ -812,7 +848,7 @@ index 41b81b2..f0858ff 100644
        usage:
          response.usage != null
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
-index 5c27d8f..703956b 100644
+index 5c27d8f988a37082af53de78c0b542a5b8373eed..703956b221dd6d701d841ab5842d1a05cb9370a3 100644
 --- a/src/responses/convert-to-openai-responses-input.ts
 +++ b/src/responses/convert-to-openai-responses-input.ts
 @@ -291,6 +291,14 @@ function isFileId(data: string, prefixes?: readonly string[]): boolean {
@@ -926,9 +962,18 @@ index 5c27d8f..703956b 100644
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index aef872b..b34fcfd 100644
+index aef872bfbed2218f104c6cf864cde8005173ff6d..27bb2300ae4630c98ea86f55ec1d3252d49793ca 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
+@@ -771,7 +771,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+             id: z.string(),
+             call_id: z.string(),
+             name: z.string(),
+-            arguments: z.string(),
++            arguments: z.string().nullish().transform((v) => v ?? ''),
+             namespace: z.string().nullish(),
+           }),
+           z.object({
 @@ -1206,6 +1206,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
          summary_index: z.number(),
          delta: z.string(),
@@ -951,7 +996,7 @@ index aef872b..b34fcfd 100644
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index 485880b..e25dd4f 100644
+index 485880b51bbb55f9bf2b563afe24330f5a309c37..e25dd4f5cc5f793bbcc71d1c70983bb0c122221f 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -436,7 +436,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
