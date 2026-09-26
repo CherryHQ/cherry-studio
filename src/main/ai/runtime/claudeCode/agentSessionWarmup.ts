@@ -736,7 +736,7 @@ function deriveRouteFacts(
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
   const customHeaders = mergeAnthropicCustomHeaders(
     getProviderAppHeaders(primaryProvider),
-    getExtraHeaders(primaryProvider)
+    getExtraHeaders(primaryProvider, anthropicBaseUrl)
   )
   // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
@@ -821,7 +821,7 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: runtimeApiKey,
         customHeaders: mergeAnthropicCustomHeaders(
           getProviderAppHeaders(primaryProvider),
-          getExtraHeaders(primaryProvider)
+          getExtraHeaders(primaryProvider, facts.baseUrl ?? undefined)
         ),
         usageCapture: {
           owner: 'agent-sdk',

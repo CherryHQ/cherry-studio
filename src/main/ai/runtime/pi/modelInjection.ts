@@ -181,7 +181,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: toPiHeaders(getExtraHeaders(provider)),
+    headers: toPiHeaders(getExtraHeaders(provider, resolvedEndpoint.baseUrl)),
     models: [modelConfig]
   }
 
