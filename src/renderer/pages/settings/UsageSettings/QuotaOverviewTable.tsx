@@ -194,7 +194,7 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
           forecast: forecastQuotaExhaustion({
             used,
             limit: entry.limit,
-            periodStartMs: periodStarts.get(entry.period) ?? 0,
+            periodStartMs: periodStarts.get(entry.limitKey) ?? 0,
             renewsAtMs: renewMs,
             nowMs: Date.now()
           })
