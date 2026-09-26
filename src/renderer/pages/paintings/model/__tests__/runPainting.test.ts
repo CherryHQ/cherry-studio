@@ -14,7 +14,8 @@ import { runPainting } from '../runPainting'
  * instead of collapsing it to an empty `REMOTE_ERROR`.
  */
 describe('runPainting error surfacing', () => {
-  const fail = (error: unknown) => runPainting(() => Promise.reject(error))
+  const fail = (error: unknown, context?: { hasInputImages?: boolean }) =>
+    runPainting(() => Promise.reject(error), context)
 
   it('surfaces the provider detail message from an AI_REQUEST_FAILED IpcError', async () => {
     const detail = { name: 'AI_APICallError', message: '401 Unauthorized', stack: null, statusCode: 401 }
@@ -35,6 +36,22 @@ describe('runPainting error surfacing', () => {
     await expect(fail(err)).rejects.toMatchObject({
       code: 'REMOTE_ERROR',
       message: 'HTTP 500 upstream boom'
+    })
+  })
+
+  it('identifies the reference-image upload endpoint for TLS failures', async () => {
+    const detail = {
+      name: 'TypeError',
+      message: 'net::ERR_SSL_PROTOCOL_ERROR',
+      stack: null,
+      url: 'https://provider.example/v1/images/edits?api_key=secret'
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err, { hasInputImages: true })).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message:
+        'Reference-image upload failed at https://provider.example/v1/images/edits: net::ERR_SSL_PROTOCOL_ERROR. Check the provider HTTPS base URL and confirm its multipart image-edit endpoint is available.'
     })
   })
 

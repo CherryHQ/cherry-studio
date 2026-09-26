@@ -9,14 +9,32 @@ import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 
 const logger = loggerService.withContext('paintings/generation')
 
+export interface PaintingRunContext {
+  hasInputImages?: boolean
+}
+
+function safeEndpoint(url: unknown): string | undefined {
+  if (typeof url !== 'string') return undefined
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return undefined
+  }
+}
+
 /** Concise human message from the serialized provider/AI-SDK error the
  *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
  *  provider message, else the HTTP status, else a response-body snippet. */
-function aiDetailMessage(detail: SerializedError): string {
-  if (detail.message) return detail.message
+function aiDetailMessage(detail: SerializedError, context: PaintingRunContext): string {
+  const message = detail.message
   const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
   const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
-  return [status, body].filter(Boolean).join(' ') || detail.name || 'Image generation failed'
+  const detailMessage = message || [status, body].filter(Boolean).join(' ') || detail.name || 'Image generation failed'
+  if (!context.hasInputImages) return detailMessage
+
+  const endpoint = safeEndpoint(detail.url)
+  return `Reference-image upload failed${endpoint ? ` at ${endpoint}` : ''}: ${detailMessage}. Check the provider HTTPS base URL and confirm its multipart image-edit endpoint is available.`
 }
 
 export type GenerationResult =
@@ -52,7 +70,8 @@ export async function resolvePaintingFiles(result: GenerationResult): Promise<Fi
 }
 
 export async function runPainting(
-  generate: () => Promise<GenerationResult | FileMetadata[] | void>
+  generate: () => Promise<GenerationResult | FileMetadata[] | void>,
+  context: PaintingRunContext = {}
 ): Promise<FileMetadata[]> {
   try {
     const result = await generate()
@@ -75,7 +94,7 @@ export async function runPainting(
       const detail = aiErrorDetail(error)
       logger.error('Image generation failed:', detail ?? error)
       if (detail) {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
+        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail, context) })
       }
       throw normalizePaintingGenerateError(error)
     }
