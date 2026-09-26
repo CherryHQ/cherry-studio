@@ -85,9 +85,9 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Last migrated message; a terminal response group uses its first `useful` response, or its first response when none is marked |
-| (none) | `sortOrder` | 0 (new field) |
-| Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
-| (none) | `pinnedOrder` | 0 (new field) |
+| Redux: `assistants[].topics[]` then `defaultAssistant.topics[]` (first-write-wins) | `orderKey` | Global sequence; Dexie-only leftovers append after the flatten (`updatedAt` DESC, then id). Not recency. |
+| Redux: `pinned` | `pin` row | Polymorphic `pin` table (`entityType='topic'`) |
+| Same flatten restricted to `pinned === true` | `pin.orderKey` | Pin list order follows Redux array order among pinned ids, not `updatedAt` |
 | `createdAt` | `createdAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `min(message.createdAt)` |
 | `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
 | (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
@@ -133,6 +133,8 @@ Topic data is merged from Dexie + Redux before transformation:
 | `error` | `ErrorBlock` | Direct copy |
 | `compact` | `CompactBlock` | Direct copy |
 | `unknown` | (skipped) | Placeholder blocks are dropped |
+
+Topic and pin order are read from the migration-owned Redux export while ChatMigrator is running. Normal V2 startup never reads the removed V1 Redux Persist store, so later V2 reorders and recreated pins remain untouched.
 
 ## Implementation Files
 
