@@ -18,7 +18,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { ReasoningEffortMappingOverrides, UserReasoningEffortMap } from '@shared/data/preference/preferenceTypes'
 
-const MAPPING_TIERS = REASONING_EFFORT_ORDER.filter((effort) => effort !== 'auto')
+const MAPPING_TIERS = REASONING_EFFORT_ORDER.filter((effort) => effort !== 'auto' && effort !== 'none')
 
 type MappingScope = 'global' | 'provider'
 
@@ -50,7 +50,7 @@ function writeScopeMap(
     ...providerScope,
     default: Object.keys(cleaned).length > 0 ? cleaned : undefined
   }
-  const providers = { ...(overrides.providers ?? {}), [providerId]: nextProviderScope }
+  const providers = { ...overrides.providers, [providerId]: nextProviderScope }
   return { ...overrides, providers }
 }
 

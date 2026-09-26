@@ -20,7 +20,7 @@ import {
   resolveEffectiveUserEffortMap,
   sanitizeUserReasoningEffortMap
 } from '@shared/ai/reasoningEffortMappings'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -189,7 +189,7 @@ export function ModelSpeedControl({
   const userEffortMap = useMemo(() => {
     const raw = resolveEffectiveUserEffortMap(effortMappings, {
       providerId: model.providerId,
-      modelId: parseUniqueModelId(model.id).modelId,
+      modelId: isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id,
       modelFamily: model.family,
       uniqueModelId: model.id
     })

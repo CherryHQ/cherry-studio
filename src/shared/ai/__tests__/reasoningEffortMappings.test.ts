@@ -32,6 +32,7 @@ describe('reasoningEffortMappings', () => {
   it('translates a tier through the user map before wire resolution', () => {
     expect(applyUserReasoningEffortTranslation('high', { high: 'medium' })).toBe('medium')
     expect(applyUserReasoningEffortTranslation('default', { high: 'medium' })).toBe('default')
+    expect(applyUserReasoningEffortTranslation('none', { none: 'low' })).toBe('none')
   })
 
   it('drops unsupported targets when sanitizing for a model vocabulary', () => {

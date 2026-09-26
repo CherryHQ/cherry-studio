@@ -14,7 +14,6 @@ export interface ReasoningEffortMappingContext {
 }
 
 const MAPPABLE_EFFORTS: readonly ReasoningEffort[] = [
-  'none',
   'minimal',
   'low',
   'medium',
@@ -68,13 +67,13 @@ export function hasCustomReasoningEffortMapping(
 
 /**
  * Apply a user-configured translation before model vocabulary projection.
- * Non-tier selections (`default` / `none`) are left unchanged.
+ * The `default` selection is left unchanged; `none` is not user-mappable.
  */
 export function applyUserReasoningEffortTranslation<T extends string>(
   selection: T,
   userMap: UserReasoningEffortMap | undefined
 ): T {
-  if (!userMap || selection === 'default') return selection
+  if (!userMap || selection === 'default' || selection === 'none') return selection
   if (!isMappableReasoningEffort(selection)) return selection
   const translated = userMap[selection]
   return (translated ?? selection) as T

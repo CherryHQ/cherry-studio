@@ -65,7 +65,7 @@ import {
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import { getUserReasoningEffortMap } from '../../../utils/reasoningEffortPreferences'
-import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -228,10 +228,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
-  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
   const userEffortMap = getUserReasoningEffortMap(provider, invocationModel)
   const reasoning = resolveReasoningInvocation({
-    selection: reasoningSelection,
+    selection: requestedReasoningSelection,
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
