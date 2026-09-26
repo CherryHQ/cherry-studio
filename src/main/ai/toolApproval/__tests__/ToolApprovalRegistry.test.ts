@@ -56,8 +56,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     const { entry, result, approvalId } = makeEntry()
     toolApprovalRegistry.register(entry)
 
-    toolApprovalRegistry.dispatch(approvalId, { approved: false, reason: 'nope' })
-    await expect(result).resolves.toEqual({ approved: false, reason: 'nope' })
+    toolApprovalRegistry.dispatch(approvalId, { approved: false, source: 'user', reason: 'nope' })
+    await expect(result).resolves.toEqual({ approved: false, source: 'user', reason: 'nope' })
   })
 
   it('returns undefined dispatching an unknown id (already settled / expired)', () => {
@@ -71,7 +71,11 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     const dup = makeEntry({ approvalId: first.approvalId })
     expect(toolApprovalRegistry.register(dup.entry)).toBe(false)
 
-    await expect(dup.result).resolves.toEqual({ approved: false, reason: 'Duplicate approval registration' })
+    await expect(dup.result).resolves.toEqual({
+      approved: false,
+      source: 'host',
+      hostReason: 'Duplicate approval registration'
+    })
     expect(toolApprovalRegistry.size()).toBe(1)
 
     toolApprovalRegistry.dispatch(first.approvalId, { approved: true })
@@ -86,7 +90,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
 
     await expect(result).resolves.toEqual({
       approved: false,
-      reason: 'Tool request was cancelled before approval'
+      source: 'host',
+      hostReason: 'Tool request was cancelled before approval'
     })
     expect(toolApprovalRegistry.size()).toBe(0)
   })
@@ -98,7 +103,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.size()).toBe(1)
 
     controller.abort()
-    await expect(result).resolves.toEqual({ approved: false, reason: 'aborted' })
+    await expect(result).resolves.toEqual({ approved: false, source: 'host', hostReason: 'aborted' })
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
@@ -111,8 +116,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     toolApprovalRegistry.register(c.entry)
 
     expect(toolApprovalRegistry.abort('sA', 'stop-sA')).toBe(2)
-    await expect(a.result).resolves.toEqual({ approved: false, reason: 'stop-sA' })
-    await expect(b.result).resolves.toEqual({ approved: false, reason: 'stop-sA' })
+    await expect(a.result).resolves.toEqual({ approved: false, source: 'host', hostReason: 'stop-sA' })
+    await expect(b.result).resolves.toEqual({ approved: false, source: 'host', hostReason: 'stop-sA' })
 
     expect(toolApprovalRegistry.size()).toBe(1)
     toolApprovalRegistry.dispatch(c.approvalId, { approved: true })
@@ -126,8 +131,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     toolApprovalRegistry.register(b.entry)
 
     expect(toolApprovalRegistry.clear('shutdown')).toBe(2)
-    await expect(a.result).resolves.toEqual({ approved: false, reason: 'shutdown' })
-    await expect(b.result).resolves.toEqual({ approved: false, reason: 'shutdown' })
+    await expect(a.result).resolves.toEqual({ approved: false, source: 'host', hostReason: 'shutdown' })
+    await expect(b.result).resolves.toEqual({ approved: false, source: 'host', hostReason: 'shutdown' })
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 

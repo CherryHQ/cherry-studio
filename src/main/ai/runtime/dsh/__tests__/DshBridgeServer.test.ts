@@ -5,7 +5,7 @@ import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'
@@ -491,6 +491,7 @@ describe('DshBridgeServer', () => {
 
     toolApprovalRegistry.dispatch(event.request.approvalId, {
       approved: false,
+      source: 'user',
       reason: '  use a copy instead  '
     })
 
@@ -504,10 +505,10 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
 
     for (const decision of [
-      { approved: true, reason: 'ignored' },
-      { approved: false, reason: '   ' },
-      { approved: true, reason: 'rewritten', updatedInput: { command: 'echo edited' } }
-    ]) {
+      { approved: true },
+      { approved: false, source: 'user', reason: '   ' },
+      { approved: true, updatedInput: { command: 'echo edited' } }
+    ] satisfies DispatchDecision[]) {
       const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
       await vi.waitFor(() => expect(harness.events).toHaveLength(1))
       const event = harness.events.shift()
@@ -579,7 +580,11 @@ describe('DshBridgeServer', () => {
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
 
-    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false, reason: 'missing tests' })
+    toolApprovalRegistry.dispatch(event.request.approvalId, {
+      approved: false,
+      source: 'user',
+      reason: 'missing tests'
+    })
     await expect(ask).resolves.toEqual({
       answers: [{ id: 'plan-review', selected: [], custom: 'missing tests' }]
     })

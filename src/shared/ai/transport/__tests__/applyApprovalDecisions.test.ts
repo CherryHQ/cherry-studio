@@ -32,17 +32,18 @@ describe('applyApprovalDecisions', () => {
     expect(s.approval).toEqual({ id: 'ap-1', approved: true })
   })
 
-  it('carries the reason through on a denied decision', () => {
-    const decisions: ApprovalDecision[] = [{ approvalId: 'ap-1', approved: false, reason: 'user denied' }]
+  it('preserves every character of a denied decision for storage and display', () => {
+    const reason = '  请先解释 "风险"\n再执行  '
+    const decisions: ApprovalDecision[] = [{ approvalId: 'ap-1', approved: false, reason }]
     const [part] = applyApprovalDecisions([toolPart()], decisions)
     const s = approvalState(part)
 
     expect(s.state).toBe('approval-responded')
-    expect(s.approval).toEqual({ id: 'ap-1', approved: false, reason: 'user denied' })
+    expect(s.approval).toEqual({ id: 'ap-1', approved: false, reason })
   })
 
   it('omits reason when the decision has none', () => {
-    const [part] = applyApprovalDecisions([toolPart()], [{ approvalId: 'ap-1', approved: true }])
+    const [part] = applyApprovalDecisions([toolPart()], [{ approvalId: 'ap-1', approved: false }])
     expect('reason' in (approvalState(part).approval ?? {})).toBe(false)
   })
 

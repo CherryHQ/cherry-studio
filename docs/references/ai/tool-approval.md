@@ -57,6 +57,17 @@ persists, and resumes the stream.
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
 
+## Denial reasons
+
+The approval decision sent to an agent runtime distinguishes a user's denial
+from a host cancellation or policy block. Its `reason` is only the user's exact
+input; host status uses `hostReason`. A blank user response has no persisted
+reason. Main formats a separate model-visible denial that says the tool did not
+execute, attributes any quoted words to the user, or says no reason was given.
+The stored approval part and renderer display keep the user's input unchanged.
+Chat message conversion formats only its model-input copy; Claude Code and pi
+use the same formatter when returning a denied tool result.
+
 ## Persistent decisions
 
 `useToolApproval`

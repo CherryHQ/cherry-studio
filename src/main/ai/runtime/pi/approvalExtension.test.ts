@@ -180,12 +180,32 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(resume).toHaveBeenCalledOnce()
   })
 
-  it('blocks with the reason when the approval is denied', async () => {
+  it('attributes a user denial in the model-visible block', async () => {
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, reason: 'not allowed' })
-    await expect(pending).resolves.toEqual({ block: true, reason: 'not allowed' })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, {
+      approved: false,
+      source: 'user',
+      reason: 'not allowed'
+    })
+    await expect(pending).resolves.toEqual({
+      block: true,
+      reason:
+        "The user denied permission to use bash. The tool did not execute. The user's exact words are between these markers:\n<<<USER_WORDS>>>\nnot allowed\n<<<USER_WORDS>>>"
+    })
+  })
+
+  it('uses the fixed no-reason message for a user denial', async () => {
+    const { handler, emitted } = buildGate()
+    const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
+    await flush()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, source: 'user' })
+    await expect(pending).resolves.toEqual({
+      block: true,
+      reason:
+        'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    })
   })
 
   it('applies the edited input in place when approved with updatedInput', async () => {
@@ -336,7 +356,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const pending = handler(toolEvent(toolName, {}), extCtx)
     await flush()
     expect(emitted).toHaveLength(1)
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, source: 'user' })
     await expect(pending).resolves.toMatchObject({ block: true })
   })
 
@@ -391,7 +411,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
     expect(emitted[0].request.presentation).toBe('message')
     expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.presentation).toBe('message')
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, source: 'user' })
     await pending
   })
 
@@ -453,7 +473,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       )
       await flush()
       expect(emitted).toHaveLength(1)
-      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, source: 'user' })
       await expect(pendingWrite).resolves.toMatchObject({ block: true })
     })
 

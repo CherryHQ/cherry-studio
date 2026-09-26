@@ -409,7 +409,6 @@
   "agent.toolPermission.button.run": "走る",
   "agent.toolPermission.confirmation": "このClaudeツールを実行してもよろしいですか？",
   "agent.toolPermission.decisionDenied": "拒否しました",
-  "agent.toolPermission.defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
   "agent.toolPermission.error.sendFailed": "決定の送信に失敗しました。もう一度お試しください。",
   "agent.toolPermission.inputPreview": "ツール入力プレビュー",
   "agent.toolPermission.pendingBadge": "保留中",
