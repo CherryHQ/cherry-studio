@@ -772,16 +772,13 @@ export class McpRuntimeService extends BaseService {
     application.get('CacheService').delete(`mcp:list_resources:${serverKey}`)
   }
 
-  /**
-   * Clear all caches for a specific server
-   */
+  /** Clear runtime-owned prompt and resource caches for a server. */
   private clearServerCache(serverOrKey: McpServer | string) {
     const serverKey = typeof serverOrKey === 'string' ? serverOrKey : this.getServerKey(serverOrKey)
     const cacheService = application.get('CacheService')
-    cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
+    logger.debug(`Cleared prompt and resource caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -875,7 +872,7 @@ export class McpRuntimeService extends BaseService {
     try {
       await this.closeClientsForServer(server.id)
     } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      application.get('McpCatalogService').invalidateTools(server.id, 'stop')
       this.setServerStatus(server.id, 'disabled')
     }
   }
@@ -925,7 +922,7 @@ export class McpRuntimeService extends BaseService {
       // Best-effort, isolated per step: after the row delete committed neither hiccup
       // may fail the removal, and a cache failure must not skip the status step.
       try {
-        application.get('McpCatalogService').clearSharedToolsCache(server.id)
+        application.get('McpCatalogService').invalidateTools(server.id, 'removal')
       } catch (error) {
         getServerLogger(server).error(`Post-removal tools cache cleanup failed`, error as Error)
       }
@@ -987,13 +984,13 @@ export class McpRuntimeService extends BaseService {
       message: 'Restarting server',
       source: 'client'
     })
+    application.get('McpCatalogService').invalidateTools(server.id, 'restart')
     await this.closeClientsForServer(server.id)
     // Clear caches before restarting to ensure fresh data. Drop the shared
     // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
     // restart that fails (e.g. a bad new config) must not leave the old config's tools
     // visible to agents/chat. `refreshTools` repopulates it on success. (issue #16242)
     this.clearServerCache(server)
-    application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateClient(server)
       await application.get('McpCatalogService').refreshTools(server.id)
@@ -1032,9 +1029,9 @@ export class McpRuntimeService extends BaseService {
         source: 'connectivity'
       })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      application.get('McpCatalogService').invalidateTools(server.id, 'connectivity-check')
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
       this.setServerStatus(server.id, 'error', error)
       return false
     }

@@ -36,7 +36,7 @@ export function buildPiMcpToolName(serverName: string, toolName: string): string
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-/** Warm user-configured MCP catalogs before their in-process bridge takes its initial tool snapshot. */
+/** Force fresh user-configured tool schemas before the in-process bridge snapshots them, even during warm backoff. */
 export async function warmMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
   const catalog = application.get('McpCatalogService')
   const serverIds = new Set<string>()

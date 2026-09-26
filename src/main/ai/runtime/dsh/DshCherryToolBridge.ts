@@ -64,7 +64,7 @@ export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = ne
   )
 )
 
-/** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
+/** Force fresh user-configured tool schemas before the connection snapshot, even during warm backoff. */
 export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
   const catalog = application.get('McpCatalogService')
   const serverIds = new Set<string>()

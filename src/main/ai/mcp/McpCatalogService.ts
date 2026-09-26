@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
@@ -23,6 +24,12 @@ const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type ListToolsOptions = { includeDisabled?: boolean }
+type ToolsInvalidationReason = 'stop' | 'removal' | 'restart' | 'connectivity-check'
+type ToolsCacheOutcome =
+  | { kind: 'success'; tools: McpTool[] }
+  | { kind: 'confirmed-empty' }
+  | { kind: 'refresh-failed' }
+  | { kind: 'invalidated' }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  protocol extensions while normalizing missing fields for renderer reads. */
@@ -83,6 +90,8 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
+  /** Bumped when a server's tools are withdrawn so an in-flight refresh cannot republish them. */
+  private readonly toolsEpochByServer = new Map<string, number>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -128,24 +137,26 @@ export class McpCatalogService extends BaseService {
   }
 
   /**
-   * Sole write funnel for the `mcp.tools.<serverId>` shared cache — every producer
-   * (refresh, prewarm, failure/inactive clearing) lands here, which is what lets this
-   * single point drive `onToolsCacheUpdated`.
-   *
-   * Backoff state is maintained here too, so clearing or replacing the shared cache cannot
-   * leave a stale retry backoff marker behind. Change detection compares effective content
+   * Sole write funnel for the shared tools snapshot and retry eligibility. Change detection compares effective content
    * (`undefined` reads as `[]`, so first-write of an empty list is not a "change"): consumers
    * debounce on it because a spurious fire makes the SDK re-list and active sessions rebuild
    * their host-side tool metadata and policy snapshot. Stringify order-sensitivity is fine —
    * lists are rebuilt from the same upstream source, so key/element order is stable across refreshes.
    */
-  private writeToolsCache(serverId: string, tools: McpTool[], emptyRetryMs = 0): void {
+  private writeToolsCache(serverId: string, outcome: ToolsCacheOutcome): void {
+    const tools = outcome.kind === 'success' ? outcome.tools : []
+    const retryMs =
+      outcome.kind === 'confirmed-empty'
+        ? EMPTY_TOOLS_RETRY_MS
+        : outcome.kind === 'refresh-failed'
+          ? FAILED_TOOLS_RETRY_MS
+          : 0
     const cacheService = application.get('CacheService')
     const cacheKey = mcpToolsCacheKey(serverId)
     const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
     cacheService.setShared(cacheKey, tools)
-    if (tools.length === 0 && emptyRetryMs > 0) {
-      cacheService.set(emptyToolsRetryCacheKey(serverId), true, emptyRetryMs)
+    if (retryMs > 0) {
+      cacheService.set(emptyToolsRetryCacheKey(serverId), true, retryMs)
     } else {
       cacheService.delete(emptyToolsRetryCacheKey(serverId))
     }
@@ -154,27 +165,27 @@ export class McpCatalogService extends BaseService {
     }
   }
 
-  public clearToolsCache(server: McpServer): void {
+  private clearToolsCache(server: McpServer): void {
     const serverKey = application.get('McpRuntimeService').getServerKey(server)
     application.get('CacheService').delete(`mcp:list_tool:${serverKey}`)
   }
 
-  public clearSharedToolsCache(serverId: string): void {
-    this.writeToolsCache(serverId, [])
+  /** Lifecycle invalidation permits a new warm; failed connectivity checks back off automatic warms for 30 seconds. */
+  public invalidateTools(serverId: string, reason: ToolsInvalidationReason): void {
+    this.bumpToolsEpoch(serverId)
+    this.writeToolsCache(serverId, { kind: reason === 'connectivity-check' ? 'refresh-failed' : 'invalidated' })
+  }
+
+  private bumpToolsEpoch(serverId: string): void {
+    this.toolsEpochByServer.set(serverId, (this.toolsEpochByServer.get(serverId) ?? 0) + 1)
+  }
+
+  private toolsEpochIsCurrent(serverId: string, epoch: number): boolean {
+    return (this.toolsEpochByServer.get(serverId) ?? 0) === epoch
   }
 
   private runtimeService() {
     return application.get('McpRuntimeService')
-  }
-
-  private filterEnabledTools(server: McpServer, tools: McpTool[]): McpTool[] {
-    let latestServer: McpServer
-    try {
-      latestServer = this.getServerById(server.id)
-    } catch {
-      latestServer = server
-    }
-    return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
   private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
@@ -219,13 +230,7 @@ export class McpCatalogService extends BaseService {
     }
   }
 
-  private async listToolsForServer(server: McpServer, options: ListToolsOptions = {}): Promise<McpTool[]> {
-    if (!server.isActive) {
-      this.writeToolsCache(server.id, [])
-      this.runtimeService().setServerStatus(server.id, 'disabled')
-      return []
-    }
-
+  private async listToolsForServer(server: McpServer): Promise<McpTool[]> {
     const listFunc = (server: McpServer) => {
       const cachedListTools = withCache<[McpServer], McpTool[]>(
         this.listToolsImpl.bind(this),
@@ -240,16 +245,7 @@ export class McpCatalogService extends BaseService {
       return cachedListTools(server)
     }
 
-    try {
-      const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
-      this.writeToolsCache(server.id, tools, tools.length === 0 ? EMPTY_TOOLS_RETRY_MS : 0)
-      this.runtimeService().setServerStatus(server.id, 'connected')
-      return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
-    } catch (error) {
-      this.writeToolsCache(server.id, [], FAILED_TOOLS_RETRY_MS)
-      this.runtimeService().setServerStatus(server.id, 'error', error)
-      throw error
-    }
+    return withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
   }
 
   /**
@@ -331,10 +327,49 @@ export class McpCatalogService extends BaseService {
     return this.runtimeService().listPrompts(serverId)
   }
 
+  /** Forced by user actions, notifications, restart and Pi/DSH startup; bypasses warm eligibility.
+   * Missing/inactive withdraw without retry; lookup, fetch and schema failures withdraw with 30-second backoff. */
   public async refreshTools(serverId: string): Promise<void> {
-    const server = this.getServerById(serverId)
-    this.clearToolsCache(server)
-    await this.listToolsForServer(server, { includeDisabled: true })
+    let server: McpServer
+    try {
+      server = this.getServerById(serverId)
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) {
+        this.bumpToolsEpoch(serverId)
+        this.writeToolsCache(serverId, { kind: 'invalidated' })
+      } else {
+        this.writeToolsCache(serverId, { kind: 'refresh-failed' })
+        this.runtimeService().setServerStatus(serverId, 'error', error)
+      }
+      throw error
+    }
+    let epoch: number | undefined
+    try {
+      if (!server.isActive) {
+        this.bumpToolsEpoch(serverId)
+        this.writeToolsCache(serverId, { kind: 'invalidated' })
+        this.runtimeService().setServerStatus(serverId, 'disabled')
+        return
+      }
+      this.clearToolsCache(server)
+      epoch = this.toolsEpochByServer.get(serverId) ?? 0
+      const tools = await this.listToolsForServer(server)
+      if (!this.toolsEpochIsCurrent(serverId, epoch)) {
+        this.clearToolsCache(server)
+        logger.debug('Dropped MCP tools refresh that finished after invalidation', { serverId })
+        return
+      }
+      this.writeToolsCache(serverId, tools.length > 0 ? { kind: 'success', tools } : { kind: 'confirmed-empty' })
+      this.runtimeService().setServerStatus(serverId, 'connected')
+    } catch (error) {
+      if (epoch !== undefined && !this.toolsEpochIsCurrent(serverId, epoch)) {
+        logger.debug('Dropped MCP tools refresh that finished after invalidation', { serverId })
+        throw error
+      }
+      this.writeToolsCache(serverId, { kind: 'refresh-failed' })
+      this.runtimeService().setServerStatus(serverId, 'error', error)
+      throw error
+    }
   }
 
   private async prewarmActiveServerTools(): Promise<void> {
@@ -343,18 +378,7 @@ export class McpCatalogService extends BaseService {
       for (let index = 0; index < servers.length; index += PREWARM_CONCURRENCY) {
         if (this.prewarmCancelled || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)
-        const results = await Promise.allSettled(
-          batch.map((server) => this.listToolsForServer(server, { includeDisabled: true }))
-        )
-        results.forEach((result, resultIndex) => {
-          if (result.status === 'fulfilled') return
-          const server = batch[resultIndex]
-          logger.warn('Failed to prewarm MCP tools catalog', {
-            serverId: server.id,
-            serverName: server.name,
-            error: result.reason
-          })
-        })
+        await Promise.all(batch.map((server) => this.warmToolsCache(server.id)))
       }
     } catch (error) {
       logger.warn('Failed to load active MCP servers for tools prewarm', { error })

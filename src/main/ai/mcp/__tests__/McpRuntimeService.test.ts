@@ -13,7 +13,7 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 vi.mock('open', () => ({ default: vi.fn().mockResolvedValue(undefined) }))
 
 const mcpCatalogMock = vi.hoisted(() => ({
-  clearSharedToolsCache: vi.fn(),
+  invalidateTools: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
 
@@ -1043,7 +1043,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
-    mcpCatalogMock.clearSharedToolsCache.mockReset()
+    mcpCatalogMock.invalidateTools.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
     getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
@@ -1056,7 +1056,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     await expect(service.restartServer('server-1')).rejects.toThrow('bad config')
 
-    expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith('server-1', 'restart')
     expect(mcpCatalogMock.refreshTools).not.toHaveBeenCalled()
   })
 
@@ -1066,8 +1066,45 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     await service.restartServer('server-1')
 
-    expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith('server-1', 'restart')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
+  })
+
+  it('withdraws the old catalog even when closing a client prevents restart', async () => {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'closeClientsForServer').mockRejectedValue(new Error('close failed'))
+
+    await expect(service.restartServer('server-1')).rejects.toThrow('close failed')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledExactlyOnceWith('server-1', 'restart')
+    expect(mcpCatalogMock.refreshTools).not.toHaveBeenCalled()
+  })
+})
+
+describe('McpRuntimeService catalog invalidation reasons', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset().mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
+    mcpCatalogMock.invalidateTools.mockReset()
+  })
+
+  it('reports an explicit stop even when closing a client fails', async () => {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'closeClientsForServer').mockRejectedValue(new Error('close failed'))
+
+    await expect(service.stopServer('server-1')).rejects.toThrow('close failed')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledExactlyOnceWith('server-1', 'stop')
+  })
+
+  it('reports a connectivity-check failure without treating it as removal or restart', async () => {
+    const service = new McpRuntimeService()
+    const connect = vi.spyOn(service as any, 'getOrCreateClient').mockRejectedValue(new Error('unreachable'))
+
+    await expect(service.checkMcpConnectivity('server-1')).resolves.toBe(false)
+    await expect(service.checkMcpConnectivity('server-1')).resolves.toBe(false)
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledTimes(2)
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenLastCalledWith('server-1', 'connectivity-check')
   })
 })
 
@@ -1301,7 +1338,7 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
     deleteServerMock.mockReset()
     listServersMock.mockReset()
     listServersMock.mockReturnValue({ items: [server], total: 1, page: 1 })
-    mcpCatalogMock.clearSharedToolsCache.mockReset()
+    mcpCatalogMock.invalidateTools.mockReset()
     mcpSdkMock.state.failStreamable = false
   })
 
@@ -1309,6 +1346,7 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
     const service = new McpRuntimeService()
     await service.removeServer('server-1')
     expect(deleteServerMock).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledExactlyOnceWith('server-1', 'removal')
 
     const clientCountBefore = mcpSdkMock.clients.length
     await expect(service.withClient('server-1', async () => 'used')).rejects.toThrow(/removed/)
@@ -1429,7 +1467,7 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
   it('drops the status cache entry on removal even when post-delete cache cleanup fails', async () => {
     const service = new McpRuntimeService()
     service.setServerStatus('server-1', 'connected')
-    mcpCatalogMock.clearSharedToolsCache.mockImplementation(() => {
+    mcpCatalogMock.invalidateTools.mockImplementation(() => {
       throw new Error('cache backend down')
     })
 
