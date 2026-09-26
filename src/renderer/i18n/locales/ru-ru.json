@@ -594,6 +594,7 @@
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
   "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Не удалось проверить TLS-сертификат сервера WebDAV. Если сервер использует самоподписанный сертификат или сертификат частного удостоверяющего центра, включите «Разрешить самоподписанные сертификаты» в разделе Настройки → Данные → WebDAV (это снижает безопасность передачи данных).",
+  "backup.messages_paused": "Идёт создание резервной копии; новые сообщения приостановлены до завершения процесса.",
   "backup.progress.completed": "Резервная копия создана",
   "backup.progress.compressing": "Сжатие файлов...",
   "backup.progress.copying_database": "Копирование базы данных...",

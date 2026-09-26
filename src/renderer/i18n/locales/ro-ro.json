@@ -594,6 +594,7 @@
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
   "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Nu s-a putut verifica certificatul TLS al serverului WebDAV. Dacă serverul folosește un certificat auto-semnat sau de la o CA privată, activați „Permite certificatele auto-semnate” în Setări → Date → WebDAV (aceasta reduce securitatea transferului).",
+  "backup.messages_paused": "O copie de rezervă este în curs de creare; mesajele noi sunt întrerupte până la finalizarea acesteia.",
   "backup.progress.completed": "Backup finalizat",
   "backup.progress.compressing": "Se comprimă fișierele...",
   "backup.progress.copying_database": "Copiere bază de date...",
