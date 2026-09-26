@@ -13,7 +13,8 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'zh-CN': 'Chinese (Simplified)',
   'vi-VN': 'Vietnamese',
   'zh-TW': 'Chinese (Traditional)',
-  'tr-TR': 'Turkish'
+  'tr-TR': 'Turkish',
+  'az-AZ': 'Azerbaijani'
 }
 
 /** Native-script display name for each language — mirrors the labels in AppearanceSettings' language picker. */
@@ -30,7 +31,8 @@ export const languageNativeNameMap: Record<LanguageVarious, string> = {
   'pt-PT': 'Português',
   'ro-RO': 'Română',
   'vi-VN': 'Tiếng Việt',
-  'tr-TR': 'Türkçe'
+  'tr-TR': 'Türkçe',
+  'az-AZ': 'Azərbaycan dili'
 }
 
 export const defaultLanguage = 'en-US'

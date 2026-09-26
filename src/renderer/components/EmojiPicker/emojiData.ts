@@ -41,7 +41,8 @@ const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'ro-RO': dataEN,
   'ru-RU': dataRU,
   'vi-VN': dataEN,
-  'tr-TR': dataEN
+  'tr-TR': dataEN,
+  'az-AZ': dataEN
 }
 
 const GROUP_TO_CATEGORY: Partial<Record<number, Categories>> = {
