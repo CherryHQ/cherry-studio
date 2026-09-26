@@ -1,6 +1,8 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ProxyBypassRuleMatcher } from '../bypassRules'
+
 const {
   nodeProxyConfigureMock,
   nodeProxyControllerConstructorMock,
@@ -92,20 +94,83 @@ describe('resolveProxyConfig', () => {
     expect(resolveProxyConfig({ mode: 'system', url: '', bypassRules: '' })).toEqual({ mode: 'system' })
   })
 
-  it('maps custom + url → fixed_servers with bypass rules', () => {
+  it('maps custom + url → fixed_servers with user bypass rules kept ahead of the loopback scope', () => {
     expect(resolveProxyConfig({ mode: 'custom', url: 'http://127.0.0.1:7890', bypassRules: '*.local' })).toEqual({
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: '*.local'
+      proxyBypassRules:
+        '*.local,localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
     })
   })
 
-  it('maps custom + empty bypass → undefined bypass', () => {
+  it('maps custom + empty bypass → loopback scope (#20920)', () => {
     expect(resolveProxyConfig({ mode: 'custom', url: 'http://127.0.0.1:7890', bypassRules: '' })).toEqual({
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: undefined
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
     })
+  })
+
+  it('dedupes loopback entries case-insensitively across separators', () => {
+    expect(
+      resolveProxyConfig({
+        mode: 'custom',
+        url: 'http://proxy.lan:7890',
+        bypassRules: 'LOCALHOST, corp.local ; 127.0.0.1, [::1]'
+      })?.proxyBypassRules
+    ).toBe(
+      'LOCALHOST,corp.local,127.0.0.1,[::1],*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+    )
+  })
+
+  it('honors a bare * as already covering loopback', () => {
+    expect(
+      resolveProxyConfig({ mode: 'custom', url: 'http://proxy.lan:7890', bypassRules: '*' })?.proxyBypassRules
+    ).toBe('*')
+  })
+
+  it('honors <-loopback> as an explicit opt-in to proxy loopback', () => {
+    expect(
+      resolveProxyConfig({ mode: 'custom', url: 'http://proxy.lan:7890', bypassRules: '*.local,<-loopback>' })
+        ?.proxyBypassRules
+    ).toBe('*.local,<-loopback>')
+  })
+
+  it('merges a loopback scope the Node matcher actually honors for every covered host form', () => {
+    const merged = resolveProxyConfig({
+      mode: 'custom',
+      url: 'http://proxy.lan:7890',
+      bypassRules: ''
+    })?.proxyBypassRules
+    expect(merged).toBeDefined()
+    const matcher = new ProxyBypassRuleMatcher()
+    matcher.updateByPassRules(merged!.split(','))
+
+    // Every form the implicit scope covers must bypass through the merged rules — this runs the
+    // real string through the real matcher, so a defaults entry the matcher cannot parse fails here.
+    for (const url of [
+      'http://localhost:8001/',
+      'http://localhost.:8001/',
+      'http://foo.localhost:8001/',
+      'http://localhost6:8001/',
+      'http://loopback:8001/',
+      'http://loopback.:8001/',
+      'http://127.0.0.1:8001/',
+      'http://127.0.0.1.:8001/',
+      'http://127.0.0.4:8001/',
+      'http://0.0.0.0:8001/',
+      'http://[::1]:8001/',
+      'http://[0:0:0:0:0:0:0:1]:8001/',
+      'http://[::ffff:127.0.0.1]:8001/',
+      'http://[::ffff:7f00:9]:8001/',
+      'http://169.254.3.4:8001/',
+      'http://[fe80::1]:8001/'
+    ]) {
+      expect(matcher.isByPass(url), url).toBe(true)
+    }
+    expect(matcher.isByPass('http://example.com:8001/')).toBe(false)
+    expect(matcher.isByPass('http://[::ffff:8.8.8.8]:8001/')).toBe(false)
   })
 
   it('falls back custom without url → direct', () => {
@@ -147,14 +212,64 @@ describe('ProxyService — preference wiring', () => {
 
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: 'localhost'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
     })
-    const expected = { mode: 'fixed_servers', proxyRules: 'http://127.0.0.1:7890', proxyBypassRules: 'localhost' }
+    const expected = {
+      mode: 'fixed_servers',
+      proxyRules: 'http://127.0.0.1:7890',
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+    }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
     expect(sessionFromPartitionMock).toHaveBeenCalledWith('agent-dev-preview')
     expect(sessionFromPartitionMock).toHaveBeenCalledWith('agent-html-artifact')
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
+  })
+
+  it('passes <-loopback> verbatim to both stacks (the Node controller consumes the directive)', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://proxy.lan:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', '*.local,<-loopback>')
+
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    expect(sessionSetProxyMock).toHaveBeenCalledWith({
+      mode: 'fixed_servers',
+      proxyRules: 'http://proxy.lan:7890',
+      proxyBypassRules: '*.local,<-loopback>'
+    })
+    expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
+      proxyRules: 'http://proxy.lan:7890',
+      proxyBypassRules: '*.local,<-loopback>'
+    })
+  })
+
+  it('bypasses loopback for local MCP-style targets even when the user sets no bypass rules', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://proxy.lan:7890')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', '')
+
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    const expected = {
+      mode: 'fixed_servers',
+      proxyRules: 'http://proxy.lan:7890',
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+    }
+    expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
+    expect(appSetProxyMock).toHaveBeenCalledWith(expected)
+    expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
+      proxyRules: 'http://proxy.lan:7890',
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+    })
   })
 
   it('applies the resolved system proxy on ready to every stack', async () => {

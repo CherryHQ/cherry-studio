@@ -34,12 +34,24 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
-    // Keep local services reachable independently of the configured proxy.
-    if (proxyUrl) {
+    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
+    // Keep local services reachable independently of the configured proxy. The matcher resolves
+    // conflicts the way Chromium's does — later rules override earlier rules — so with the
+    // `<-loopback>` escape hatch armed these defaults must stay out: appended at the end they
+    // would override the negation and send loopback back to direct.
+    if (proxyUrl && !loopbackEscape) {
       for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
         if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
+    // EnvHttpProxyAgent consults NO_PROXY on its own, ahead of the matcher's evaluation —
+    // with the escape hatch armed, loopback entries must stay out of the env or undici would
+    // bypass what the negation sends through the proxy.
+    const envBypassRules = loopbackEscape
+      ? normalizedBypassRules.filter(
+          (hostname) => hostname !== '<-loopback>' && !['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
+        )
+      : normalizedBypassRules
     const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
     if (this.currentConfigKey === configKey) return
 
@@ -47,17 +59,15 @@ export class NodeProxyController {
     if (proxyEndpoint) {
       await this.getBackend().then((backend) =>
         backend.configure(proxyUrl, proxyEndpoint, normalizedBypassRules, () =>
-          this.setEnvironment(proxyUrl, normalizedBypassRules)
+          this.setEnvironment(proxyUrl, envBypassRules)
         )
       )
     } else if (this.backendPromise) {
       await this.backendPromise.then((backend) =>
-        backend.configure(undefined, null, normalizedBypassRules, () =>
-          this.setEnvironment(undefined, normalizedBypassRules)
-        )
+        backend.configure(undefined, null, normalizedBypassRules, () => this.setEnvironment(undefined, envBypassRules))
       )
     } else {
-      this.setEnvironment(undefined, normalizedBypassRules)
+      this.setEnvironment(undefined, envBypassRules)
     }
 
     this.currentConfigKey = configKey

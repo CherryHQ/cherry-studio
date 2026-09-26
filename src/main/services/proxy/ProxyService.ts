@@ -25,6 +25,54 @@ const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypas
   `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
 
 /**
+ * Loopback and link-local targets that must never travel through the configured proxy: a proxy
+ * is an egress route, and routing same-host services (local MCP servers, dev gateways) through
+ * it breaks them — with a user proxy set, WSL-facing `127.0.0.1` MCP endpoints were unreachable
+ * (#20920). Chromium enforces this scope implicitly (net/docs/proxy.md, "Implicit bypass
+ * rules"); restating it explicitly keeps the guarantee even where the implicit pass doesn't.
+ * The list covers the documented hostname forms (the Windows-only `loopback` and the legacy
+ * `localhost6` aliases included) and full-form CIDRs — `169.254/16` shorthand parses to a
+ * different range in ipaddr.js, which the Node stack uses. The IPv4-mapped entry restates
+ * net::IsIPv4MappedLoopback (`[::ffff:127.0.0.1]/104`), and the Node matcher strips a trailing
+ * dot from URL hosts like net::IsLocalHostname does, so `localhost.` resolves to the same entries.
+ */
+const LOOPBACK_BYPASS_RULES = [
+  'localhost',
+  '*.localhost',
+  'localhost6',
+  'localhost6.localdomain6',
+  'loopback',
+  '127.0.0.0/8',
+  '0.0.0.0',
+  '[::1]',
+  '[::ffff:127.0.0.0]/104',
+  '169.254.0.0/16',
+  'fe80::/10'
+]
+
+/**
+ * Merge the loopback bypass rules into the user's `app.proxy.bypass_rules`, keeping their
+ * entries verbatim and deduping case-insensitively. A bare `*` already covers loopback, and
+ * `<-loopback>` is the explicit Chromium opt-in to proxy loopback — both are honored as-is.
+ */
+function withLoopbackBypass(bypassRules: string): string {
+  const entries = bypassRules
+    .split(/[,;]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  if (entries.length === 0) return LOOPBACK_BYPASS_RULES.join(',')
+  if (entries.some((entry) => entry === '*' || entry === '<-loopback>')) return entries.join(',')
+  const seen = new Set(entries.map((entry) => entry.toLowerCase()))
+  for (const rule of LOOPBACK_BYPASS_RULES) {
+    if (!seen.has(rule)) {
+      seen.add(rule)
+      entries.push(rule)
+    }
+  }
+  return entries.join(',')
+}
+
+/**
  * Map the user-facing proxy mode to an Electron {@link ProxyConfig}. `system` returns the bare
  * `system` mode; the concrete system proxy URL is resolved from the OS later. A `custom` mode
  * without a URL can't form a fixed-servers config, so it falls back to direct.
@@ -43,7 +91,7 @@ export function resolveProxyConfig({
       return { mode: 'direct' }
     case 'custom':
       return url
-        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: bypassRules || undefined }
+        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: withLoopbackBypass(bypassRules) }
         : { mode: 'direct' }
     case 'system':
     default:
@@ -181,6 +229,9 @@ export class ProxyService extends BaseService {
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
     await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
+      // Verbatim: the Node matcher consumes `<-loopback>` with Chromium's later-rules-override
+      // ordering, so the session and Node stacks derive their loopback policy from this one
+      // rule string.
       proxyBypassRules: config.proxyBypassRules
     })
     await this.setSessionsProxy(config)

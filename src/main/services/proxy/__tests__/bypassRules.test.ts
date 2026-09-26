@@ -127,3 +127,126 @@ describe('ProxyBypassRuleMatcher', () => {
     expect(isByPass('http://dev.localdomain')).toBe(false)
   })
 })
+
+describe('ProxyBypassRuleMatcher — <-loopback> ordering', () => {
+  let matcher: ProxyBypassRuleMatcher
+  beforeEach(() => {
+    matcher = new ProxyBypassRuleMatcher()
+  })
+
+  const withRules = (rules: string[]) => matcher.updateByPassRules(rules)
+
+  // The ordering expectations below mirror a real Chromium session probe (session.setProxy +
+  // net.fetch against live servers): Chromium's matcher lets later rules override earlier ones,
+  // so `localhost,<-loopback>` proxies localhost while `<-loopback>,localhost` keeps it direct.
+  it('negative-only sends the whole loopback scope through the proxy', () => {
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+    expect(matcher.isByPass('http://127.0.0.4:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(false)
+    expect(matcher.isByPass('http://[::1]:8001/')).toBe(false)
+    expect(matcher.isByPass('http://0.0.0.0:8001/')).toBe(false)
+    expect(matcher.isByPass('http://169.254.3.4:8001/')).toBe(false)
+    expect(matcher.isByPass('http://[fe80::1]:8001/')).toBe(false)
+    expect(matcher.isByPass('http://loopback:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost6:8001/')).toBe(false)
+  })
+
+  it('a positive rule before the negation is overridden by it', () => {
+    withRules(['localhost', '<-loopback>'])
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(false)
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+  })
+
+  it('a <local> rule before the negation is overridden by it too', () => {
+    withRules(['<local>', '<-loopback>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(false)
+  })
+
+  it('a positive rule after the negation overrides it for its own hosts', () => {
+    withRules(['<-loopback>', 'localhost', '127.0.0.1', '[::1]'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(true)
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(true)
+  })
+
+  it('leaves non-loopback traffic on the proxy path', () => {
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://example.com:8001/')).toBe(false)
+  })
+})
+
+describe('ProxyBypassRuleMatcher — implicit loopback scope parity (Chromium MatchesImplicitRules)', () => {
+  // Mirrors ProxyService's LOOPBACK_BYPASS_RULES; pinned here so the matcher-level contract
+  // stays testable without dragging the service in.
+  const loopbackDefaults = [
+    'localhost',
+    '*.localhost',
+    'localhost6',
+    'localhost6.localdomain6',
+    'loopback',
+    '127.0.0.0/8',
+    '0.0.0.0',
+    '[::1]',
+    '[::ffff:127.0.0.0]/104',
+    '169.254.0.0/16',
+    'fe80::/10'
+  ]
+
+  let matcher: ProxyBypassRuleMatcher
+  beforeEach(() => {
+    matcher = new ProxyBypassRuleMatcher()
+  })
+
+  const withRules = (rules: string[]) => matcher.updateByPassRules(rules)
+
+  it('bypasses trailing-dot hosts like the implicit rules do (net::IsLocalHostname strips the dot)', () => {
+    withRules(loopbackDefaults)
+    expect(matcher.isByPass('http://localhost.:8001/')).toBe(true)
+    expect(matcher.isByPass('http://loopback.:8001/')).toBe(true)
+    expect(matcher.isByPass('http://foo.localhost.:8001/')).toBe(true)
+    // the WHATWG IPv4 parser consumes the dot before the matcher sees the host
+    expect(matcher.isByPass('http://127.0.0.1.:8001/')).toBe(true)
+  })
+
+  it('normalizes a trailing dot on the rule side, matching the host side', () => {
+    withRules(['localhost.', 'corp.example.'])
+    expect(matcher.isByPass('http://localhost:8001/')).toBe(true)
+    expect(matcher.isByPass('http://localhost.:8001/')).toBe(true)
+    expect(matcher.isByPass('http://corp.example:8001/')).toBe(true)
+    expect(matcher.isByPass('http://corp.example.org:8001/')).toBe(false)
+  })
+
+  it('bypasses the IPv4-mapped loopback range in any notation (net::IsIPv4MappedLoopback)', () => {
+    withRules(loopbackDefaults)
+    expect(matcher.isByPass('http://[::ffff:127.0.0.1]:8001/')).toBe(true)
+    expect(matcher.isByPass('http://[::ffff:7f00:1]:8001/')).toBe(true)
+    expect(matcher.isByPass('http://[::ffff:127.0.0.9]:8001/')).toBe(true)
+    // mapped but outside 127.0.0.0/8 stays proxied — the range is /104, not /96
+    expect(matcher.isByPass('http://[::ffff:8.8.8.8]:8001/')).toBe(false)
+  })
+
+  it('the <-loopback> negation covers the same extended scope', () => {
+    // trailing positive rules would rescue these hosts if the negation missed them — the
+    // discriminating arrangement from the ordering battery, widened to the extended forms
+    withRules(['<-loopback>', 'localhost.', '[::ffff:127.0.0.0]/104'])
+    expect(matcher.isByPass('http://localhost.:8001/')).toBe(true)
+    expect(matcher.isByPass('http://[::ffff:127.0.0.1]:8001/')).toBe(true)
+    expect(matcher.isByPass('http://[::ffff:7f00:1]:8001/')).toBe(true)
+    // outside the scope the negation never fires and no positive rule matches → proxied
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://[::ffff:8.8.8.8]:8001/')).toBe(false)
+  })
+
+  it('keeps localhost.localdomain out of the scope, like current Chromium', () => {
+    withRules(loopbackDefaults)
+    expect(matcher.isByPass('http://localhost.localdomain:8001/')).toBe(false)
+  })
+
+  it('a later positive rule keeps matching trailing-dot hosts after the negation', () => {
+    withRules(['<-loopback>', 'localhost'])
+    expect(matcher.isByPass('http://localhost.:8001/')).toBe(true)
+    withRules(['localhost.', '<-loopback>'])
+    expect(matcher.isByPass('http://localhost.:8001/')).toBe(false)
+  })
+})
