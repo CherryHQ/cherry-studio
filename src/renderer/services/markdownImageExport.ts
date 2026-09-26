@@ -33,8 +33,8 @@ const logger = loggerService.withContext('MarkdownImageExport')
 
 export type ImageExportMode = 'embed' | 'folder' | 'none'
 
-/** Base64 inline payloads beyond this size bloat the .md past ~13 MiB of text. */
-const MAX_EMBED_IMAGE_BYTES = 10 * 1024 * 1024
+/** Base64 inline payloads beyond this size bloat the export past ~13 MiB of text. */
+export const MAX_EMBED_IMAGE_BYTES = 10 * 1024 * 1024
 
 const AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
 
