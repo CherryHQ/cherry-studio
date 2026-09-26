@@ -81,7 +81,7 @@ import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
-import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
+import type { ClaudeCodeSettings, McpToolDisplayMetadata, SubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 
@@ -118,6 +118,7 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
+  subagentImageSupport?: SubagentImageSupport
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
@@ -223,7 +224,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    options?.subagentImageSupport
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -445,7 +447,8 @@ async function buildToolPermissions(
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  subagentImageSupport?: SubagentImageSupport
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -589,6 +592,7 @@ async function buildToolPermissions(
     mountedServers,
     pluginDirectories,
     supportsImages,
+    subagentImageSupport,
     agentsMdLoader
   })
 
