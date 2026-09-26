@@ -42,7 +42,9 @@ interface MockAiApi {
 
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: { topicId: string; executionId?: UniqueModelId; chunk: UIMessageChunk }) => void>,
+    chunk: [] as Array<
+      (data: { topicId: string; executionId?: UniqueModelId; seq?: number; chunk: UIMessageChunk }) => void
+    >,
     done: [] as Array<
       (data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; status?: string }) => void
     >,
@@ -112,8 +114,8 @@ function createMockAiApi() {
     listeners,
     request,
     on,
-    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: UniqueModelId) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
+    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: UniqueModelId, seq?: number) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, seq, chunk })
     },
     emitDone: (topicId: string, executionId?: UniqueModelId, isTopicDone?: boolean) => {
       for (const cb of [...listeners.done]) cb({ topicId, executionId, isTopicDone, status: 'success' })
@@ -127,6 +129,8 @@ function createMockAiApi() {
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
+
+const tick = () => new Promise((r) => setTimeout(r, 0))
 
 describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
@@ -203,15 +207,19 @@ describe('IpcChatTransport', () => {
     expect(secondDone).toBe(true)
   })
 
-  it('primary stream ignores execution-scoped chunks', async () => {
+  it('primary stream receives execution-scoped chunks', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
     mock.emitChunk(topicId, { type: 'text-start', id: 'exec' }, 'provider-a::model-a')
     mock.emitDone(topicId, undefined, true)
 
-    const { done } = await reader.read()
-    expect(done).toBe(true)
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 'exec' })
+
+    const second = await reader.read()
+    expect(second.done).toBe(true)
   })
 
   it('errors stream on error event', async () => {
@@ -312,5 +320,194 @@ describe('IpcChatTransport', () => {
     const reader = stream!.getReader()
     const { done } = await reader.read()
     expect(done).toBe(true)
+  })
+
+  it('reconnectToStream caps oversized attach replay and synthesizes missing opener', async () => {
+    const total = 1200
+    const bufferedChunks = Array.from({ length: total }, (_, i) => ({
+      topicId,
+      executionId: undefined,
+      attemptId: undefined,
+      anchorMessageId: undefined,
+      chunk: { type: 'text-delta', id: 't', delta: `chunk-${i}` }
+    }))
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    expect(stream).toBeInstanceOf(ReadableStream)
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    // initial replay chunks are enqueued synchronously; drain them then close via done
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    // Synthesis adds a start for the orphaned delta run without exceeding the cap
+    expect(chunks.length).toBe(1000)
+    expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
+    expect(chunks[1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-201' })
+    expect(chunks[chunks.length - 1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-1199' })
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream drops orphaned tool-output when tool-input is truncated', async () => {
+    const execId = 'provider-a::model-a' as UniqueModelId
+    const toolStart = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'tool-input-start', toolCallId: 't1', toolName: 'read', id: 't1' } as unknown as UIMessageChunk
+    }
+    const filler = Array.from({ length: 1100 }, (_, i) => ({
+      topicId,
+      executionId: execId,
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
+    }))
+    const toolOutput = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'done' } as unknown as UIMessageChunk
+    }
+    const trailingText = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'text-delta', id: 'x', delta: 'after' }
+    }
+    const bufferedChunks = [toolStart, ...filler, toolOutput, trailingText]
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks.some((c) => (c as { type: string }).type === 'tool-output-available')).toBe(false)
+    expect(chunks.some((c) => (c as { type: string; delta?: string }).delta === 'after')).toBe(true)
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('topic-level stream isolates first execution to avoid mixing part IDs', async () => {
+    const stream = await transport.sendMessages(baseOptions)
+    const reader = stream.getReader()
+
+    const execA = 'provider-a::model-a' as UniqueModelId
+    const execB = 'provider-b::model-b' as UniqueModelId
+    mock.emitChunk(topicId, { type: 'text-start', id: '0' }, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-A' }, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-B' }, execB)
+    mock.emitDone(topicId, undefined, true)
+
+    const first = await reader.read()
+    expect(first.value).toEqual({ type: 'text-start', id: '0' })
+    const second = await reader.read()
+    expect(second.value).toEqual({ type: 'text-delta', id: '0', delta: 'from-A' })
+    const third = await reader.read()
+    expect(third.done).toBe(true)
+  })
+
+  it('reconnectToStream keeps live chunks broadcast during the attach round-trip', async () => {
+    // Main registers our sender the moment it processes the attach; a chunk
+    // broadcast before our stream listeners exist must still reach the reader.
+    const replay = [
+      { topicId, chunk: { type: 'text-start', id: 't' } },
+      { topicId, chunk: { type: 'text-delta', id: 't', delta: 'before' } }
+    ]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitChunk(topicId, { type: 'text-delta', id: 't', delta: 'during-attach' })
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'before' },
+      { type: 'text-delta', id: 't', delta: 'during-attach' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream drops pre-attach overflow already covered by the snapshot', async () => {
+    // A stale/parallel listener for this window receives live chunks main also
+    // includes in the attach snapshot; replaying both would duplicate content.
+    const replay = [
+      { topicId, seq: 1, chunk: { type: 'text-start', id: 't' } },
+      { topicId, seq: 2, chunk: { type: 'text-delta', id: 't', delta: 'before' } }
+    ]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitChunk(topicId, { type: 'text-delta', id: 't', delta: 'before' }, undefined, 2)
+      mock.emitChunk(topicId, { type: 'text-delta', id: 't', delta: 'after' }, undefined, 3)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'before' },
+      { type: 'text-delta', id: 't', delta: 'after' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream settles when done arrives during the attach round-trip', async () => {
+    const replay = [{ topicId, chunk: { type: 'text-start', id: 't' } }]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitDone(topicId, undefined, true)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 't' })
+    const second = await reader.read()
+    expect(second.done).toBe(true)
+  })
+
+  it('reconnectToStream still closes when a per-execution error precedes topic done during attach', async () => {
+    // A filtered per-execution error must not suppress the later topic-level
+    // done, or the reconnected stream hangs open indefinitely.
+    const execId = 'provider-a::model-a' as UniqueModelId
+    const replay = [{ topicId, chunk: { type: 'text-start', id: 't' } }]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitError(topicId, 'exec failed', execId, false)
+      mock.emitDone(topicId, undefined, true)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 't' })
+    const second = await Promise.race([reader.read(), tick().then(() => 'timeout' as const)])
+    expect(second).toMatchObject({ done: true })
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
   })
 })
