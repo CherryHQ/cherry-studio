@@ -1,4 +1,5 @@
 {
+  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
@@ -186,10 +187,16 @@
     {
       "idx": 26,
       "version": "6",
+      "when": 1790242863366,
+      "tag": "0026_clammy_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
       "when": 1790253371284,
-      "tag": "0026_jittery_maestro",
+      "tag": "0027_jittery_maestro",
       "breakpoints": true
     }
-  ],
-  "version": "7"
+  ]
 }

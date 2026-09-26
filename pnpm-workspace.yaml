@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
 
+engineStrict: true
+
 packageExtensions:
   # The published development export imports these but lists them only as devDependencies.
   "micromark-extension-definition-list@2.0.1":

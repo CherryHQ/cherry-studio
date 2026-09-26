@@ -6,19 +6,31 @@ import { net } from 'electron'
 
 import { generateDiagnosticUploadHeaders } from '@main/ai/provider/cherryai'
 import { openReadableFileSnapshot, type ReadableFileSnapshot } from '@main/utils/file'
+import { type DiagnosticProcessingStatus, DiagnosticProcessingStatusSchema } from '@shared/data/types/diagnosticReport'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
+import {
+  DIAGNOSTIC_REPORT_BASE_URL,
+  diagnosticReportUrl,
+  normalizeDiagnosticDescription
+} from '@shared/utils/diagnostics'
 
-export const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
+export const DIAGNOSTIC_UPLOAD_URL = DIAGNOSTIC_REPORT_BASE_URL
+
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000
+const STATUS_TIMEOUT_MS = 10 * 1000
 
 export type CherryDiagnosticUploadFailureReason = DiagnosticUploadFailureReason
 
 export type CherryDiagnosticUploadResult =
-  | { status: 'uploaded'; reportId: string }
+  | {
+      status: 'uploaded'
+      reportId: string
+      processingStatus: DiagnosticProcessingStatus | null
+      submittedAt?: number
+    }
   | { status: 'rejected'; reason: CherryDiagnosticUploadFailureReason; fileSha256?: string }
   | { status: 'submission_unknown'; fileSha256: string }
 
@@ -121,7 +133,14 @@ function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploa
     if (!isRecord(value) || typeof value.id !== 'string' || value.id.trim().length === 0) {
       return { fileSha256, status: 'submission_unknown' }
     }
-    return { reportId: value.id, status: 'uploaded' }
+    const parsedStatus = DiagnosticProcessingStatusSchema.safeParse(value.status)
+    const parsedCreatedAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : Number.NaN
+    return {
+      reportId: value.id,
+      processingStatus: parsedStatus.success ? parsedStatus.data : null,
+      ...(Number.isFinite(parsedCreatedAt) ? { submittedAt: parsedCreatedAt } : {}),
+      status: 'uploaded'
+    }
   } catch {
     return { fileSha256, status: 'submission_unknown' }
   }
@@ -146,6 +165,35 @@ function rejectedResult(response: Response, fileSha256: string, body?: Buffer): 
 }
 
 export class CherryDiagnosticUploadClient {
+  async fetchStatus(reportId: string): Promise<DiagnosticProcessingStatus> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+    try {
+      const response = await net.fetch(`${diagnosticReportUrl(reportId)}/status`, {
+        headers: { Accept: 'application/json' },
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal
+      })
+      if (!response.ok) {
+        await cancelBody(response)
+        throw new Error(`Diagnostic status request failed with HTTP ${response.status}`)
+      }
+      const value = parseResponseJson(await readResponseBody(response))
+      if (
+        !isRecord(value) ||
+        value.id !== reportId ||
+        typeof value.created_at !== 'string' ||
+        typeof value.updated_at !== 'string'
+      ) {
+        throw new Error('Invalid diagnostic status response')
+      }
+      return DiagnosticProcessingStatusSchema.parse(value.status)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
   async upload(input: CherryDiagnosticUploadInput): Promise<CherryDiagnosticUploadResult> {
     if (!isZipPath(input.fileName)) return rejected('invalid_archive')
 
@@ -194,7 +242,7 @@ export class CherryDiagnosticUploadClient {
       try {
         let response: Response
         try {
-          response = await net.fetch(DIAGNOSTIC_UPLOAD_URL, {
+          response = await net.fetch(DIAGNOSTIC_REPORT_BASE_URL, {
             body: form,
             headers: { ...signatureHeaders },
             method: 'POST',

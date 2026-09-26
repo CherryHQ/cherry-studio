@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
   "openclaw.errors.more_issues": "另有 {{count}} 個問題",
   "openclaw.errors.preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。",
+  "openclaw.errors.preflight_timeout": "OpenClaw 在 {{seconds}} 秒內未傳回設定 schema，Cherry Studio 已停止等待。磁碟較慢或系統負載較高時，OpenClaw 啟動可能需要更久，請重試。",
   "paintings.generate_failed": "無法產生圖片",
   "paintings.image_mix_failed": "無法混合圖片",
   "selection.name": "選取文字助理",
