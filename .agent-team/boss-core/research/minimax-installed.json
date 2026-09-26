@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-24T23:52:12.797Z",
+  "version": "0.5.4",
+  "executable": "/Users/gqadonis/.nvm/versions/node/v24.16.0/lib/node_modules/@minimax-ai/code/cli.js",
+  "installationNode": "/Users/gqadonis/.nvm/versions/node/v24.16.0/bin/node",
+  "cliHelpExitCode": 0,
+  "launcherVersionExitCode": 0,
+  "customAgentCount": 10,
+  "dataDirectory": "/Users/gqadonis/Projects/prometheus/the-boss/.minimax",
+  "discoveryEvidence": {
+    "kind": "installed-source-inspection",
+    "loader": "chunks/chunk-QWAB5G2D.js OP.listCanonicalCustomAgents/getCanonicalConfig",
+    "dataDir": "chunks/chunk-M3D5TL7F.js MINIMAX_DATA_DIR precedence",
+    "loaderSha256": "d3ef911c6e89640cef3a10cf56fe2da9441f4be4c4ac5ea932bf1a4e42ac0621"
+  },
+  "observedDefect": "SQLite built for Node ABI 137; PATH-selected Node 26 required ABI 147.",
+  "fix": "MiniMax launcher uses the Node executable adjacent to npm mcode and puts its directory first in the child PATH. Other harness paths unchanged.",
+  "checks": {
+    "explicitNode24ProviderListExitCode": 0,
+    "launcherProviderCheck": {
+      "exitCode": null,
+      "signal": "SIGTERM",
+      "error": "ETIMEDOUT",
+      "parentNode": "v26.5.0",
+      "jsonParsed": false,
+      "keys": [],
+      "providers": null,
+      "diagnostic": ""
+    },
+    "launcherSyntaxExitCode": 0,
+    "docsCheckExitCode": 0,
+    "nativeRoleHashesUnchanged": true,
+    "compassDefinitionsUnchanged": true,
+    "finalLauncherVersion": "0.5.4"
+  },
+  "limits": [
+    "No custom-agent selection or inference was exercised.",
+    "Project launcher provider readiness is unresolved: bounded probe timed out at 30 seconds.",
+    "Provider credentials were neither copied nor printed.",
+    "Installed binary availability does not certify the whole team."
+  ],
+  "review": {
+    "verdict": "PASS",
+    "findings": 0,
+    "isolation": "fresh-context same-family fallback",
+    "receipt": ".agent-team/boss-core/reviews/minimax-followup.json"
+  }
+}

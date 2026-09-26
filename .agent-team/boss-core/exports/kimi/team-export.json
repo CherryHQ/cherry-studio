@@ -1,0 +1,112 @@
+{
+  "target": "kimi",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/customization/agents.md",
+    "version": "main documentation inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Choose project .kimi-code/agents or the staged Kimi v2 marketplace/plugin. Literal ${base_prompt} in supplied prompts remains unchanged."
+  ],
+  "files": [
+    {
+      "file": ".kimi-code/agents/boss-lead.md",
+      "sha256": "56c47aa071d0fdcf61ddcb38f345abf03c8b76eb111720b9094d236624085887"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-lead.md",
+      "sha256": "56c47aa071d0fdcf61ddcb38f345abf03c8b76eb111720b9094d236624085887"
+    },
+    {
+      "file": ".kimi-code/agents/boss-product.md",
+      "sha256": "14d3385b46f35c9af11728e13c88549edc9e13f705c018e288d82eb4563fef79"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-product.md",
+      "sha256": "14d3385b46f35c9af11728e13c88549edc9e13f705c018e288d82eb4563fef79"
+    },
+    {
+      "file": ".kimi-code/agents/boss-ux.md",
+      "sha256": "d58a7d629df29c7b2fe1333892e0ef618b5c7a9671efa5fcc9c274b9ad4958c7"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-ux.md",
+      "sha256": "d58a7d629df29c7b2fe1333892e0ef618b5c7a9671efa5fcc9c274b9ad4958c7"
+    },
+    {
+      "file": ".kimi-code/agents/boss-renderer.md",
+      "sha256": "921a5f777f3af0b83499cb8e8b74305f0804398a4683a77af100037ab286f78f"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-renderer.md",
+      "sha256": "921a5f777f3af0b83499cb8e8b74305f0804398a4683a77af100037ab286f78f"
+    },
+    {
+      "file": ".kimi-code/agents/boss-desktop.md",
+      "sha256": "d4a9a0cb6cce3bec8b3e9b47ccd5e4e7c946091eb789673c01ead7b03fdc2f51"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-desktop.md",
+      "sha256": "d4a9a0cb6cce3bec8b3e9b47ccd5e4e7c946091eb789673c01ead7b03fdc2f51"
+    },
+    {
+      "file": ".kimi-code/agents/boss-runtime.md",
+      "sha256": "4a1e1a0274143d9e584dd72eaced2f43466bbfa6093400f3e997182b58402d5b"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-runtime.md",
+      "sha256": "4a1e1a0274143d9e584dd72eaced2f43466bbfa6093400f3e997182b58402d5b"
+    },
+    {
+      "file": ".kimi-code/agents/boss-providers.md",
+      "sha256": "8b881a87cb06d269110f582875fadd9df11f9b3ca0b97734d85de5ea297eceea"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-providers.md",
+      "sha256": "8b881a87cb06d269110f582875fadd9df11f9b3ca0b97734d85de5ea297eceea"
+    },
+    {
+      "file": ".kimi-code/agents/boss-data.md",
+      "sha256": "045268692b617657120b3b42fa913c6a492d9fae13e51bea120995c3b8c34e40"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-data.md",
+      "sha256": "045268692b617657120b3b42fa913c6a492d9fae13e51bea120995c3b8c34e40"
+    },
+    {
+      "file": ".kimi-code/agents/boss-security.md",
+      "sha256": "0bd0d6739c59b580afd52a3884de76c049ea9e74e6b33add0e3779a70d592bf4"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-security.md",
+      "sha256": "0bd0d6739c59b580afd52a3884de76c049ea9e74e6b33add0e3779a70d592bf4"
+    },
+    {
+      "file": ".kimi-code/agents/boss-verifier.md",
+      "sha256": "7eef33f266a4b5a4113eb723b6d97649befd34bc54cb2369c511ccd08493c76c"
+    },
+    {
+      "file": "plugins/boss-core/agents/boss-verifier.md",
+      "sha256": "7eef33f266a4b5a4113eb723b6d97649befd34bc54cb2369c511ccd08493c76c"
+    },
+    {
+      "file": "plugins/boss-core/kimi.plugin.json",
+      "sha256": "caab6402e47031048ee73641852b62c4a298563505e1116bb92740befd835b6d"
+    },
+    {
+      "file": "marketplace.json",
+      "sha256": "7d7ad18a2734e0f554857d73e26fe4d4aab748325ac6d5256cbcb982e9e02f09"
+    },
+    {
+      "file": "export-receipt.json",
+      "sha256": "b361098c849466ec2e52b90e2545c8b30271187597bd113296dd8c1b3edc2089"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "head": "8344b485203427952716cd142da28c181162be61",
+  "hashes": {
+    ".codex/config.toml": "d41f6e1f8b6271a8f818942d7d1eb5b01efb1aaabf320d269cab88defbd9496b",
+    ".compass/config.toml": "7a302b80703e5ba783ed73722400cd45e03d4b01c44ae8b93301a1ce063a25ed",
+    ".compass/scope.json": "6986e2ba2d92ad409bd8dbf60d624f8a8d235cf0b1e25a98948da11644f02eea",
+    ".compass/verification.json": "42f6409bb0e8e2e4075101d2bcfa66dd6e4525746149101a16e4ed02ec4599e6",
+    ".mcp.json": "a726fecb8d2e2d42ed56582b679f443430f4d7039fa3045f89d6d09697fbf784",
+    ".prometheus/knowledge/wiki/karpathy-session-158ec35fc1a8c2cd.md": "7f56892481b96fffdac368829f6e308937d079b6e337607d6d16c027c4782219",
+    ".prometheus/knowledge/wiki/karpathy-session-2f1db6d4059103d6.md": "c2f2c8248bb213f82ebf4a424cbb312c596a1ad489f3552338426f76f51e7a1a",
+    ".prometheus/knowledge/wiki/karpathy-session-391c765cc2befbdf.md": "6e827c33a63fcede41061bf7c7e1fa2d535359ecfe5b52023c58c4b0c949e2bf",
+    ".prometheus/knowledge/wiki/karpathy-session-7a32c79f84988524.md": "999543fa5f5524f34e4e9807caaf2e3242d5404be22ccc5b0a0ad38b8551569f",
+    ".prometheus/knowledge/wiki/karpathy-session-8200c3aa308f27c1.md": "88e4eb488dc98a24efa49a0bbac545b92cd6044415d3efc36823520533e5ae60",
+    ".prometheus/knowledge/wiki/karpathy-session-a6f1db801985bc0d.md": "0cbd4a04e4a79527e6fe7842ccb542c20d6f9ef0264e28f9c7fcfbcf68208c8d",
+    ".prometheus/knowledge/wiki/karpathy-session-bb5947a1efa61c5a.md": "411f9d8eec5b8ffd0796be57502c9bf2aff7b415e2c76d5051435ba29a554129",
+    ".prometheus/knowledge/wiki/karpathy-session-c22e507c058b63db.md": "fe2f2a1183b3f1118dabd87597792d2ab4e4ec851d2de84008a213542478cea2",
+    ".prometheus/knowledge/wiki/karpathy-session-c64d46179866e9b0.md": "23f13beab9c1d9cd969de4a27a41c273e459c6f6286b980cc95d3aa91983ca1b",
+    ".prometheus/knowledge/wiki/karpathy-session-d74f6e1fe7ceec5c.md": "d0cdbb5827568c0d77d0bf9c743332e27e22286114fefcb6bc914ba19b28a6d5",
+    "manifests/installers-darwin-arm64.json": "95cb7af627a0bb1da7272720232a5bb9d1aecf75da6bc79ed4cf90bd5f7592a7",
+    "manifests/installers-win32-x64.json": "beead866e3fa12aeeba753ac7b363651ce9876145d796194508fa4e67201b652",
+    ".gitignore": "d69097bae45865e9ce3b30ba04b4ac682a32433ab5afaea621bf7236a39a3a1e",
+    ".prometheus/knowledge/wiki/index.md": "997754400b3fb0681a9abf35d4beab16252b469d7d2832f0c2f86f4da5e4b488",
+    ".prometheus/knowledge/wiki/log.md": "e9bb8491f7a8c8e5f179b3ce7de61cc5ce5236325f45a8facb465d701a54deb4",
+    "CLAUDE.md": "c1b7caa2cd768f166e94c6e58177c8e9195fe65f5711efff456f8a7d7aa4dbab",
+    ".kbd-orchestrator/current-waypoint.json": "e16c07749ac64c3ef5eedadd13590457ab44552dc043755715bac9454a411c14"
+  },
+  "agentsLink": "CLAUDE.md"
+}

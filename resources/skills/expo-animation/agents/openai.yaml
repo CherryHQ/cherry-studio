@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo Animation"
+  short_description: "Build polished Expo and React Native animations"
+  default_prompt: "Use $expo-animation to build a polished, accessible animation for this Expo app."

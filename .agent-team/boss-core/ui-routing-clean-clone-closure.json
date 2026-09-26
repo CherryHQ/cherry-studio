@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-26T05:29:28.458Z",
+  "added": [
+    {
+      "id": "agent-team-creator",
+      "path": ".agents/skills/agent-team-creator",
+      "files": 67
+    },
+    {
+      "id": "agent-team-manage",
+      "path": ".agents/skills/agent-team-manage",
+      "files": 2
+    },
+    {
+      "id": "agent-team-handoff",
+      "path": ".agents/skills/agent-team-handoff",
+      "files": 2
+    },
+    {
+      "id": "agent-team-models",
+      "path": ".agents/skills/agent-team-models",
+      "files": 2
+    },
+    {
+      "id": "openspec-propose",
+      "path": ".agents/skills/openspec-propose",
+      "files": 1
+    },
+    {
+      "id": "create-prd",
+      "path": ".agents/skills/create-prd",
+      "files": 2
+    },
+    {
+      "id": "stakeholder-map",
+      "path": ".agents/skills/stakeholder-map",
+      "files": 2
+    },
+    {
+      "id": "a11y-gate",
+      "path": ".agents/skills/a11y-gate",
+      "files": 1
+    },
+    {
+      "id": "vercel-composition-patterns",
+      "path": ".agents/skills/vercel-composition-patterns",
+      "files": 16
+    }
+  ],
+  "alreadyTracked": [
+    "cherry-electron-dev",
+    "vercel-react-best-practices",
+    "cherry-regression-test"
+  ],
+  "reason": "Existing native prompts use these exact .agents/skills paths. Only their source-controlled runtime/reference closure is staged, with no developer dependencies or links. New UI router bindings use resources/skills. Native definitions are unchanged.",
+  "verification": {
+    "status": "passed",
+    "method": "git cat-file -e against index for every exact native prompt skill entrypoint",
+    "entrypoints": 12
+  }
+}

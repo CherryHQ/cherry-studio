@@ -1,0 +1,10 @@
+interface:
+  display_name: "SwiftUI Pro"
+  short_description: "Reviews SwiftUI code for modern best practices."
+  icon_small: "./assets/swiftui-pro-icon.svg"
+  icon_large: "./assets/swiftui-pro-icon.png"
+  brand_color: "#006AFD"
+  default_prompt: "Use $swiftui-pro to review my project."
+
+policy:
+  allow_implicit_invocation: true

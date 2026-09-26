@@ -1,0 +1,73 @@
+{
+  "target": "claude",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://code.claude.com/docs/en/sub-agents",
+    "version": "documentation inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "nativeProvenance": null,
+  "nativeOptions": null,
+  "roleOverrides": {
+    "boss-lead": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-product": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-ux": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-renderer": {
+      "model": "sonnet",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-desktop": {
+      "model": "sonnet",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-runtime": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-providers": {
+      "model": "sonnet",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-data": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-security": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    },
+    "boss-verifier": {
+      "model": "opus",
+      "effort": "high",
+      "skills": []
+    }
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "These are native subagents; installing them does not create an experimental Claude agent team or enable that feature.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Choose project .claude/agents or the staged local marketplace/plugin. Do not install both copies. Settings options are a proposed project .claude/settings.json."
+  ]
+}

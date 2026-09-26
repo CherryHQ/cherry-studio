@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prometheus project team routing",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "activeTeam", "manifest", "target", "nativeDefinitions", "instructionFiles", "delegation", "limitations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "activeTeam": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+    "manifest": { "type": "string", "pattern": "^\\.agent-team/[a-z][a-z0-9-]*/team\\.json$" },
+    "target": { "enum": ["uar", "codex", "claude", "copilot", "kimi", "minimax", "opencode", "deepseek", "bossfang"] },
+    "nativeDefinitions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "instructionFiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "delegation": { "enum": ["native-definitions", "sequential-only"] },
+    "limitations": { "type": "array", "items": { "type": "string" } }
+  }
+}

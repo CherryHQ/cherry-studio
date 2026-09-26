@@ -1,0 +1,1 @@
+{"kind":"openai","baseUrl":"http://localhost:4000/v1","auth":{"env":"LITER_LLM_MASTER_KEY"},"timeoutMs":15000}

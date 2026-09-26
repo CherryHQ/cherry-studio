@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v26.5.0",
+  "recordedAt": "2026-09-26T05:01:39.629Z",
+  "source": "/Users/gqadonis/.codex/worktrees/ui-ux-team-routing/prometheus-skills-mini",
+  "temporary": "/var/folders/ln/0wnpd96j26z2qhvx9m6hwt2r0000gn/T/boss-ui-payload-GR03YL",
+  "results": [
+    {
+      "name": "production offline payload materialization",
+      "status": "passed",
+      "files": 1197
+    },
+    {
+      "name": "portable UI catalog and runtime asset closure",
+      "status": "passed",
+      "skills": 40,
+      "files": 421,
+      "proMaxAssets": 41
+    },
+    {
+      "name": "isolated packaged route CLI",
+      "status": "passed",
+      "mode": "Operate",
+      "stacks": [
+        "react",
+        "electron"
+      ]
+    },
+    {
+      "name": "isolated packaged Pro Max search CLI",
+      "status": "passed",
+      "results": 3
+    },
+    {
+      "name": "packaging command rendering uses real skill-local files",
+      "status": "passed",
+      "localHelper": "direct Node",
+      "packHelper": "existing boss-mini command"
+    },
+    {
+      "name": "Boss installed team check and native preservation",
+      "status": "passed",
+      "nativeDefinitionsPreserved": 50,
+      "roleIdsAndOwnershipPreserved": 10
+    }
+  ],
+  "status": "passed",
+  "limitations": [
+    "No Electron application launch, native harness invocation, independent UI review or full release packaging was performed.",
+    "Native Windows and Linux execution remain unverified; this gate ran on the recorded platform only.",
+    "Application renderMiniSkill import via existing tsx could not resolve @application outside the Electron build environment; packaged command rendering was exercised through the production copy path.",
+    "The offline payload gate covers the UI runtime closure; existing optional OpenSpec/service dependencies are provisioned by the separate release packaging path."
+  ]
+}

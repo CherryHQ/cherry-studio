@@ -1,0 +1,65 @@
+{
+  "target": "opencode",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://opencode.ai/docs/agents/",
+    "version": "deployed singular agent schema inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "OpenCode JS/TS or npm plugins are separate from agent definitions; no agent marketplace manifest is invented.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Review .opencode/agents/*.md and optional opencode.json. Native configuration uses singular agent and permission keys."
+  ],
+  "files": [
+    {
+      "file": ".opencode/agents/boss-lead.md",
+      "sha256": "45a36963c118e8e1df81bd93b819104c0f63f6cd7ddcd1411a35ca28dc98073b"
+    },
+    {
+      "file": ".opencode/agents/boss-product.md",
+      "sha256": "4708689354619ad341a438da51f14fd993965001dd8f6d1acc177e9690b7af3f"
+    },
+    {
+      "file": ".opencode/agents/boss-ux.md",
+      "sha256": "e37492ad8c7dfb89bd6b0fa8a60c228d419036a921a88355b6576322f21418e6"
+    },
+    {
+      "file": ".opencode/agents/boss-renderer.md",
+      "sha256": "71a59197174929ef2e0708d5629c413cb3c301f7e7866af4c92331d2c54274b8"
+    },
+    {
+      "file": ".opencode/agents/boss-desktop.md",
+      "sha256": "0cd890e1f3f4711f6e8385999590f8ff3b439190c22bc7e652e13438a0d49e01"
+    },
+    {
+      "file": ".opencode/agents/boss-runtime.md",
+      "sha256": "dfff03e31c73f456cda50b7c258c5e80debe39a44afa1c8e5dc637bdfeff2b22"
+    },
+    {
+      "file": ".opencode/agents/boss-providers.md",
+      "sha256": "6a7f8cf1ede98875989da9e5eb8e31ec45ee68f4f05894d7f5a527d3c13bc3c2"
+    },
+    {
+      "file": ".opencode/agents/boss-data.md",
+      "sha256": "ceac61a13c42f95424c0a33aab72594358dc7dbbddc92f85940824e1ccb849a5"
+    },
+    {
+      "file": ".opencode/agents/boss-security.md",
+      "sha256": "9527eaef2bb82fe86651fd103162a34f8abb4487a423e675a1c18242a294b25e"
+    },
+    {
+      "file": ".opencode/agents/boss-verifier.md",
+      "sha256": "7c2b5cc6b0388d68c7c219ee979a88345191bfba7d97a41ae545d1576014cc76"
+    },
+    {
+      "file": "export-receipt.json",
+      "sha256": "a585e9e48e7d4c2b9224b465e4f1c262cb9764bba2d9dc090e2d0b96198ddeb9"
+    }
+  ]
+}

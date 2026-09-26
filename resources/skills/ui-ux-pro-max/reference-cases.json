@@ -1,0 +1,2968 @@
+{
+  "schemaVersion": 1,
+  "upstreamRevision": "dcc40ff5133ef78276117db0cc34e7b83cc8aeba",
+  "capturedAt": "2026-09-26T04:57:55.484Z",
+  "platform": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v24.16.0"
+  },
+  "entrypoint": "scripts/search.mjs",
+  "referenceCollector": "Pinned original upstream CLI executed only outside the distributed packages. Shipped runtime never uses Python.",
+  "cases": [
+    {
+      "id": "style-exact",
+      "args": [
+        "Glassmorphism",
+        "--domain",
+        "style"
+      ],
+      "expected": {
+        "domain": "style",
+        "query": "Glassmorphism",
+        "file": "styles.csv",
+        "count": 1,
+        "results": [
+          {
+            "Style ID": "glassmorphism",
+            "Style Category": "Glassmorphism",
+            "Aliases": "",
+            "Status": "active",
+            "Parent Style ID": "",
+            "Preferred Mode": "auto",
+            "Type": "General",
+            "Keywords": "Frosted glass, transparent, blurred background, layered, vibrant background, light source, depth, multi-layer",
+            "Primary Colors": "Translucent white: rgba(255,255,255,0.1-0.3)",
+            "Effects & Animation": "Backdrop blur (10-20px), subtle border (1px solid rgba white 0.2), light reflection, Z-depth",
+            "Best For": "Modern SaaS, financial dashboards, high-end corporate, lifestyle apps, modal overlays, navigation",
+            "Light Mode ✓": "supported",
+            "Dark Mode ✓": "supported",
+            "Performance": "cost:low|drivers:none",
+            "Accessibility": "risk:conditional|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "Framework Compatibility": "tailwind|mui|chakra",
+            "Complexity": "Medium",
+            "AI Prompt Keywords": "Design a glassmorphic interface with frosted glass effect. Use backdrop blur (10-20px), translucent overlays (rgba 10-30% opacity), vibrant background colors, subtle borders, light source reflection, layered depth. Perfect for modern overlays and cards.",
+            "CSS/Technical Keywords": "backdrop-filter: blur(15px), background: rgba(255, 255, 255, 0.15), border: 1px solid rgba(255,255,255,0.2), -webkit-backdrop-filter: blur(15px), z-index layering for depth",
+            "Implementation Checklist": "☐ Backdrop-filter blur 10-20px, ☐ Translucent white 15-30% opacity, ☐ Subtle border 1px light, ☐ Vibrant background verified, ☐ Text contrast 4.5:1 checked",
+            "Design System Variables": "--blur-amount: 15px, --glass-opacity: 0.15, --border-color: rgba(255,255,255,0.2), --background: vibrant color, --text-color: light/dark based on BG"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "style-auto",
+      "args": [
+        "Minimalism & Swiss Style"
+      ],
+      "expected": {
+        "domain": "style",
+        "query": "Minimalism & Swiss Style",
+        "file": "styles.csv",
+        "count": 1,
+        "results": [
+          {
+            "Style ID": "minimalism-and-swiss-style",
+            "Style Category": "Minimalism & Swiss Style",
+            "Aliases": "Minimal|Minimalism|Minimalism (Frame)",
+            "Status": "active",
+            "Parent Style ID": "",
+            "Preferred Mode": "auto",
+            "Type": "General",
+            "Keywords": "Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential",
+            "Primary Colors": "Monochromatic, Black #000000, White #FFFFFF",
+            "Effects & Animation": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+            "Best For": "Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools",
+            "Light Mode ✓": "supported",
+            "Dark Mode ✓": "supported",
+            "Performance": "cost:low|drivers:none",
+            "Accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "Framework Compatibility": "tailwind|bootstrap|mui",
+            "Complexity": "Low",
+            "AI Prompt Keywords": "Design a minimalist landing page. Use: white space, geometric layouts, sans-serif fonts, high contrast, grid-based structure, essential elements only. Avoid shadows and gradients. Focus on clarity and functionality.",
+            "CSS/Technical Keywords": "display: grid, gap: 2rem, font-family: sans-serif, color: #000 or #FFF, max-width: 1200px, clean borders, no box-shadow unless necessary",
+            "Implementation Checklist": "☐ Grid-based layout 12-16 columns, ☐ Typography hierarchy clear, ☐ No unnecessary decorations, ☐ text contrast measured against the chosen project target, ☐ Mobile responsive grid",
+            "Design System Variables": "--spacing: 2rem, --border-radius: 0px, --font-weight: 400-700, --shadow: none, --accent-color: single primary only"
+          }
+        ],
+        "auto_detected": true
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "style-alias",
+      "args": [
+        "Bento Grids",
+        "--domain",
+        "style"
+      ],
+      "expected": {
+        "domain": "style",
+        "query": "Bento Grids",
+        "file": "styles.csv",
+        "count": 1,
+        "results": [
+          {
+            "Style ID": "bento-box-grid",
+            "Style Category": "Bento Box Grid",
+            "Aliases": "Bento Grids|Masonry Grid",
+            "Status": "active",
+            "Parent Style ID": "",
+            "Preferred Mode": "auto",
+            "Type": "General",
+            "Keywords": "Modular cards, asymmetric grid, varied sizes, Apple-style, dashboard tiles, negative space, clean hierarchy, cards",
+            "Primary Colors": "Neutral base + brand accent, #FFFFFF, #F5F5F5, brand primary",
+            "Effects & Animation": "grid-template with varied spans, rounded-xl (16px), subtle shadows, hover scale (1.02), smooth transitions",
+            "Best For": "Dashboards, product pages, portfolios, Apple-style marketing, feature showcases, SaaS",
+            "Light Mode ✓": "supported",
+            "Dark Mode ✓": "supported",
+            "Performance": "cost:low|drivers:none",
+            "Accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "Framework Compatibility": "tailwind|css-grid",
+            "Complexity": "Low",
+            "AI Prompt Keywords": "Design a Bento Box grid layout. Use: modular cards with varied sizes (1x1, 2x1, 2x2), Apple-style aesthetic, rounded corners (16-24px), soft shadows, clean hierarchy, asymmetric grid, neutral backgrounds (#F5F5F7), hover effects.",
+            "CSS/Technical Keywords": "display: grid, grid-template-columns: repeat(4, 1fr), grid-auto-rows: 200px, gap: 16px, border-radius: 24px, background: #FFFFFF, box-shadow: 0 4px 6px rgba(0,0,0,0.05)",
+            "Implementation Checklist": "☐ Grid responsive (4→2→1 cols), ☐ Card spans varied, ☐ Rounded corners consistent, ☐ Shadows subtle, ☐ Content fits cards, ☐ Hover scale (1.02)",
+            "Design System Variables": "--grid-gap: 16px, --card-radius: 24px, --card-bg: #FFFFFF, --page-bg: #F5F5F7, --shadow: 0 4px 6px rgba(0,0,0,0.05), --hover-scale: 1.02"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "style-typo",
+      "args": [
+        "glassmorphsim",
+        "--domain",
+        "style"
+      ],
+      "expected": {
+        "domain": "style",
+        "query": "glassmorphsim",
+        "file": "styles.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": [
+          "glassmorphism",
+          "claymorphism"
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "color",
+      "args": [
+        "healthcare booking",
+        "--domain",
+        "color"
+      ],
+      "expected": {
+        "domain": "color",
+        "query": "healthcare booking",
+        "file": "colors.csv",
+        "count": 3,
+        "results": [
+          {
+            "Product Type": "Healthcare App",
+            "Primary": "#0891B2",
+            "On Primary": "#000000",
+            "Secondary": "#22D3EE",
+            "On Secondary": "#0F172A",
+            "Accent": "#059669",
+            "On Accent": "#000000",
+            "Background": "#ECFEFF",
+            "Foreground": "#164E63",
+            "Card": "#FFFFFF",
+            "Card Foreground": "#164E63",
+            "Muted": "#E8F1F6",
+            "Muted Foreground": "#475569",
+            "Border": "#A5F3FC",
+            "Destructive": "#DC2626",
+            "On Destructive": "#FFFFFF",
+            "Ring": "#0891B2",
+            "Notes": "Calm cyan + health green"
+          },
+          {
+            "Product Type": "Coworking Space",
+            "Primary": "#F59E0B",
+            "On Primary": "#0F172A",
+            "Secondary": "#FBBF24",
+            "On Secondary": "#0F172A",
+            "Accent": "#2563EB",
+            "On Accent": "#FFFFFF",
+            "Background": "#FFFBEB",
+            "Foreground": "#78350F",
+            "Card": "#FFFFFF",
+            "Card Foreground": "#78350F",
+            "Muted": "#F1F2EF",
+            "Muted Foreground": "#475569",
+            "Border": "#FDE68A",
+            "Destructive": "#DC2626",
+            "On Destructive": "#FFFFFF",
+            "Ring": "#000000",
+            "Notes": "Energetic amber + booking blue"
+          },
+          {
+            "Product Type": "Booking & Appointment App",
+            "Primary": "#0284C7",
+            "On Primary": "#000000",
+            "Secondary": "#0EA5E9",
+            "On Secondary": "#000000",
+            "Accent": "#059669",
+            "On Accent": "#000000",
+            "Background": "#F0F9FF",
+            "Foreground": "#0F172A",
+            "Card": "#FFFFFF",
+            "Card Foreground": "#0F172A",
+            "Muted": "#EFF7FB",
+            "Muted Foreground": "#475569",
+            "Border": "#E0F0F8",
+            "Destructive": "#DC2626",
+            "On Destructive": "#FFFFFF",
+            "Ring": "#0284C7",
+            "Notes": "Calendar blue + available green"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "landing-exact",
+      "args": [
+        "Hero + Features + CTA",
+        "--domain",
+        "landing"
+      ],
+      "expected": {
+        "domain": "landing",
+        "query": "Hero + Features + CTA",
+        "file": "landing.csv",
+        "count": 1,
+        "results": [
+          {
+            "Pattern ID": "hero-features-cta",
+            "Pattern Name": "Hero + Features + CTA",
+            "Aliases": "",
+            "Keywords": "hero, hero-centric, hero-centric design, features, feature-rich, feature-rich showcase, cta, call-to-action",
+            "Section Order": "Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer",
+            "Primary CTA Placement": "Hero (sticky) + Bottom",
+            "Color Strategy": "Hero: Brand primary or vibrant. Features: Card bg #FAFAFA. CTA: Contrasting accent color",
+            "Conversion Optimization": "Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state."
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "landing-typo",
+      "args": [
+        "testimonialz",
+        "--domain",
+        "landing"
+      ],
+      "expected": {
+        "domain": "landing",
+        "query": "testimonialz",
+        "file": "landing.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": [
+          "Hero + Testimonials + CTA",
+          "hero-testimonials-cta"
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "product",
+      "args": [
+        "SaaS dashboard",
+        "--domain",
+        "product"
+      ],
+      "expected": {
+        "domain": "product",
+        "query": "SaaS dashboard",
+        "file": "products.csv",
+        "count": 3,
+        "results": [
+          {
+            "Product Type": "SaaS (General)",
+            "Keywords": "app, b2b, cloud, general, saas, software, subscription",
+            "Primary Style Recommendation": "Glassmorphism + Flat Design",
+            "Secondary Styles": "Soft UI Evolution , Minimalism & Swiss Style",
+            "Landing Page Pattern": "Hero + Features + CTA",
+            "Dashboard Style (if applicable)": "Data-Dense + Real-Time Monitoring",
+            "Color Palette Focus": "Trust blue + accent contrast"
+          },
+          {
+            "Product Type": "Micro SaaS",
+            "Keywords": "indie, micro-saas, niche, solo, bootstrap, micro, side-project, solopreneur, small-team, indie-hacker, product-hunt",
+            "Primary Style Recommendation": "Flat Design + Vibrant & Block-based",
+            "Secondary Styles": "Motion-Driven , Micro-interactions",
+            "Landing Page Pattern": "Minimal & Direct + Demo",
+            "Dashboard Style (if applicable)": "Executive Dashboard",
+            "Color Palette Focus": "Vibrant primary + white space"
+          },
+          {
+            "Product Type": "Analytics Dashboard",
+            "Keywords": "kpi, metric, funnel, conversion, cohort, retention, segment, attribution, ab-test, dashboard-data, business-intelligence",
+            "Primary Style Recommendation": "Data-Dense Dashboard + Heat Map & Heatmap Style",
+            "Secondary Styles": "Minimalism & Swiss Style , Dark Mode (OLED)",
+            "Landing Page Pattern": "N/A - Analytics focused",
+            "Dashboard Style (if applicable)": "Drill-Down Analytics + Comparative",
+            "Color Palette Focus": "Cool→Hot gradients + neutral grey"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "ux",
+      "args": [
+        "keyboard accessibility",
+        "--domain",
+        "ux"
+      ],
+      "expected": {
+        "domain": "ux",
+        "query": "keyboard accessibility",
+        "file": "ux-guidelines.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Accessibility",
+            "Issue": "Skip Links",
+            "Platform": "Web",
+            "Description": "Allow keyboard users to skip navigation",
+            "Do": "Provide skip to main content link",
+            "Don't": "No skip link on nav-heavy pages",
+            "Code Example Good": "Skip to main content link",
+            "Code Example Bad": "100 tabs to reach content",
+            "Severity": "Medium"
+          },
+          {
+            "Category": "Accessibility",
+            "Issue": "Keyboard Navigation",
+            "Platform": "Web",
+            "Description": "Web users need complete keyboard navigation with visible focus on every operable control",
+            "Do": "Keep tab order aligned with visual order and test every action without a pointer",
+            "Don't": "Keyboard traps or illogical tab order",
+            "Code Example Good": "tabIndex for custom order",
+            "Code Example Bad": "Unreachable elements",
+            "Severity": "High"
+          },
+          {
+            "Category": "Accessibility",
+            "Issue": "Focus Not Obscured (Enhanced)",
+            "Platform": "Web",
+            "Description": "WCAG 2.2 AAA requires keyboard focus to remain fully visible",
+            "Do": "Keep the entire focused component unobscured by author-created content",
+            "Don't": "Present this enhanced AAA criterion as an AA requirement or allow persistent UI to hide any part of focus",
+            "Code Example Good": "close persistent overlay before focus moves behind it",
+            "Code Example Bad": "sticky footer covers half the focused button",
+            "Severity": "Medium"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "typography",
+      "args": [
+        "luxury editorial serif",
+        "--domain",
+        "typography"
+      ],
+      "expected": {
+        "domain": "typography",
+        "query": "luxury editorial serif",
+        "file": "typography.csv",
+        "count": 3,
+        "results": [
+          {
+            "Font Pairing Name": "Minimalist Monochrome Editorial",
+            "Category": "Serif + Serif + Mono (Triple Stack)",
+            "Heading Font": "Playfair Display",
+            "Body Font": "Source Serif 4",
+            "Mood/Style Keywords": "monochrome, editorial, austere, typographic, pocket manifesto, luxury, high contrast, brutalist mobile",
+            "Best For": "Luxury fashion mobile apps, editorial publications, digital exhibitions, portfolio apps, high-contrast e-reader aesthetics",
+            "Google Fonts URL": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300",
+            "CSS Import": "@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap');",
+            "Tailwind Config": "fontFamily: { display: ['Playfair Display', 'serif'], body: ['Source Serif 4', 'serif'], mono: ['JetBrains Mono', 'monospace'] }",
+            "Notes": "Triple stack: Playfair Display 900 tracking-tighter leading-[0.9] for heroes (text-5xl–text-6xl breaks words graphically). Source Serif 4 300–600 for body legibility. JetBrains Mono 400–500 uppercase tracking-widest for tags/dates/labels. NO UI sans-serif — 100% serif/mono."
+          },
+          {
+            "Font Pairing Name": "Classic Elegant",
+            "Category": "Serif + Sans",
+            "Heading Font": "Playfair Display",
+            "Body Font": "Inter",
+            "Mood/Style Keywords": "elegant, luxury, sophisticated, timeless, premium, editorial",
+            "Best For": "Luxury brands, fashion, spa, beauty, editorial, magazines, high-end e-commerce",
+            "Google Fonts URL": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap",
+            "CSS Import": "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');",
+            "Tailwind Config": "fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }",
+            "Notes": "High contrast between elegant heading and clean body. Perfect for luxury/premium."
+          },
+          {
+            "Font Pairing Name": "Luxury Serif",
+            "Category": "Serif + Sans",
+            "Heading Font": "Cormorant",
+            "Body Font": "Montserrat",
+            "Mood/Style Keywords": "luxury, high-end, fashion, elegant, refined, premium",
+            "Best For": "Fashion brands, luxury e-commerce, jewelry, high-end services",
+            "Google Fonts URL": "https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap",
+            "CSS Import": "@import url('https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap');",
+            "Tailwind Config": "fontFamily: { serif: ['Cormorant', 'serif'], sans: ['Montserrat', 'sans-serif'] }",
+            "Notes": "Cormorant's elegance with Montserrat's geometric precision."
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "fonts",
+      "args": [
+        "monospace programming",
+        "--domain",
+        "google-fonts"
+      ],
+      "expected": {
+        "domain": "google-fonts",
+        "query": "monospace programming",
+        "file": "google-fonts.csv",
+        "count": 3,
+        "results": [
+          {
+            "Family": "Share Tech Mono",
+            "Category": "Monospace",
+            "Stroke": "",
+            "Classifications": "Monospace",
+            "Styles": "400",
+            "Variable Axes": "",
+            "Subsets": "latin",
+            "Designers": "Carrois Apostrophe",
+            "Popularity Rank": "265",
+            "Google Fonts URL": "https://fonts.google.com/specimen/Share+Tech+Mono"
+          },
+          {
+            "Family": "Monofett",
+            "Category": "Monospace",
+            "Stroke": "",
+            "Classifications": "Monospace",
+            "Styles": "400",
+            "Variable Axes": "",
+            "Subsets": "latin | latin-ext",
+            "Designers": "Vernon Adams",
+            "Popularity Rank": "307",
+            "Google Fonts URL": "https://fonts.google.com/specimen/Monofett"
+          },
+          {
+            "Family": "Lekton",
+            "Category": "Monospace",
+            "Stroke": "",
+            "Classifications": "Monospace",
+            "Styles": "400 | 400i | 700",
+            "Variable Axes": "",
+            "Subsets": "latin | latin-ext",
+            "Designers": "ISIA Urbino",
+            "Popularity Rank": "274",
+            "Google Fonts URL": "https://fonts.google.com/specimen/Lekton"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "icons",
+      "args": [
+        "navigation home",
+        "--domain",
+        "icons"
+      ],
+      "expected": {
+        "domain": "icons",
+        "query": "navigation home",
+        "file": "icons.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Navigation",
+            "Icon Name": "house",
+            "Keywords": "homepage main dashboard start",
+            "Library": "Phosphor",
+            "Import Code": "import { House } from '@phosphor-icons/react'",
+            "Usage": "<House size={20} weight=\"regular\" />; Context is chosen by use: if decorative beside visible text, set aria-hidden=\"true\"; if meaningful without equivalent visible text, provide a text alternative; if inside an interactive control, give the control an accessible name and expose applicable state (for example aria-pressed or aria-expanded).",
+            "Best For": "Home navigation main page",
+            "Style": "Outline",
+            "Semantic Role": "meaningful",
+            "Allowed Contexts": "decorative|meaningful|interactive"
+          },
+          {
+            "Category": "Navigation",
+            "Icon Name": "list",
+            "Keywords": "hamburger menu navigation toggle bars",
+            "Library": "Phosphor",
+            "Import Code": "import { List } from '@phosphor-icons/react'",
+            "Usage": "<List size={20} weight=\"regular\" />; Context is chosen by use: if decorative beside visible text, set aria-hidden=\"true\"; if meaningful without equivalent visible text, provide a text alternative; if inside an interactive control, give the control an accessible name and expose applicable state (for example aria-pressed or aria-expanded).",
+            "Best For": "Mobile navigation drawer toggle sidebar",
+            "Style": "Outline",
+            "Semantic Role": "interactive",
+            "Allowed Contexts": "decorative|meaningful|interactive"
+          },
+          {
+            "Category": "Navigation",
+            "Icon Name": "arrow-left",
+            "Keywords": "back previous return navigate",
+            "Library": "Phosphor",
+            "Import Code": "import { ArrowLeft } from '@phosphor-icons/react'",
+            "Usage": "<ArrowLeft size={20} weight=\"regular\" />; Context is chosen by use: if decorative beside visible text, set aria-hidden=\"true\"; if meaningful without equivalent visible text, provide a text alternative; if inside an interactive control, give the control an accessible name and expose applicable state (for example aria-pressed or aria-expanded).",
+            "Best For": "Back button breadcrumb navigation",
+            "Style": "Outline",
+            "Semantic Role": "interactive",
+            "Allowed Contexts": "decorative|meaningful|interactive"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "icons-unsupported",
+      "args": [
+        "lucide user",
+        "--domain",
+        "icons"
+      ],
+      "expected": {
+        "domain": "icons",
+        "query": "lucide user",
+        "file": "icons.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": []
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "motion",
+      "args": [
+        "subtle hover animation",
+        "--domain",
+        "gsap"
+      ],
+      "expected": {
+        "domain": "gsap",
+        "query": "subtle hover animation",
+        "file": "motion.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Hover Micro-interaction",
+            "Intensity Tier": "Subtle",
+            "Trigger": "hover",
+            "Duration": "150-200ms",
+            "Easing": "power1.out",
+            "GSAP Snippet": "gsap.to(el, { y: -1, opacity: 0.9, duration: 0.15, ease: 'power1.out' });",
+            "Framework Notes": "Bind on mouseenter/mouseleave; in React wrap in a ref + useEffect (or onMouseEnter/onMouseLeave props directly calling gsap.to); Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately",
+            "Do": "Keep displacement under 2px so it reads as feedback not motion",
+            "Don't": "Don't animate layout-affecting props (width/height/margin) on hover",
+            "Performance Notes": "Runs on transform/opacity only so it stays on the compositor thread"
+          },
+          {
+            "Category": "Carousel / Auto-Rotation",
+            "Intensity Tier": "Standard",
+            "Trigger": "timer / focus / hover / visibility",
+            "Duration": "user-controlled or stopped",
+            "Easing": "none",
+            "GSAP Snippet": "const reduced = matchMedia('(prefers-reduced-motion: reduce)'); let timer; let onscreen = true; const stop = () => { clearInterval(timer); timer = undefined; }; const start = () => { stop(); if (!reduced.matches && !document.hidden && onscreen) timer = setInterval(nextSlide, 5000); }; const sync = () => reduced.matches ? (stop(), showSlide(activeIndex)) : start(); const observer = new IntersectionObserver(([entry]) => { onscreen = entry.isIntersecting; onscreen ? sync() : stop(); }); const onVisibility = () => document.hidden ? stop() : sync(); observer.observe(root); root.addEventListener('focusin', stop); root.addEventListener('pointerenter', stop); document.addEventListener('visibilitychange', onVisibility); reduced.addEventListener('change', sync); sync(); return () => { stop(); observer.disconnect(); root.removeEventListener('focusin', stop); root.removeEventListener('pointerenter', stop); document.removeEventListener('visibilitychange', onVisibility); reduced.removeEventListener('change', sync); };",
+            "Framework Notes": "Use one cancellable timer; pause on focus, hover, offscreen, or hidden visibility; remove every listener and clear the timer on unmount; reduced motion stops rotation and renders the active slide as the final state",
+            "Do": "Provide previous/next and play/pause controls; announce the current slide without moving focus",
+            "Don't": "Don't auto-advance without a visible stop control or continue while focus is inside",
+            "Performance Notes": "IntersectionObserver stops animation offscreen; visibilitychange stops hidden-tab work; cleanup disconnects the observer and clears the timer and listeners"
+          },
+          {
+            "Category": "Hover Micro-interaction",
+            "Intensity Tier": "Standard",
+            "Trigger": "hover",
+            "Duration": "200-300ms",
+            "Easing": "power2.out",
+            "GSAP Snippet": "gsap.to(el, { y: -4, scale: 1.02, boxShadow: '0 12px 24px rgba(0,0,0,0.12)', duration: 0.25, ease: 'power2.out' });",
+            "Framework Notes": "Use gsap.quickTo(el, 'y') for cards with many hover targets to avoid re-creating tweens every event; Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately",
+            "Do": "Pair with a matching mouseleave tween that reverses the same properties",
+            "Don't": "Don't leave the hover state stuck if the pointer leaves fast; always attach the reverse tween",
+            "Performance Notes": "quickTo() avoids GC churn on lists with 20+ hoverable cards"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "react-domain",
+      "args": [
+        "react usecallback memoization",
+        "--domain",
+        "react"
+      ],
+      "expected": {
+        "domain": "react",
+        "query": "react usecallback memoization",
+        "file": "react-performance.csv",
+        "count": 1,
+        "results": [
+          {
+            "Category": "Server",
+            "Issue": "React.cache Dedup",
+            "Platform": "React/Next.js",
+            "Description": "Use React.cache() for server-side request deduplication within single request",
+            "Do": "Wrap data fetchers with cache()",
+            "Don't": "Fetch same data multiple times in tree",
+            "Code Example Good": "export const getUser = cache(async () => await db.user.find())",
+            "Code Example Bad": "export async function getUser() { return await db.user.find() }",
+            "Severity": "Medium"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "web",
+      "args": [
+        "aria focus autocomplete",
+        "--domain",
+        "web"
+      ],
+      "expected": {
+        "domain": "web",
+        "query": "aria focus autocomplete",
+        "file": "app-interface.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Accessibility",
+            "Issue": "Form Control Labels",
+            "Platform": "iOS/Android/React Native",
+            "Description": "All inputs must have a visible label and an accessibility label",
+            "Do": "Pair Text label with input and set accessibilityLabel",
+            "Don't": "Inputs with placeholder only",
+            "Code Example Good": "<View><Text>Email</Text><TextInput accessibilityLabel=\"Email address\" /></View>",
+            "Code Example Bad": "<TextInput placeholder=\"Email\" /></View>",
+            "Severity": "Critical"
+          },
+          {
+            "Category": "Forms",
+            "Issue": "Auto Focus & Next",
+            "Platform": "iOS/Android/React Native",
+            "Description": "Guide users through form fields with Next/Done flows",
+            "Do": "Use onSubmitEditing to focus next input",
+            "Don't": "Force users to tap each field manually",
+            "Code Example Good": "onSubmitEditing={() => nextRef.current?.focus()}",
+            "Code Example Bad": "// no onSubmitEditing, manual tap only",
+            "Severity": "Low"
+          },
+          {
+            "Category": "Animation",
+            "Issue": "Respect Reduced Motion",
+            "Platform": "iOS/Android/React Native",
+            "Description": "Respect OS reduced-motion accessibility setting",
+            "Do": "Check reduceMotionEnabled and simplify animations",
+            "Don't": "Ignore user motion preferences",
+            "Code Example Good": "if (reduceMotionEnabled) skipAnimation()",
+            "Code Example Bad": "Always run complex parallax animations",
+            "Severity": "Critical"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "auto-product",
+      "args": [
+        "healthcare appointment booking"
+      ],
+      "expected": {
+        "domain": "product",
+        "query": "healthcare appointment booking",
+        "file": "products.csv",
+        "count": 3,
+        "results": [
+          {
+            "Product Type": "Healthcare App",
+            "Keywords": "app, clinic, health, healthcare, medical, patient",
+            "Primary Style Recommendation": "Neumorphism + Accessible & Ethical",
+            "Secondary Styles": "Soft UI Evolution , Claymorphism",
+            "Landing Page Pattern": "Social Proof-Focused",
+            "Dashboard Style (if applicable)": "User Behavior Analytics",
+            "Color Palette Focus": "Calm blue + health green + trust"
+          },
+          {
+            "Product Type": "Booking & Appointment App",
+            "Keywords": "booking, appointment, schedule, calendar, reservation, slot, service",
+            "Primary Style Recommendation": "Soft UI Evolution + Flat Design",
+            "Secondary Styles": "Minimalism & Swiss Style , Micro-interactions",
+            "Landing Page Pattern": "Conversion-Optimized",
+            "Dashboard Style (if applicable)": "Drill-Down Analytics",
+            "Color Palette Focus": "Trust blue + available green + booked grey + confirm accent"
+          },
+          {
+            "Product Type": "Government Portal / Civic Services",
+            "Keywords": "government-portal, civic-services, city-hall, permit-application, tax-payment, voter-registration, public-records, municipal-online",
+            "Primary Style Recommendation": "Accessible & Ethical + Inclusive Design",
+            "Secondary Styles": "Flat Design , Inclusive Design",
+            "Landing Page Pattern": "Service Directory + Search",
+            "Dashboard Style (if applicable)": "N/A - Service focused",
+            "Color Palette Focus": "Professional blue + accessibility high contrast + service category colors"
+          }
+        ],
+        "auto_detected": true
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "auto-web",
+      "args": [
+        "keyboard focus form"
+      ],
+      "expected": {
+        "domain": "web",
+        "query": "keyboard focus form",
+        "file": "app-interface.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Forms",
+            "Issue": "Auto Focus & Next",
+            "Platform": "iOS/Android/React Native",
+            "Description": "Guide users through form fields with Next/Done flows",
+            "Do": "Use onSubmitEditing to focus next input",
+            "Don't": "Force users to tap each field manually",
+            "Code Example Good": "onSubmitEditing={() => nextRef.current?.focus()}",
+            "Code Example Bad": "// no onSubmitEditing, manual tap only",
+            "Severity": "Low"
+          },
+          {
+            "Category": "Forms",
+            "Issue": "Keyboard Type",
+            "Platform": "iOS/Android/React Native",
+            "Description": "Use appropriate keyboardType and returnKeyType",
+            "Do": "Match email/tel/number/search types",
+            "Don't": "Use default keyboard for all inputs",
+            "Code Example Good": "<TextInput keyboardType=\"email-address\" />",
+            "Code Example Bad": "<TextInput keyboardType=\"default\" />",
+            "Severity": "Medium"
+          },
+          {
+            "Category": "Accessibility",
+            "Issue": "Form Control Labels",
+            "Platform": "iOS/Android/React Native",
+            "Description": "All inputs must have a visible label and an accessibility label",
+            "Do": "Pair Text label with input and set accessibilityLabel",
+            "Don't": "Inputs with placeholder only",
+            "Code Example Good": "<View><Text>Email</Text><TextInput accessibilityLabel=\"Email address\" /></View>",
+            "Code Example Bad": "<TextInput placeholder=\"Email\" /></View>",
+            "Severity": "Critical"
+          }
+        ],
+        "auto_detected": true,
+        "runner_up_domain": "ux"
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "no-match",
+      "args": [
+        "zxqvvqq",
+        "--domain",
+        "style"
+      ],
+      "expected": {
+        "domain": "style",
+        "query": "zxqvvqq",
+        "file": "styles.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": []
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "react",
+      "args": [
+        "React 19 keyboard navigation",
+        "--stack",
+        "react"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "react",
+        "query": "React 19 keyboard navigation",
+        "file": "stacks/react.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Security",
+            "Guideline": "Require React 19.2.1+ for RSC code paths",
+            "Description": "React Server Components had an unauthenticated RCE in 19.2.0; treat 19.2.1+ as the security floor.",
+            "Do": "Pin React RSC stacks to 19.2.1 or newer",
+            "Don't": "Ship 19.2.0 or older on any RSC endpoint",
+            "Code Good": "react@19.2.1+ react-dom@19.2.1+",
+            "Code Bad": "react@19.2.0",
+            "Severity": "Critical",
+            "Docs URL": "https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components",
+            "Applies To": "react 19.2.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Accessibility",
+            "Guideline": "Use semantic HTML",
+            "Description": "Use semantic HTML elements for their intended behavior.",
+            "Do": "button for clicks nav for navigation",
+            "Don't": "div with onClick for buttons",
+            "Code Good": "<button onClick={...}>",
+            "Code Bad": "<div onClick={...}>",
+            "Severity": "High",
+            "Docs URL": "https://react.dev/reference/react-dom/components#all-html-components",
+            "Applies To": "react 19.2.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Components",
+            "Guideline": "Pass ref as a prop",
+            "Description": "React 19 supports ref as a prop; this is the current path for exposing DOM nodes.",
+            "Do": "Accept ref as a normal prop in new components",
+            "Don't": "Reach for forwardRef in new code",
+            "Code Good": "function Input({ ref, ...props }) { return <input ref={ref} {...props} /> }",
+            "Code Bad": "const Input = forwardRef(function Input(props, ref) { ... })",
+            "Severity": "Medium",
+            "Docs URL": "https://react.dev/reference/react/forwardRef",
+            "Applies To": "react 19.2.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "react-legacy",
+      "args": [
+        "React 18 useEffect",
+        "--stack",
+        "react"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "react",
+        "query": "React 18 useEffect",
+        "file": "stacks/react.csv",
+        "count": 2,
+        "results": [
+          {
+            "Category": "Tooling",
+            "Guideline": "Treat eslint-plugin-react-compiler as legacy",
+            "Description": "The React Compiler release recommends eslint-plugin-react-hooks instead of the older compiler-only lint package.",
+            "Do": "Use eslint-plugin-react-hooks recommended presets",
+            "Don't": "Standardize on eslint-plugin-react-compiler",
+            "Code Good": "plugin:react-hooks/recommended",
+            "Code Bad": "eslint-plugin-react-compiler",
+            "Severity": "Medium",
+            "Docs URL": "https://react.dev/blog/2025/10/07/react-compiler-1",
+            "Applies To": "react legacy",
+            "Status": "deprecated",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Components",
+            "Guideline": "Avoid forwardRef in new code",
+            "Description": "forwardRef is deprecated in React 19 and should be treated as legacy compatibility code.",
+            "Do": "Migrate to ref as a prop for new and touched components",
+            "Don't": "Introduce new forwardRef wrappers",
+            "Code Good": "legacy wrapper only while migrating older code",
+            "Code Bad": "forwardRef for all new components",
+            "Severity": "High",
+            "Docs URL": "https://react.dev/reference/react/forwardRef",
+            "Applies To": "react legacy",
+            "Status": "deprecated",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "flutter",
+      "args": [
+        "responsive layout navigation",
+        "--stack",
+        "flutter"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "flutter",
+        "query": "responsive layout navigation",
+        "file": "stacks/flutter.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Layout",
+            "Guideline": "Use LayoutBuilder for responsive",
+            "Description": "Respond to constraints",
+            "Do": "LayoutBuilder for adaptive layouts",
+            "Don't": "Fixed sizes for responsive",
+            "Code Good": "LayoutBuilder(builder: (context constraints) {})",
+            "Code Bad": "Container(width: 375)",
+            "Severity": "Medium",
+            "Docs URL": "https://api.flutter.dev/flutter/widgets/LayoutBuilder-class.html",
+            "Applies To": "flutter 3.44.x (current stable line)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Navigation",
+            "Guideline": "Use Navigator 2.0 or GoRouter",
+            "Description": "Declarative routing",
+            "Do": "go_router for navigation",
+            "Don't": "Navigator.push for complex apps",
+            "Code Good": "GoRouter(routes: [...])",
+            "Code Bad": "Navigator.push everywhere",
+            "Severity": "Medium",
+            "Docs URL": "https://pub.dev/packages/go_router",
+            "Applies To": "flutter 3.44.x (current stable line)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Navigation",
+            "Guideline": "Use named routes",
+            "Description": "Organized navigation",
+            "Do": "Named routes for clarity",
+            "Don't": "Anonymous routes",
+            "Code Good": "Navigator.pushNamed(context '/home')",
+            "Code Bad": "Navigator.push(context MaterialPageRoute())",
+            "Severity": "Low",
+            "Docs URL": "",
+            "Applies To": "flutter 3.44.x (current stable line)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "swiftui",
+      "args": [
+        "accessibility navigation",
+        "--stack",
+        "swiftui"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "swiftui",
+        "query": "accessibility navigation",
+        "file": "stacks/swiftui.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Navigation",
+            "Guideline": "Use navigationDestination",
+            "Description": "Type-safe navigation destinations",
+            "Do": ".navigationDestination(for:)",
+            "Don't": "NavigationLink(destination:)",
+            "Code Good": ".navigationDestination(for: Item.self)",
+            "Code Bad": "NavigationLink(destination: DetailView())",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "swiftui current; iOS 16+ baseline; Observation APIs iOS 17+",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Navigation",
+            "Guideline": "Use @Environment for dismiss",
+            "Description": "Programmatic navigation dismissal",
+            "Do": "@Environment(\\.dismiss) var dismiss",
+            "Don't": "presentationMode (deprecated)",
+            "Code Good": "@Environment(\\.dismiss) var dismiss",
+            "Code Bad": "@Environment(\\.presentationMode)",
+            "Severity": "Low",
+            "Docs URL": "",
+            "Applies To": "swiftui current; iOS 16+ baseline; Observation APIs iOS 17+",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Accessibility",
+            "Guideline": "Add accessibility labels",
+            "Description": "Describe UI elements",
+            "Do": ".accessibilityLabel for context",
+            "Don't": "Missing labels",
+            "Code Good": ".accessibilityLabel(\"Close button\")",
+            "Code Bad": "Button without label",
+            "Severity": "High",
+            "Docs URL": "https://developer.apple.com/documentation/swiftui/view/accessibilitylabel(_:)-1d7jv",
+            "Applies To": "swiftui current; iOS 16+ baseline; Observation APIs iOS 17+",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "compose",
+      "args": [
+        "adaptive navigation",
+        "--stack",
+        "jetpack-compose"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "jetpack-compose",
+        "query": "adaptive navigation",
+        "file": "stacks/jetpack-compose.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Navigation",
+            "Guideline": "Event-based navigation",
+            "Description": "VM emits navigation event",
+            "Do": "VM: Channel + receiveAsFlow(), V: Collect with Dispatchers.Main.immediate",
+            "Don't": "Nav in UI",
+            "Code Good": "Decoupled nav",
+            "Code Bad": "Using State / SharedFlow for navigation -> event is replayed and navigation fires again (StateFlow)",
+            "Severity": "High",
+            "Docs URL": "https://developer.android.com/jetpack/compose/navigation",
+            "Applies To": "jetpack-compose 1.11.4 (current stable)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Theming",
+            "Guideline": "Dark mode support",
+            "Description": "Theme-based colors",
+            "Do": "colorScheme",
+            "Don't": "Fixed color",
+            "Code Good": "Adaptive UI",
+            "Code Bad": "Broken dark",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "jetpack-compose 1.11.4 (current stable)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Navigation",
+            "Guideline": "Typed routes",
+            "Description": "Use sealed routes",
+            "Do": "sealed class Route",
+            "Don't": "String routes",
+            "Code Good": "Type-safe",
+            "Code Bad": "Runtime crash",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "jetpack-compose 1.11.4 (current stable)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "shadcn-base",
+      "args": [
+        "base ui focus keyboard",
+        "--stack",
+        "shadcn"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "shadcn",
+        "query": "base ui focus keyboard",
+        "file": "stacks/shadcn.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "A11y",
+            "Guideline": "Maintain focus management",
+            "Description": "Dialog Sheet handle focus automatically",
+            "Do": "Let components manage focus",
+            "Don't": "Custom focus handling",
+            "Code Good": "<Dialog> traps focus",
+            "Code Bad": "document.querySelector().focus()",
+            "Severity": "High",
+            "Docs URL": "https://ui.shadcn.com/docs/components/dialog",
+            "Applies To": "shadcn cli 4; base=base|radix|aria",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Registry",
+            "Guideline": "Use base and font registry item types",
+            "Description": "Publish base primitives as registry:base and fonts as registry:font so CLI v4 applies them correctly",
+            "Do": "Explicit registry item types",
+            "Don't": "Publish every artifact as registry:ui",
+            "Code Good": "type: 'registry:base' or type: 'registry:font'",
+            "Code Bad": "type: 'registry:ui' for a base definition",
+            "Severity": "Medium",
+            "Docs URL": "https://ui.shadcn.com/docs/registry/registry-item-json",
+            "Applies To": "shadcn cli 4; base=base|radix|aria",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Patterns",
+            "Guideline": "Use render for Base UI composition",
+            "Description": "Base UI components compose another element through the render prop rather than Radix asChild",
+            "Do": "Use render with the intended semantic element",
+            "Don't": "Pass the Radix-only asChild prop to a Base UI component",
+            "Code Good": "<Button render={<a href=\"/docs\" />}>Docs</Button>",
+            "Code Bad": "<Button asChild><a href=\"/docs\">Docs</a></Button>",
+            "Severity": "High",
+            "Docs URL": "https://ui.shadcn.com/docs/components/base/button",
+            "Applies To": "shadcn cli 4; base=base",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "react-native",
+      "args": [
+        "FlatList",
+        "--stack",
+        "react-native"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "react-native",
+        "query": "FlatList",
+        "file": "stacks/react-native.csv",
+        "count": 1,
+        "results": [
+          {
+            "Category": "Lists",
+            "Guideline": "Use FlatList for long lists",
+            "Description": "Virtualized list rendering",
+            "Do": "FlatList for 50+ items",
+            "Don't": "ScrollView with map",
+            "Code Good": "<FlatList data={items} />",
+            "Code Bad": "<ScrollView>{items.map()}</ScrollView>",
+            "Severity": "High",
+            "Docs URL": "https://reactnative.dev/docs/flatlist",
+            "Applies To": "react-native 0.86.x (official active line)",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "uwp-new",
+      "args": [
+        "new application",
+        "--stack",
+        "uwp"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "uwp",
+        "query": "new application",
+        "file": "stacks/uwp.csv",
+        "count": 1,
+        "results": [
+          {
+            "Category": "Architecture",
+            "Guideline": "Prefer WinUI 3 for new projects",
+            "Description": "UWP is maintenance-only; WinUI 3 with the Windows App SDK is the recommended path for new Windows apps",
+            "Do": "Use WinUI 3 with the Windows App SDK for every new Windows app",
+            "Don't": "Start a new Windows app on UWP",
+            "Code Good": "New project with Microsoft.WindowsAppSDK and WinUI 3",
+            "Code Bad": "New UWP project for a Windows app",
+            "Severity": "Medium",
+            "Docs URL": "https://learn.microsoft.com/en-us/windows/apps/get-started/",
+            "Applies To": "uwp legacy",
+            "Status": "deprecated",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "unknown-stack",
+      "args": [
+        "layout",
+        "--stack",
+        "not-a-stack"
+      ],
+      "expected": null,
+      "expectedExit": 2,
+      "status": "pass",
+      "fullExit": 1,
+      "miniExit": 1
+    },
+    {
+      "id": "stack-nextjs",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "nextjs"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "nextjs",
+        "query": "responsive accessible layout",
+        "file": "stacks/nextjs.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Images",
+            "Guideline": "Use fill for responsive images",
+            "Description": "Fill container with object-fit",
+            "Do": "fill prop with relative parent",
+            "Don't": "Fixed dimensions for responsive",
+            "Code Good": "<Image fill className=\"object-cover\"/>",
+            "Code Bad": "<Image width={window.width}/>",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "nextjs 16.2",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Environment",
+            "Guideline": "Use NEXT_PUBLIC prefix",
+            "Description": "Client-accessible env vars need prefix",
+            "Do": "NEXT_PUBLIC_ for client vars",
+            "Don't": "Server vars exposed to client",
+            "Code Good": "NEXT_PUBLIC_API_URL",
+            "Code Bad": "API_SECRET in client code",
+            "Severity": "High",
+            "Docs URL": "https://nextjs.org/docs/app/building-your-application/configuring/environment-variables",
+            "Applies To": "nextjs 16.2",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Fonts",
+            "Guideline": "Apply font to layout",
+            "Description": "Set font in root layout for consistency",
+            "Do": "className on body in layout.tsx",
+            "Don't": "Font in individual pages",
+            "Code Good": "<body className={inter.className}>",
+            "Code Bad": "Each page imports font",
+            "Severity": "Low",
+            "Docs URL": "",
+            "Applies To": "nextjs 16.2",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-vue",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "vue"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "vue",
+        "query": "responsive accessible layout",
+        "file": "stacks/vue.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": [
+          "access"
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-svelte",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "svelte"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "svelte",
+        "query": "responsive accessible layout",
+        "file": "stacks/svelte.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": [
+          "access",
+          "about"
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-astro",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "astro"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "astro",
+        "query": "responsive accessible layout",
+        "file": "stacks/astro.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Components",
+            "Guideline": "Keep .astro for static",
+            "Description": "Use .astro components for static content",
+            "Do": "Astro components for layout structure",
+            "Don't": "React/Vue for static markup",
+            "Code Good": "<Layout><slot /></Layout>",
+            "Code Bad": "<ReactLayout>{children}</ReactLayout>",
+            "Severity": "High",
+            "Docs URL": "https://docs.astro.build/en/basics/astro-components/",
+            "Applies To": "astro 7.1.6",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "ViewTransitions",
+            "Guideline": "Add fallback for no-JS",
+            "Description": "Graceful degradation",
+            "Do": "Content works without JS",
+            "Don't": "Require ClientRouter for basic navigation",
+            "Code Good": "Static content accessible",
+            "Code Bad": "Broken without client-side routing JS",
+            "Severity": "High",
+            "Docs URL": "https://docs.astro.build/en/guides/view-transitions/",
+            "Applies To": "astro 7.1.6",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Performance",
+            "Guideline": "Use picture for responsive images",
+            "Description": "Multiple formats and sizes",
+            "Do": "<Picture /> for art direction",
+            "Don't": "Single image size for all screens",
+            "Code Good": "<Picture /> with multiple sources",
+            "Code Bad": "<Image /> with single size",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "astro 7.1.6",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-nuxtjs",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "nuxtjs"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "nuxtjs",
+        "query": "responsive accessible layout",
+        "file": "stacks/nuxtjs.csv",
+        "count": 1,
+        "results": [
+          {
+            "Category": "Routing",
+            "Guideline": "Define page metadata with definePageMeta",
+            "Description": "Set page-level configuration and middleware",
+            "Do": "definePageMeta for layout middleware title",
+            "Don't": "Manual route meta configuration",
+            "Code Good": "definePageMeta({ layout: 'admin', middleware: 'auth' })",
+            "Code Bad": "router.beforeEach for page config",
+            "Severity": "High",
+            "Docs URL": "https://nuxt.com/docs/4.x/api/utils/define-page-meta",
+            "Applies To": "nuxtjs 4.5",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-nuxt-ui",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "nuxt-ui"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "nuxt-ui",
+        "query": "responsive accessible layout",
+        "file": "stacks/nuxt-ui.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Dashboard",
+            "Guideline": "Use UDashboardNavbar for top navigation",
+            "Description": "Responsive dashboard header with sidebar toggle and layout slots",
+            "Do": "Place UDashboardNavbar in a UDashboardPanel header and use its slots for actions",
+            "Don't": "Pass unsupported links props or rebuild the responsive toggle",
+            "Code Good": "<UDashboardNavbar title=\"Dashboard\"><template #right><UButton label=\"Add\"/></template></UDashboardNavbar>",
+            "Code Bad": "<UDashboardNavbar :links=\"navLinks\"/>",
+            "Severity": "Low",
+            "Docs URL": "https://ui.nuxt.com/docs/components/dashboard-navbar",
+            "Applies To": "nuxt-ui 4.11.1",
+            "Status": "active",
+            "Verified At": "2026-09-21"
+          },
+          {
+            "Category": "Layout",
+            "Guideline": "Use UHeader and UFooter for page layout",
+            "Description": "Responsive header/footer with built-in mobile menu",
+            "Do": "UHeader with #default slot for nav UFooter with columns",
+            "Don't": "Custom header/footer from scratch",
+            "Code Good": "<UHeader><template #right><UNavigationMenu/></template></UHeader>",
+            "Code Bad": "<header class=\"sticky top-0\">",
+            "Severity": "Low",
+            "Docs URL": "https://ui.nuxt.com/docs/components/header",
+            "Applies To": "nuxt-ui 4.11.1",
+            "Status": "active",
+            "Verified At": "2026-09-21"
+          },
+          {
+            "Category": "Dashboard",
+            "Guideline": "Use UDashboardGroup for layout",
+            "Description": "Wraps dashboard components with sidebar state management",
+            "Do": "UDashboardGroup > UDashboardSidebar + UDashboardPanel",
+            "Don't": "Manual layout flex containers",
+            "Code Good": "<UDashboardGroup><UDashboardSidebar/><UDashboardPanel/></UDashboardGroup>",
+            "Code Bad": "<div class=\"flex\"><aside/><main/></div>",
+            "Severity": "Medium",
+            "Docs URL": "https://ui.nuxt.com/docs/components/dashboard-group",
+            "Applies To": "nuxt-ui 4.11.1",
+            "Status": "active",
+            "Verified At": "2026-09-21"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-html-tailwind",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "html-tailwind"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "html-tailwind",
+        "query": "responsive accessible layout",
+        "file": "stacks/html-tailwind.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Layout",
+            "Guideline": "Responsive padding",
+            "Description": "Adjust padding for different screen sizes",
+            "Do": "px-4 md:px-6 lg:px-8",
+            "Don't": "Same padding all sizes",
+            "Code Good": "px-4 sm:px-6 lg:px-8",
+            "Code Bad": "px-8 (same all sizes)",
+            "Severity": "Medium",
+            "Docs URL": "",
+            "Applies To": "html-tailwind 4.3",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Images",
+            "Guideline": "Responsive image layout",
+            "Description": "Adjust image sizing and placement mobile-first with breakpoint variants",
+            "Do": "w-full md:w-1/2",
+            "Don't": "Use a fixed desktop width at every viewport",
+            "Code Good": "w-full md:max-w-xl",
+            "Code Bad": "w-[900px]",
+            "Severity": "High",
+            "Docs URL": "https://tailwindcss.com/docs/responsive-design",
+            "Applies To": "html-tailwind 4.3",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Buttons",
+            "Guideline": "Icon buttons",
+            "Description": "Accessible icon-only buttons",
+            "Do": "aria-label on icon buttons",
+            "Don't": "Icon button without label",
+            "Code Good": "<button aria-label='Close'><XIcon/></button>",
+            "Code Bad": "<button><XIcon/></button>",
+            "Severity": "High",
+            "Docs URL": "https://tailwindcss.com/docs/screen-readers",
+            "Applies To": "html-tailwind 4.3",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-threejs",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "threejs"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "threejs",
+        "query": "responsive accessible layout",
+        "file": "stacks/threejs.csv",
+        "count": 0,
+        "results": [],
+        "suggestions": [
+          "accessibility",
+          "expensive"
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-angular",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "angular"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "angular",
+        "query": "responsive accessible layout",
+        "file": "stacks/angular.csv",
+        "count": 2,
+        "results": [
+          {
+            "Category": "Routing",
+            "Guideline": "Use nested routes for layouts",
+            "Description": "Compose shared layouts using router-outlet nesting",
+            "Do": "Nested routes with shared layout components",
+            "Don't": "Duplicating layout code across routes",
+            "Code Good": "{ path: 'app' component: ShellComponent children: [...] }",
+            "Code Bad": "Duplicate header/sidebar in each route component",
+            "Severity": "Medium",
+            "Docs URL": "https://angular.dev/guide/routing/router-tutorial-toh#child-route-configuration",
+            "Applies To": "angular 22.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Styling",
+            "Guideline": "Integrate Tailwind with Angular",
+            "Description": "Tailwind utilities work alongside Angular's ViewEncapsulation via global stylesheet",
+            "Do": "Add Tailwind in styles.css and use utility classes in templates",
+            "Don't": "Custom CSS for layout that Tailwind already handles",
+            "Code Good": "<div class=\"flex items-center gap-4 p-6\">",
+            "Code Bad": "<div class=\"my-custom-flex\"> /* .my-custom-flex { display: flex } */",
+            "Severity": "Low",
+            "Docs URL": "https://tailwindcss.com/docs/guides/angular",
+            "Applies To": "angular 22.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-laravel",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "laravel"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "laravel",
+        "query": "responsive accessible layout",
+        "file": "stacks/laravel.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Inertia.js",
+            "Guideline": "Use persistent layouts to preserve state",
+            "Description": "Wrap pages in a persistent layout so header/sidebar don't remount",
+            "Do": "layout property on page component for persistent UI",
+            "Don't": "Re-render full layout on every page visit",
+            "Code Good": "MyPage.layout = (page) => <AppLayout>{page}</AppLayout>",
+            "Code Bad": "No layout — full page reload feel on navigation",
+            "Severity": "Medium",
+            "Docs URL": "https://inertiajs.com/pages#persistent-layouts",
+            "Applies To": "laravel 13.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Blade Templates",
+            "Guideline": "Use layouts with @extends and @section",
+            "Description": "Define one master layout and extend it per page",
+            "Do": "@extends layout with named @section blocks",
+            "Don't": "Duplicate header/footer HTML in every view",
+            "Code Good": "@extends('layouts.app') @section('content')",
+            "Code Bad": "Full HTML in every view file",
+            "Severity": "High",
+            "Docs URL": "https://laravel.com/docs/blade#layouts-using-template-inheritance",
+            "Applies To": "laravel 13.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Forms",
+            "Guideline": "Display flash messages consistently",
+            "Description": "Flash success/error in controller; read in layout with session()",
+            "Do": "session('status') in layout for global flash display",
+            "Don't": "Re-query DB or pass flash from every controller individually",
+            "Code Good": "@if(session('success')) <div class=\"alert\">{{ session('success') }}</div> @endif",
+            "Code Bad": "if($user) return back()->with(['user' => $user]);",
+            "Severity": "Medium",
+            "Docs URL": "https://laravel.com/docs/session#flash-data",
+            "Applies To": "laravel 13.x",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-javafx",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "javafx"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "javafx",
+        "query": "responsive accessible layout",
+        "file": "stacks/javafx.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Layout",
+            "Guideline": "Prefer constraints over fixed coordinates",
+            "Description": "Responsive JavaFX layouts depend on constraints and grow priorities",
+            "Do": "Use hgrow vgrow column constraints and alignment",
+            "Don't": "Hard-code pixel positions and sizes",
+            "Code Good": "GridPane.setHgrow(nameField, Priority.ALWAYS); column.setPercentWidth(50);",
+            "Code Bad": "field.setPrefWidth(328); field.setLayoutX(120);",
+            "Severity": "High",
+            "Docs URL": "https://openjfx.io/javadoc/26/javafx.graphics/javafx/scene/layout/GridPane.html",
+            "Applies To": "javafx 26",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Threading",
+            "Guideline": "Bind progress to background tasks",
+            "Description": "Task exposes progress and message properties for responsive feedback",
+            "Do": "Bind ProgressBar and Label to task properties",
+            "Don't": "Poll progress manually or leave users without feedback",
+            "Code Good": "progress.progressProperty().bind(task.progressProperty()); status.textProperty().bind(task.messageProperty());",
+            "Code Bad": "while(running) progress.setProgress(x);",
+            "Severity": "Medium",
+            "Docs URL": "https://openjfx.io/javadoc/26/javafx.graphics/javafx/concurrent/Task.html",
+            "Applies To": "javafx 26",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Layout",
+            "Guideline": "Choose layout panes by responsibility",
+            "Description": "Each pane solves a different layout problem and should be selected intentionally",
+            "Do": "Use BorderPane for app shell GridPane for forms VBox/HBox for simple stacks",
+            "Don't": "Use absolute positioning for resizable app screens",
+            "Code Good": "BorderPane shell = new BorderPane(); shell.setTop(toolbar); shell.setCenter(content);",
+            "Code Bad": "Pane root = new Pane(); button.setLayoutX(742);",
+            "Severity": "High",
+            "Docs URL": "https://openjfx.io/javadoc/26/javafx.graphics/javafx/scene/layout/package-summary.html",
+            "Applies To": "javafx 26",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-wpf",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "wpf"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "wpf",
+        "query": "responsive accessible layout",
+        "file": "stacks/wpf.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Performance",
+            "Guideline": "Use async for long operations",
+            "Description": "Keep UI thread responsive",
+            "Do": "async/await with Task.Run for CPU work",
+            "Don't": "Synchronous operations that freeze the UI",
+            "Code Good": "await Task.Run(() => HeavyComputation());",
+            "Code Bad": "HeavyComputation() on UI thread",
+            "Severity": "High",
+            "Docs URL": "https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/",
+            "Applies To": "wpf current",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Layout",
+            "Guideline": "Avoid hardcoded sizes",
+            "Description": "Use Auto Star and MinWidth/MaxWidth",
+            "Do": "Proportional sizing with * and Auto",
+            "Don't": "Fixed pixel widths on resizable content",
+            "Code Good": "<ColumnDefinition Width=\"2*\"/>",
+            "Code Bad": "<ColumnDefinition Width=\"350\"/> on main content",
+            "Severity": "Medium",
+            "Docs URL": "https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/grid",
+            "Applies To": "wpf current",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "XAML",
+            "Guideline": "Prefer attached properties for layout",
+            "Description": "Grid.Row Grid.Column DockPanel.Dock etc",
+            "Do": "Attached properties for panel positioning",
+            "Don't": "Margin hacks for alignment",
+            "Code Good": "<Button Grid.Row=\"1\" Grid.Column=\"2\"/>",
+            "Code Bad": "<Button Margin=\"200,100,0,0\"/>",
+            "Severity": "Medium",
+            "Docs URL": "https://learn.microsoft.com/en-us/dotnet/desktop/wpf/properties/attached-properties-overview",
+            "Applies To": "wpf current",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-winui",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "winui"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "winui",
+        "query": "responsive accessible layout",
+        "file": "stacks/winui.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Layout",
+            "Guideline": "Use VisualStateManager for responsive layouts",
+            "Description": "Adapt UI layout to window size using adaptive triggers",
+            "Do": "AdaptiveTrigger with MinWindowWidth for responsive breakpoints",
+            "Don't": "Fixed layouts that break at different window sizes",
+            "Code Good": "<VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth=\"720\"/></VisualState.StateTriggers><VisualState.Setters><Setter Target=\"sidebar.Visibility\" Value=\"Visible\"/></VisualState.Setters></VisualState>",
+            "Code Bad": "Fixed two-column layout at all window sizes",
+            "Severity": "High",
+            "Docs URL": "https://learn.microsoft.com/en-us/windows/apps/develop/ui/layouts-with-xaml",
+            "Applies To": "winui current windows app sdk",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Performance",
+            "Guideline": "Use ItemsRepeater for custom lists",
+            "Description": "Virtualizing layout with full control",
+            "Do": "ItemsRepeater for custom list layouts",
+            "Don't": "ListView for highly customized item layouts",
+            "Code Good": "<ItemsRepeater ItemsSource=\"{x:Bind Items}\"><ItemsRepeater.Layout><StackLayout/></ItemsRepeater.Layout></ItemsRepeater>",
+            "Code Bad": "ListView with heavily modified template and removed chrome",
+            "Severity": "Medium",
+            "Docs URL": "https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/items-repeater",
+            "Applies To": "winui current windows app sdk",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Accessibility",
+            "Guideline": "Set AutomationProperties",
+            "Description": "Enable Narrator and screen reader support",
+            "Do": "AutomationProperties.Name on all interactive controls",
+            "Don't": "Controls without accessible names",
+            "Code Good": "<Button AutomationProperties.Name=\"Save document\"><FontIcon Glyph=\"&#xE74E;\"/></Button>",
+            "Code Bad": "<Button><FontIcon Glyph=\"&#xE74E;\"/></Button> without name",
+            "Severity": "High",
+            "Docs URL": "https://learn.microsoft.com/en-us/windows/apps/design/accessibility/basic-accessibility-information",
+            "Applies To": "winui current windows app sdk",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-avalonia",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "avalonia"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "avalonia",
+        "query": "responsive accessible layout",
+        "file": "stacks/avalonia.csv",
+        "count": 3,
+        "results": [
+          {
+            "Category": "Accessibility",
+            "Guideline": "Set AutomationProperties",
+            "Description": "Enable screen reader support",
+            "Do": "AutomationProperties.Name on interactive controls",
+            "Don't": "Controls without accessible names",
+            "Code Good": "<Button AutomationProperties.Name=\"Close dialog\"><PathIcon Data=\"...\"/></Button>",
+            "Code Bad": "<Button><PathIcon/></Button> without accessible name",
+            "Severity": "High",
+            "Docs URL": "https://docs.avaloniaui.net/api/avalonia/automation/automationproperties",
+            "Applies To": "avalonia 12",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Performance",
+            "Guideline": "Profile with Avalonia DevTools",
+            "Description": "Built-in diagnostic tools",
+            "Do": "DevTools for visual tree and binding inspection",
+            "Don't": "Console.WriteLine debugging",
+            "Code Good": "Attach DevTools in debug mode with F12",
+            "Code Bad": "Print statements to debug layout issues",
+            "Severity": "Medium",
+            "Docs URL": "https://docs.avaloniaui.net/docs/guides/implementation-guides/developer-tools",
+            "Applies To": "avalonia 12",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Controls",
+            "Guideline": "Use SplitView for master-detail",
+            "Description": "Collapsible pane layout for navigation or panels",
+            "Do": "SplitView with Pane and Content areas",
+            "Don't": "Manual Grid with column toggling for sidebar",
+            "Code Good": "<SplitView IsPaneOpen=\"{Binding IsPaneOpen}\" DisplayMode=\"Inline\"><SplitView.Pane><ListBox/></SplitView.Pane><ContentControl/></SplitView>",
+            "Code Bad": "Grid with manual column width animation for sidebar",
+            "Severity": "Medium",
+            "Docs URL": "https://docs.avaloniaui.net/docs/reference/controls/splitview",
+            "Applies To": "avalonia 12",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "stack-uno",
+      "args": [
+        "responsive accessible layout",
+        "--stack",
+        "uno"
+      ],
+      "expected": {
+        "domain": "stack",
+        "stack": "uno",
+        "query": "responsive accessible layout",
+        "file": "stacks/uno.csv",
+        "count": 2,
+        "results": [
+          {
+            "Category": "Accessibility",
+            "Guideline": "Set AutomationProperties",
+            "Description": "Enable screen readers across platforms",
+            "Do": "AutomationProperties.Name on interactive controls",
+            "Don't": "Controls without accessible names",
+            "Code Good": "<Button AutomationProperties.Name=\"Submit form\"><SymbolIcon Symbol=\"Accept\"/></Button>",
+            "Code Bad": "<Button><SymbolIcon Symbol=\"Accept\"/></Button> without name",
+            "Severity": "High",
+            "Docs URL": "https://platform.uno/docs/articles/features/working-with-accessibility.html",
+            "Applies To": "uno current Uno.Sdk/Uno.WinUI",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          },
+          {
+            "Category": "Performance",
+            "Guideline": "Use ListView virtualization for large lists",
+            "Description": "Only renders visible items to reduce memory and layout cost",
+            "Do": "ListView with default ItemsStackPanel virtualization",
+            "Don't": "ItemsControl or StackPanel for large data sets",
+            "Code Good": "<ListView ItemsSource=\"{x:Bind Items}\"/> (virtualizes by default)",
+            "Code Bad": "<ItemsControl><StackPanel> rendering 5000 items at once",
+            "Severity": "High",
+            "Docs URL": "https://platform.uno/docs/articles/controls/ListViewBase.html",
+            "Applies To": "uno current Uno.Sdk/Uno.WinUI",
+            "Status": "active",
+            "Verified At": "2026-08-13"
+          }
+        ]
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-clinic",
+      "args": [
+        "healthcare appointment booking",
+        "--design-system",
+        "-p",
+        "Clinic"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "Clinic",
+          "category": "Healthcare App",
+          "pattern": {
+            "name": "Hero + Testimonials + CTA",
+            "sections": "Hero > Problem statement > Solution overview > Testimonials carousel > CTA",
+            "cta_placement": "Hero (sticky) + Post-testimonials",
+            "color_strategy": "Hero: Brand color. Testimonials: Light bg #F5F5F5. Quotes: Italic, muted color #666. CTA: Vibrant",
+            "conversion": "Social proof before CTA. Use a concise set of verified testimonials with photo, name, and role. CTA after social proof. Provide previous/next and pause controls; stop rotation on focus, hover, and reduced motion; announce slide position. Previous/next buttons and keyboard controls must expose every slide without dragging."
+          },
+          "style": {
+            "id": "neumorphism",
+            "name": "Neumorphism",
+            "type": "General",
+            "effects": "Soft box-shadow (multiple: -5px -5px 15px, 5px 5px 15px), smooth press (150ms), inner subtle shadow",
+            "keywords": "Soft UI, embossed, debossed, convex, concave, light source, subtle depth, rounded (12-16px), monochromatic",
+            "best_for": "Health/wellness apps, meditation platforms, fitness trackers, minimal interaction UIs",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:high|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "conditional"
+          },
+          "colors": {
+            "primary": "#0891B2",
+            "on_primary": "#000000",
+            "secondary": "#22D3EE",
+            "on_secondary": "#0F172A",
+            "accent": "#059669",
+            "on_accent": "#000000",
+            "background": "#ECFEFF",
+            "foreground": "#164E63",
+            "card": "#FFFFFF",
+            "card_foreground": "#164E63",
+            "muted": "#E8F1F6",
+            "muted_foreground": "#475569",
+            "border": "#A5F3FC",
+            "destructive": "#DC2626",
+            "on_destructive": "#FFFFFF",
+            "ring": "#0891B2",
+            "notes": "Calm cyan + health green",
+            "cta": "#059669",
+            "text": "#164E63",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Atkinson Hyperlegible",
+            "body": "Atkinson Hyperlegible",
+            "mood": "accessible, readable, inclusive, WCAG, dyslexia-friendly, clear",
+            "best_for": "Accessibility-critical sites, government, healthcare, inclusive design",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');"
+          },
+          "key_effects": "Soft box-shadow (multiple: -5px -5px 15px, 5px 5px 15px), smooth press (150ms), inner subtle shadow",
+          "anti_patterns": "Bright neon colors + Motion-heavy animations + AI purple/pink gradients",
+          "decision_rules": {
+            "must_have": [
+              "constraint:wcag-aaa-compliance"
+            ],
+            "if_medication": [
+              "constraint:red-alert-colors"
+            ]
+          },
+          "activated_rules": [
+            {
+              "condition": "must_have",
+              "actions": [
+                "constraint:wcag-aaa-compliance"
+              ]
+            }
+          ],
+          "constraints": [
+            "wcag-aaa-compliance"
+          ],
+          "reasoning_default": false,
+          "source_identities": {
+            "product": "Healthcare App",
+            "reasoning": "Healthcare App",
+            "style": "neumorphism",
+            "color": "Healthcare App",
+            "typography": "Accessibility First",
+            "landing": "Hero + Testimonials + CTA"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "HIGH",
+          "dials": {
+            "variance": null,
+            "variance_label": null,
+            "motion": null,
+            "motion_label": null,
+            "density": null,
+            "density_label": null
+          },
+          "motion_snippet": {},
+          "spacing_scale": null
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-dashboard",
+      "args": [
+        "SaaS operations dashboard",
+        "--design-system",
+        "-p",
+        "Operations"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "Operations",
+          "category": "SaaS (General)",
+          "pattern": {
+            "name": "Hero + Features + CTA",
+            "sections": "Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer",
+            "cta_placement": "Hero (sticky) + Bottom",
+            "color_strategy": "Hero: Brand primary or vibrant. Features: Card bg #FAFAFA. CTA: Contrasting accent color",
+            "conversion": "Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state."
+          },
+          "style": {
+            "id": "glassmorphism",
+            "name": "Glassmorphism",
+            "type": "General",
+            "effects": "Backdrop blur (10-20px), subtle border (1px solid rgba white 0.2), light reflection, Z-depth",
+            "keywords": "Frosted glass, transparent, blurred background, layered, vibrant background, light source, depth, multi-layer",
+            "best_for": "Modern SaaS, financial dashboards, high-end corporate, lifestyle apps, modal overlays, navigation",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:conditional|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#2563EB",
+            "on_primary": "#FFFFFF",
+            "secondary": "#3B82F6",
+            "on_secondary": "#000000",
+            "accent": "#EA580C",
+            "on_accent": "#000000",
+            "background": "#F8FAFC",
+            "foreground": "#1E293B",
+            "card": "#FFFFFF",
+            "card_foreground": "#1E293B",
+            "muted": "#E9EFF8",
+            "muted_foreground": "#475569",
+            "border": "#E2E8F0",
+            "destructive": "#DC2626",
+            "on_destructive": "#FFFFFF",
+            "ring": "#2563EB",
+            "notes": "Trust blue + orange CTA contrast [Accent adjusted from #F97316]",
+            "cta": "#EA580C",
+            "text": "#1E293B",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Calistoga",
+            "body": "Inter",
+            "mood": "saas, boutique, electric, warm, editorial, bold, premium, fintech, business, dual font, human warmth",
+            "best_for": "B2B SaaS mobile, fintech apps, analytics dashboards, marketing tools, operations platforms",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Calistoga:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Calistoga:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');"
+          },
+          "key_effects": "Backdrop blur (10-20px), subtle border (1px solid rgba white 0.2), light reflection, Z-depth",
+          "anti_patterns": "Excessive animation + Dark mode by default",
+          "decision_rules": {
+            "if_ux_focused": [
+              "style:minimalism-and-swiss-style"
+            ],
+            "if_data_heavy": [
+              "style:glassmorphism"
+            ]
+          },
+          "activated_rules": [],
+          "constraints": [],
+          "reasoning_default": false,
+          "source_identities": {
+            "product": "SaaS (General)",
+            "reasoning": "SaaS (General)",
+            "style": "glassmorphism",
+            "color": "SaaS (General)",
+            "typography": "SaaS Mobile Boutique (Calistoga + Inter)",
+            "landing": "Hero + Features + CTA"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "HIGH",
+          "dials": {
+            "variance": null,
+            "variance_label": null,
+            "motion": null,
+            "motion_label": null,
+            "density": null,
+            "density_label": null
+          },
+          "motion_snippet": {},
+          "spacing_scale": null
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-dark",
+      "args": [
+        "fintech dark mode analytics",
+        "--design-system",
+        "-p",
+        "Finance"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "Finance",
+          "category": "Fintech/Crypto",
+          "pattern": {
+            "name": "Trust & Authority + Conversion",
+            "sections": "Hero (mission/credibility) > Proof (logos, certs, stats) > Solution overview > Clear CTA path",
+            "cta_placement": "Contact Sales / Get Quote (primary) + Nav",
+            "color_strategy": "Navy/Grey corporate. Trust blue. Accent for CTA only.",
+            "conversion": "Security badges. Case studies. Transparent pricing. Low-friction form. Provide pause/stop and stop the logo carousel on focus, hover, and reduced motion. Previous/next controls provide the keyboard equivalent; pause offscreen/hidden and render a static logo set under reduced motion."
+          },
+          "style": {
+            "id": "minimalism-and-swiss-style",
+            "name": "Minimalism & Swiss Style",
+            "type": "General",
+            "effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+            "keywords": "Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential",
+            "best_for": "Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#F59E0B",
+            "on_primary": "#0F172A",
+            "secondary": "#FBBF24",
+            "on_secondary": "#0F172A",
+            "accent": "#8B5CF6",
+            "on_accent": "#000000",
+            "background": "#0F172A",
+            "foreground": "#F8FAFC",
+            "card": "#222735",
+            "card_foreground": "#F8FAFC",
+            "muted": "#272F42",
+            "muted_foreground": "#94A3B8",
+            "border": "#334155",
+            "destructive": "#EF4444",
+            "on_destructive": "#000000",
+            "ring": "#F59E0B",
+            "notes": "Gold trust + purple tech",
+            "cta": "#8B5CF6",
+            "text": "#F8FAFC",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Orbitron",
+            "body": "JetBrains Mono",
+            "mood": "cyberpunk, neon, glitch, hud, sci-fi, dark, matrix green, magenta, chamfered, tactical",
+            "best_for": "Gaming companion apps, fintech/crypto, data visualization, dark brand apps, cyberpunk narrative games",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@700;900&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@700;900&display=swap');"
+          },
+          "key_effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+          "anti_patterns": "Playful design + Unclear fees + AI purple/pink gradients",
+          "decision_rules": {
+            "must_have": [
+              "constraint:security-first"
+            ],
+            "if_dashboard": [
+              "mode:dark"
+            ]
+          },
+          "activated_rules": [
+            {
+              "condition": "must_have",
+              "actions": [
+                "constraint:security-first"
+              ]
+            }
+          ],
+          "constraints": [
+            "security-first"
+          ],
+          "reasoning_default": false,
+          "source_identities": {
+            "product": "Fintech/Crypto",
+            "reasoning": "Fintech/Crypto",
+            "style": "minimalism-and-swiss-style",
+            "color": "Fintech/Crypto",
+            "typography": "Cyberpunk Mobile (Orbitron + JetBrains Mono)",
+            "landing": "Trust & Authority + Conversion"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "HIGH",
+          "dials": {
+            "variance": null,
+            "variance_label": null,
+            "motion": null,
+            "motion_label": null,
+            "density": null,
+            "density_label": null
+          },
+          "motion_snippet": {},
+          "spacing_scale": null
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-dials-low",
+      "args": [
+        "minimal portfolio",
+        "--design-system",
+        "--variance",
+        "2",
+        "--motion",
+        "2",
+        "--density",
+        "2"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "MINIMAL PORTFOLIO",
+          "category": "General",
+          "pattern": {
+            "name": "Hero + Features + CTA",
+            "sections": "Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer",
+            "cta_placement": "Hero (sticky) + Bottom",
+            "color_strategy": "Hero: Brand primary or vibrant. Features: Card bg #FAFAFA. CTA: Contrasting accent color",
+            "conversion": "Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state."
+          },
+          "style": {
+            "id": "minimalism-and-swiss-style",
+            "name": "Minimalism & Swiss Style",
+            "type": "General",
+            "effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+            "keywords": "Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential",
+            "best_for": "Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#18181B",
+            "on_primary": "#FFFFFF",
+            "secondary": "#3F3F46",
+            "on_secondary": "#FFFFFF",
+            "accent": "#2563EB",
+            "on_accent": "#FFFFFF",
+            "background": "#FAFAFA",
+            "foreground": "#09090B",
+            "card": "#FFFFFF",
+            "card_foreground": "#09090B",
+            "muted": "#E8ECF0",
+            "muted_foreground": "#475569",
+            "border": "#E4E4E7",
+            "destructive": "#DC2626",
+            "on_destructive": "#FFFFFF",
+            "ring": "#18181B",
+            "notes": "Monochrome + blue accent",
+            "cta": "#2563EB",
+            "text": "#09090B",
+            "on_cta": "#FFFFFF"
+          },
+          "typography": {
+            "heading": "Archivo",
+            "body": "Space Grotesk",
+            "mood": "minimal, portfolio, designer, creative, clean, artistic",
+            "best_for": "Design portfolios, creative professionals, minimalist brands",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');"
+          },
+          "key_effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+          "anti_patterns": "",
+          "decision_rules": {},
+          "activated_rules": [],
+          "constraints": [],
+          "reasoning_default": true,
+          "source_identities": {
+            "product": null,
+            "reasoning": null,
+            "style": "minimalism-and-swiss-style",
+            "color": "Portfolio/Personal",
+            "typography": "Minimalist Portfolio",
+            "landing": "Hero + Features + CTA"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "MEDIUM",
+          "dials": {
+            "variance": 2,
+            "variance_label": "Centered / Minimal",
+            "motion": 2,
+            "motion_label": "Subtle",
+            "density": 2,
+            "density_label": "Spacious"
+          },
+          "motion_snippet": {
+            "Category": "Scroll Reveal",
+            "Intensity Tier": "Subtle",
+            "Trigger": "scroll (viewport enter)",
+            "Duration": "300-400ms",
+            "Easing": "power1.out",
+            "GSAP Snippet": "gsap.from(el, { opacity: 0, y: 12, duration: 0.35, ease: 'power1.out', scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' } });",
+            "Framework Notes": "Requires the ScrollTrigger plugin registered once via gsap.registerPlugin(ScrollTrigger); Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately",
+            "Do": "Keep the y offset small (8-16px) so it reads as a fade, not a slide",
+            "Don't": "Don't reveal below-the-fold content needed for SEO/crawlers as invisible-by-default without a no-JS fallback",
+            "Performance Notes": "toggleActions 'play none none reverse' avoids re-triggering on every scroll direction change"
+          },
+          "spacing_scale": {
+            "xs": "4px",
+            "sm": "8px",
+            "md": "24px",
+            "lg": "32px",
+            "xl": "48px",
+            "2xl": "64px",
+            "3xl": "96px"
+          }
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-dials-high",
+      "args": [
+        "gaming leaderboard immersive",
+        "--design-system",
+        "--variance",
+        "9",
+        "--motion",
+        "9",
+        "--density",
+        "9"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "GAMING LEADERBOARD IMMERSIVE",
+          "category": "Gaming",
+          "pattern": {
+            "name": "Feature-Rich Showcase",
+            "sections": "Hero (value prop) > Feature grid/cards (4-6) > Use cases or benefits > Social proof or logos > CTA",
+            "cta_placement": "Hero (sticky) + After features + Bottom",
+            "color_strategy": "Brand primary + card bg #FAFAFA. Feature icons accent. CTA contrasting.",
+            "conversion": "Clear feature hierarchy. One key message per card. Strong CTA repetition."
+          },
+          "style": {
+            "id": "brutalism",
+            "name": "Brutalism",
+            "type": "General",
+            "effects": "No smooth transitions (instant), sharp corners (0px), bold typography (700+), visible grid, large blocks",
+            "keywords": "Raw, unpolished, stark, high contrast, plain text, default fonts, visible borders, asymmetric, anti-design",
+            "best_for": "Design portfolios, artistic projects, counter-culture brands, editorial/media sites, tech blogs",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#7C3AED",
+            "on_primary": "#FFFFFF",
+            "secondary": "#A78BFA",
+            "on_secondary": "#0F172A",
+            "accent": "#F43F5E",
+            "on_accent": "#000000",
+            "background": "#0F0F23",
+            "foreground": "#E2E8F0",
+            "card": "#1E1C35",
+            "card_foreground": "#E2E8F0",
+            "muted": "#27273B",
+            "muted_foreground": "#94A3B8",
+            "border": "#4C1D95",
+            "destructive": "#EF4444",
+            "on_destructive": "#000000",
+            "ring": "#7C3AED",
+            "notes": "Neon purple + rose action",
+            "cta": "#F43F5E",
+            "text": "#E2E8F0",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Russo One",
+            "body": "Chakra Petch",
+            "mood": "gaming, bold, action, esports, competitive, energetic",
+            "best_for": "Gaming, esports, action games, competitive sports, entertainment",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&display=swap');"
+          },
+          "key_effects": "No smooth transitions (instant), sharp corners (0px), bold typography (700+), visible grid, large blocks",
+          "anti_patterns": "Minimalist design + Static assets",
+          "decision_rules": {
+            "if_competitive": [
+              "constraint:add-real-time-stats"
+            ],
+            "if_casual": [
+              "constraint:increase-playfulness"
+            ]
+          },
+          "activated_rules": [
+            {
+              "condition": "if_competitive",
+              "actions": [
+                "constraint:add-real-time-stats"
+              ]
+            }
+          ],
+          "constraints": [
+            "add-real-time-stats"
+          ],
+          "reasoning_default": false,
+          "source_identities": {
+            "product": "Gaming",
+            "reasoning": "Gaming",
+            "style": "brutalism",
+            "color": "Gaming",
+            "typography": "Gaming Bold",
+            "landing": "Feature-Rich Showcase"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "HIGH",
+          "dials": {
+            "variance": 9,
+            "variance_label": "Bold / Asymmetric",
+            "motion": 9,
+            "motion_label": "Complex",
+            "density": 9,
+            "density_label": "Dense / Dashboard"
+          },
+          "motion_snippet": {
+            "Category": "Page Transition",
+            "Intensity Tier": "Complex",
+            "Trigger": "route change",
+            "Duration": "500-800ms",
+            "Easing": "expo.inOut",
+            "GSAP Snippet": "const state = Flip.getState('.hero-image'); navigate(); Flip.from(state, { duration: 0.6, ease: 'expo.inOut', absolute: true, zIndex: 100 });",
+            "Framework Notes": "Requires the GSAP Flip plugin; the 'from' and 'to' route must render the same element with a shared data-flip-id; Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately",
+            "Do": "Verify the shared element exists in both DOM states before calling Flip.from to avoid a silent no-op",
+            "Don't": "Don't use shared-element transitions across more than one element pair per navigation; compounding Flips are hard to time correctly",
+            "Performance Notes": "Flip recalculates layout (FLIP technique) so test on low-end devices for jank"
+          },
+          "spacing_scale": {
+            "xs": "2px",
+            "sm": "4px",
+            "md": "8px",
+            "lg": "12px",
+            "xl": "16px",
+            "2xl": "24px",
+            "3xl": "32px"
+          }
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-dials-mid",
+      "args": [
+        "ecommerce checkout trust",
+        "--design-system",
+        "--variance",
+        "5",
+        "--motion",
+        "5",
+        "--density",
+        "5"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "ECOMMERCE CHECKOUT TRUST",
+          "category": "E-commerce",
+          "pattern": {
+            "name": "Feature-Rich Showcase",
+            "sections": "Hero (value prop) > Feature grid/cards (4-6) > Use cases or benefits > Social proof or logos > CTA",
+            "cta_placement": "Hero (sticky) + After features + Bottom",
+            "color_strategy": "Brand primary + card bg #FAFAFA. Feature icons accent. CTA contrasting.",
+            "conversion": "Clear feature hierarchy. One key message per card. Strong CTA repetition."
+          },
+          "style": {
+            "id": "vibrant-and-block-based",
+            "name": "Vibrant & Block-based",
+            "type": "General",
+            "effects": "Large sections (48px+ gaps), animated patterns, bold hover (color shift), scroll-snap, large type (32px+), 200-300ms",
+            "keywords": "Bold, energetic, playful, block layout, geometric shapes, high color contrast, duotone, modern, energetic",
+            "best_for": "Startups, creative agencies, gaming, social media, youth-focused, entertainment, consumer",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:conditional|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#059669",
+            "on_primary": "#000000",
+            "secondary": "#10B981",
+            "on_secondary": "#0F172A",
+            "accent": "#EA580C",
+            "on_accent": "#000000",
+            "background": "#ECFDF5",
+            "foreground": "#064E3B",
+            "card": "#FFFFFF",
+            "card_foreground": "#064E3B",
+            "muted": "#E8F1F3",
+            "muted_foreground": "#475569",
+            "border": "#A7F3D0",
+            "destructive": "#DC2626",
+            "on_destructive": "#FFFFFF",
+            "ring": "#059669",
+            "notes": "Success green + urgency orange [Accent adjusted from #F97316]",
+            "cta": "#EA580C",
+            "text": "#064E3B",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Rubik",
+            "body": "Nunito Sans",
+            "mood": "ecommerce, clean, shopping, product, retail, conversion",
+            "best_for": "E-commerce, online stores, product pages, retail, shopping",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap');"
+          },
+          "key_effects": "Large sections (48px+ gaps), animated patterns, bold hover (color shift), scroll-snap, large type (32px+), 200-300ms",
+          "anti_patterns": "Flat design without depth + Text-heavy pages",
+          "decision_rules": {
+            "if_luxury": [
+              "style:liquid-glass"
+            ],
+            "if_conversion_focused": [
+              "constraint:add-urgency-colors"
+            ]
+          },
+          "activated_rules": [],
+          "constraints": [],
+          "reasoning_default": false,
+          "source_identities": {
+            "product": "E-commerce",
+            "reasoning": "E-commerce",
+            "style": "vibrant-and-block-based",
+            "color": "E-commerce",
+            "typography": "E-commerce Clean",
+            "landing": "Feature-Rich Showcase"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "HIGH",
+          "dials": {
+            "variance": 5,
+            "variance_label": "Balanced / Modern",
+            "motion": 5,
+            "motion_label": "Standard",
+            "density": 5,
+            "density_label": "Standard"
+          },
+          "motion_snippet": {
+            "Category": "Stagger List",
+            "Intensity Tier": "Standard",
+            "Trigger": "load or scroll",
+            "Duration": "300-450ms",
+            "Easing": "back.out(1.4)",
+            "GSAP Snippet": "gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger: { each: 0.06, from: 'start', grid: 'auto' }, ease: 'back.out(1.4)' });",
+            "Framework Notes": "grid: 'auto' lets GSAP infer rows/columns from a CSS grid layout for a natural wave stagger; Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately",
+            "Do": "Combine with from: 'center' for a bento-grid layout to draw the eye inward first",
+            "Don't": "Don't use back.out on dense data tables; the overshoot reads as sloppy on informational UI",
+            "Performance Notes": "Group DOM writes; avoid interleaving layout reads (getBoundingClientRect) between staggered tweens"
+          },
+          "spacing_scale": {
+            "xs": "4px",
+            "sm": "8px",
+            "md": "16px",
+            "lg": "24px",
+            "xl": "32px",
+            "2xl": "48px",
+            "3xl": "64px"
+          }
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    },
+    {
+      "id": "design-default",
+      "args": [
+        "zxqvvqq",
+        "--design-system"
+      ],
+      "expected": {
+        "design_system": {
+          "project_name": "ZXQVVQQ",
+          "category": "General",
+          "pattern": {
+            "name": "Hero + Features + CTA",
+            "sections": "Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer",
+            "cta_placement": "Hero (sticky) + Bottom",
+            "color_strategy": "Hero: Brand primary or vibrant. Features: Card bg #FAFAFA. CTA: Contrasting accent color",
+            "conversion": "Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state."
+          },
+          "style": {
+            "id": "minimalism-and-swiss-style",
+            "name": "Minimalism & Swiss Style",
+            "type": "General",
+            "effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+            "keywords": "Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential",
+            "best_for": "Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools",
+            "performance": "cost:low|drivers:none",
+            "accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+            "light_mode": "supported",
+            "dark_mode": "supported"
+          },
+          "colors": {
+            "primary": "#2563EB",
+            "on_primary": "#FFFFFF",
+            "secondary": "#3B82F6",
+            "on_secondary": "#000000",
+            "accent": "#EA580C",
+            "on_accent": "#000000",
+            "background": "#F8FAFC",
+            "foreground": "#1E293B",
+            "card": "#FFFFFF",
+            "card_foreground": "#1E293B",
+            "muted": "#E9EFF8",
+            "muted_foreground": "#475569",
+            "border": "#E2E8F0",
+            "destructive": "#DC2626",
+            "on_destructive": "#FFFFFF",
+            "ring": "#2563EB",
+            "notes": "Trust blue + orange CTA contrast [Accent adjusted from #F97316]",
+            "cta": "#EA580C",
+            "text": "#1E293B",
+            "on_cta": "#000000"
+          },
+          "typography": {
+            "heading": "Outfit",
+            "body": "Work Sans",
+            "mood": "geometric, modern, clean, balanced, contemporary, versatile",
+            "best_for": "General purpose, portfolios, agencies, modern brands, landing pages",
+            "google_fonts_url": "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap",
+            "css_import": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap');"
+          },
+          "key_effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+          "anti_patterns": "",
+          "decision_rules": {},
+          "activated_rules": [],
+          "constraints": [],
+          "reasoning_default": true,
+          "source_identities": {
+            "product": null,
+            "reasoning": null,
+            "style": "minimalism-and-swiss-style",
+            "color": "SaaS (General)",
+            "typography": "Geometric Modern",
+            "landing": "Hero + Features + CTA"
+          },
+          "source_derivations": {
+            "color_mode": null
+          },
+          "severity": "MEDIUM",
+          "dials": {
+            "variance": null,
+            "variance_label": null,
+            "motion": null,
+            "motion_label": null,
+            "density": null,
+            "density_label": null
+          },
+          "motion_snippet": {},
+          "spacing_scale": null
+        },
+        "persistence": null
+      },
+      "expectedExit": 0,
+      "status": "pass",
+      "fullExit": 0,
+      "miniExit": 0
+    }
+  ],
+  "persistence": {
+    "status": "pass",
+    "cases": [
+      {
+        "id": "full-fresh-persist",
+        "status": "pass"
+      },
+      {
+        "id": "full-master-crlf-preserve",
+        "status": "pass"
+      },
+      {
+        "id": "full-new-page-with-existing-master",
+        "status": "pass"
+      },
+      {
+        "id": "full-page-preserve",
+        "status": "pass"
+      },
+      {
+        "id": "full-force-recovery",
+        "status": "pass"
+      },
+      {
+        "id": "full-windows-reserved-slugs",
+        "status": "pass"
+      },
+      {
+        "id": "full-escaped-path-unicode-slugs",
+        "status": "pass",
+        "rerunAfterFix": true,
+        "previousFailure": "The expression evaluated to a falsy value:\n\n  assert.ok(path.relative(project,file)&&!path.relative(project,file).startsWith('..'))\n"
+      },
+      {
+        "id": "full-linked-output-rejected",
+        "status": "pass"
+      },
+      {
+        "id": "full-linked-master-rejected",
+        "status": "pass"
+      },
+      {
+        "id": "mini-fresh-persist",
+        "status": "pass"
+      },
+      {
+        "id": "mini-master-crlf-preserve",
+        "status": "pass"
+      },
+      {
+        "id": "mini-new-page-with-existing-master",
+        "status": "pass"
+      },
+      {
+        "id": "mini-page-preserve",
+        "status": "pass"
+      },
+      {
+        "id": "mini-force-recovery",
+        "status": "pass"
+      },
+      {
+        "id": "mini-windows-reserved-slugs",
+        "status": "pass"
+      },
+      {
+        "id": "mini-escaped-path-unicode-slugs",
+        "status": "pass",
+        "rerunAfterFix": true,
+        "previousFailure": "The expression evaluated to a falsy value:\n\n  assert.ok(path.relative(project,file)&&!path.relative(project,file).startsWith('..'))\n"
+      },
+      {
+        "id": "mini-linked-output-rejected",
+        "status": "pass"
+      },
+      {
+        "id": "mini-linked-master-rejected",
+        "status": "pass"
+      },
+      {
+        "id": "standalone-packaged-offline-helper",
+        "status": "pass",
+        "rerunAfterFix": true,
+        "previousFailure": "Unexpected end of JSON input"
+      }
+    ],
+    "platform": "darwin",
+    "node": "v24.16.0",
+    "scope": "Windows path/slug strings exercised on macOS; native Windows execution remains unrun.",
+    "correctiveChanges": [
+      "Canonicalize argv[1] before direct CLI detection so packaged helpers execute through filesystem aliases.",
+      "Compare escaped persistence paths against canonical project root in the integration assertion."
+    ],
+    "rerunAt": "2026-09-26T05:00:07.548Z"
+  },
+  "nativeWindows": "not-run",
+  "nativeLinux": "not-run"
+}

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -68,7 +69,13 @@ process.exit(result.status ?? 1);
   await writeMiniConfiguration()
 }
 
-export function renderMiniSkill(bytes: Buffer, relative: string): Buffer {
+export function renderMiniSkill(bytes: Buffer, relative: string, sourceRoot?: string): Buffer {
   if (!relative.endsWith('.md')) return bytes
-  return Buffer.from(bytes.toString('utf8').replace(/\bnode scripts\/([a-zA-Z0-9_./-]+\.mjs)\b/g, 'boss-mini $1'))
+  return Buffer.from(
+    bytes
+      .toString('utf8')
+      .replace(/\bnode scripts\/([a-zA-Z0-9_./-]+\.mjs)\b/g, (command, helper) =>
+        sourceRoot && existsSync(path.join(sourceRoot, 'scripts', helper)) ? command : `boss-mini ${helper}`
+      )
+  )
 }

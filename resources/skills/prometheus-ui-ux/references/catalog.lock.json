@@ -1,0 +1,3118 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "repository": "https://github.com/Leonxlnx/taste-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/jakubkrehel/skills",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/vercel-labs/agent-skills",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT",
+      "evidence": "README.md"
+    },
+    {
+      "repository": "https://github.com/expo/skills",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/flutter/agent-plugins",
+      "revision": "3f58a5512a03c854b6c8b1128d6711e5e2d5055b",
+      "license": "BSD-3-Clause",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/twostraws/swiftui-agent-skill",
+      "revision": "be297ff80dddec529af1f9b1f1f114aab6c9d11c",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/android/skills",
+      "revision": "42dc2270e96032bd860bb94511e440aa00a43125",
+      "license": "Apache-2.0",
+      "evidence": "LICENSE.txt"
+    },
+    {
+      "repository": "https://github.com/pbakaus/impeccable",
+      "revision": "9d715cc4f5564a990ca8345abfdd5df6dc9b41c8",
+      "license": "Apache-2.0",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/vercel-labs/web-interface-guidelines",
+      "revision": "e3d624baaf29dc1fc645aff3e38f03e564d2d6b1",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    },
+    {
+      "repository": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "revision": "dcc40ff5133ef78276117db0cc34e7b83cc8aeba",
+      "license": "MIT",
+      "evidence": "LICENSE"
+    }
+  ],
+  "skills": [
+    {
+      "id": "design-taste-frontend",
+      "upstreamName": "design-taste-frontend",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/taste-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/design-taste-frontend",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/design-taste-frontend",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "d7a00f4506f2469c94a848d3321e370b36c3ca5f40fb0d41fc16b3814d525ff2",
+          "upstreamSha256": "aa194351b246b8b4799099d4ed7b033d29eab6e6e3d58d8d2172978be7b3ec89"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Replaced latest-version component-generator commands with project-pinned, explicitly authorized tooling.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ],
+      "experimental": true
+    },
+    {
+      "id": "design-taste-frontend-v1",
+      "upstreamName": "design-taste-frontend-v1",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/taste-skill-v1",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/design-taste-frontend-v1",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/design-taste-frontend-v1",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "838823ce16068f5300250cea57b3961c032bcac2ea3ed8952dc9b06461262710",
+          "upstreamSha256": "033d45af1ed23832730642f95f40ab49db7fb5222848489a6c5656144bfc6dae"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "gpt-taste",
+      "upstreamName": "gpt-taste",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/gpt-tasteskill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/gpt-taste",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/gpt-taste",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "f66fbb08b070f806172c5d7e1967d5b187a76b42f2d800288e473d92e774c040",
+          "upstreamSha256": "2e64c269953f2656c21bf5a0fa6b4568e82fe0c72b36e8f84758e090349966a5"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim.",
+        "Replaced simulated Python/random-choice instructions and fabricated execution output with deterministic JavaScript arithmetic or an explicitly identified planning calculation."
+      ]
+    },
+    {
+      "id": "redesign-existing-projects",
+      "upstreamName": "redesign-existing-projects",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/redesign-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/redesign-existing-projects",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/redesign-existing-projects",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "e05b52a1d0c3ed15936adf2b1aca3f9214e3c55d302d9f197da64dc8c7282bd8",
+          "upstreamSha256": "98ad3e5b051bfb71b2795f7e8a6aa0d32b51ee095606c098a4b2822ac07926c9"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "high-end-visual-design",
+      "upstreamName": "high-end-visual-design",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/soft-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/high-end-visual-design",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/high-end-visual-design",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "b66d3624501825aa566261f80710b6498dae03cbd80bfada5d68d28206406bdd",
+          "upstreamSha256": "e1e32f5e2d420872c6c7332b53d5ff7721946766b78c4822b424c2d512c8fdbc"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "minimalist-ui",
+      "upstreamName": "minimalist-ui",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/minimalist-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/minimalist-ui",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/minimalist-ui",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "f657476e330783507a9352768fc2da555812a8f3a3c00f7a4970cd5d407be310",
+          "upstreamSha256": "36bc7328f085405f43b476938e62460fa573bf7e984e949e072bcf014831a44c"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "industrial-brutalist-ui",
+      "upstreamName": "industrial-brutalist-ui",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/brutalist-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/industrial-brutalist-ui",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/industrial-brutalist-ui",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "aafb58aa19a304037c3a145cc2dec6264e99180e91dc8d82d92e969e1f284cf7",
+          "upstreamSha256": "fffbaac8597f07679e9d87145533567658aedba3b5eca6f16a7075a333048caa"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "full-output-enforcement",
+      "upstreamName": "full-output-enforcement",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/output-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/full-output-enforcement",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/full-output-enforcement",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "e044dddfd3a1cd64c0936a3434e619bfa498356718587b532877df075b76a1fe",
+          "upstreamSha256": "e5bf48b1ae561511439cf71672209a10a88cee0968cc925909ff861dfa0a96a7"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "stitch-design-taste",
+      "upstreamName": "stitch-design-taste",
+      "source": "https://github.com/Leonxlnx/taste-skill/tree/c184364c58658b2f131b4ae8bd3d206cabb3deee/skills/stitch-skill",
+      "revision": "c184364c58658b2f131b4ae8bd3d206cabb3deee",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/stitch-design-taste",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/stitch-design-taste",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "DESIGN.stitch.md",
+          "sha256": "0ab6740c4ebb1966dbceddb823a66d4bf027e960efbd73faca56cbf8370ae2ad",
+          "upstreamSha256": "0ab6740c4ebb1966dbceddb823a66d4bf027e960efbd73faca56cbf8370ae2ad"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "ac568f0f25c2e782ef57e84444f8308f7104877cdef1f667c1be958b69869d8a",
+          "upstreamSha256": "46bdb08fee2dded38b6ba0a051230a502d6ac6e4044afd47592cb40c256028b5"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "4575a543ab88dad12ccea7d97e563d0bce5b448b06072e65d3264497dad326df"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Renamed Stitch output and bundled example to DESIGN.stitch.md so project DESIGN.md stays authoritative.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-accessibility",
+      "upstreamName": "better-accessibility",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-accessibility",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-accessibility",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-accessibility",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "f936208a7225d199bb6d6546dad81de2fd96c922a1110adf0d69b8f044b0f41a",
+          "upstreamSha256": "59a0d8ad310be843566a18bfd839a38f46335110aa31673c4468c9e0172c5350"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "98699206d4fb00b72bcaf69bb446f541644cc0cc3d23967e266731e100a55563",
+          "upstreamSha256": "98699206d4fb00b72bcaf69bb446f541644cc0cc3d23967e266731e100a55563"
+        },
+        {
+          "path": "focus-and-keyboard.md",
+          "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+          "upstreamSha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba"
+        },
+        {
+          "path": "forms.md",
+          "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+          "upstreamSha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34"
+        },
+        {
+          "path": "hit-areas.md",
+          "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+          "upstreamSha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5"
+        },
+        {
+          "path": "motion-and-zoom.md",
+          "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+          "upstreamSha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee"
+        },
+        {
+          "path": "screen-readers.md",
+          "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+          "upstreamSha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a"
+        },
+        {
+          "path": "semantics-and-aria.md",
+          "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+          "upstreamSha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-colors",
+      "upstreamName": "better-colors",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-colors",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-colors",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-colors",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "8c742ce089bb9c8ab1c2866576bffdd0821cbbff9f7fdd7e7c7ce1ac42f5df27",
+          "upstreamSha256": "cde9dd40cb183b383514e1a2c76bf74c9d914f5f6722ee6079d3f9cd121862c1"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "9568572146c8d7d1dc2e12536c2b8ea63480f83f2f2ebfcf2f9a500a56830d4a",
+          "upstreamSha256": "9568572146c8d7d1dc2e12536c2b8ea63480f83f2f2ebfcf2f9a500a56830d4a"
+        },
+        {
+          "path": "color-formats.md",
+          "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+          "upstreamSha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129"
+        },
+        {
+          "path": "color-usage.md",
+          "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+          "upstreamSha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f"
+        },
+        {
+          "path": "contrast.md",
+          "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+          "upstreamSha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971"
+        },
+        {
+          "path": "palette-generation.md",
+          "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+          "upstreamSha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85"
+        },
+        {
+          "path": "palette-structure.md",
+          "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+          "upstreamSha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387"
+        },
+        {
+          "path": "token-naming.md",
+          "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+          "upstreamSha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-interface",
+      "upstreamName": "better-interface",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-interface",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-interface",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-interface",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "36fa2c8a3665138a7d2820949e44477af10ab7a2a3d3642d93aea9811a4ab842",
+          "upstreamSha256": "57412a685bd1a654f81def820099481b7df6ddf8f4bc06989a1b875b1d01c036"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "541c5d823f474543d4f3a314a9292215f8c90c152249e72411ff3e3632cf55bc",
+          "upstreamSha256": "541c5d823f474543d4f3a314a9292215f8c90c152249e72411ff3e3632cf55bc"
+        },
+        {
+          "path": "review-format.md",
+          "sha256": "99bf274b4a382d89fc281482c688127d1d82e3a5a5c84d2662ebfc9946dc8108",
+          "upstreamSha256": "99bf274b4a382d89fc281482c688127d1d82e3a5a5c84d2662ebfc9946dc8108"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-layout",
+      "upstreamName": "better-layout",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-layout",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-layout",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-layout",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "7652d540c11a318a3a483025d991cf6cbe36adfaccb02919261f835f45f698a2",
+          "upstreamSha256": "f04c8d870fca110c8003aa8c0c82a7e121642a18443dfb114ee3d774d466c141"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "d51a2ca663c9331f8f23b7a550e5f848f83e81361e21f2280cc384e99cc0ae15",
+          "upstreamSha256": "d51a2ca663c9331f8f23b7a550e5f848f83e81361e21f2280cc384e99cc0ae15"
+        },
+        {
+          "path": "grouping-and-alignment.md",
+          "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+          "upstreamSha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1"
+        },
+        {
+          "path": "spacing-and-adaptivity.md",
+          "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+          "upstreamSha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-typography",
+      "upstreamName": "better-typography",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-typography",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-typography",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-typography",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "d0e7fe82c7552014bd7485d10a99b5819b6c21b76986a33dce5630682dfc8f0a",
+          "upstreamSha256": "717f615910470bd2b7c662cce2af2ebd11cd887379a6ea93455c45f3c5ba378d"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "01d8b8f835112e97ba0e4d97a07775e919407ebb5aab0cce9b4fa280e66b19b8",
+          "upstreamSha256": "01d8b8f835112e97ba0e4d97a07775e919407ebb5aab0cce9b4fa280e66b19b8"
+        },
+        {
+          "path": "choosing-fonts.md",
+          "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+          "upstreamSha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9"
+        },
+        {
+          "path": "css-cheat-sheet.md",
+          "sha256": "45c77f0d1954e12e76c3903361f52703cb4f4287d54c651710f60926247165fb",
+          "upstreamSha256": "45c77f0d1954e12e76c3903361f52703cb4f4287d54c651710f60926247165fb"
+        },
+        {
+          "path": "details-and-accessibility.md",
+          "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+          "upstreamSha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e"
+        },
+        {
+          "path": "spacing-and-sizing.md",
+          "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+          "upstreamSha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82"
+        },
+        {
+          "path": "variable-fonts-and-opentype.md",
+          "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+          "upstreamSha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0"
+        },
+        {
+          "path": "wrapping-and-punctuation.md",
+          "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+          "upstreamSha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-ui",
+      "upstreamName": "better-ui",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-ui",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-ui",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-ui",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "5a19ec697df62aa58398ca5cce06816674054e6a9042163aea12d3ae329c6c71",
+          "upstreamSha256": "2482b7b89d851a3128d36edf5367f3223e113a4ef421b7358c7e6de3f2c83faf"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "799e0b58bded32edf5c217f97e08c364660ec24234978b2e3f7dee1868bea871",
+          "upstreamSha256": "799e0b58bded32edf5c217f97e08c364660ec24234978b2e3f7dee1868bea871"
+        },
+        {
+          "path": "animations.md",
+          "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+          "upstreamSha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846"
+        },
+        {
+          "path": "enter-exit.md",
+          "sha256": "8db1b33d6c80a097218a530cb9749dff4b0a2b992236047a2e88661af5e930ea",
+          "upstreamSha256": "8db1b33d6c80a097218a530cb9749dff4b0a2b992236047a2e88661af5e930ea"
+        },
+        {
+          "path": "icon-transitions.md",
+          "sha256": "60098242d33133a35a675719c447129b8931aecfbf05d58a6e2aa01e7894694e",
+          "upstreamSha256": "60098242d33133a35a675719c447129b8931aecfbf05d58a6e2aa01e7894694e"
+        },
+        {
+          "path": "icons.md",
+          "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+          "upstreamSha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b"
+        },
+        {
+          "path": "performance.md",
+          "sha256": "e4bc3c90d6e0281d295e2e7e39d545fb9abd8a67667b0c10e589eda8115e5b1e",
+          "upstreamSha256": "e4bc3c90d6e0281d295e2e7e39d545fb9abd8a67667b0c10e589eda8115e5b1e"
+        },
+        {
+          "path": "surfaces.md",
+          "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+          "upstreamSha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "better-writing",
+      "upstreamName": "better-writing",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/better-writing",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/better-writing",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/better-writing",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "10cfd6ebf824e2638ac058e6f3395b8078800ecf9cfffb0194cd07c0fb835154",
+          "upstreamSha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "a5aec7e0cbc87930962f139eff4341dcf87e83fd19b9447e3f614db2bc71de67",
+          "upstreamSha256": "a5aec7e0cbc87930962f139eff4341dcf87e83fd19b9447e3f614db2bc71de67"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "break",
+      "upstreamName": "break",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/break",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/break",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/break",
+        "status": "portable-guidance"
+      },
+      "invocation": "user-only",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "931d14a6c820292c36daf1de880574cd8fdc3c8ec2e399ba74c3939cf2a13b6f",
+          "upstreamSha256": "4b8a1d6b60c2d522432765ab90e9b794fa36dc54f08d1a734c5cb2a1baa69ff1"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "e3e6b1a83f90763fa8cb166b4ec483ebc78fc84311fb0594d29f03d8ef76eddc",
+          "upstreamSha256": "e3e6b1a83f90763fa8cb166b4ec483ebc78fc84311fb0594d29f03d8ef76eddc"
+        },
+        {
+          "path": "scenarios.md",
+          "sha256": "5aacf085d5eca87b7b5e4f1b0a7412bfd532c8eaa574f455a5b1ffb00cdf86e9",
+          "upstreamSha256": "5aacf085d5eca87b7b5e4f1b0a7412bfd532c8eaa574f455a5b1ffb00cdf86e9"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "explain-interface",
+      "upstreamName": "explain-interface",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/explain-interface",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/explain-interface",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/explain-interface",
+        "status": "portable-guidance"
+      },
+      "invocation": "user-only",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "1ae922ae25464591657bd78734d5a6e94b306a12d478d486469123b8238f40e5",
+          "upstreamSha256": "cff58fca5a8f29cefc05bf9f97c1f88f3cf9345ee520a2da4db803c50848c5fb"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "3858853344ece1dd145523bd9d61c8905c4b2cb6c7307f023cc8666b8f4dc0bc",
+          "upstreamSha256": "3858853344ece1dd145523bd9d61c8905c4b2cb6c7307f023cc8666b8f4dc0bc"
+        },
+        {
+          "path": "find-the-effect.md",
+          "sha256": "7e26085eb0c8c68c33d322fbecb16586cc799b0e032d53c912eb16a0c253ceaf",
+          "upstreamSha256": "7e26085eb0c8c68c33d322fbecb16586cc799b0e032d53c912eb16a0c253ceaf"
+        },
+        {
+          "path": "from-an-image.md",
+          "sha256": "b6073080f9fedf9ac34ff035c36aa235c42e6549bcd619d460484fd262add18b",
+          "upstreamSha256": "b6073080f9fedf9ac34ff035c36aa235c42e6549bcd619d460484fd262add18b"
+        },
+        {
+          "path": "no-browser.md",
+          "sha256": "685ef98fd84329596d7eb457dfbf46afd682fff17f40fe381b7baae106403de3",
+          "upstreamSha256": "c46533a02e16a3ed09cb3d74df7898547200a21b27053ee029da8b7c4a4f5c8c"
+        },
+        {
+          "path": "read-the-system.md",
+          "sha256": "d10d72357af0733ad1db251bc9fd2ec6e8218cdac4bc095a87cf714a269d1688",
+          "upstreamSha256": "d10d72357af0733ad1db251bc9fd2ec6e8218cdac4bc095a87cf714a269d1688"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Reworded Unix-specific prose discovery instructions to harness file searches.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Removed automatic browser-MCP installation; use only an existing harness browser capability.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "interface-review",
+      "upstreamName": "interface-review",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/interface-review",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/interface-review",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/interface-review",
+        "status": "portable-guidance"
+      },
+      "invocation": "user-only",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "1d1be380023599398a5f911e9c90c3ebacb45e63cbcf1759ceab936733b49cb6",
+          "upstreamSha256": "65783ac261ee1a33da11bbbbdb6e71ab6162fc24a2450f91781457b41b9a6d13"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "c8bb068bbd40629f03d7d4c0284924f8df1dfdf7f1a7b0fabb88b265202fa23f",
+          "upstreamSha256": "c8bb068bbd40629f03d7d4c0284924f8df1dfdf7f1a7b0fabb88b265202fa23f"
+        },
+        {
+          "path": "removed-signals.md",
+          "sha256": "b44a8d5e5bb8e4a56b0b8d32f7fbd9dd6f3625b30b097520b9ded086e41b7381",
+          "upstreamSha256": "9e2d2d0c555dce408e241a9179c04f743c76459b6bd9add0904d03163ff61af0"
+        },
+        {
+          "path": "scope-resolution.md",
+          "sha256": "c3ca6c8c605d8f321995c935fc5bcc5173d7d3a46541de0b580f7394d6e121b7",
+          "upstreamSha256": "c3ca6c8c605d8f321995c935fc5bcc5173d7d3a46541de0b580f7394d6e121b7"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Reworded Unix-specific prose discovery instructions to harness file searches.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "variant",
+      "upstreamName": "variant",
+      "source": "https://github.com/jakubkrehel/skills/tree/267330e1adfc66a718fb65fa6918c1f06d0a689e/skills/variant",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/variant",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/variant",
+        "status": "portable-guidance"
+      },
+      "invocation": "user-only",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "4fd6b1c68c1c15d51cfa532494de59f1069a6f01d1073edff8504cd62f9d6ed2",
+          "upstreamSha256": "0cb89389c0423ff46e8a5a07bda894b43619366210fa3bc98beb39908cbc1635"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "24e006ea99aed264541692cfd778aa758ff111fa242ec81126fd51fdf1b29ff0",
+          "upstreamSha256": "24e006ea99aed264541692cfd778aa758ff111fa242ec81126fd51fdf1b29ff0"
+        },
+        {
+          "path": "picker.md",
+          "sha256": "62f357b4e3123fcb95862c7bd7d1294e023dc7d2094482a43c25c412b58cf537",
+          "upstreamSha256": "62f357b4e3123fcb95862c7bd7d1294e023dc7d2094482a43c25c412b58cf537"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "vercel-react-best-practices",
+      "upstreamName": "vercel-react-best-practices",
+      "source": "https://github.com/vercel-labs/agent-skills/tree/063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/vercel-react-best-practices",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/vercel-react-best-practices",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "1be7177ba8219da32f3bb3ffa43fd85f640a304dcd3e38c5dcea3d910e015e13",
+          "upstreamSha256": "fc93e7421177bbf869cce892bc60a6c83a4517d974bc3bf65c4e2c1e58a6ccf6"
+        },
+        {
+          "path": "README.md",
+          "sha256": "9eafb2123d3b8b2aef41fba0db2648a3f4f49996f8c7c8bb2c86263befd8b48a",
+          "upstreamSha256": "9eafb2123d3b8b2aef41fba0db2648a3f4f49996f8c7c8bb2c86263befd8b48a"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "582210fa578ba060abdf247e32b49b751d0a6b44645f3ce98dfb3bfdd581f386",
+          "upstreamSha256": "71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355"
+        },
+        {
+          "path": "metadata.json",
+          "sha256": "c4e18bac3290fbe1b471a605867d4df68b03144ea26b8befdbe8f9d8fd124354",
+          "upstreamSha256": "c4e18bac3290fbe1b471a605867d4df68b03144ea26b8befdbe8f9d8fd124354"
+        },
+        {
+          "path": "rules/_sections.md",
+          "sha256": "01c59969e4e867f0708c8f8ef9c6d87fab9a07d0586244f429ff84013db8a115",
+          "upstreamSha256": "01c59969e4e867f0708c8f8ef9c6d87fab9a07d0586244f429ff84013db8a115"
+        },
+        {
+          "path": "rules/_template.md",
+          "sha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442",
+          "upstreamSha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442"
+        },
+        {
+          "path": "rules/advanced-effect-event-deps.md",
+          "sha256": "55ed8f9f27a1bff803d6fa55828176207714b02123cbb97ddb8a90d88024a723",
+          "upstreamSha256": "55ed8f9f27a1bff803d6fa55828176207714b02123cbb97ddb8a90d88024a723"
+        },
+        {
+          "path": "rules/advanced-event-handler-refs.md",
+          "sha256": "a3097edeecfb2ff6851cd66ed8cdf0617c3c88180504bee824aa6e75a215bbbc",
+          "upstreamSha256": "a3097edeecfb2ff6851cd66ed8cdf0617c3c88180504bee824aa6e75a215bbbc"
+        },
+        {
+          "path": "rules/advanced-init-once.md",
+          "sha256": "3e4dc22173eb0e2b6dcf583e3babd862b8696328f8f59aee7c4d746c5bc05f6c",
+          "upstreamSha256": "3e4dc22173eb0e2b6dcf583e3babd862b8696328f8f59aee7c4d746c5bc05f6c"
+        },
+        {
+          "path": "rules/advanced-use-latest.md",
+          "sha256": "8a3f64dfe5a77d1564248faf17fe662ae75b55d497a243cb30b38eb07ccbbf9a",
+          "upstreamSha256": "8a3f64dfe5a77d1564248faf17fe662ae75b55d497a243cb30b38eb07ccbbf9a"
+        },
+        {
+          "path": "rules/async-api-routes.md",
+          "sha256": "523338540d73427dc14c0cbb19f2741ebccdf8b105a7b2c1b33d2905cf237a42",
+          "upstreamSha256": "523338540d73427dc14c0cbb19f2741ebccdf8b105a7b2c1b33d2905cf237a42"
+        },
+        {
+          "path": "rules/async-cheap-condition-before-await.md",
+          "sha256": "03107c1f70a293cd58a8abc5474c5548e20ea4efdf01b6d45aae7ad0ac1cb32c",
+          "upstreamSha256": "03107c1f70a293cd58a8abc5474c5548e20ea4efdf01b6d45aae7ad0ac1cb32c"
+        },
+        {
+          "path": "rules/async-defer-await.md",
+          "sha256": "f3c142d090615abdcc99d31c123be37b31f0f1ed8d9ec9f7789a3bc6883ae0fb",
+          "upstreamSha256": "f3c142d090615abdcc99d31c123be37b31f0f1ed8d9ec9f7789a3bc6883ae0fb"
+        },
+        {
+          "path": "rules/async-dependencies.md",
+          "sha256": "16ef469f877e30c6b8e1e1b4bc3e527312fa3c6318cb785a4eca186ea236131a",
+          "upstreamSha256": "16ef469f877e30c6b8e1e1b4bc3e527312fa3c6318cb785a4eca186ea236131a"
+        },
+        {
+          "path": "rules/async-parallel.md",
+          "sha256": "6d2f841896279e976dfcdc1ac89e70771ac188baadfd43c096b5706cb838b961",
+          "upstreamSha256": "6d2f841896279e976dfcdc1ac89e70771ac188baadfd43c096b5706cb838b961"
+        },
+        {
+          "path": "rules/async-suspense-boundaries.md",
+          "sha256": "de05fedac2eb7ae563b887b5a424464ec3dfaf84e5b7797467ebe2a796ac8afc",
+          "upstreamSha256": "de05fedac2eb7ae563b887b5a424464ec3dfaf84e5b7797467ebe2a796ac8afc"
+        },
+        {
+          "path": "rules/bundle-analyzable-paths.md",
+          "sha256": "62090b5c815fd71bf1133dce754f51abc16a9456d0ccd025fd627de27726e92a",
+          "upstreamSha256": "62090b5c815fd71bf1133dce754f51abc16a9456d0ccd025fd627de27726e92a"
+        },
+        {
+          "path": "rules/bundle-barrel-imports.md",
+          "sha256": "e648f6d54525f07a691357040ca5bff6ea3424788a91ff63812adb29622a671b",
+          "upstreamSha256": "e648f6d54525f07a691357040ca5bff6ea3424788a91ff63812adb29622a671b"
+        },
+        {
+          "path": "rules/bundle-conditional.md",
+          "sha256": "09c8259c3efb04fc0abb8e412ccbda217c222ae8118516283e571c995fe3a7d4",
+          "upstreamSha256": "09c8259c3efb04fc0abb8e412ccbda217c222ae8118516283e571c995fe3a7d4"
+        },
+        {
+          "path": "rules/bundle-defer-third-party.md",
+          "sha256": "3719fb47b191e8db4fe22686ec88448ad5af9e6838585425abbe103d0b642e37",
+          "upstreamSha256": "3719fb47b191e8db4fe22686ec88448ad5af9e6838585425abbe103d0b642e37"
+        },
+        {
+          "path": "rules/bundle-dynamic-imports.md",
+          "sha256": "401817a7369f315fc5a68a1095742ff7d53d0461906880dc9d64a41495ee1986",
+          "upstreamSha256": "401817a7369f315fc5a68a1095742ff7d53d0461906880dc9d64a41495ee1986"
+        },
+        {
+          "path": "rules/bundle-preload.md",
+          "sha256": "d1f7cc28da7cd5ab249acd287edc5b761afcfb194e9cb62cd44c5f3543db2de2",
+          "upstreamSha256": "d1f7cc28da7cd5ab249acd287edc5b761afcfb194e9cb62cd44c5f3543db2de2"
+        },
+        {
+          "path": "rules/client-event-listeners.md",
+          "sha256": "242a873349febc1ce685e85617994784dbab92c2eaa68aed7fed5a83e7680e93",
+          "upstreamSha256": "242a873349febc1ce685e85617994784dbab92c2eaa68aed7fed5a83e7680e93"
+        },
+        {
+          "path": "rules/client-localstorage-schema.md",
+          "sha256": "0fb7cdf9dc93fdf22f87e3669f953fb9d4ac9b0be42eec4a29fe9a2560610b88",
+          "upstreamSha256": "0fb7cdf9dc93fdf22f87e3669f953fb9d4ac9b0be42eec4a29fe9a2560610b88"
+        },
+        {
+          "path": "rules/client-passive-event-listeners.md",
+          "sha256": "1f35016f9053de69e884ee9be00654e37979c2ca85f5e57764dc2626ff7acb4b",
+          "upstreamSha256": "1f35016f9053de69e884ee9be00654e37979c2ca85f5e57764dc2626ff7acb4b"
+        },
+        {
+          "path": "rules/client-swr-dedup.md",
+          "sha256": "644652c39c6cc00de8d1c77a7273612e868dc3f7edda30764164c12ec0f764a3",
+          "upstreamSha256": "644652c39c6cc00de8d1c77a7273612e868dc3f7edda30764164c12ec0f764a3"
+        },
+        {
+          "path": "rules/js-batch-dom-css.md",
+          "sha256": "480b891b9eaf96e929dc1e964274a4828e3a78009b7d00ccd965a0d425215959",
+          "upstreamSha256": "480b891b9eaf96e929dc1e964274a4828e3a78009b7d00ccd965a0d425215959"
+        },
+        {
+          "path": "rules/js-cache-function-results.md",
+          "sha256": "3daaa11d24f4295cb6be8bc6f407f2ce83cc7b5bd1f0e68891ea8ab835721dc7",
+          "upstreamSha256": "3daaa11d24f4295cb6be8bc6f407f2ce83cc7b5bd1f0e68891ea8ab835721dc7"
+        },
+        {
+          "path": "rules/js-cache-property-access.md",
+          "sha256": "73e47431e74878a927061bf0ddc7cd91a7556cb35d2573f3421e82300d9ae311",
+          "upstreamSha256": "73e47431e74878a927061bf0ddc7cd91a7556cb35d2573f3421e82300d9ae311"
+        },
+        {
+          "path": "rules/js-cache-storage.md",
+          "sha256": "11b826b0433898c1ece2d3547010d8e77db9fb240185748c45db91493de9b6cc",
+          "upstreamSha256": "11b826b0433898c1ece2d3547010d8e77db9fb240185748c45db91493de9b6cc"
+        },
+        {
+          "path": "rules/js-combine-iterations.md",
+          "sha256": "71add08aeeb43091d4ff4c0b2842cce8b4bdef8ad3e732cc034bb5a84827e746",
+          "upstreamSha256": "71add08aeeb43091d4ff4c0b2842cce8b4bdef8ad3e732cc034bb5a84827e746"
+        },
+        {
+          "path": "rules/js-early-exit.md",
+          "sha256": "925ce5ce87f3347186ca62212f29cc6baa2b8c85a96d2720ad07c3d0abf781c0",
+          "upstreamSha256": "925ce5ce87f3347186ca62212f29cc6baa2b8c85a96d2720ad07c3d0abf781c0"
+        },
+        {
+          "path": "rules/js-flatmap-filter.md",
+          "sha256": "9e5b166a41914d975bef7635467f8fb32cd98b5c3126c0bc6f163490812fb5f0",
+          "upstreamSha256": "9e5b166a41914d975bef7635467f8fb32cd98b5c3126c0bc6f163490812fb5f0"
+        },
+        {
+          "path": "rules/js-hoist-regexp.md",
+          "sha256": "f9e9aef2f7c2307dd7310f283df85dcada45fc43e9bb941b0c3aa414dec21ec4",
+          "upstreamSha256": "f9e9aef2f7c2307dd7310f283df85dcada45fc43e9bb941b0c3aa414dec21ec4"
+        },
+        {
+          "path": "rules/js-index-maps.md",
+          "sha256": "5df1bdc2cfabb2c98abd55d26762e5c18189535c2e686184f426082e62920391",
+          "upstreamSha256": "5df1bdc2cfabb2c98abd55d26762e5c18189535c2e686184f426082e62920391"
+        },
+        {
+          "path": "rules/js-length-check-first.md",
+          "sha256": "8b54a311c826b299272f29187fc58bc55772a04c4a72eeb29456ee96dc9fc624",
+          "upstreamSha256": "8b54a311c826b299272f29187fc58bc55772a04c4a72eeb29456ee96dc9fc624"
+        },
+        {
+          "path": "rules/js-min-max-loop.md",
+          "sha256": "26cd2d34c6a364d4d560e4fd1c75bc2292df22fcd7bde011243d83edaec13ad3",
+          "upstreamSha256": "87dfb67e2f39df6ad8bcfb5b78c5fb364d3c07554ad188a202408d99f3763421"
+        },
+        {
+          "path": "rules/js-request-idle-callback.md",
+          "sha256": "ee08f83905b4011abbc33d594033157d77561b5bbd9b36b04f0f409581ffec32",
+          "upstreamSha256": "ee08f83905b4011abbc33d594033157d77561b5bbd9b36b04f0f409581ffec32"
+        },
+        {
+          "path": "rules/js-set-map-lookups.md",
+          "sha256": "a7fd781a6ba9ad49065961b6f9a90ef486bf6b648390e1a08704025f98e1642b",
+          "upstreamSha256": "a7fd781a6ba9ad49065961b6f9a90ef486bf6b648390e1a08704025f98e1642b"
+        },
+        {
+          "path": "rules/js-tosorted-immutable.md",
+          "sha256": "d0a5e1b0fec48a0a81397957e2f068e224329f7c42cb5feeed8aae6fa64025e8",
+          "upstreamSha256": "d0a5e1b0fec48a0a81397957e2f068e224329f7c42cb5feeed8aae6fa64025e8"
+        },
+        {
+          "path": "rules/rendering-activity.md",
+          "sha256": "1e5e7eaf3555e61d6a2e900089c676527d26259501db5594f59544b6c664f85a",
+          "upstreamSha256": "1e5e7eaf3555e61d6a2e900089c676527d26259501db5594f59544b6c664f85a"
+        },
+        {
+          "path": "rules/rendering-animate-svg-wrapper.md",
+          "sha256": "9c6ae0ca7a51434e803887c64cded760956579a1452ccb80a461a03f9c937c77",
+          "upstreamSha256": "9c6ae0ca7a51434e803887c64cded760956579a1452ccb80a461a03f9c937c77"
+        },
+        {
+          "path": "rules/rendering-conditional-render.md",
+          "sha256": "2ec2fa23c4148285144687050c52369adba3da2fbe3d486f8d3e0aad8f06f2bc",
+          "upstreamSha256": "2ec2fa23c4148285144687050c52369adba3da2fbe3d486f8d3e0aad8f06f2bc"
+        },
+        {
+          "path": "rules/rendering-content-visibility.md",
+          "sha256": "64eee6d5b916fe74df33363994b27fc7f71bea3bcedc7ee04bda23107ca3e6e4",
+          "upstreamSha256": "64eee6d5b916fe74df33363994b27fc7f71bea3bcedc7ee04bda23107ca3e6e4"
+        },
+        {
+          "path": "rules/rendering-hoist-jsx.md",
+          "sha256": "93b229560fae92005ed9a2a829064607b39b2e984e92d221d05b2d41df2b7c0e",
+          "upstreamSha256": "93b229560fae92005ed9a2a829064607b39b2e984e92d221d05b2d41df2b7c0e"
+        },
+        {
+          "path": "rules/rendering-hydration-no-flicker.md",
+          "sha256": "dc7ab358c67c177bca6e6f360fbc935ebe4efa928c0ba3ebd3f9f3d9e2000ca3",
+          "upstreamSha256": "dc7ab358c67c177bca6e6f360fbc935ebe4efa928c0ba3ebd3f9f3d9e2000ca3"
+        },
+        {
+          "path": "rules/rendering-hydration-suppress-warning.md",
+          "sha256": "915bacb934e2927d84b37a3f3d225a47b309ac8f9e494ed2bcb66ce07c5676a2",
+          "upstreamSha256": "915bacb934e2927d84b37a3f3d225a47b309ac8f9e494ed2bcb66ce07c5676a2"
+        },
+        {
+          "path": "rules/rendering-resource-hints.md",
+          "sha256": "351b1095d641717b930f1b2253282b7120af3023bc74e06c17675168d4286864",
+          "upstreamSha256": "351b1095d641717b930f1b2253282b7120af3023bc74e06c17675168d4286864"
+        },
+        {
+          "path": "rules/rendering-script-defer-async.md",
+          "sha256": "4cea07b7875ba7fc2c7465ff23b63a2bb334f90aaf2d9293d38d67b05fdb32ab",
+          "upstreamSha256": "4cea07b7875ba7fc2c7465ff23b63a2bb334f90aaf2d9293d38d67b05fdb32ab"
+        },
+        {
+          "path": "rules/rendering-svg-precision.md",
+          "sha256": "ed468533f6e95f622859c884b122cf21f9f593ed6bb3d500a54de4b9f9bcb9fb",
+          "upstreamSha256": "ed468533f6e95f622859c884b122cf21f9f593ed6bb3d500a54de4b9f9bcb9fb"
+        },
+        {
+          "path": "rules/rendering-usetransition-loading.md",
+          "sha256": "3a1249c3f13026b6f54ab5712c388df219d6af01b12aa542749acd99a46f4bc1",
+          "upstreamSha256": "3a1249c3f13026b6f54ab5712c388df219d6af01b12aa542749acd99a46f4bc1"
+        },
+        {
+          "path": "rules/rerender-defer-reads.md",
+          "sha256": "234050a77faf50cb306be10a9e15bd4421134ab5907e75f13e6d78e2bd262dc9",
+          "upstreamSha256": "234050a77faf50cb306be10a9e15bd4421134ab5907e75f13e6d78e2bd262dc9"
+        },
+        {
+          "path": "rules/rerender-dependencies.md",
+          "sha256": "17eb5830956fb56486fd3cfc7431f5849d39751730c05ad9e77dd4f0c27169c5",
+          "upstreamSha256": "17eb5830956fb56486fd3cfc7431f5849d39751730c05ad9e77dd4f0c27169c5"
+        },
+        {
+          "path": "rules/rerender-derived-state-no-effect.md",
+          "sha256": "cb11ec76f50aa7b6847269f02d79b120c889a30d9ecd2c1d578f75144419c77a",
+          "upstreamSha256": "cb11ec76f50aa7b6847269f02d79b120c889a30d9ecd2c1d578f75144419c77a"
+        },
+        {
+          "path": "rules/rerender-derived-state.md",
+          "sha256": "1c326bb67b01fb084eb00c8911b0a7cff54681c2315b629f88e49b64eaa6481d",
+          "upstreamSha256": "1c326bb67b01fb084eb00c8911b0a7cff54681c2315b629f88e49b64eaa6481d"
+        },
+        {
+          "path": "rules/rerender-functional-setstate.md",
+          "sha256": "5e68df6b2ae8058e67f476ff1ac67bde159f5a9d18df439e46eabcdeb7b52e58",
+          "upstreamSha256": "5e68df6b2ae8058e67f476ff1ac67bde159f5a9d18df439e46eabcdeb7b52e58"
+        },
+        {
+          "path": "rules/rerender-lazy-state-init.md",
+          "sha256": "4ae844740f266fc8cbf050701230286624a2440ec5be67b9a63d9edc3c580573",
+          "upstreamSha256": "4ae844740f266fc8cbf050701230286624a2440ec5be67b9a63d9edc3c580573"
+        },
+        {
+          "path": "rules/rerender-memo-with-default-value.md",
+          "sha256": "81c47476564ad8a79fc68fc442734255ca7d6829424359464503fda0a9f9a0dd",
+          "upstreamSha256": "81c47476564ad8a79fc68fc442734255ca7d6829424359464503fda0a9f9a0dd"
+        },
+        {
+          "path": "rules/rerender-memo.md",
+          "sha256": "1f258990c2f27ff6256b3cc5c43300631bb3f0d81f749aed08d07fcdcc131dd1",
+          "upstreamSha256": "1f258990c2f27ff6256b3cc5c43300631bb3f0d81f749aed08d07fcdcc131dd1"
+        },
+        {
+          "path": "rules/rerender-move-effect-to-event.md",
+          "sha256": "abc2cbf167bee056743023351e96806a411d3398da8802093620aecf0721f029",
+          "upstreamSha256": "abc2cbf167bee056743023351e96806a411d3398da8802093620aecf0721f029"
+        },
+        {
+          "path": "rules/rerender-no-inline-components.md",
+          "sha256": "1cc32907a770272524ba682eef9e7efdd8ad4533b6f89b718a1fcd7d1d0eb6a3",
+          "upstreamSha256": "1cc32907a770272524ba682eef9e7efdd8ad4533b6f89b718a1fcd7d1d0eb6a3"
+        },
+        {
+          "path": "rules/rerender-simple-expression-in-memo.md",
+          "sha256": "5bdcf2d1558ba5204e643c887b7b4060f89630969425651eb68e96427d97f800",
+          "upstreamSha256": "5bdcf2d1558ba5204e643c887b7b4060f89630969425651eb68e96427d97f800"
+        },
+        {
+          "path": "rules/rerender-split-combined-hooks.md",
+          "sha256": "6f45d703343484ef9acef9388397f3642966ae6a5a258899a0cf1f9977cfbf6c",
+          "upstreamSha256": "6f45d703343484ef9acef9388397f3642966ae6a5a258899a0cf1f9977cfbf6c"
+        },
+        {
+          "path": "rules/rerender-transitions.md",
+          "sha256": "60f4033909a62df5e5b8c601494f9e50a562e2f8c1c2d81eac24f38142265f1c",
+          "upstreamSha256": "60f4033909a62df5e5b8c601494f9e50a562e2f8c1c2d81eac24f38142265f1c"
+        },
+        {
+          "path": "rules/rerender-use-deferred-value.md",
+          "sha256": "8c3579576a61a949884167745dcfaf1d5426ba305cc61fd0a79602d70fda4909",
+          "upstreamSha256": "8c3579576a61a949884167745dcfaf1d5426ba305cc61fd0a79602d70fda4909"
+        },
+        {
+          "path": "rules/rerender-use-ref-transient-values.md",
+          "sha256": "f1a649af9d1d0b5c762f6c9c4c1c70c90d7df82aa10296ee87aadb78c1b76c54",
+          "upstreamSha256": "f1a649af9d1d0b5c762f6c9c4c1c70c90d7df82aa10296ee87aadb78c1b76c54"
+        },
+        {
+          "path": "rules/server-after-nonblocking.md",
+          "sha256": "d0b8d24a3db9f0f65f9e2bddbf230b0e03a5f60e1229d93a4a18f5e7a991c7c2",
+          "upstreamSha256": "d0b8d24a3db9f0f65f9e2bddbf230b0e03a5f60e1229d93a4a18f5e7a991c7c2"
+        },
+        {
+          "path": "rules/server-auth-actions.md",
+          "sha256": "a2ca8aa102839251c7971ec784560fab943c20b36fe6f80365d4110c13260c23",
+          "upstreamSha256": "a2ca8aa102839251c7971ec784560fab943c20b36fe6f80365d4110c13260c23"
+        },
+        {
+          "path": "rules/server-cache-lru.md",
+          "sha256": "1924b64561841923b88a657085097a0aeba3e0ba2d5470b9f5c15cc10d6ae70f",
+          "upstreamSha256": "1924b64561841923b88a657085097a0aeba3e0ba2d5470b9f5c15cc10d6ae70f"
+        },
+        {
+          "path": "rules/server-cache-react.md",
+          "sha256": "fddeea6c870bb3da4134b61d54b7d09b83d2603f929b7547cd3dc1dc269edd5c",
+          "upstreamSha256": "fddeea6c870bb3da4134b61d54b7d09b83d2603f929b7547cd3dc1dc269edd5c"
+        },
+        {
+          "path": "rules/server-dedup-props.md",
+          "sha256": "c2747424cdac46be62f835f245a0aa887b0090b416d28e2ac8676702645eeb37",
+          "upstreamSha256": "c2747424cdac46be62f835f245a0aa887b0090b416d28e2ac8676702645eeb37"
+        },
+        {
+          "path": "rules/server-hoist-static-io.md",
+          "sha256": "5abea4dd882b13661bd5f7dfb93f9e547d5f08176c61c448ade91b210ed5d49f",
+          "upstreamSha256": "5abea4dd882b13661bd5f7dfb93f9e547d5f08176c61c448ade91b210ed5d49f"
+        },
+        {
+          "path": "rules/server-no-shared-module-state.md",
+          "sha256": "4d869bf1cd2f1632e5ca4c0e64b1cf0e71c5f5a0f940bc8a22174d205e735ed7",
+          "upstreamSha256": "4d869bf1cd2f1632e5ca4c0e64b1cf0e71c5f5a0f940bc8a22174d205e735ed7"
+        },
+        {
+          "path": "rules/server-parallel-fetching.md",
+          "sha256": "569a2e9fc04f9606686cd75c5894ef8781b502786a7fffe241396846c7733472",
+          "upstreamSha256": "569a2e9fc04f9606686cd75c5894ef8781b502786a7fffe241396846c7733472"
+        },
+        {
+          "path": "rules/server-parallel-nested-fetching.md",
+          "sha256": "ad5d9656984d4a959997a2367bf59cc6632297b4634a1dd13a087939d83f30b3",
+          "upstreamSha256": "ad5d9656984d4a959997a2367bf59cc6632297b4634a1dd13a087939d83f30b3"
+        },
+        {
+          "path": "rules/server-serialization.md",
+          "sha256": "f4c7d68b29c82381baad059c4a7f09e868e71ec9c3115a26ad3ae7d24c0dfe1f",
+          "upstreamSha256": "f4c7d68b29c82381baad059c4a7f09e868e71ec9c3115a26ad3ae7d24c0dfe1f"
+        },
+        {
+          "path": "UPSTREAM-LICENSE-EVIDENCE.md",
+          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "vercel-composition-patterns",
+      "upstreamName": "vercel-composition-patterns",
+      "source": "https://github.com/vercel-labs/agent-skills/tree/063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/vercel-composition-patterns",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/vercel-composition-patterns",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "89e3ddd58fcf99a53a50e25dfd21b8cde1be5f10b7df6bacd3dfa6796932f516",
+          "upstreamSha256": "89e3ddd58fcf99a53a50e25dfd21b8cde1be5f10b7df6bacd3dfa6796932f516"
+        },
+        {
+          "path": "README.md",
+          "sha256": "85915a43a6f0b4efe525e3cf6398dd866166da2025837c4460468a24a940da94",
+          "upstreamSha256": "85915a43a6f0b4efe525e3cf6398dd866166da2025837c4460468a24a940da94"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "8f841b20ed26d9703c385ba2079278112d611ef9a6ecf28503ec2f26e99276ce",
+          "upstreamSha256": "e38e0eaa609316b10423a9a138ed95e35099accd3f735585295c8a8f165c28a3"
+        },
+        {
+          "path": "metadata.json",
+          "sha256": "49262ed5cb4186f31ee980cf8d990be0170c51efed4908d0464a1cff9905bd05",
+          "upstreamSha256": "49262ed5cb4186f31ee980cf8d990be0170c51efed4908d0464a1cff9905bd05"
+        },
+        {
+          "path": "rules/_sections.md",
+          "sha256": "a174213b87e6911e2b766995a2cbaf8d1534057076e82fb79fe3f0ecb38047df",
+          "upstreamSha256": "a174213b87e6911e2b766995a2cbaf8d1534057076e82fb79fe3f0ecb38047df"
+        },
+        {
+          "path": "rules/_template.md",
+          "sha256": "587f7d16b0660eb61fee4a4d3d7df2b3077d6835de170602c7d6e60bee559131",
+          "upstreamSha256": "587f7d16b0660eb61fee4a4d3d7df2b3077d6835de170602c7d6e60bee559131"
+        },
+        {
+          "path": "rules/architecture-avoid-boolean-props.md",
+          "sha256": "007555ebb020f4d552582a2c4db194db71a1fd33094012e5187bcfa4f8c392d5",
+          "upstreamSha256": "007555ebb020f4d552582a2c4db194db71a1fd33094012e5187bcfa4f8c392d5"
+        },
+        {
+          "path": "rules/architecture-compound-components.md",
+          "sha256": "f246af13dc269b521cf20eb8ad99a0cb645beac381c8c9b117262c34612c8457",
+          "upstreamSha256": "f246af13dc269b521cf20eb8ad99a0cb645beac381c8c9b117262c34612c8457"
+        },
+        {
+          "path": "rules/patterns-children-over-render-props.md",
+          "sha256": "7c45a0d21b3c4126a32cba916ee31adeae195386ad1dbbe6634aedb7457aa0ad",
+          "upstreamSha256": "7c45a0d21b3c4126a32cba916ee31adeae195386ad1dbbe6634aedb7457aa0ad"
+        },
+        {
+          "path": "rules/patterns-explicit-variants.md",
+          "sha256": "8c19e596e61807549d01ce8c6954c6358199f97a8511c0c02c625ec0efda8c0e",
+          "upstreamSha256": "8c19e596e61807549d01ce8c6954c6358199f97a8511c0c02c625ec0efda8c0e"
+        },
+        {
+          "path": "rules/react19-no-forwardref.md",
+          "sha256": "881830adb7534c4b2d70db426556646ad9837f5478f744f35641f635ada22227",
+          "upstreamSha256": "881830adb7534c4b2d70db426556646ad9837f5478f744f35641f635ada22227"
+        },
+        {
+          "path": "rules/state-context-interface.md",
+          "sha256": "09e73afbf9285fa416679cc864a287b9e8b821d0969272ab784295386d8c9bc3",
+          "upstreamSha256": "09e73afbf9285fa416679cc864a287b9e8b821d0969272ab784295386d8c9bc3"
+        },
+        {
+          "path": "rules/state-decouple-implementation.md",
+          "sha256": "76a8c1eb29a70d8996ab3f71260345af2f7bc89deab815a421d6c87c6591a9c3",
+          "upstreamSha256": "76a8c1eb29a70d8996ab3f71260345af2f7bc89deab815a421d6c87c6591a9c3"
+        },
+        {
+          "path": "rules/state-lift-state.md",
+          "sha256": "74c54038a6c554c748fe31cec673b80861b5d920b7553cf78cdf10d18b4b759b",
+          "upstreamSha256": "74c54038a6c554c748fe31cec673b80861b5d920b7553cf78cdf10d18b4b759b"
+        },
+        {
+          "path": "UPSTREAM-LICENSE-EVIDENCE.md",
+          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "vercel-react-native-skills",
+      "upstreamName": "vercel-react-native-skills",
+      "source": "https://github.com/vercel-labs/agent-skills/tree/063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/vercel-react-native-skills",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/vercel-react-native-skills",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "bf6ab7ae8ddd592d8042c944b004e5b6b2a4651be1f6514597185e9db4ab12dd",
+          "upstreamSha256": "72996343b8260800fbeb9af63ddaed91f14b65dc547e0922f9f8e9bd72076cbf"
+        },
+        {
+          "path": "README.md",
+          "sha256": "d60d7623005a833b928be6a109ed9d14dea43d7217fb534e8f2e4de5fc1f0ddf",
+          "upstreamSha256": "d60d7623005a833b928be6a109ed9d14dea43d7217fb534e8f2e4de5fc1f0ddf"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "14b1f7487372916fccf4c16ab47eecad2465fe0f43b31b9c308c4bb7a4ad013f",
+          "upstreamSha256": "4012750a5ccbe064ca04af3835d5d1b011979d2d09d9b6df1c8128fac58e0a66"
+        },
+        {
+          "path": "metadata.json",
+          "sha256": "59ee2274cadbd95b2220727028f0dbc26d3e0251e7937226edc9e7640756ba21",
+          "upstreamSha256": "59ee2274cadbd95b2220727028f0dbc26d3e0251e7937226edc9e7640756ba21"
+        },
+        {
+          "path": "rules/_sections.md",
+          "sha256": "21d7445e92bd7d393b420118c3fb9ebbf30aaf123a15143afb6c0b1b562cfdfd",
+          "upstreamSha256": "21d7445e92bd7d393b420118c3fb9ebbf30aaf123a15143afb6c0b1b562cfdfd"
+        },
+        {
+          "path": "rules/_template.md",
+          "sha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442",
+          "upstreamSha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442"
+        },
+        {
+          "path": "rules/animation-derived-value.md",
+          "sha256": "689228e9d59227934f296563963951aa9368be0afb2a188f650de161203b1862",
+          "upstreamSha256": "689228e9d59227934f296563963951aa9368be0afb2a188f650de161203b1862"
+        },
+        {
+          "path": "rules/animation-gesture-detector-press.md",
+          "sha256": "69408d4be669e74689d865c5f50a22fc3a802d521fe493371761abd20526e58e",
+          "upstreamSha256": "69408d4be669e74689d865c5f50a22fc3a802d521fe493371761abd20526e58e"
+        },
+        {
+          "path": "rules/animation-gpu-properties.md",
+          "sha256": "f885e4179445da27cbc225e0a4aa3ed9016fc3507ca6f864392ba7a9d0bd7516",
+          "upstreamSha256": "f885e4179445da27cbc225e0a4aa3ed9016fc3507ca6f864392ba7a9d0bd7516"
+        },
+        {
+          "path": "rules/design-system-compound-components.md",
+          "sha256": "dcb10900a58fcf57cca2e27c062d02df2325a7949e08fb45e9e05cc2b132b1a6",
+          "upstreamSha256": "dcb10900a58fcf57cca2e27c062d02df2325a7949e08fb45e9e05cc2b132b1a6"
+        },
+        {
+          "path": "rules/fonts-config-plugin.md",
+          "sha256": "b92568774064a604e7a479d4c8d7263aed5609740e9161d2f2764bfff761905d",
+          "upstreamSha256": "b92568774064a604e7a479d4c8d7263aed5609740e9161d2f2764bfff761905d"
+        },
+        {
+          "path": "rules/imports-design-system-folder.md",
+          "sha256": "aa6337f7f2869a46a9141ec65e02c3da5c3bf051023899b82e0f0aef5bff8423",
+          "upstreamSha256": "aa6337f7f2869a46a9141ec65e02c3da5c3bf051023899b82e0f0aef5bff8423"
+        },
+        {
+          "path": "rules/js-hoist-intl.md",
+          "sha256": "b4b08622465ffcd5e5961878eb8c6d7359aa242d16c990b59941c9111962fe46",
+          "upstreamSha256": "b4b08622465ffcd5e5961878eb8c6d7359aa242d16c990b59941c9111962fe46"
+        },
+        {
+          "path": "rules/list-performance-callbacks.md",
+          "sha256": "db800e9dfe0080eb4954b96e2a362ee8344d08e08b1ed06bc8059450f3e6f0dd",
+          "upstreamSha256": "db800e9dfe0080eb4954b96e2a362ee8344d08e08b1ed06bc8059450f3e6f0dd"
+        },
+        {
+          "path": "rules/list-performance-function-references.md",
+          "sha256": "b54470e41d578b207ee3223f6853efb7fbf8e5f83d9aecf8da16989072f99544",
+          "upstreamSha256": "b54470e41d578b207ee3223f6853efb7fbf8e5f83d9aecf8da16989072f99544"
+        },
+        {
+          "path": "rules/list-performance-images.md",
+          "sha256": "e88f16ac113c29230d674b7aa2c66c31d5772a74b1ea378d48a97b1143fe6c19",
+          "upstreamSha256": "e88f16ac113c29230d674b7aa2c66c31d5772a74b1ea378d48a97b1143fe6c19"
+        },
+        {
+          "path": "rules/list-performance-inline-objects.md",
+          "sha256": "e2a80aac0f29c6abaf0163c1cc273d09cc8a0030ec077ca2022bbf5c309e4625",
+          "upstreamSha256": "e2a80aac0f29c6abaf0163c1cc273d09cc8a0030ec077ca2022bbf5c309e4625"
+        },
+        {
+          "path": "rules/list-performance-item-expensive.md",
+          "sha256": "a68cc8ec5dba3c55761bd5df9dfd3d98485f63076868d3e03af15f1e58907ce3",
+          "upstreamSha256": "a68cc8ec5dba3c55761bd5df9dfd3d98485f63076868d3e03af15f1e58907ce3"
+        },
+        {
+          "path": "rules/list-performance-item-memo.md",
+          "sha256": "38ec1d149ee485434d11c2b9e2101dfc914afadae4a0738ca905f26b05f708c1",
+          "upstreamSha256": "38ec1d149ee485434d11c2b9e2101dfc914afadae4a0738ca905f26b05f708c1"
+        },
+        {
+          "path": "rules/list-performance-item-types.md",
+          "sha256": "eed225f4e9e504bfa7db01f5395d1402545cc47de8adf1829a9408cd5d158cf6",
+          "upstreamSha256": "eed225f4e9e504bfa7db01f5395d1402545cc47de8adf1829a9408cd5d158cf6"
+        },
+        {
+          "path": "rules/list-performance-virtualize.md",
+          "sha256": "98cad308118acb4d6e8e975c0168ce56e2d48ca52ed47f23bc9a30667c066ada",
+          "upstreamSha256": "98cad308118acb4d6e8e975c0168ce56e2d48ca52ed47f23bc9a30667c066ada"
+        },
+        {
+          "path": "rules/monorepo-native-deps-in-app.md",
+          "sha256": "8368b109027fcec1b8a81bfb99718aef2b64edaba77107f73d7c465cc5a14217",
+          "upstreamSha256": "8368b109027fcec1b8a81bfb99718aef2b64edaba77107f73d7c465cc5a14217"
+        },
+        {
+          "path": "rules/monorepo-single-dependency-versions.md",
+          "sha256": "61c01b9eaab1e319bf078204231fb573bdfea3c43a6eb99e7ef73ee95d474ccc",
+          "upstreamSha256": "61c01b9eaab1e319bf078204231fb573bdfea3c43a6eb99e7ef73ee95d474ccc"
+        },
+        {
+          "path": "rules/navigation-native-navigators.md",
+          "sha256": "6642dedb57e72f0b56df5fbc3d5b8aaa91fc4456932c12712cfd076d393f32c6",
+          "upstreamSha256": "6642dedb57e72f0b56df5fbc3d5b8aaa91fc4456932c12712cfd076d393f32c6"
+        },
+        {
+          "path": "rules/react-compiler-destructure-functions.md",
+          "sha256": "8048926a4fa3fbd28fc0ecf4ba4c383a2f0ed06c2fd7330dd4a15d7f4e548044",
+          "upstreamSha256": "8048926a4fa3fbd28fc0ecf4ba4c383a2f0ed06c2fd7330dd4a15d7f4e548044"
+        },
+        {
+          "path": "rules/react-compiler-reanimated-shared-values.md",
+          "sha256": "3174303a72b6849ff0eda5cd9f9650f26baa5f31ed28d35a75076af714fb2ffc",
+          "upstreamSha256": "3174303a72b6849ff0eda5cd9f9650f26baa5f31ed28d35a75076af714fb2ffc"
+        },
+        {
+          "path": "rules/react-state-dispatcher.md",
+          "sha256": "7ec5b653e3ff8d9ca97d8d66981cce5590c0e49fa79ab708fd6324542b588870",
+          "upstreamSha256": "7ec5b653e3ff8d9ca97d8d66981cce5590c0e49fa79ab708fd6324542b588870"
+        },
+        {
+          "path": "rules/react-state-fallback.md",
+          "sha256": "eb76e386d71680bfdfc0ab64dba1221f4d3d0fdcb4980bb4a871381d58e9e58b",
+          "upstreamSha256": "eb76e386d71680bfdfc0ab64dba1221f4d3d0fdcb4980bb4a871381d58e9e58b"
+        },
+        {
+          "path": "rules/react-state-minimize.md",
+          "sha256": "31b989de61defda1c61d8578c4700efd64a427218c3f3dbb7062a1666e1cbe43",
+          "upstreamSha256": "31b989de61defda1c61d8578c4700efd64a427218c3f3dbb7062a1666e1cbe43"
+        },
+        {
+          "path": "rules/rendering-no-falsy-and.md",
+          "sha256": "7300fa45ac3a4968db144727a21052421bc62de9b5e9f6f59e28bd16d2fff001",
+          "upstreamSha256": "7300fa45ac3a4968db144727a21052421bc62de9b5e9f6f59e28bd16d2fff001"
+        },
+        {
+          "path": "rules/rendering-text-in-text-component.md",
+          "sha256": "fc67897b6126b6b5574f4d284a6c5b2282528fe89de8ec08e6cfd2a86ab5b235",
+          "upstreamSha256": "fc67897b6126b6b5574f4d284a6c5b2282528fe89de8ec08e6cfd2a86ab5b235"
+        },
+        {
+          "path": "rules/scroll-position-no-state.md",
+          "sha256": "70aa1ee679e755556d7b01b326431fe898d3c23ddba40d0da6bdac23c87a1525",
+          "upstreamSha256": "70aa1ee679e755556d7b01b326431fe898d3c23ddba40d0da6bdac23c87a1525"
+        },
+        {
+          "path": "rules/state-ground-truth.md",
+          "sha256": "9f3efc73d2e66a5deb3199c9774f42524cd6a0f69784af38301946be5d747cb5",
+          "upstreamSha256": "9f3efc73d2e66a5deb3199c9774f42524cd6a0f69784af38301946be5d747cb5"
+        },
+        {
+          "path": "rules/ui-expo-image.md",
+          "sha256": "c3c13cce3dd2cc7f8a9b4861e5743af98f62e28f5699f72f492e79a335cfae55",
+          "upstreamSha256": "c3c13cce3dd2cc7f8a9b4861e5743af98f62e28f5699f72f492e79a335cfae55"
+        },
+        {
+          "path": "rules/ui-image-gallery.md",
+          "sha256": "b34d1ba03710ed9622187716541ae618968e7d03bc28895c2ac918d3cc5853f1",
+          "upstreamSha256": "b34d1ba03710ed9622187716541ae618968e7d03bc28895c2ac918d3cc5853f1"
+        },
+        {
+          "path": "rules/ui-measure-views.md",
+          "sha256": "170d058abc4900ea9e851e54f5e8b437ffffc2c9d3847ae35e30a515c8990c3d",
+          "upstreamSha256": "170d058abc4900ea9e851e54f5e8b437ffffc2c9d3847ae35e30a515c8990c3d"
+        },
+        {
+          "path": "rules/ui-menus.md",
+          "sha256": "5964adbecfe9aeb28d736a4eaacec6469a1c4ca3f48779d243eb38b6d181cfe9",
+          "upstreamSha256": "5964adbecfe9aeb28d736a4eaacec6469a1c4ca3f48779d243eb38b6d181cfe9"
+        },
+        {
+          "path": "rules/ui-native-modals.md",
+          "sha256": "d803493b3046ad31cbb2c189f1fffb948fd0055050e3c322589bd548421e23a8",
+          "upstreamSha256": "d803493b3046ad31cbb2c189f1fffb948fd0055050e3c322589bd548421e23a8"
+        },
+        {
+          "path": "rules/ui-pressable.md",
+          "sha256": "52cdbad127d713d7d32c59ef74ab1bbd6dca211edc9b25993453f7f4545e79fa",
+          "upstreamSha256": "52cdbad127d713d7d32c59ef74ab1bbd6dca211edc9b25993453f7f4545e79fa"
+        },
+        {
+          "path": "rules/ui-safe-area-scroll.md",
+          "sha256": "3dd776caef2344d73529010940b50042861d06d31a192122a4df64bc06aed0e8",
+          "upstreamSha256": "3dd776caef2344d73529010940b50042861d06d31a192122a4df64bc06aed0e8"
+        },
+        {
+          "path": "rules/ui-scrollview-content-inset.md",
+          "sha256": "89e4bbe5e9a602660f4155e9d4c0dee09db1adf21c73f47213cd67ec896e5a13",
+          "upstreamSha256": "89e4bbe5e9a602660f4155e9d4c0dee09db1adf21c73f47213cd67ec896e5a13"
+        },
+        {
+          "path": "rules/ui-styling.md",
+          "sha256": "cdef4d8b1a097b844e5992ab78e66a2dc604faf1e90f8d325a0eb116e8ef6a7e",
+          "upstreamSha256": "cdef4d8b1a097b844e5992ab78e66a2dc604faf1e90f8d325a0eb116e8ef6a7e"
+        },
+        {
+          "path": "UPSTREAM-LICENSE-EVIDENCE.md",
+          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "web-design-guidelines",
+      "upstreamName": "web-design-guidelines",
+      "source": "https://github.com/vercel-labs/agent-skills/tree/063bee94c3f4df8453406c830b0a7df0f2860278/skills/web-design-guidelines",
+      "revision": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/web-design-guidelines",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/web-design-guidelines",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "77ba9fb5bc6084a01b7ff8a92e1edaa7a7b8eb68732946de058d4504be9f5732",
+          "upstreamSha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+        },
+        {
+          "path": "UPSTREAM-LICENSE-EVIDENCE.md",
+          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+        },
+        {
+          "path": "references/web-interface-guidelines.md",
+          "sha256": "5a775e6411f790f518dbc9c1fa7c50a89e6873502d9a3530a6eb223a590bcfe8"
+        },
+        {
+          "path": "references/LICENSE.web-interface-guidelines",
+          "sha256": "6cd1609c9c12233507cdd2ce0d32e9a721e3c27494951be06b90090deeeb7af2"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Pinned external Web Interface Guidelines locally; removed required runtime fetch.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "expo-native-ui",
+      "upstreamName": "expo-native-ui",
+      "source": "https://github.com/expo/skills/tree/efa52f0a9d2176db75992736281c77da1b714fa3/plugins/expo/skills/expo-native-ui",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/expo-native-ui",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/expo-native-ui",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "dc63d04dbbeb83fd1750d3652d910afea42c58d3a9c37260b350d338172fa20d",
+          "upstreamSha256": "52d8c3bdf6d466dda826a89b3d0846b5014233c1e399f01ab193be7b1baccf53"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "90bf5d66b1038913fea37bd6d57292eb6ecd0e0ee3b2bc3e283facc033f4b2b0",
+          "upstreamSha256": "90bf5d66b1038913fea37bd6d57292eb6ecd0e0ee3b2bc3e283facc033f4b2b0"
+        },
+        {
+          "path": "references/controls.md",
+          "sha256": "6ec427731a65ffd66b745733665bb2c00992750c7d3710893d1bbf70b427d541",
+          "upstreamSha256": "6ec427731a65ffd66b745733665bb2c00992750c7d3710893d1bbf70b427d541"
+        },
+        {
+          "path": "references/gradients.md",
+          "sha256": "63ced0392f67c41bf90e726613d139a389db609799bfcb91124e6e69b9a66e70",
+          "upstreamSha256": "63ced0392f67c41bf90e726613d139a389db609799bfcb91124e6e69b9a66e70"
+        },
+        {
+          "path": "references/icons.md",
+          "sha256": "2c0622d8a3f61626a72fa7829d3044f3391cbd8ca91806f4752926cf4e66be59",
+          "upstreamSha256": "2c0622d8a3f61626a72fa7829d3044f3391cbd8ca91806f4752926cf4e66be59"
+        },
+        {
+          "path": "references/media.md",
+          "sha256": "c964182dfbcaa5eef00b947e0425f5a39ee2cfc1b2a4e251ba51fc823e87b0dc",
+          "upstreamSha256": "c964182dfbcaa5eef00b947e0425f5a39ee2cfc1b2a4e251ba51fc823e87b0dc"
+        },
+        {
+          "path": "references/storage.md",
+          "sha256": "265e8bc21adcd698062f18fa442e0e07e99e67868576f18aac2112e5381ffbf1",
+          "upstreamSha256": "265e8bc21adcd698062f18fa442e0e07e99e67868576f18aac2112e5381ffbf1"
+        },
+        {
+          "path": "references/visual-effects.md",
+          "sha256": "dcdcaa5e0bf5c20341455e39d91312ca5f3034391908f77eb2e577044283adcc",
+          "upstreamSha256": "dcdcaa5e0bf5c20341455e39d91312ca5f3034391908f77eb2e577044283adcc"
+        },
+        {
+          "path": "references/webgpu-three.md",
+          "sha256": "3a247a7740e4bab4aea5dec8b81c7782a5918bb221838a05f6a94c669f145679",
+          "upstreamSha256": "3a247a7740e4bab4aea5dec8b81c7782a5918bb221838a05f6a94c669f145679"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "49c5f9c7097c9a940ff663a54c27a4c60e379df6cc2b3052df0d37a09a85df93"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Removed unsolicited upstream feedback submission workflow.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "expo-ui",
+      "upstreamName": "expo-ui",
+      "source": "https://github.com/expo/skills/tree/efa52f0a9d2176db75992736281c77da1b714fa3/plugins/expo/skills/expo-ui",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/expo-ui",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/expo-ui",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "4308c8bdae452a44091b2fc4655852d1fbef32bd66bb38bc7ff0f8ad794716aa",
+          "upstreamSha256": "3d1bd7004e6556c2aadf1664308ca2a01d983ff3b819b6448ad7e5ffdbd469ca"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "abe551630c5975e13cd06a55a698a880b0663b63436966abdd50053fcccafe5a",
+          "upstreamSha256": "abe551630c5975e13cd06a55a698a880b0663b63436966abdd50053fcccafe5a"
+        },
+        {
+          "path": "references/drop-in-replacements.md",
+          "sha256": "0929fb52954dd0a359a2925a23c392f650d0976f25d93bca190e5b9ff200373f",
+          "upstreamSha256": "0929fb52954dd0a359a2925a23c392f650d0976f25d93bca190e5b9ff200373f"
+        },
+        {
+          "path": "references/jetpack-compose.md",
+          "sha256": "3fa634295ced1b83ff98d24523a505f2a3da8fe6f681e06c289b2f95149fe10e",
+          "upstreamSha256": "7322bb663fa260b3521c092f425e5d27589bd87e6a6a653e8864bd6f5f9ad749"
+        },
+        {
+          "path": "references/swift-ui.md",
+          "sha256": "c834fdaf01aced20331ee53e983ca6414b2bc4eee0da1c9ab7af9bde6850248c",
+          "upstreamSha256": "9b2727190bd49dd5ddd495ce702745f9490bd7ed9a42d9bd9c7cb75219084f8e"
+        },
+        {
+          "path": "references/universal.md",
+          "sha256": "9b015890560b41c535f44cf65528acee6bd1a98485e43e240aa4cd89da714d59",
+          "upstreamSha256": "9b015890560b41c535f44cf65528acee6bd1a98485e43e240aa4cd89da714d59"
+        },
+        {
+          "path": "scripts/list-components.mjs",
+          "sha256": "12affe9c75f594665a9c73cc4c7446c9752bfae2f5b207458e6f2cde1177e79e",
+          "upstreamSha256": "cbc16cdbb2b924a3d73898e1baa3f9c5c634f513383d1a531b2d9ff6f2171f4c"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "49c5f9c7097c9a940ff663a54c27a4c60e379df6cc2b3052df0d37a09a85df93"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Removed unsolicited upstream feedback submission workflow.",
+        "Converted the optional local component inspector from CommonJS .js to explicit Node ESM .mjs; no new dependencies.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "expo-design-system",
+      "upstreamName": "expo-design-system",
+      "source": "https://github.com/expo/skills/tree/efa52f0a9d2176db75992736281c77da1b714fa3/plugins/expo/skills/expo-design-system",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/expo-design-system",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/expo-design-system",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "d91f618055fff1405cea57a003a8951c6423d45051bdc3ebbede740aaf653771",
+          "upstreamSha256": "b841a830e70cf06b14ad38f6ccaf7fa1ea60c57b4b7f78de650f3157dbbc3ff0"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "16d7f7f1bb47bc02fa2a816280403bfaccd24e436672cd1503670fcc2a42fd26",
+          "upstreamSha256": "16d7f7f1bb47bc02fa2a816280403bfaccd24e436672cd1503670fcc2a42fd26"
+        },
+        {
+          "path": "references/audit.md",
+          "sha256": "674599b4f8eea1322c155be7a08d6720e17ddbb6a73db7a315e9fcc2831ce5e1",
+          "upstreamSha256": "a0ead76ab904c119a1353d8d91b9138144a97da43fdff683f291f2d45d868915"
+        },
+        {
+          "path": "references/native-slop.md",
+          "sha256": "5c22139255f0177ad9710865f88c981b3a28496e10ef976810eec947655df406",
+          "upstreamSha256": "5662bd04ac2d6367fc4ca3ae355ec1b970752dcd8693a099a5e0792227eb09c1"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "49c5f9c7097c9a940ff663a54c27a4c60e379df6cc2b3052df0d37a09a85df93"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Reworded Unix-specific prose discovery instructions to harness file searches.",
+        "Removed unsolicited upstream feedback submission workflow.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "expo-router",
+      "upstreamName": "expo-router",
+      "source": "https://github.com/expo/skills/tree/efa52f0a9d2176db75992736281c77da1b714fa3/plugins/expo/skills/expo-router",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/expo-router",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/expo-router",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "91101a6920079190c48a9d9343048c1a1bd8a8a2c649f8ee1191c7ffc2aaf000",
+          "upstreamSha256": "93ff75501eb74e4982a93119ad3145499d400bb613260d2eb39be8008651f500"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "7b76d9331a33e06e61504db9af069bccc8ab4a02e2f8be92727e8e0f9ad7941d",
+          "upstreamSha256": "7b76d9331a33e06e61504db9af069bccc8ab4a02e2f8be92727e8e0f9ad7941d"
+        },
+        {
+          "path": "references/form-sheet.md",
+          "sha256": "947de9cf35a15aacf3f02e96e45942b5e4826e536e529570886e5ddbb7ec8591",
+          "upstreamSha256": "947de9cf35a15aacf3f02e96e45942b5e4826e536e529570886e5ddbb7ec8591"
+        },
+        {
+          "path": "references/route-structure.md",
+          "sha256": "4c3d70edeb7e36d965c4d96fa150f23ee57e01be5f6c57dd3e34c6309aab7e87",
+          "upstreamSha256": "4c3d70edeb7e36d965c4d96fa150f23ee57e01be5f6c57dd3e34c6309aab7e87"
+        },
+        {
+          "path": "references/search.md",
+          "sha256": "bb4785df4757d84f1aff09d34cdb84043e7099684b9731a24a1d79cc3c0df172",
+          "upstreamSha256": "bb4785df4757d84f1aff09d34cdb84043e7099684b9731a24a1d79cc3c0df172"
+        },
+        {
+          "path": "references/tabs.md",
+          "sha256": "c49081529a200bfc62c95d41229e5dd7368f2e35cd5775ccaaab3289ed1fd7eb",
+          "upstreamSha256": "c49081529a200bfc62c95d41229e5dd7368f2e35cd5775ccaaab3289ed1fd7eb"
+        },
+        {
+          "path": "references/toolbar-and-headers.md",
+          "sha256": "14d9a71dd949bd2b28a5bd531f6b9c1b4f3fa847a86db8c5218fee67b5295769",
+          "upstreamSha256": "14d9a71dd949bd2b28a5bd531f6b9c1b4f3fa847a86db8c5218fee67b5295769"
+        },
+        {
+          "path": "references/zoom-transitions.md",
+          "sha256": "cacc1665e9f3044762765d2cd55fd1ead9627f06478f12dfa2280c6f9ae88ede",
+          "upstreamSha256": "cacc1665e9f3044762765d2cd55fd1ead9627f06478f12dfa2280c6f9ae88ede"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "49c5f9c7097c9a940ff663a54c27a4c60e379df6cc2b3052df0d37a09a85df93"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Removed unsolicited upstream feedback submission workflow.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "expo-animation",
+      "upstreamName": "expo-animation",
+      "source": "https://github.com/expo/skills/tree/efa52f0a9d2176db75992736281c77da1b714fa3/plugins/expo/skills/expo-animation",
+      "revision": "efa52f0a9d2176db75992736281c77da1b714fa3",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/expo-animation",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/expo-animation",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "LICENSE",
+          "sha256": "4ff5bdb7887ec1435c9cab0e8d1a7caee704d894d65c2a008ccc68b1cc2f260b",
+          "upstreamSha256": "4ff5bdb7887ec1435c9cab0e8d1a7caee704d894d65c2a008ccc68b1cc2f260b"
+        },
+        {
+          "path": "RECIPES.md",
+          "sha256": "4db141cb346d49231c94a95aaa50844b85a71c47ec543e9f9f5a1f453abc9883",
+          "upstreamSha256": "4db141cb346d49231c94a95aaa50844b85a71c47ec543e9f9f5a1f453abc9883"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "3803371b4a66d531f80e45c9beb98b0f85e9bfe3452329f716585c328375cc1a",
+          "upstreamSha256": "cad39a1208a5b65e496fb14588e28b684cf94c263b9a2a97bd9da994058db057"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "7667e1a159300ee640ffb6ed4f81281dfdc0e3a789d4f3e5179c32ab3565795a",
+          "upstreamSha256": "7667e1a159300ee640ffb6ed4f81281dfdc0e3a789d4f3e5179c32ab3565795a"
+        },
+        {
+          "path": "LICENSE.repository",
+          "sha256": "49c5f9c7097c9a940ff663a54c27a4c60e379df6cc2b3052df0d37a09a85df93"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Removed unsolicited upstream feedback submission workflow.",
+        "Preserved the skill-specific LICENSE; repository-wide notice is separately retained as LICENSE.repository.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "flutter-build-responsive-layout",
+      "upstreamName": "flutter-build-responsive-layout",
+      "source": "https://github.com/flutter/agent-plugins/tree/3f58a5512a03c854b6c8b1128d6711e5e2d5055b/skills/flutter-build-responsive-layout",
+      "revision": "3f58a5512a03c854b6c8b1128d6711e5e2d5055b",
+      "license": "BSD-3-Clause",
+      "full": {
+        "path": "skills/ui-ux/flutter-build-responsive-layout",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/flutter-build-responsive-layout",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "1a3fd933282eb31bde720651a992b220905f9bc0ddb5d75f01a0a5738efd8b98",
+          "upstreamSha256": "c7a5d18071c625137cad2def9b13f3579d9bdf0aae29621a1825f12b560394c0"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "flutter-fix-layout-issues",
+      "upstreamName": "flutter-fix-layout-issues",
+      "source": "https://github.com/flutter/agent-plugins/tree/3f58a5512a03c854b6c8b1128d6711e5e2d5055b/skills/flutter-fix-layout-issues",
+      "revision": "3f58a5512a03c854b6c8b1128d6711e5e2d5055b",
+      "license": "BSD-3-Clause",
+      "full": {
+        "path": "skills/ui-ux/flutter-fix-layout-issues",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/flutter-fix-layout-issues",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "6e350bee8275930a144f9263bdfe6c17537ee9b77f315b9a28f75643a75af256",
+          "upstreamSha256": "e82c82b4245ef502bd93bc543d4f5968f4ee8043fa7556ffebcb34f30651fc9b"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "flutter-setup-declarative-routing",
+      "upstreamName": "flutter-setup-declarative-routing",
+      "source": "https://github.com/flutter/agent-plugins/tree/3f58a5512a03c854b6c8b1128d6711e5e2d5055b/skills/flutter-setup-declarative-routing",
+      "revision": "3f58a5512a03c854b6c8b1128d6711e5e2d5055b",
+      "license": "BSD-3-Clause",
+      "full": {
+        "path": "skills/ui-ux/flutter-setup-declarative-routing",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/flutter-setup-declarative-routing",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "f30045d7e85713b0b02b0750b59458870820ed9de6f477248306c955a45b88d5",
+          "upstreamSha256": "3a52fc5663cf37d68b6e096ef3e59f5056a01e9151b64cdf0728672a13398953"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "flutter-setup-localization",
+      "upstreamName": "flutter-setup-localization",
+      "source": "https://github.com/flutter/agent-plugins/tree/3f58a5512a03c854b6c8b1128d6711e5e2d5055b/skills/flutter-setup-localization",
+      "revision": "3f58a5512a03c854b6c8b1128d6711e5e2d5055b",
+      "license": "BSD-3-Clause",
+      "full": {
+        "path": "skills/ui-ux/flutter-setup-localization",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/flutter-setup-localization",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "5751dd394fdac988440144326a06342ad32c8f16409b9cdb6a3a360d09bd42c8",
+          "upstreamSha256": "dda4ef8b74976a3e51faa43d7ad00f03eab64d6d5ed0ef89cf4184a04196da17"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "swiftui-pro",
+      "upstreamName": "swiftui-pro",
+      "source": "https://github.com/twostraws/swiftui-agent-skill/tree/be297ff80dddec529af1f9b1f1f114aab6c9d11c/swiftui-pro",
+      "revision": "be297ff80dddec529af1f9b1f1f114aab6c9d11c",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/swiftui-pro",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/swiftui-pro",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "19383add30d6da0d64af26f1eb55a55178b4c8264468191198fdf456379e9bc0",
+          "upstreamSha256": "8b58a171afc1dcf9c42d85414af2dc506c8c92bf2c77527adb4d52b884f4d715"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "429c39b71692d4dc86e2b616f28b7e7f56207361c5b5a0b06df4746af96d5fa3",
+          "upstreamSha256": "429c39b71692d4dc86e2b616f28b7e7f56207361c5b5a0b06df4746af96d5fa3"
+        },
+        {
+          "path": "assets/swiftui-pro-icon.png",
+          "sha256": "51a28a5834e6d251def3c562712db1e2124e6d67b62be89fe4c1ca628e37a70a",
+          "upstreamSha256": "51a28a5834e6d251def3c562712db1e2124e6d67b62be89fe4c1ca628e37a70a"
+        },
+        {
+          "path": "assets/swiftui-pro-icon.svg",
+          "sha256": "a15c0a3030f08ffcc442aed9b7f2f19840877e43f980ad4dfdef515e9aeb44b3",
+          "upstreamSha256": "a15c0a3030f08ffcc442aed9b7f2f19840877e43f980ad4dfdef515e9aeb44b3"
+        },
+        {
+          "path": "references/accessibility.md",
+          "sha256": "708d09a35c950fd4c118bbb3cfcab13bb146e7d02084615307bbabc19e00a0e3",
+          "upstreamSha256": "708d09a35c950fd4c118bbb3cfcab13bb146e7d02084615307bbabc19e00a0e3"
+        },
+        {
+          "path": "references/api.md",
+          "sha256": "12fa73d65a19c9d08224f925801db8eec914b1cedf5b2f86a38cdda04a66377a",
+          "upstreamSha256": "12fa73d65a19c9d08224f925801db8eec914b1cedf5b2f86a38cdda04a66377a"
+        },
+        {
+          "path": "references/data.md",
+          "sha256": "5cc50484c525f748839e12174c065f7ea5fdd4380ce04b6885a906ecd6e6a318",
+          "upstreamSha256": "5cc50484c525f748839e12174c065f7ea5fdd4380ce04b6885a906ecd6e6a318"
+        },
+        {
+          "path": "references/design.md",
+          "sha256": "03e35d46865cc6807255f3c8481cdbac7b3b0f61924185af84c1913d6c983c69",
+          "upstreamSha256": "03e35d46865cc6807255f3c8481cdbac7b3b0f61924185af84c1913d6c983c69"
+        },
+        {
+          "path": "references/hygiene.md",
+          "sha256": "91d96f45f3ffa02f5553c288415f3c3d5f317cab7d8d9c6c60240ea6c44a2b01",
+          "upstreamSha256": "91d96f45f3ffa02f5553c288415f3c3d5f317cab7d8d9c6c60240ea6c44a2b01"
+        },
+        {
+          "path": "references/navigation.md",
+          "sha256": "a3adb302455993aff85bbb6b5845ed2fcffa137c8b2ded99c937f3e4b7fcd77b",
+          "upstreamSha256": "a3adb302455993aff85bbb6b5845ed2fcffa137c8b2ded99c937f3e4b7fcd77b"
+        },
+        {
+          "path": "references/performance.md",
+          "sha256": "1b503e3807e216d6b34b45f18bfba89214cea2fa1b88dd7ae8f482ebf0f03616",
+          "upstreamSha256": "1b503e3807e216d6b34b45f18bfba89214cea2fa1b88dd7ae8f482ebf0f03616"
+        },
+        {
+          "path": "references/swift.md",
+          "sha256": "8c31c5f5f99b3fa9586f0260cd1a4b1688dc7bda5e8de2891eb3f9d6a791125a",
+          "upstreamSha256": "8c31c5f5f99b3fa9586f0260cd1a4b1688dc7bda5e8de2891eb3f9d6a791125a"
+        },
+        {
+          "path": "references/views.md",
+          "sha256": "79a166f6507e86744c0f73cfb583100f61a5da37e313ef4586b3b31136a73627",
+          "upstreamSha256": "79a166f6507e86744c0f73cfb583100f61a5da37e313ef4586b3b31136a73627"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "b9b479e6df9f27cbc8e7abe91f771b396f3f0fa114d070c7c0b02c820c6b74dc"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Omitted repository plugin wrapper pointing to a nested skills tree; distribute the standalone skill and its referenced assets.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "android-compose-adaptive",
+      "upstreamName": "adaptive",
+      "source": "https://github.com/android/skills/tree/42dc2270e96032bd860bb94511e440aa00a43125/jetpack-compose/adaptive",
+      "revision": "42dc2270e96032bd860bb94511e440aa00a43125",
+      "license": "Apache-2.0",
+      "full": {
+        "path": "skills/ui-ux/android-compose-adaptive",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/android-compose-adaptive",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "1d5832d2a3122ac522fdb2f6299c9e1c7e4f7a5eb0ba7094cc43b727cc6207d8",
+          "upstreamSha256": "5067113bb22ff5eb4b6e971bd7aa52000fbf0bd625c7d0bf1765cb4024b1da68"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/flexbox/container-behavior.md",
+          "sha256": "7a33b15b827dbf21557a2ac808d3e0c2653cf33cc4c58277f2eb94ebfa41aa5f",
+          "upstreamSha256": "7a33b15b827dbf21557a2ac808d3e0c2653cf33cc4c58277f2eb94ebfa41aa5f"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/flexbox/get-started.md",
+          "sha256": "a2c90a46ae65197955c988972d942425cc80ac6ec0bc4744827ef6206ac9750e",
+          "upstreamSha256": "a2c90a46ae65197955c988972d942425cc80ac6ec0bc4744827ef6206ac9750e"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/flexbox/index.md",
+          "sha256": "6323d0edb988ada38596508c520efc99ae8f9ab8f3954f5bfbfe8ee373e0afc7",
+          "upstreamSha256": "6323d0edb988ada38596508c520efc99ae8f9ab8f3954f5bfbfe8ee373e0afc7"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/flexbox/item-behavior.md",
+          "sha256": "94e894a59857662ed784913774a4d0c5bcec7d16468c4c910962a7d806a0e562",
+          "upstreamSha256": "94e894a59857662ed784913774a4d0c5bcec7d16468c4c910962a7d806a0e562"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/grid/container-properties.md",
+          "sha256": "fb12005053f5f040c26c5b74a93c11825d5a27f1802ec7748859b24ee2c030c7",
+          "upstreamSha256": "fb12005053f5f040c26c5b74a93c11825d5a27f1802ec7748859b24ee2c030c7"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/grid/get-started.md",
+          "sha256": "42bee8a81fbfda57cb99457078040da3858be789ab42e371567e2c4d08a14515",
+          "upstreamSha256": "42bee8a81fbfda57cb99457078040da3858be789ab42e371567e2c4d08a14515"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/grid/index.md",
+          "sha256": "97b1e85bc765b97c1930014a554977abddb12bfd0d638b13ab75932dc287a6d0",
+          "upstreamSha256": "97b1e85bc765b97c1930014a554977abddb12bfd0d638b13ab75932dc287a6d0"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/grid/item-properties.md",
+          "sha256": "ef0a67039918022d01ac26983b3cc06c798050736d42ffe692c98e3c4517b45a",
+          "upstreamSha256": "ef0a67039918022d01ac26983b3cc06c798050736d42ffe692c98e3c4517b45a"
+        },
+        {
+          "path": "references/android/develop/ui/compose/layouts/adaptive/mediaquery/index.md",
+          "sha256": "1e79df59c053569d5376a618c414b793670fdf35e337d7c8aecce81bf09f90d7",
+          "upstreamSha256": "1e79df59c053569d5376a618c414b793670fdf35e337d7c8aecce81bf09f90d7"
+        },
+        {
+          "path": "references/android/develop/ui/compose/tooling/debug.md",
+          "sha256": "ba62982a079cd1535f904bc784d4a64b1c77bd9ccede9f1e675c48fa44a95397",
+          "upstreamSha256": "ba62982a079cd1535f904bc784d4a64b1c77bd9ccede9f1e675c48fa44a95397"
+        },
+        {
+          "path": "references/android/guide/navigation/navigation-3/recipes/material-listdetail.md",
+          "sha256": "e4781cf0fc691f92c202400a07ebc80424666681f9547e757f660388252cdb29",
+          "upstreamSha256": "e4781cf0fc691f92c202400a07ebc80424666681f9547e757f660388252cdb29"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Aliased upstream adaptive to android-compose-adaptive to avoid ambiguous skill identity.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "android-edge-to-edge",
+      "upstreamName": "edge-to-edge",
+      "source": "https://github.com/android/skills/tree/42dc2270e96032bd860bb94511e440aa00a43125/system/edge-to-edge",
+      "revision": "42dc2270e96032bd860bb94511e440aa00a43125",
+      "license": "Apache-2.0",
+      "full": {
+        "path": "skills/ui-ux/android-edge-to-edge",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/android-edge-to-edge",
+        "status": "portable-guidance"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "9bab0fd355537e19c43435687672aee8e579bfffe2b74d11afb0aeda30501fb7",
+          "upstreamSha256": "4ca04cb6a5330b96e51410bc815f878b4ca642fba46fe5e1ad724c94e04d6eb8"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Aliased upstream edge-to-edge to android-edge-to-edge to avoid ambiguous skill identity.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "impeccable",
+      "upstreamName": "impeccable",
+      "source": "https://github.com/pbakaus/impeccable/tree/9d715cc4f5564a990ca8345abfdd5df6dc9b41c8/.agents/skills/impeccable",
+      "revision": "9d715cc4f5564a990ca8345abfdd5df6dc9b41c8",
+      "license": "Apache-2.0",
+      "full": {
+        "path": "skills/ui-ux/impeccable",
+        "status": "native-engine-optional"
+      },
+      "mini": {
+        "path": null,
+        "status": "excluded-native-engine"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "1f9a29a09e315ff6570d2dc2b4e3ca7d074a85983ffb54c32725fb5acbcd9d14",
+          "upstreamSha256": "6eeec6ef2028388a17de9f17a56c9cb7dbc7c8e7e1a8c15b831b0ba3e42168ac"
+        },
+        {
+          "path": "agents/impeccable_asset_producer.toml",
+          "sha256": "690a5e08a9b848ab3057014b75c101fe23a5c81f251b6e7a5844bb9cd4184d37",
+          "upstreamSha256": "690a5e08a9b848ab3057014b75c101fe23a5c81f251b6e7a5844bb9cd4184d37"
+        },
+        {
+          "path": "agents/impeccable_documenter.toml",
+          "sha256": "2feb3768125ba6469c92a50d516727e6d42f44579165ddfd33409948e2a3803d",
+          "upstreamSha256": "2feb3768125ba6469c92a50d516727e6d42f44579165ddfd33409948e2a3803d"
+        },
+        {
+          "path": "agents/impeccable_finish_reviewer.toml",
+          "sha256": "d57c3e0453f601ad688911fca4471057c7b46b561fcd42a1e12a581101c5186c",
+          "upstreamSha256": "d57c3e0453f601ad688911fca4471057c7b46b561fcd42a1e12a581101c5186c"
+        },
+        {
+          "path": "agents/impeccable_manual_edit_applier.toml",
+          "sha256": "6c9ce3e27ec4520ead001da3aad2a2ebba481c4e5cd22873db8890259ee579fe",
+          "upstreamSha256": "6c9ce3e27ec4520ead001da3aad2a2ebba481c4e5cd22873db8890259ee579fe"
+        },
+        {
+          "path": "agents/openai.yaml",
+          "sha256": "cbd8bd68fa00935dd0f179adb169252629cf7ee443ea9dc7db77e7ef2cf77446",
+          "upstreamSha256": "cbd8bd68fa00935dd0f179adb169252629cf7ee443ea9dc7db77e7ef2cf77446"
+        },
+        {
+          "path": "reference/adapt.md",
+          "sha256": "871a8e4d749b807c693ebabd83defbd6c76e1bd2a0f53a28a460cb1308ba8634",
+          "upstreamSha256": "871a8e4d749b807c693ebabd83defbd6c76e1bd2a0f53a28a460cb1308ba8634"
+        },
+        {
+          "path": "reference/adapt.native.md",
+          "sha256": "6acc0bf221a4ddc6e5c6438348920b2ca2393b29c4314dbde2cdc23f2b1a9639",
+          "upstreamSha256": "6acc0bf221a4ddc6e5c6438348920b2ca2393b29c4314dbde2cdc23f2b1a9639"
+        },
+        {
+          "path": "reference/android.md",
+          "sha256": "058f81f256134841875fd3183e06b37a023de0c877fd2b9eecd97011640791fe",
+          "upstreamSha256": "058f81f256134841875fd3183e06b37a023de0c877fd2b9eecd97011640791fe"
+        },
+        {
+          "path": "reference/animate.md",
+          "sha256": "d658c48ffbe0031e8e3b318996cad6ceafe29e40aa50d5bb25e4bf1d6839dc7c",
+          "upstreamSha256": "d658c48ffbe0031e8e3b318996cad6ceafe29e40aa50d5bb25e4bf1d6839dc7c"
+        },
+        {
+          "path": "reference/audit.md",
+          "sha256": "d5f83912eda93d42f93522bb74aeff0ea04d9c559577ec52fcccc130dd03166d",
+          "upstreamSha256": "d5f83912eda93d42f93522bb74aeff0ea04d9c559577ec52fcccc130dd03166d"
+        },
+        {
+          "path": "reference/audit.native.md",
+          "sha256": "960cb922bc934adbf9192e9428ff6bec1f382038166f02a785939c93b7391067",
+          "upstreamSha256": "960cb922bc934adbf9192e9428ff6bec1f382038166f02a785939c93b7391067"
+        },
+        {
+          "path": "reference/bolder.md",
+          "sha256": "f964506c0fae87b3c2c1db7016ddc9be9ef970bbcf5548d684b997b5d5991586",
+          "upstreamSha256": "f964506c0fae87b3c2c1db7016ddc9be9ef970bbcf5548d684b997b5d5991586"
+        },
+        {
+          "path": "reference/clarify.md",
+          "sha256": "173dd66abe65633910dcb04a51f40d6ff2a793f87088f022a02fc4cad24dd133",
+          "upstreamSha256": "173dd66abe65633910dcb04a51f40d6ff2a793f87088f022a02fc4cad24dd133"
+        },
+        {
+          "path": "reference/colorize.md",
+          "sha256": "bc5f71f1129d0f2c310d913d07c8dc609a1d25644121bd78c308f42d52a0b9e9",
+          "upstreamSha256": "bc5f71f1129d0f2c310d913d07c8dc609a1d25644121bd78c308f42d52a0b9e9"
+        },
+        {
+          "path": "reference/component-review.md",
+          "sha256": "b9fbf87ab26e7367da9267c7f4971b3ef1c4193b150f48fb822bf141e5214c7c",
+          "upstreamSha256": "37edf9fbedb2bc609341e009b14588f46022fd7aace9399b5cb8f1c8325f81fe"
+        },
+        {
+          "path": "reference/craft-floor.md",
+          "sha256": "e802e4f7bdc89050a9c0f2ca506e1d493a2316e6e810c0336c57aa073717ef3e",
+          "upstreamSha256": "e802e4f7bdc89050a9c0f2ca506e1d493a2316e6e810c0336c57aa073717ef3e"
+        },
+        {
+          "path": "reference/craft.md",
+          "sha256": "9205e222bc6565b37fb504ceec93233c2d2a456802b69d16e6b1c44723907c4c",
+          "upstreamSha256": "9205e222bc6565b37fb504ceec93233c2d2a456802b69d16e6b1c44723907c4c"
+        },
+        {
+          "path": "reference/critique.md",
+          "sha256": "83f4c4e6adb510addf21c6218e9229ce8467f157289aca69eba4d13ed631d5c0",
+          "upstreamSha256": "cb8caddbb3919e5bf7f252143b519fb16db28a244642d937b186cb89962d9201"
+        },
+        {
+          "path": "reference/degraded/asset-producer.md",
+          "sha256": "ef7797de3b2c1a1574c27635719bf0ed0c168c1f20aec47df05d08571133d539",
+          "upstreamSha256": "a690f011420ba486f268d790bb088e9a58c1be503d7ab17d68cd819ddf0f75bb"
+        },
+        {
+          "path": "reference/degraded/documenter.md",
+          "sha256": "bcc05ea92faebb5c74037a9d4263a5ce9a56f5ab07c8ab3c59ee704d8cade745",
+          "upstreamSha256": "bcc05ea92faebb5c74037a9d4263a5ce9a56f5ab07c8ab3c59ee704d8cade745"
+        },
+        {
+          "path": "reference/degraded/finish-reviewer.md",
+          "sha256": "275dd1b6e63bbd30d2713227c4f79b880a8bc4e01cc48d392068bb86939d3afa",
+          "upstreamSha256": "275dd1b6e63bbd30d2713227c4f79b880a8bc4e01cc48d392068bb86939d3afa"
+        },
+        {
+          "path": "reference/degraded/manual-edit-applier.md",
+          "sha256": "5fae7f8a2fc3ddd49ad0a413446dc44daedef5b6b7de5eb935bd2fbfad646d58",
+          "upstreamSha256": "5fae7f8a2fc3ddd49ad0a413446dc44daedef5b6b7de5eb935bd2fbfad646d58"
+        },
+        {
+          "path": "reference/delight.md",
+          "sha256": "098a891028ce59c212b747d3c70468dd750aff7053a703d1336045ed31e0da7c",
+          "upstreamSha256": "098a891028ce59c212b747d3c70468dd750aff7053a703d1336045ed31e0da7c"
+        },
+        {
+          "path": "reference/distill.md",
+          "sha256": "ea8432c90c30ecb0426662a681ead5c0941113079704e1a766cda09e85b15b4f",
+          "upstreamSha256": "ea8432c90c30ecb0426662a681ead5c0941113079704e1a766cda09e85b15b4f"
+        },
+        {
+          "path": "reference/doctor.md",
+          "sha256": "98723376503f074e4c77e0ccdf1581842b0405ed073babea1cc054c1b508ae4d",
+          "upstreamSha256": "a98b397cedeeaa1da57f3395b3d9b6c1fc477f4247fb9dc13e4da3da588283ff"
+        },
+        {
+          "path": "reference/document.md",
+          "sha256": "f757e92365639a703e318f675b0f6f0cdebcbcf8b800c485c2d3d143a18e2d7c",
+          "upstreamSha256": "3673248740bcdd1122ccc610093ba2fe52f3943a61ce0b7170b74dc49e5b6098"
+        },
+        {
+          "path": "reference/extract.md",
+          "sha256": "31b90048c0b540daec46762a10c2b6b6434737a89af005054d8b848d829d003b",
+          "upstreamSha256": "31b90048c0b540daec46762a10c2b6b6434737a89af005054d8b848d829d003b"
+        },
+        {
+          "path": "reference/generate.md",
+          "sha256": "e1b07407145f6ff0707450e627fd82fc185f895e048ae880d63ea86715344a33",
+          "upstreamSha256": "53628d05b7eff0d4f48b95e48fad40266452fe1b42f398bd88dd9328353e0dd8"
+        },
+        {
+          "path": "reference/harden.md",
+          "sha256": "16ba7fca1973c5faf53dd2ca523559129c0fe9e5f8d50b645f527afa78186cd2",
+          "upstreamSha256": "16ba7fca1973c5faf53dd2ca523559129c0fe9e5f8d50b645f527afa78186cd2"
+        },
+        {
+          "path": "reference/hooks.md",
+          "sha256": "6e6162fdaa1f8e4e94399a897baf9543e41591285fe0fdfaf001ee1af2cf553a",
+          "upstreamSha256": "56cc1bba51e6805de370160ce4a9399fef3740571204f13c3c751725870305e5"
+        },
+        {
+          "path": "reference/init.md",
+          "sha256": "bb069b43c09109d7031b0374e31955749fec657b252d39782f11e8985aca2b51",
+          "upstreamSha256": "bb069b43c09109d7031b0374e31955749fec657b252d39782f11e8985aca2b51"
+        },
+        {
+          "path": "reference/ios.md",
+          "sha256": "40c87038b5f75147a5952a96237acf312a327bf70c1bcd8e0a5f064625ae9668",
+          "upstreamSha256": "40c87038b5f75147a5952a96237acf312a327bf70c1bcd8e0a5f064625ae9668"
+        },
+        {
+          "path": "reference/layout.md",
+          "sha256": "781707adf4f72712492fb4fc0b1635031866b00ea166ca4d6131d20c9a51281f",
+          "upstreamSha256": "0bc7d7971b3edf2acd0580e847458dc6d84129d90715b452799ace3bed815c7c"
+        },
+        {
+          "path": "reference/live-setup.md",
+          "sha256": "c0028ef597491c6efeefa21ceda9c640f2ab899ee090942728e7f3fb92a9dc5c",
+          "upstreamSha256": "2b5b2fbf5f658f34ea1997fb1aeebe01604d05187f75c6a4f1f55a5bc78520a4"
+        },
+        {
+          "path": "reference/live.md",
+          "sha256": "8c7c72472cdbf15fcb37ff96590662216bb6b0311ce98233599e603b8e92f6d0",
+          "upstreamSha256": "68c5636a7858dd0b5137a9229c15e25fdc2ee40a0f8a4e9d809f78e809256262"
+        },
+        {
+          "path": "reference/new-work.md",
+          "sha256": "ee8fecb9cdf76362f642169a53443fbda66e9400c124c8f0fede8ad2a0976fa0",
+          "upstreamSha256": "af95e45318c9235de676cf1075840518cdd3a924b8bde952b5161d72caf3b290"
+        },
+        {
+          "path": "reference/onboard.md",
+          "sha256": "ef2dde00030580ed2765cbf7be9b2ea4a6f64cb915b804fd6f6abcf38051c7b9",
+          "upstreamSha256": "ef2dde00030580ed2765cbf7be9b2ea4a6f64cb915b804fd6f6abcf38051c7b9"
+        },
+        {
+          "path": "reference/operate.md",
+          "sha256": "a9d2203acd45ca33a13d5c68b02b23ed512425ac15f0e8438318ed124b43729d",
+          "upstreamSha256": "a9d2203acd45ca33a13d5c68b02b23ed512425ac15f0e8438318ed124b43729d"
+        },
+        {
+          "path": "reference/optimize.md",
+          "sha256": "f672ef8251a3ed4051a053d30819664951b17540b2899acd27d20e500c234abc",
+          "upstreamSha256": "f672ef8251a3ed4051a053d30819664951b17540b2899acd27d20e500c234abc"
+        },
+        {
+          "path": "reference/overdrive.md",
+          "sha256": "fce6688138d2ceb1e3d2cde5231f54b1d8dc8748b4c95a7919aa83b6f924cf96",
+          "upstreamSha256": "fce6688138d2ceb1e3d2cde5231f54b1d8dc8748b4c95a7919aa83b6f924cf96"
+        },
+        {
+          "path": "reference/polish.md",
+          "sha256": "091f25bab7df1743ac96dba3fdec29e5156d64b0b16a962ec1408f99f082e959",
+          "upstreamSha256": "81666fc7f783b4e3514db6554e713dc0479bd9cdedb06e93d15f8b579aae869a"
+        },
+        {
+          "path": "reference/quieter.md",
+          "sha256": "190a4e642ca362d7499f3c3ab123e21f18f75457d11f072b545a183f296e6495",
+          "upstreamSha256": "190a4e642ca362d7499f3c3ab123e21f18f75457d11f072b545a183f296e6495"
+        },
+        {
+          "path": "reference/region-map.md",
+          "sha256": "358024297bb2ac2af0d14dca4db62de8880441f571f291e8b452ca44fbf705be",
+          "upstreamSha256": "980fa8280907591eeb0b382c4edd2653405e548d66c5b670e5581ee521db8111"
+        },
+        {
+          "path": "reference/routing.md",
+          "sha256": "1df489660e2b7dd8474d454602353fbe9ea31f72b5a3ab7a4ee7d9c91de94622",
+          "upstreamSha256": "77ae09542fbc10aa4e8b119d6fd19359908a47c13c30068d6a150bfdb50e3e10"
+        },
+        {
+          "path": "reference/shape.md",
+          "sha256": "a55f016c046cb6a27c55bd7f346375aeb506a755c4fbca19a5f92dbd42309c23",
+          "upstreamSha256": "a55f016c046cb6a27c55bd7f346375aeb506a755c4fbca19a5f92dbd42309c23"
+        },
+        {
+          "path": "reference/typeset.md",
+          "sha256": "78395d5207e692286885331a527b000cfadcd77a3701e03da9cef1457be12a04",
+          "upstreamSha256": "442749aed338f51c1a3ccfb182c6ade9b74b90590b67984062ac94a5b100e914"
+        },
+        {
+          "path": "reference/visualize.md",
+          "sha256": "b1db255645cdd57a9dbc3ab61aa1bbc55701263d43210deb2427847751450b67",
+          "upstreamSha256": "896da399bafcffb0623bdd81bb18709d6eab25c9d5917e739c8798f31ff0d076"
+        },
+        {
+          "path": "scripts/VERSION",
+          "sha256": "1f2110568627307becae713f8b808f3d9d912d4b2a24ed6a78605f03f7437d3c",
+          "upstreamSha256": "1f2110568627307becae713f8b808f3d9d912d4b2a24ed6a78605f03f7437d3c"
+        },
+        {
+          "path": "scripts/command-metadata.json",
+          "sha256": "e8720f3aa41135211cc58cc299a39eeda86c75651f4279cc1ede8db10dcc0584",
+          "upstreamSha256": "e8720f3aa41135211cc58cc299a39eeda86c75651f4279cc1ede8db10dcc0584"
+        },
+        {
+          "path": "scripts/data/font-index-failures.json",
+          "sha256": "835f19a0a3812f3652dd6979a2ce5597f654fd01f26e1b420b92d5f42b997ce4",
+          "upstreamSha256": "835f19a0a3812f3652dd6979a2ce5597f654fd01f26e1b420b92d5f42b997ce4"
+        },
+        {
+          "path": "scripts/data/font-index.json",
+          "sha256": "47edbdfaf27073c47033d1ac7dfee881be49e2dcbda7671d1157300481dde6da",
+          "upstreamSha256": "47edbdfaf27073c47033d1ac7dfee881be49e2dcbda7671d1157300481dde6da"
+        },
+        {
+          "path": "scripts/live-browser-dom.js",
+          "sha256": "de1b7404f4cdfd7b515196afb17b74b1980f0bc88cb8681ae93a76ca48ec7bdb",
+          "upstreamSha256": "de1b7404f4cdfd7b515196afb17b74b1980f0bc88cb8681ae93a76ca48ec7bdb"
+        },
+        {
+          "path": "scripts/live-browser-ignores.js",
+          "sha256": "c1cb6877ca99a0c1b38ba0c7d59f32702d3022f6821d8045f7133f7c40b6362f",
+          "upstreamSha256": "c1cb6877ca99a0c1b38ba0c7d59f32702d3022f6821d8045f7133f7c40b6362f"
+        },
+        {
+          "path": "scripts/live-browser-session.js",
+          "sha256": "edddeb3fad88adec9a055b1bf9d5c75418cbe97a13b1a7f6765e73249e482563",
+          "upstreamSha256": "edddeb3fad88adec9a055b1bf9d5c75418cbe97a13b1a7f6765e73249e482563"
+        },
+        {
+          "path": "scripts/live-browser.js",
+          "sha256": "f68a3d68ac92606e91aa8878e003d9432ddd09aa97ca01c6b3ce46c937dca316",
+          "upstreamSha256": "f68a3d68ac92606e91aa8878e003d9432ddd09aa97ca01c6b3ce46c937dca316"
+        },
+        {
+          "path": "scripts/modern-screenshot.umd.js",
+          "sha256": "bb36665889124a0b6e15f16045265737449c3bdcf2712cdb08af3cfa01563e2b",
+          "upstreamSha256": "bb36665889124a0b6e15f16045265737449c3bdcf2712cdb08af3cfa01563e2b"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812"
+        },
+        {
+          "path": "scripts/engine.mjs",
+          "sha256": "4bddeecd03e2d1fd9bda8355eca2763630b0812189640250aedc52b2aefb42fb"
+        }
+      ],
+      "adaptations": [
+        "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
+        "Reworded Unix-specific prose discovery instructions to harness file searches.",
+        "Replaced Unix/Python command examples with portable file-inspection instructions.",
+        "Replaced platform shell launchers with local-only Node native-engine invocation; no automatic download, install, or per-edit hook. Native engine is an explicit external prerequisite.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "prometheus-ui-ux",
+      "upstreamName": null,
+      "source": "prometheus-skill-pack/skills/ui-ux/prometheus-ui-ux",
+      "revision": "local",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/prometheus-ui-ux",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/prometheus-ui-ux",
+        "status": "portable-node-runtime"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "references/deferred-ports.md",
+          "sha256": "b5fd477197e5176e36e5678701ab2b7a6bd0fad0ec598124b8d340de79c52293"
+        },
+        {
+          "path": "references/pointer.md",
+          "sha256": "0815075b9298c5e3b34d5b29ef2a3a8ab75b9a0137570e429bb2c5ee31fe7d6c"
+        },
+        {
+          "path": "references/runtime-api.md",
+          "sha256": "35c043373576d166f2efc2cae5c4dd40064a6504a1c6f1753b775d0e7e28b702"
+        },
+        {
+          "path": "references/UI_UX_PROTOCOL.md",
+          "sha256": "d2136b09e98ef9b4943156740dcb338a2f9f129a63f87496feb49778a5f5d727"
+        },
+        {
+          "path": "runtime/package.json",
+          "sha256": "841d39a6334bd49d30ec92344fca2ee18c6a91d886b47dd005f358f9326f99ad"
+        },
+        {
+          "path": "runtime/src/cli.mts",
+          "sha256": "f698c48c3ffec84ff5b22aeef699da2eac8fd305e8a034b7acba38d44df93254"
+        },
+        {
+          "path": "runtime/src/install.mts",
+          "sha256": "a6dac88163a82104ecf830921f9cbe909c2df01b320c321bb408bd82b49bc515"
+        },
+        {
+          "path": "runtime/src/routing.mts",
+          "sha256": "ecc15f04430d98e8f21a9663a96eacfa606d8d0db2609f7a80b9821a5f287f0a"
+        },
+        {
+          "path": "runtime/tsconfig.json",
+          "sha256": "2e67aeea4932891d76f5b21c83c3798d4cb2a5def61ea00b37da92bb31388e0c"
+        },
+        {
+          "path": "scripts/cli.mjs",
+          "sha256": "28ea5ac5414cd98b545ce22b442564db4db91c9facc6a2d297d5648b0020a87d"
+        },
+        {
+          "path": "scripts/install.mjs",
+          "sha256": "70e65d7f6920a945f65ec64553e661a2b9bc656731a4db1d7c4ef821b853ae2d"
+        },
+        {
+          "path": "scripts/routing.mjs",
+          "sha256": "b3bbc60eff4bab01e0216053f4a56c7b06d85342284fd43a51bd0e4a9bdc136d"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "481e22bb27f6922727f5268a671e16f612bb6a01e13922050a08f057a2a48127"
+        }
+      ],
+      "adaptations": [
+        "Prometheus-owned routing, review or bounded core adaptation; native Impeccable engine parity is not claimed.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "prometheus-ui-review",
+      "upstreamName": null,
+      "source": "prometheus-skill-pack/skills/ui-ux/prometheus-ui-review",
+      "revision": "local",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/prometheus-ui-review",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/prometheus-ui-review",
+        "status": "portable-node-runtime"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "SKILL.md",
+          "sha256": "a032b9ba76b3e044b0517d8846f6838d49385119a390b564adaf7a34c5ecb593"
+        }
+      ],
+      "adaptations": [
+        "Prometheus-owned routing, review or bounded core adaptation; native Impeccable engine parity is not claimed.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "prometheus-impeccable-core",
+      "upstreamName": null,
+      "source": "prometheus-skill-pack/skills/ui-ux/prometheus-impeccable-core",
+      "revision": "local",
+      "license": "MIT AND Apache-2.0",
+      "full": {
+        "path": "skills/ui-ux/prometheus-impeccable-core",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/prometheus-impeccable-core",
+        "status": "portable-node-runtime"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "references/impeccable-context-and-modes.md",
+          "sha256": "f3f8cda35d04b3d908fdbc2def70e675099bcf614683371d79ab466962604559"
+        },
+        {
+          "path": "references/impeccable-craft-floor.md",
+          "sha256": "39edc30e17da69f2a1e8d8224911a35f9753b204c8ff70247a29d9d8b0488c9c"
+        },
+        {
+          "path": "references/LICENSE.impeccable",
+          "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "d19fc20bd31b707a96247e3105bfcebc2cfcf2adb08deeacacc33b9e50cf0726"
+        }
+      ],
+      "adaptations": [
+        "Prometheus-owned routing, review or bounded core adaptation; native Impeccable engine parity is not claimed.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "upstreamName": "ui-ux-pro-max",
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/dcc40ff5133ef78276117db0cc34e7b83cc8aeba",
+      "revision": "dcc40ff5133ef78276117db0cc34e7b83cc8aeba",
+      "license": "MIT",
+      "full": {
+        "path": "skills/ui-ux/ui-ux-pro-max",
+        "status": "bundled"
+      },
+      "mini": {
+        "path": "skills/ui-ux-pro-max",
+        "status": "portable-node-runtime"
+      },
+      "invocation": "automatic",
+      "assets": [
+        {
+          "path": "data/app-interface.csv",
+          "sha256": "331e7cf2c0b222d80c566c5f255c63cb339f65bfd02e471a720f28e4864a9f08"
+        },
+        {
+          "path": "data/catalog-summary.json",
+          "sha256": "6638da97231c07fb5cef3cd9d3ce483ca7b2f9748980f8c27490eb03968d8894"
+        },
+        {
+          "path": "data/charts.csv",
+          "sha256": "4115cf1120680f2cedef0676cb648f30c7ef4699e2a947535d4113e71ed3b12a"
+        },
+        {
+          "path": "data/colors.csv",
+          "sha256": "8162429222bce22df62b564085946a30d07cc9722c58d0a3a494bd0d1d00841c"
+        },
+        {
+          "path": "data/data-provenance.json",
+          "sha256": "e82fb33ed49375a300e93d9c11ccd1c1493c999e84ee7ee295e527634786e2e0"
+        },
+        {
+          "path": "data/google-font-licenses.json",
+          "sha256": "35688523f2955795caa1a47c53b83099e60c1708461476f9cc3a050cf3b0148a"
+        },
+        {
+          "path": "data/google-fonts.csv",
+          "sha256": "1c8c3b2ea1faf6a1012da463756def8b3889db33f2226f0343bb4daa80307d03"
+        },
+        {
+          "path": "data/icons.csv",
+          "sha256": "50816c6012030178195a16ee481ebf58b47bd985d70e8ec58886cc83f6eddafc"
+        },
+        {
+          "path": "data/landing.csv",
+          "sha256": "9a2edd3bb676c2a58f00ade7a062e285222d4297bfd847c8d5b056f0dbbf52d0"
+        },
+        {
+          "path": "data/motion.csv",
+          "sha256": "381affe8df8ea1f66fbbda2598827f9f54299107bbe6a1b4e9b68f6b62091ceb"
+        },
+        {
+          "path": "data/phosphor-icons-upstream.json",
+          "sha256": "2399325233b277b5c97a80e6a5e8941154f5d057beee4e7613db87c87d700236"
+        },
+        {
+          "path": "data/products.csv",
+          "sha256": "42473f75e8dde5987bdf89ce55d8c168091b80a356cae691dd60247d80720b70"
+        },
+        {
+          "path": "data/react-performance.csv",
+          "sha256": "3d925802539abac5afeb63ae8aa1960b7229ad271b3a47caed40ab2d97ad0734"
+        },
+        {
+          "path": "data/search-config.json",
+          "sha256": "3532dba1aff1fa0ea63882484be7af42df3d0e6f6fde87d42c3311ebf5e66787"
+        },
+        {
+          "path": "data/stacks/angular.csv",
+          "sha256": "704be83f2bad30c7e6de01afb113ffa01e0c458762f48b7102f31ba2367b5553"
+        },
+        {
+          "path": "data/stacks/astro.csv",
+          "sha256": "2c2f55fadaafc05e04cc321c8194a1a28b656e6757fe2ba316f41b16428299c6"
+        },
+        {
+          "path": "data/stacks/avalonia.csv",
+          "sha256": "442fca14675a020683473e7e49f08abb27b9df0765c80efe54aef61f1a4ac258"
+        },
+        {
+          "path": "data/stacks/flutter.csv",
+          "sha256": "64dba0ac17349f28bce517a0f5f48c54d9ed2e487ec0c0258303463b382f41a0"
+        },
+        {
+          "path": "data/stacks/html-tailwind.csv",
+          "sha256": "d05a581d20af57b8ca0104a6d31d90a07c437d500662a96c3029fc2f9a4678ee"
+        },
+        {
+          "path": "data/stacks/javafx.csv",
+          "sha256": "2e819b8d5abdd23ad4dae0991650fdb57af497aabd68b37463aa9c442944c869"
+        },
+        {
+          "path": "data/stacks/jetpack-compose.csv",
+          "sha256": "699de218b286948eaec7d15767b6e1350ee299167e49bf476d82e3ff58724e0a"
+        },
+        {
+          "path": "data/stacks/laravel.csv",
+          "sha256": "854ea4daa5fc61292d22235ad33b49ba3fe22423c3de8d3cb03758ffed3b59f9"
+        },
+        {
+          "path": "data/stacks/nextjs.csv",
+          "sha256": "ecd2c27b2ea0127d203ae726060efcdd7335b5e83f96b99e4f3befbbfeebd5a4"
+        },
+        {
+          "path": "data/stacks/nuxt-ui.csv",
+          "sha256": "fce682a338cfcdbf35d318d20e5befbe7b5d81b05abc37f87677a6d9cde84dc6"
+        },
+        {
+          "path": "data/stacks/nuxtjs.csv",
+          "sha256": "3d9b54ed2d151bd9c86e9e5609b8a6f88a00c4c52fa601a30af96c49b2c4d176"
+        },
+        {
+          "path": "data/stacks/react-native.csv",
+          "sha256": "ba31dd9c0c04da6bc02a74448bf121f9c0728ae5ba3b4d47b487778b0a1135b5"
+        },
+        {
+          "path": "data/stacks/react.csv",
+          "sha256": "4dd176a9787e5c6306b5df94158d75955adcdc6edab41ce5286641a5842303c1"
+        },
+        {
+          "path": "data/stacks/shadcn.csv",
+          "sha256": "e56cfde5b74907836ac3582a4779d5b7f3d206a702ab81b8669a1b668c3eeb51"
+        },
+        {
+          "path": "data/stacks/svelte.csv",
+          "sha256": "f6e379ba802941ba26b01d4ffbe3cd39120f2587659a1d93851c707f66bc13db"
+        },
+        {
+          "path": "data/stacks/swiftui.csv",
+          "sha256": "bdd9231ff3ad658f4e7c063e1eb49df2fd09ac8d90631a86df899b39833b9623"
+        },
+        {
+          "path": "data/stacks/threejs.csv",
+          "sha256": "97542e0ba34915a0ff7578be20e1619495df47c95c8c1c39b83e3785e1de771f"
+        },
+        {
+          "path": "data/stacks/uno.csv",
+          "sha256": "a0474363e4225b5367214d5675fd3e075f137026f9500f0d04357882ef4f6d48"
+        },
+        {
+          "path": "data/stacks/uwp.csv",
+          "sha256": "c409f08c1fbba1f1029f1acaa554e7b4471cc85517a5751c9f2e62465badcd5c"
+        },
+        {
+          "path": "data/stacks/vue.csv",
+          "sha256": "b655f1ebb9dff2652d15981f31b1784c8a6d4759efd2815a14f3088257569f95"
+        },
+        {
+          "path": "data/stacks/winui.csv",
+          "sha256": "e676dc1c13ee6c205c40b0746f1335150a346c7a49a0616d2545bc3d2c930c85"
+        },
+        {
+          "path": "data/stacks/wpf.csv",
+          "sha256": "9781a9950b20333637b30a02e498b7efca21b618a3eeb8665836f3ac6e974da7"
+        },
+        {
+          "path": "data/styles.csv",
+          "sha256": "a93a4d9d7025856575d7b7583bda020be9043013432c5af7c58af9dbdfb206b7"
+        },
+        {
+          "path": "data/typography.csv",
+          "sha256": "321fc446e89024488ebae96dda93efc4d2307bd8bddb240857ad51364f6782c8"
+        },
+        {
+          "path": "data/ui-reasoning.csv",
+          "sha256": "f0774dd741cecdad5eec842034bd6d5e9ea50e9f220a1910069748daa0bb8e9a"
+        },
+        {
+          "path": "data/ux-guidelines.csv",
+          "sha256": "ff81ec613f70ba9fc3fcce52dbe4ae35d44b2079dbe6dc066d2d6e38c28facd5"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "738f69dfa83db5c347c678fb9d90e560877059f0de93a327c39001bff92dc014"
+        },
+        {
+          "path": "PORT.md",
+          "sha256": "da141ccf164882e1235973aea4c943e5250dd18f34a44d403e302f2ec9ab58e1"
+        },
+        {
+          "path": "provenance.json",
+          "sha256": "fabf2b63894e19d6eda25da5981f5aac9d712ed00290bed854f1b45cc403d494"
+        },
+        {
+          "path": "reference-cases.json",
+          "sha256": "77dd2d55a139d67a78d4e0ce04847a14ce039249451e6224da6095e3dae89cc0"
+        },
+        {
+          "path": "references/pro-rules.md",
+          "sha256": "d28442d61c310b49c054a4ea736f89fb3008beebdbbc38c4b3a540b8f7fadf23"
+        },
+        {
+          "path": "references/quick-reference.md",
+          "sha256": "0609bc7c89dacb40472465d8fc14257b56b2c43439660fc8d6fa3b8c022e1876"
+        },
+        {
+          "path": "runtime/.gitignore",
+          "sha256": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97"
+        },
+        {
+          "path": "runtime/package-lock.json",
+          "sha256": "f4e7fede33737053d1801823c347731d20d9b78b6edd91a35c857e31282e104f"
+        },
+        {
+          "path": "runtime/package.json",
+          "sha256": "ba303efe6b2695593fb49589052a257660166d2a4e759eecf2f674f870186fca"
+        },
+        {
+          "path": "runtime/src/core.mts",
+          "sha256": "69af22dd0da96dbd64b513074c1dbbf466972c024eac2a3abe6091a3805519a2"
+        },
+        {
+          "path": "runtime/src/data.mts",
+          "sha256": "08af880bebda2d8a1f7e9e1cc0bfaa366cb5f738762d39effce6baf1b2147adc"
+        },
+        {
+          "path": "runtime/src/design-system.mts",
+          "sha256": "ecf106e5ebf3b5e7cfeffe9f2190b49f2ef3d26b7ab5db1c715a39b849f40377"
+        },
+        {
+          "path": "runtime/src/format.mts",
+          "sha256": "dfee929248e4e6dd3408452158f4da3850557cd80254fda649204b6c5f422182"
+        },
+        {
+          "path": "runtime/src/persistence.mts",
+          "sha256": "16fcb73a90f772c5abc78d9d6581b3518e6d9be6bdea416bdbfbb4d4b995ff35"
+        },
+        {
+          "path": "runtime/src/ranking.mts",
+          "sha256": "e8a02ab528e880711a6a3b94f18ab3d289d69277ae59316cbf74efe81129f497"
+        },
+        {
+          "path": "runtime/src/reasoning.mts",
+          "sha256": "12c1da0450f108b755294b957541803789cb1cd22311ef5ef9ce5f5d89565fda"
+        },
+        {
+          "path": "runtime/src/search.mts",
+          "sha256": "98ea342ccfa5281b166f68f82caf52cc2b9fd81b13913fe7776d0fd5426d4c78"
+        },
+        {
+          "path": "runtime/tsconfig.json",
+          "sha256": "96f0cfc8de529a13eac977bf34a46d8dfb829805a9af9e067b4a89c666eb318b"
+        },
+        {
+          "path": "scripts/core.mjs",
+          "sha256": "b038c1a351a90bd27d8a11eb247b2e5b2d5dcb0a7a419b988b98e1471107997b"
+        },
+        {
+          "path": "scripts/data.mjs",
+          "sha256": "47f53e8f343f28b94acfda23f70c0a521793777b6a7176b404e2b44b8a446b84"
+        },
+        {
+          "path": "scripts/design-system.mjs",
+          "sha256": "ebf1221d8c793dc514a3c8630ff5201df25bd2980a2cef324d5686f27cbe4f91"
+        },
+        {
+          "path": "scripts/format.mjs",
+          "sha256": "47c9ac871fa13f8380facfed58b34c609fc336a6d3dbe570647ede9721300ad3"
+        },
+        {
+          "path": "scripts/persistence.mjs",
+          "sha256": "6a8fb63c9655f93cbe2273f2f399fecadeb45b78590d855f34f26440f8bf69df"
+        },
+        {
+          "path": "scripts/ranking.mjs",
+          "sha256": "40ea7fac026acbc05af4aa7867e9ed67fbde7480286649e633cc940af871e384"
+        },
+        {
+          "path": "scripts/reasoning.mjs",
+          "sha256": "a252e0d6b70e3371c60c6c923ac08baeca1c3a1377e4eb72e1a8ca9470191e73"
+        },
+        {
+          "path": "scripts/search.mjs",
+          "sha256": "2b19252215287c2b4e0c1131b46b707ee477883aa497a3ed06b0f71a1911f238"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "2e06cf4aac86e3cb65cfd4403b5139fe267ea2c9cb710cae3820e071d357654b"
+        }
+      ],
+      "adaptations": [
+        "TypeScript 7/Node port with pinned upstream data; consult provenance.json for runtime parity limitations.",
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+      ]
+    }
+  ],
+  "deferredPorts": [
+    {
+      "capability": "Impeccable native detector and live browser engine",
+      "dependency": "Upstream native engine, platform binary, browser instrumentation and post-edit hooks",
+      "miniStatus": "excluded; prometheus-impeccable-core is a bounded adaptation only",
+      "proposedNodeInterface": "node scripts/impeccable-engine.mjs detect --input recorded-dom-style.json --design DESIGN.md; live integration delegates to an existing harness browser capability",
+      "retainedBehavior": [
+        "Context and incumbent surface resolution",
+        "Mode selection",
+        "Selective skill routing",
+        "Completed-phase review hook"
+      ],
+      "omittedBehavior": [
+        "Native detector execution",
+        "Native engine-managed browser session and injection",
+        "Per-edit detector hooks",
+        "Runtime binary downloads"
+      ],
+      "parityAcceptance": [
+        "Pinned recorded DOM/style fixture parity for supported detector rules",
+        "Stable rule IDs, ignore behavior and actionable evidence",
+        "Existing harness browser permission preservation",
+        "Offline Windows Node execution with no native engine or extra daemon",
+        "One phase-boundary inspection and at most one confirmation"
+      ]
+    }
+  ]
+}

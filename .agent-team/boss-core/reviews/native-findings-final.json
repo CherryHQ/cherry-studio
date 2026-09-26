@@ -1,0 +1,35 @@
+{
+  "mode": "artifact",
+  "producer_model": "GPT-6",
+  "judge_model": "GPT-6-native-fallback",
+  "isolation_mode": "harness-native-fresh-context",
+  "cross_model_check": "same-family-fallback",
+  "review_round": "sole-corrective-re-review",
+  "verdict": "PASS",
+  "findings": [],
+  "checked_classes": [
+    "Missing native evidence: the supplement supplies 50 unique native envelopes, ten roles in each of five harnesses, a matching per-file validation receipt for each, export hashes and all five export receipts. Its explicit certification scope excludes inference, MiniMax activation and all-harness runtime certification. This addresses the prior warning through additional evidence and a restricted certification scope.",
+    "Role identity and model translation: compared each supplied native description and every manifest-declared native override against its envelope; no mismatch was found. Codex hard/medium models and effort, Claude aliases and effort, OpenCode primary/subagent modes, and explicit empty skill arrays match the manifest. Kimi and MiniMax do not receive invented native model fields.",
+    "Definition coverage and consistency: all 50 paths are unique; each canonical role has exactly five distinct harness targets; all have syntax-passed and promptMatches receipts. Per-role prompt hashes agree across the five harnesses. No contradictory receipt or missing role was found.",
+    "Native skill and permission claims: empty native skills arrays do not contradict the deliberate explicit-path loading policy. No envelope claims to enforce the manifest's owns paths or turns coordination ownership into a sandbox. Export diagnostics distinguish installed skills, authorization and native schema certification.",
+    "Verification overclaim: export receipts state source-verified serialization and unverified live execution, explicitly disclaim native schema certification for overrides, and the installation receipt identifies OpenCode boss-lead discovery separately from other static checks. The restricted scope does not turn parser success into all-harness runtime acceptance.",
+    "Source and portability evidence: source URLs, inspection dates and the MiniMax source version are now supplied in export receipts. The packet retains explicit model, executable and tool availability limits. External source accuracy, raw serialized bytes and Windows/native invocation remain outside this packet-only review, rather than certified outcomes.",
+    "Requirement and ownership regression: the supplement introduces no changed role responsibilities or ownership assignments. Product, UX, planned UAR handoffs, graph limitations, single-writer assignment and restrictions on external effects remain as reviewed in the original packet.",
+    "Independent review representation: the available evidence does not establish a completed different-family review. This verdict remains a same-family fallback and does not certify model capabilities, customer acceptance or application behavior."
+  ],
+  "resolved_findings": [
+    {
+      "prior_file": ".agent-team/boss-core/reviews/native-findings.json",
+      "prior_severity": "WARNING",
+      "claim": "The packet omits the native definition syntax and supporting contract receipts needed to independently review its five-harness installation claim.",
+      "resolution": "Resolved for the narrowed artifact review by native-evidence-supplement.json, which adds the parsed envelopes, per-file validation and export receipts, and explicitly limits certification. No native runtime or inference certification is granted."
+    }
+  ],
+  "limitations": [
+    "Only the original review packet, mandate and supplied native evidence supplement were examined; implementation and external source pages were not inspected.",
+    "Parsed envelopes and validation receipts support consistency review. Raw serialized definitions were not supplied, so byte-level syntax and export hashes were not independently recomputed. The factored packet does not specify exact common/role prompt assembly bytes; prompt hash agreement across harnesses was checked, but canonical assembled prompt hashes were not independently established.",
+    "OpenCode boss-lead discovery and validation commands are supplied receipts, not commands independently rerun by this reviewer.",
+    "No native agent activation, model inference, application launch, cross-platform behavior or customer acceptance is certified.",
+    "This is a weaker GPT-6-family fallback after the reported MiniMax timeout and Kimi entitlement failure, not a cross-model pass."
+  ]
+}

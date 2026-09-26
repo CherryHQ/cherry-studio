@@ -53,3 +53,6 @@ The Rust path rule loads `prometheus-rust-workspace`, which routes
 `rust-best-practices`, `rust-async-patterns`, `rust-mcp-server-generator`, and
 the specialized catalog only when relevant. Dependency and protocol pins in the
 target project remain authoritative.
+
+## Shared UI and team defaults
+Bootstrap also installs the offline UI catalog, shared protocol (preserving a project override), short UI pointers in both entrypoints and recovery data. It adopts a sole or explicitly selected existing project team using creator install-project; ambiguous teams require selection. UI roles use prometheus-ui-ux, reviewers prometheus-ui-review, backend-only work no UI context. New helpers use TypeScript 7 compiled to Node .mjs.

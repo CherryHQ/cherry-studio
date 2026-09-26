@@ -1,0 +1,5 @@
+{
+  "state": ".agent-team/boss-core/state.json",
+  "target": "opencode",
+  "out": ".agent-team/boss-core/exports/opencode"
+}

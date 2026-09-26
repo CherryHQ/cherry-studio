@@ -247,3 +247,32 @@ If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), 
 - Stack details live under `.claude/rules/`; load only the rule matching the files
   being changed. Preserve operator prose outside this managed region.
 <!-- prometheus-mini-context:end -->
+
+<!-- boss-team-routing:start -->
+## The Boss development agent team
+
+Use the project team in [.agent-team/boss-core/README.md](.agent-team/boss-core/README.md). Canonical roles, ownership, inputs, outputs, skills and native model settings are in [team.json](.agent-team/boss-core/team.json); exact triggers/tools/skills are in [routing.md](.agent-team/boss-core/routing.md). AGENTS.md is the existing symlink to this file, so both harness entrypoints share these instructions.
+
+Start as boss-lead for multi-domain work; use one specialist plus independent boss-verifier by default, at most four active including lead. Select boss-product for requirements, priorities, stakeholder coordination and peer-project dependencies; boss-ux for user-visible workflows, design and accessibility; boss-renderer for UI implementation; boss-desktop for Electron/IPC/platform; boss-runtime for sessions/DSH/planned UAR integration; boss-providers for SDKs/models; boss-data for persistence/migrations; boss-security for MCP/tool and privilege boundaries. Small tasks need only the relevant implementer and review. Assign disjoint concrete write paths before parallel work; default owns fields do not grant permissions.
+
+Native definitions are .codex/agents, .claude/agents, .kimi-code/agents and .opencode/agents. MiniMax uses .minimax/agents only when launched with the project's MINIMAX_DATA_DIR via .agent-team/boss-core/launch.mjs. Read the team guide for launch and support limits. Project skills are in .agents/skills with explicit [bindings](.agent-team/boss-core/skill-bindings.json); load the needed skill, not the whole collection.
+
+Before source changes use compass-the-boss with bounded symbol, callers/callees and impact queries; first check .compass/verification.json and current source for freshness. Existing project MCP definitions are .mcp.json and .codex/config.toml. If the server is unavailable use the [Compass CLI/source fallback](.agent-team/boss-core/tool-policy.md). The graph excludes tests/docs/peer repositories and has documented omitted edges; IPC, DI and dynamic worker boundaries need source/runtime checks. Do not infer a call relationship from proximity.
+
+UI work follows [design-playbook.md](.agent-team/boss-core/design-playbook.md), DESIGN.md and cherry-electron-dev's tracked Electron workflow. Product work uses create-prd and stakeholder-map as draft aids; OpenSpec remains the delivery contract. Follow [handoffs.md](.agent-team/boss-core/handoffs.md) for UAR/peer coordination; a draft does not authorize external messages or peer writes. Native permissions/tool discovery remain authoritative; consult [tool-policy.md](.agent-team/boss-core/tool-policy.md) and [model-policy.md](.agent-team/boss-core/model-policy.md).
+
+At completed boundaries obtain independent [adversarial review and sycophancy screening](.agent-team/boss-core/review-protocol.md); report unavailable checks honestly. An author cannot independently certify their own work. Preserve existing user work and current KBD authority.
+<!-- boss-team-routing:end -->
+
+<!-- prometheus-team-routing:start v1 -->
+For every code task, read `.agent-team/project-routing.json`, then its active team manifest and the relevant role instructions. Default to that team, selecting only roles whose responsibilities and ownership match the work. Preserve native permissions, models, concurrency limits and existing project instructions.
+For UI work, load the role-bound `prometheus-ui-ux` or `prometheus-ui-review` skill. Prefer `.agents/UI_UX_PROTOCOL.md` when present; otherwise use the installed `prometheus-ui-ux/references/UI_UX_PROTOCOL.md`. Backend work must not load UI guidance.
+Use native delegation when available. If unavailable, follow the selected role instructions sequentially and report that limitation. Review in the builder context is not independent review. Keep reviewers dormant until the complete implementation phase; allow one batched correction/confirmation cycle. Respect user-only skill invocation restrictions. Zed external ACP agents use their own native configuration; parallel UI threads are not an automatic delegation API.
+<!-- prometheus-team-routing:end -->
+
+<!-- uiux-routing:start v1 -->
+## UI/UX routing
+UI, styles, tokens, motion or copy → `prometheus-ui-ux`. Read `.agents/UI_UX_PROTOCOL.md` or its bundled default; preserve design authority.
+All code: detect `.agent-team/project-routing.json` and real team manifests. Preserve selection; adopt a sole team; ask if ambiguous. Use relevant roles, disclosing sequential fallback.
+Backend work loads no UI guidance. Review respects user-only skills and the completed-phase boundary.
+<!-- uiux-routing:end -->

@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-24T23:24:56.242Z",
+  "external": {
+    "repository": "phuryn/pm-skills",
+    "commit": "8607e3b077817f89bf4a9b623246219734ac3be0",
+    "license": "MIT",
+    "files": [
+      {
+        "path": ".agents/skills/create-prd/SKILL.md",
+        "url": "https://raw.githubusercontent.com/phuryn/pm-skills/8607e3b077817f89bf4a9b623246219734ac3be0/pm-execution/skills/create-prd/SKILL.md",
+        "sha256": "2a4059f16301c5559e10d0dfd00c9bdcde04d2cd964d8c360dbe43bd0161ed32"
+      },
+      {
+        "path": ".agents/skills/create-prd/LICENSE",
+        "url": "https://raw.githubusercontent.com/phuryn/pm-skills/8607e3b077817f89bf4a9b623246219734ac3be0/LICENSE",
+        "sha256": "a2c922f9b81b4f40347ddfa79c38eda0f1278b5a6d108bd4099b4da254c774ee"
+      },
+      {
+        "path": ".agents/skills/stakeholder-map/SKILL.md",
+        "url": "https://raw.githubusercontent.com/phuryn/pm-skills/8607e3b077817f89bf4a9b623246219734ac3be0/pm-execution/skills/stakeholder-map/SKILL.md",
+        "sha256": "0cc656200848c710e50a4240cfe9aee3bcd08ebc536a5b87b01d38a96ffe4174"
+      },
+      {
+        "path": ".agents/skills/stakeholder-map/LICENSE",
+        "url": "https://raw.githubusercontent.com/phuryn/pm-skills/8607e3b077817f89bf4a9b623246219734ac3be0/LICENSE",
+        "sha256": "a2c922f9b81b4f40347ddfa79c38eda0f1278b5a6d108bd4099b4da254c774ee"
+      }
+    ]
+  },
+  "local": [
+    {
+      "source": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime/.agents/skills/agent-team-creator",
+      "target": ".agents/skills/agent-team-creator",
+      "files": [
+        {
+          "path": ".agents/skills/agent-team-creator/SKILL.md",
+          "sha256": "f9499c34faf89af0b11c8a791998ed4b8dfc643df5e4d976e60885c49a4a4e8b"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/agents/openai.yaml",
+          "sha256": "6605ed41446890050e2b32534d10ffa2e3d99f5abc7bcb4f810991b9a42d46d1"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/assets/intake.json",
+          "sha256": "3a6b9ad249b0adf16c730f99143280ace41355a9592efe3eb834b720543477f3"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/references/manifest.md",
+          "sha256": "d419e580599a586d0511e245453c660e29c809698d8ad7ba9facb13f97b2f321"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/references/models-memory.md",
+          "sha256": "948d23f9c3596899f77405590b9f521fa0428cc1aebc7984604a1b37e80cabec"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/references/native-harnesses.md",
+          "sha256": "bf35120b77eb7f18f55c0fd0b86cee8e23681334adcd97639fe23e4781fd4181"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/references/task-handoff.md",
+          "sha256": "9eacc067f5684d9318e5809083bd378fda4b7447a0a7f19f203fb4951952cfee"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/schemas/team.schema.json",
+          "sha256": "76ccd7ef710ee72f60ae89480167fa0129da9f795a103849b2315595d2ff59e9"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/adapters-codecs.mjs",
+          "sha256": "67c59ed9c1b8cf00223ce6e6374d72451ea5d26556d814cbbefa26ac704118dd"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/adapters-local.mjs",
+          "sha256": "5fa8663c2ffe14aaa47c713679fbe73e37ce642c8de4e4caf1304380b16e6182"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/adapters-services.mjs",
+          "sha256": "1940041ed303215a1df62dffbc137eaded255f68056692618e6978fc88341d63"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/adapters.mjs",
+          "sha256": "b1e7e4a62e2bd518534aef779f04f8f1d62c5bda7f00cdc4530d08aaf9f035dd"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/cli.mjs",
+          "sha256": "a04c9d2ccfb974bff561e7f170c862caf30410a8db3026310db1b8a71728635b"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/export-files.mjs",
+          "sha256": "8f193b8cc9190c5ba4b83c4c37eb0757e34438d9920737f5f852e6ce0143a196"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/guidance.mjs",
+          "sha256": "aae5e5057f54de0e58dadcba2f8ed79cef0d66a76638d2e6b32d3113e48b8992"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/handoff.mjs",
+          "sha256": "1510e7cbcac0e685dd155fca0369fd08d20163b0d8aa104dc846da8e836c14ae"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/memory.mjs",
+          "sha256": "5d86cb097580a1d018effe7e27075574610762d6ca338c5eeec7644e7be53e78"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/models-http.mjs",
+          "sha256": "aea304aa515f8468446094ef3c5e140c78cffdbe63d4b54d414e3d1de709dc28"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/models.mjs",
+          "sha256": "8fbb72e7815e4f3e23d535679fae8a2deb73f013dfd40466952acf95d70f7b22"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/state-kbd.mjs",
+          "sha256": "d6083c558b54b994553208d4cbcfe221c71a48e7a5edbee03da730e3c6be5aad"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/state-tasks.mjs",
+          "sha256": "3ef330a0f3689da1bd74f8a1998f51877c2e4f0d79d0b1fd23ff3b593504120d"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/state-validation.mjs",
+          "sha256": "da6086611c376daf42472aa2548b5874d622917d4ecd8d16077b31c1a563cc9e"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/state.mjs",
+          "sha256": "90ef7e07aae91ef787245d384fdac1c5e99fc676fa40db7d34bc1044257c9928"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/types.mjs",
+          "sha256": "aa827d89df419fc4e721044b2170dc50e540e67ab15d568b7cd01e50b352ce2f"
+        },
+        {
+          "path": ".agents/skills/agent-team-creator/scripts/validation.mjs",
+          "sha256": "cf776cd2508a6a89702b45154258f72824eabbe1eb336b1c0bbb449d5e48f6d3"
+        }
+      ]
+    },
+    {
+      "source": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime/.agents/skills/agent-team-manage",
+      "target": ".agents/skills/agent-team-manage",
+      "files": [
+        {
+          "path": ".agents/skills/agent-team-manage/SKILL.md",
+          "sha256": "851a75e5854ad0a2778d274c00585d7da796e96e11b2903d2fd35efd911bc224"
+        },
+        {
+          "path": ".agents/skills/agent-team-manage/agents/openai.yaml",
+          "sha256": "cfaf68e2410f6ebb078c8c4e8ed3b0547728f913ad94b0f112ec5c680816f87e"
+        }
+      ]
+    },
+    {
+      "source": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime/.agents/skills/agent-team-handoff",
+      "target": ".agents/skills/agent-team-handoff",
+      "files": [
+        {
+          "path": ".agents/skills/agent-team-handoff/SKILL.md",
+          "sha256": "ce8e6c64a50e35ee5f7ce44a07fc98bafd9592cbb896c3dbc076df04d7c5db3e"
+        },
+        {
+          "path": ".agents/skills/agent-team-handoff/agents/openai.yaml",
+          "sha256": "72e890158a9d95da16c829ce97ab76036d156c572888fee688e05fcde6e270ac"
+        }
+      ]
+    },
+    {
+      "source": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime/.agents/skills/agent-team-models",
+      "target": ".agents/skills/agent-team-models",
+      "files": [
+        {
+          "path": ".agents/skills/agent-team-models/SKILL.md",
+          "sha256": "1d5bdc4306a02986129563954cbac2b7697b13d3a87771168b4cb6006f912a5c"
+        },
+        {
+          "path": ".agents/skills/agent-team-models/agents/openai.yaml",
+          "sha256": "1a10ef43d4e3fb9b6950c8085baed0bcb690971daf47d1942903ed3b2dbedcae"
+        }
+      ]
+    },
+    {
+      "source": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime/.agents/skills/vercel-composition-patterns",
+      "target": ".agents/skills/vercel-composition-patterns",
+      "files": [
+        {
+          "path": ".agents/skills/vercel-composition-patterns/AGENTS.md",
+          "sha256": "89e3ddd58fcf99a53a50e25dfd21b8cde1be5f10b7df6bacd3dfa6796932f516"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/README.md",
+          "sha256": "85915a43a6f0b4efe525e3cf6398dd866166da2025837c4460468a24a940da94"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/SKILL.md",
+          "sha256": "e38e0eaa609316b10423a9a138ed95e35099accd3f735585295c8a8f165c28a3"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/metadata.json",
+          "sha256": "49262ed5cb4186f31ee980cf8d990be0170c51efed4908d0464a1cff9905bd05"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/_sections.md",
+          "sha256": "a174213b87e6911e2b766995a2cbaf8d1534057076e82fb79fe3f0ecb38047df"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/_template.md",
+          "sha256": "587f7d16b0660eb61fee4a4d3d7df2b3077d6835de170602c7d6e60bee559131"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/architecture-avoid-boolean-props.md",
+          "sha256": "007555ebb020f4d552582a2c4db194db71a1fd33094012e5187bcfa4f8c392d5"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/architecture-compound-components.md",
+          "sha256": "f246af13dc269b521cf20eb8ad99a0cb645beac381c8c9b117262c34612c8457"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/patterns-children-over-render-props.md",
+          "sha256": "7c45a0d21b3c4126a32cba916ee31adeae195386ad1dbbe6634aedb7457aa0ad"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/patterns-explicit-variants.md",
+          "sha256": "8c19e596e61807549d01ce8c6954c6358199f97a8511c0c02c625ec0efda8c0e"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/react19-no-forwardref.md",
+          "sha256": "881830adb7534c4b2d70db426556646ad9837f5478f744f35641f635ada22227"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/state-context-interface.md",
+          "sha256": "09e73afbf9285fa416679cc864a287b9e8b821d0969272ab784295386d8c9bc3"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/state-decouple-implementation.md",
+          "sha256": "76a8c1eb29a70d8996ab3f71260345af2f7bc89deab815a421d6c87c6591a9c3"
+        },
+        {
+          "path": ".agents/skills/vercel-composition-patterns/rules/state-lift-state.md",
+          "sha256": "74c54038a6c554c748fe31cec673b80861b5d920b7553cf78cdf10d18b4b759b"
+        }
+      ]
+    },
+    {
+      "source": "/Users/gqadonis/.codex/skills/a11y-gate/SKILL.md",
+      "target": ".agents/skills/a11y-gate/SKILL.md",
+      "sha256": "23a85d1fd94c8f3b91b2c33f1b213f9f706856f7d2bea4cb63e9ab60b27311e8"
+    }
+  ],
+  "compositionProvenance": {
+    "repository": "vercel-labs/agent-skills",
+    "commit": "063bee94c3f4df8453406c830b0a7df0f2860278",
+    "subtree": "skills/composition-patterns",
+    "license": "MIT in skill frontmatter; upstream root license absent in UAR receipt"
+  },
+  "audit": "PM files inspected in full; documents only, no executable hooks or commands. Creator compiled Node runtime reused from UAR. Local a11y gate uses Boss design tokens; no hook installed.",
+  "adaptations": [
+    {
+      "path": ".agents/skills/agent-team-creator/references/task-handoff.md",
+      "reason": "Six source links pointed at maintainer-only runtime source omitted from consumer package; link the equivalent shipped compiled modules.",
+      "upstreamSha256": "9eacc067f5684d9318e5809083bd378fda4b7447a0a7f19f203fb4951952cfee",
+      "installedSha256": "44c7f046c7d9e0de7a64a364fb8259c7f5570bfc0bf8eb1fedcc16334d2ce9c1"
+    }
+  ]
+}

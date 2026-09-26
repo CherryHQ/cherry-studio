@@ -1,0 +1,9 @@
+{
+  "name": "prometheus-ui-ux-pro-max-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "scripts": {"build": "tsc -p tsconfig.json"},
+  "devDependencies": {"@types/node": "22.18.6", "typescript": "7.0.2"}
+}

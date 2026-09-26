@@ -1,0 +1,31 @@
+{
+  "mode": "artifact",
+  "producer_model": "GPT-6",
+  "judge_model": "GPT-6-native-fallback",
+  "isolation_mode": "harness-native-fresh-context",
+  "cross_model_check": "same-family-fallback",
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "WARNING",
+      "file": ".agent-team/boss-core/reviews/final-packet.json",
+      "claim": "The packet omits the native definition syntax and supporting contract receipts needed to independently review its five-harness installation claim.",
+      "evidence": "The intent requires native definitions for Codex, Claude, Kimi, OpenCode and MiniMax. The packet contains the canonical manifest and ten documentation/launcher artifacts, but no .codex/agents, .claude/agents, .kimi-code/agents, .opencode/agents or .minimax/agents file contents. verification.nativeSyntaxSummary asserts count=50 and allSyntaxAndPromptsPassed=true while referring to an external verification.json; research.harness similarly refers to research/uar-harness-research.md without supplying its contents. Factoring repeated prompts preserves prompt text but does not expose native headers, permission fields, serialization or the contract evidence used to validate them. Consequently this packet-only review cannot independently assess those installation details.",
+      "suggested_fix": "Include each distinct native definition envelope with its canonical prompt reference and role-specific fields, together with the native contract excerpts and per-harness validation receipts, or explicitly restrict this review's certification to the included manifest, documentation and launcher. Keep native activation and inference marked unverified where they were not run."
+    }
+  ],
+  "checked_classes": [
+    "Requirement coverage: explicit product and UX roles, graph-based routing, planned UAR contracts, peer handoffs and five named harness targets are present; native serialization evidence is limited by the reported warning.",
+    "Ownership and dependencies: default write paths are disjoint in the supplied manifest; shared composition roots, contracts, tests and uncovered services require exact lead assignment; product and UX handoffs precede applicable implementation.",
+    "Source-evidence overclaim: repository-map separates planned UAR integration from observed DSH integration, identifies partial graph coverage and declines unsupported cross-package and cross-repository call claims. Source receipts themselves are not in the packet and were not independently verified.",
+    "Authority and trust boundaries: peer writes, external communications and publication require task authorization; model prompts and ownership are explicitly distinguished from native permission enforcement.",
+    "Usability and verification: actual Electron, keyboard, accessibility and platform evidence is required at completed boundaries; unavailable checks remain gaps; static installation does not claim application acceptance.",
+    "Review independence: review protocol permits an explicitly weaker fresh-context same-family fallback; the supplied gateway timeout does not claim a judge verdict or cross-model pass.",
+    "Launcher and portability: included launcher computes project-relative root and MiniMax data paths, forwards arguments and reports absent executables; native CLI execution and cross-platform activation were not performed in this artifact-only review."
+  ],
+  "limitations": [
+    "Judged only the supplied final-packet.json and reviewer mandate; did not inspect implementation, external sources or omitted receipts.",
+    "REST MiniMax timed out and native Kimi failed account entitlement according to the task metadata. This GPT-6-family review is a weaker same-family fallback, not a cross-model pass.",
+    "PASS means no evidence-backed CRITICAL finding in the supplied artifacts; it does not certify omitted native definitions, runtime invocation, application behavior or customer acceptance."
+  ]
+}
