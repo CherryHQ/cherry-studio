@@ -74,12 +74,19 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
-/** An Anthropic image block as a `file` UI part (undefined for unknown sources). */
+/** An Anthropic image block as a `file` UI part (undefined for unusable sources). */
 function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
   if (source.type === 'base64') {
+    if (!source.data.trim()) return undefined
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
   if (source.type === 'url') {
+    if (!source.url.trim() || !/^(https?:\/\/|file:\/\/|data:)/.test(source.url)) return undefined
+    if (
+      source.url.startsWith('data:') &&
+      (source.url.indexOf(',') < 0 || !source.url.slice(source.url.indexOf(',') + 1).trim())
+    )
+      return undefined
     return { type: 'file', mediaType: 'image/png', url: source.url }
   }
   return undefined
@@ -122,6 +129,10 @@ function toolResultToOutput(
         const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
+      } else {
+        const note = `${toolResultImageAnchor(toolCallId, ++imageIndex)} [image attachment omitted: empty or unsupported image payload]`
+        lines.push(note)
+        relocatedParts.push({ type: 'text', text: note })
       }
     }
   }
@@ -252,9 +263,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
-          if (part) {
-            parts.push(part)
-          }
+          parts.push(part ?? { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' })
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.id)

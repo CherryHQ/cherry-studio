@@ -2,8 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { createOpenAI } from '@ai-sdk/openai'
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { convertToModelMessages, generateText } from 'ai'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { prepareChatMessages } from '@main/ai/messages/attachmentRouting'
+import { AnthropicMessageConverter } from '@main/features/apiGateway/adapters/converters/AnthropicMessageConverter'
 import type { FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -73,6 +78,33 @@ describe('materializeNativeFilePart — file:// inline', () => {
     expect(out?.url).toBe('data:image/png;base64,AAA')
   })
 
+  it.each(['', '  ', 'data:image/png;base64,', 'data:image/png;base64,  ', 'data:image/png,', 'data:image/png'])(
+    'rejects an unresolvable legacy image URL %j',
+    async (url) => {
+      expect(await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))).toBeNull()
+    }
+  )
+
+  it('degrades an unresolved legacy image to a visible note before model conversion', async () => {
+    const prepared = await prepareChatMessages(
+      [
+        {
+          id: 'legacy',
+          role: 'user',
+          parts: [filePart({ url: 'data:image/png;base64,', mediaType: 'image/png', filename: 'missing.png' })]
+        }
+      ],
+      {
+        attachments: [],
+        nativeSupport: { image: true, pdf: false, audio: false, video: false },
+        isToolCapable: true
+      }
+    )
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "missing.png": [could not read this file].' }
+    ])
+  })
+
   it('leaves http(s) URLs untouched', async () => {
     const out = await materializeNativeFilePart(filePart({ url: 'https://example.com/a.png', mediaType: 'image/png' }))
     expect(out?.url).toBe('https://example.com/a.png')
@@ -112,6 +144,57 @@ describe('materializeNativeFilePart — file:// inline', () => {
     readMock.mockClear()
     await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
     expect(readMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('gateway image provider boundary', () => {
+  it('keeps invalid converted images out of the OpenAI request body', async () => {
+    const request: MessageCreateParams = {
+      model: 'local:vision',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+            { type: 'image', source: { type: 'url', url: '' } }
+          ]
+        }
+      ]
+    }
+    const converted = new AnthropicMessageConverter().toUIMessages(request)
+    const prepared = await prepareChatMessages(converted, {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' },
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+
+    let requestBody: { messages?: Array<{ content?: unknown }> } = {}
+    const model = createOpenAI({
+      apiKey: 'test-key',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        return new Response(
+          JSON.stringify({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            created: 1,
+            model: 'vision',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      }
+    }).chat('vision')
+    await generateText({ model, messages: await convertToModelMessages(prepared) })
+    expect(JSON.stringify(requestBody)).not.toContain('image_url')
+    expect(JSON.stringify(requestBody)).toContain('[image attachment omitted: empty or unsupported image payload]')
   })
 })
 

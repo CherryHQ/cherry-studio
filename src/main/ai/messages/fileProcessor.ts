@@ -117,7 +117,8 @@ async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
   }
 
   const url = part.url
-  if (!url) return part
+  if (!url?.trim()) return null
+  if (url.startsWith('data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim())) return null
   if (!url.startsWith('file://')) return part
 
   const inlined = await fileUrlToDataUrl(url)

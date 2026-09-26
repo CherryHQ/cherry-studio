@@ -131,6 +131,40 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
+  it('preserves a valid https image source', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: [{ type: 'image', source: { type: 'url', url: 'https://img.example/x.png' } }] }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }])
+  })
+
+  it('preserves a file URL image source for local inlining', () => {
+    const url = 'file:///tmp/image.png'
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url }])
+  })
+
+  it.each([
+    { type: 'base64' as const, media_type: 'image/png' as const, data: '' },
+    { type: 'base64' as const, media_type: 'image/png' as const, data: '  ' },
+    { type: 'url' as const, url: '' },
+    { type: 'url' as const, url: '  ' },
+    { type: 'url' as const, url: 'data:image/png;base64,' },
+    { type: 'url' as const, url: 'data:image/png' },
+    { type: 'url' as const, url: 'ftp://example.com/x.png' }
+  ])('replaces an unusable image source with a visible note: %j', (source) => {
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
   it('maps thinking and redacted_thinking blocks to reasoning parts preserving replay metadata', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -233,6 +267,44 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
       ]
     })
+  })
+
+  it('keeps unusable tool_result images visible without claiming they were attached', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+                  { type: 'image', source: { type: 'url', url: '' } }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    const output = (msgs[0].parts[0] as { output: string }).output
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=1]')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=2]')
+    expect(output).toContain('[image attachment omitted: empty or unsupported image payload]')
+    expect(output).not.toContain('attached in the following user message')
+    expect(msgs[1].parts).toEqual([
+      {
+        type: 'text',
+        text: '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+      },
+      {
+        type: 'text',
+        text: '[tool-result attachment call_id="call_img" image=2] [image attachment omitted: empty or unsupported image payload]'
+      }
+    ])
   })
 
   it('keeps call ids attached to relocated images when parallel results arrive out of order', () => {
