@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Горячая клавиша управления",
   "settings.messages.input.steer_shortcuts_hint": "Пока агент работает, эта комбинация немедленно отправляет сообщение в текущий ход для корректировки; клавиша отправки ставит его в очередь до завершения хода.",
   "settings.messages.input.title": "Настройки ввода",
+  "settings.messages.keep_intermediate_text.hint": "Показывать в ответе текст помощника между вызовами инструментов; инструменты и рассуждения остаются свернутыми.",
+  "settings.messages.keep_intermediate_text.label": "Показывать промежуточный текст помощника",
   "settings.messages.layout.conversation": "Вид разговора",
   "settings.messages.layout.work": "Вид работы",
   "settings.messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",

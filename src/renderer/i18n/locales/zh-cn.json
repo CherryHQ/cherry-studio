@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "引导快捷键",
   "settings.messages.input.steer_shortcuts_hint": "Agent 运行中时，用这个快捷键把消息立刻发进当前回合来引导它；用发送快捷键则排队，等这一轮结束后再发出。",
   "settings.messages.input.title": "输入设置",
+  "settings.messages.keep_intermediate_text.hint": "在回复中显示工具调用之间的助手文字；工具和推理内容仍保持折叠。",
+  "settings.messages.keep_intermediate_text.label": "显示助手的中间文字",
   "settings.messages.layout.conversation": "对话视图",
   "settings.messages.layout.work": "工作视图",
   "settings.messages.markdown_rendering_input_message": "Markdown 渲染输入消息",

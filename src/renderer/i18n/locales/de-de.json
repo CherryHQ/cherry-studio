@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Lenkungs-Verknüpfung",
   "settings.messages.input.steer_shortcuts_hint": "Während ein Agent läuft, sendet diese Verknüpfung Ihre Nachricht sofort in den aktuellen Zug, um ihn zu steuern; die Sende-Verknüpfung stellt sie in die Warteschlange, bis der Zug endet.",
   "settings.messages.input.title": "Eingabeeinstellungen",
+  "settings.messages.keep_intermediate_text.hint": "Assistententext zwischen Werkzeugaufrufen in der Antwort anzeigen; Werkzeuge und Gedankengänge bleiben eingeklappt.",
+  "settings.messages.keep_intermediate_text.label": "Zwischentexte des Assistenten anzeigen",
   "settings.messages.layout.conversation": "Unterhaltungsansicht",
   "settings.messages.layout.work": "Arbeitsansicht",
   "settings.messages.markdown_rendering_input_message": "Markdown-Rendering-Eingabenachricht",

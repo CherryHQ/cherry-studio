@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "誘導のショートカット",
   "settings.messages.input.steer_shortcuts_hint": "エージェントが動作中の場合、このショートカットで現在のターンにメッセージを即時送信して誘導できます。送信ショートカットを使用すると、ターン終了までキューに追加されます。",
   "settings.messages.input.title": "入力設定",
+  "settings.messages.keep_intermediate_text.hint": "ツール呼び出しの間にあるアシスタントのテキストを回答に表示します。ツールと推論は折りたたまれたままです。",
+  "settings.messages.keep_intermediate_text.label": "アシスタントの途中のテキストを表示",
   "settings.messages.layout.conversation": "会話ビュー",
   "settings.messages.layout.work": "ワークビュー",
   "settings.messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",

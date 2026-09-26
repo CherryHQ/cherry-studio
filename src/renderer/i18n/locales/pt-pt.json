@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Atalho de orientação",
   "settings.messages.input.steer_shortcuts_hint": "Enquanto um Agente estiver a executar, este envia a sua mensagem imediatamente para a vez atual para a orientar; o atalho de envio coloca-a em espera até a vez terminar.",
   "settings.messages.input.title": "Configurações de entrada",
+  "settings.messages.keep_intermediate_text.hint": "Mostrar na resposta o texto do assistente entre chamadas de ferramentas; as ferramentas e o raciocínio permanecem recolhidos.",
+  "settings.messages.keep_intermediate_text.label": "Mostrar texto intermédio do assistente",
   "settings.messages.layout.conversation": "Vista de conversa",
   "settings.messages.layout.work": "Vista de trabalho",
   "settings.messages.markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",

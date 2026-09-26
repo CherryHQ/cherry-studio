@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Atajo de guía",
   "settings.messages.input.steer_shortcuts_hint": "Mientras un agente esté en ejecución, esto envía tu mensaje al turno actual de inmediato para guiarlo; el atajo de envío lo pone en cola hasta que termine el turno.",
   "settings.messages.input.title": "Configuración de entrada",
+  "settings.messages.keep_intermediate_text.hint": "Muestra en la respuesta el texto del asistente entre llamadas a herramientas; las herramientas y el razonamiento siguen contraídos.",
+  "settings.messages.keep_intermediate_text.label": "Mostrar texto intermedio del asistente",
   "settings.messages.layout.conversation": "Vista de conversación",
   "settings.messages.layout.work": "Vista de trabajo",
   "settings.messages.markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",

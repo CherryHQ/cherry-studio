@@ -4666,6 +4666,8 @@
   "settings.messages.input.steer_shortcuts": "Phím tắt hướng dẫn",
   "settings.messages.input.steer_shortcuts_hint": "Khi Agent đang chạy, phím tắt này gửi tin nhắn ngay vào lượt hiện tại để hướng dẫn; phím tắt gửi sẽ xếp hàng cho đến khi lượt kết thúc.",
   "settings.messages.input.title": "Cài đặt đầu vào",
+  "settings.messages.keep_intermediate_text.hint": "Hiển thị văn bản của trợ lý giữa các lần gọi công cụ trong câu trả lời; công cụ và phần suy luận vẫn được thu gọn.",
+  "settings.messages.keep_intermediate_text.label": "Hiển thị văn bản trung gian của trợ lý",
   "settings.messages.layout.conversation": "Chế độ xem cuộc trò chuyện",
   "settings.messages.layout.work": "Chế độ xem công việc",
   "settings.messages.markdown_rendering_input_message": "Tin nhắn nhập Markdown kết xuất",
