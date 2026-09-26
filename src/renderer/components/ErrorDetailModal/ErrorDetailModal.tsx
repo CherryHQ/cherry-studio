@@ -1,4 +1,4 @@
-import { ArrowLeft, Copy, FileUp } from 'lucide-react'
+import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
 import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { DoctorAgentDialog } from '@renderer/components/doctor'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -475,6 +476,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
 }) => {
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -561,13 +563,29 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {diagnosticReport && onOpenDiagnosticReport ? (
-        <div className="flex justify-end">
-          <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
-            <FileUp size={14} />
-            {t('error.diagnostic_report.action')}
-          </Button>
+      {subject || (diagnosticReport && onOpenDiagnosticReport) ? (
+        <div className="flex justify-end gap-2">
+          {diagnosticReport && onOpenDiagnosticReport ? (
+            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+              <FileUp size={14} />
+              {t('error.diagnostic_report.action')}
+            </Button>
+          ) : null}
+          {subject ? (
+            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+              <Sparkles size={14} />
+              {t('settings.doctor.agent.title')}
+            </Button>
+          ) : null}
         </div>
+      ) : null}
+      {subject && agentOpen ? (
+        <DoctorAgentDialog
+          subject={subject}
+          open
+          onOpenChange={setAgentOpen}
+          onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
+        />
       ) : null}
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>

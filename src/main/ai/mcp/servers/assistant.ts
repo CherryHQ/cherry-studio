@@ -26,7 +26,7 @@ import {
 } from '@shared/utils/diagnostics'
 import { projectDoctorReport } from '@shared/utils/doctor'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
-import { redactUrlToOrigin } from '@shared/utils/redaction'
+import { redactSecretText, redactUrlToOrigin } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpServer:Assistant')
 
@@ -811,7 +811,7 @@ class AssistantServer {
         content: [
           {
             type: 'text' as const,
-            text: `=== ${latestLog.name} (last ${lines} lines) ===\n${tailLines}`
+            text: `=== ${latestLog.name} (last ${lines} lines) ===\n${redactSecretText(tailLines)}`
           }
         ]
       }
@@ -871,7 +871,7 @@ class AssistantServer {
         content: [
           {
             type: 'text' as const,
-            text: `=== ${errorLines.length} error/warn entries ===\n${errorLines.reverse().join('\n')}`
+            text: `=== ${errorLines.length} error/warn entries ===\n${redactSecretText(errorLines.reverse().join('\n'))}`
           }
         ]
       }

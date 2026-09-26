@@ -76,6 +76,7 @@ function createController(state: DoctorState) {
     openPath: vi.fn<DoctorController['openPath']>(),
     requestEvidence: vi.fn<DoctorController['requestEvidence']>(),
     run: vi.fn<DoctorController['run']>(),
+    scope: 'global',
     session: {
       activePanel: 'checks',
       descriptionDraft: '',

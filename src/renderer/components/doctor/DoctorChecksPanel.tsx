@@ -1,4 +1,5 @@
-import { ChevronDown, Copy, Download, FileText, FolderOpen, Terminal } from 'lucide-react'
+import { ChevronDown, Copy, Download, FileText, FolderOpen, Sparkles, Terminal } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -18,6 +19,8 @@ import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
+import { DoctorAgentAccordionItem } from './DoctorAgentAccordionItem'
+import { DoctorAgentDialog } from './DoctorAgentDialog'
 import { DoctorCheckAccordionItems } from './DoctorCheckAccordionItems'
 import { DoctorCheckNotices } from './DoctorCheckNotices'
 
@@ -28,6 +31,7 @@ const CHECK_STATUS_PRIORITY = { fail: 0, error: 0, warn: 1, pending: 2, skip: 2,
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
   const { session, viewModel } = controller
+  const [agentOpen, setAgentOpen] = useState(false)
   const dataPath = viewModel.report?.basics.userDataPath
   const sortedRows = viewModel.rows.toSorted(
     (a, b) => CHECK_STATUS_PRIORITY[a.status] - CHECK_STATUS_PRIORITY[b.status]
@@ -80,6 +84,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               role="region"
               aria-label={t('settings.doctor.copy.checks_heading')}
               className="min-w-0 overflow-hidden rounded-xl border border-border bg-background [&>[data-slot=accordion-item]:first-child]:border-t-0">
+              <DoctorAgentAccordionItem scope={controller.scope} reportRunId={viewModel.report?.runId} />
               <DoctorCheckAccordionItems
                 compact
                 defaultLocalDetailsExpanded
@@ -141,13 +146,21 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
-          variant="emphasis"
+          variant="outline"
           loading={session.interaction.kind === 'run' && session.interaction.tier === 'live'}
           disabled={viewModel.status === 'running' || controller.isInteracting || !viewModel.report}
           onClick={() => void controller.run('live')}>
           {t('settings.doctor.actions.run_network')}
         </Button>
+        <Button
+          variant="emphasis"
+          disabled={viewModel.status !== 'completed' || controller.isInteracting}
+          onClick={() => setAgentOpen(true)}>
+          <Sparkles className="size-4" aria-hidden />
+          {t('settings.doctor.agent.title')}
+        </Button>
       </DialogFooter>
+      {agentOpen ? <DoctorAgentDialog subject={{ kind: 'global' }} open onOpenChange={setAgentOpen} /> : null}
     </div>
   )
 }

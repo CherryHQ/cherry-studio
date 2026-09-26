@@ -14,12 +14,14 @@ export const BUILTIN_AGENT_PLUGIN_NAME = 'cherry-assistant-builtin'
 
 const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
-  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-support'
+  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-support',
+  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-doctor'
 }
 
 const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
-  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-assistant'
+  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-assistant',
+  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-assistant'
 }
 
 // No `description` here: the builtin agent's display/search description is owned by i18n
@@ -30,11 +32,14 @@ export interface BuiltinAgentDefinition {
   instructions?: string
   configuration?: Record<string, unknown>
   skills?: string[]
+  /** Core tools the bundle opts out of; narrowing only, so it may live in the data file. */
+  disabledTools?: string[]
 }
 
 export interface BuiltinAgentDefaults {
   name: string
   configuration: AgentConfiguration
+  disabledTools?: string[]
 }
 
 /** Resolve a localized field: string passes through; locale-keyed object resolves by language. */
@@ -84,17 +89,18 @@ export function loadBuiltinAgentDefinition(
 
   try {
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-    if (
-      agentConfig.skills !== undefined &&
-      (!Array.isArray(agentConfig.skills) || agentConfig.skills.some((skill: unknown) => typeof skill !== 'string'))
-    ) {
-      throw new Error('Builtin agent skills must be a string array')
+    for (const field of ['skills', 'disabled_tools'] as const) {
+      const value = agentConfig[field]
+      if (value !== undefined && (!Array.isArray(value) || value.some((item: unknown) => typeof item !== 'string'))) {
+        throw new Error(`Builtin agent ${field} must be a string array`)
+      }
     }
     return {
       name: resolveLocalizedField(agentConfig.name, language),
       instructions: resolveLocalizedField(agentConfig.instructions, language),
       configuration: agentConfig.configuration,
-      skills: agentConfig.skills
+      skills: agentConfig.skills,
+      disabledTools: agentConfig.disabled_tools
     }
   } catch (error) {
     logger.error('Failed to load builtin agent definition', {
@@ -121,6 +127,7 @@ export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language
 
   return {
     name: definition.name?.trim() || 'Built-in Agent',
-    configuration: { ...configuration, builtin_role: builtinRole }
+    configuration: { ...configuration, builtin_role: builtinRole },
+    ...(definition.disabledTools ? { disabledTools: definition.disabledTools } : {})
   }
 }
