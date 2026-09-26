@@ -1440,4 +1440,53 @@ describe('BaseNavigator', () => {
     })
     expect(screen.getByText('已选 1 项')).toBeInTheDocument()
   })
+
+  // Catches a second bulk move or delete fired before the first promise settles.
+  it('ignores a second bulk move or delete while the first is in flight', async () => {
+    let resolveMove: (() => void) | undefined
+    const onMoveBases = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveMove = resolve
+        })
+    )
+    const onDeleteBases = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
+        ]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        onMoveBases={onMoveBases}
+        onDeleteBases={onDeleteBases}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动到' }))
+    fireEvent.click(getMenuButton('Research'))
+
+    expect(onMoveBases).toHaveBeenCalledTimes(1)
+    expect(onMoveBases).toHaveBeenCalledWith(['base-1', 'base-2'], 'group-1')
+
+    fireEvent.click(screen.getByRole('button', { name: '移动到' }))
+    fireEvent.click(getMenuButton('Research'))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const confirmDeleteButtons = screen.getAllByRole('button', { name: '删除' })
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+
+    expect(onMoveBases).toHaveBeenCalledTimes(1)
+    expect(onDeleteBases).not.toHaveBeenCalled()
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+
+    resolveMove?.()
+
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
+  })
 })

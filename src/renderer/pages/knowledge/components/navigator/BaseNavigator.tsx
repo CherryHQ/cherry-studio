@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
@@ -108,30 +108,34 @@ const BaseNavigator = ({
     return groups.filter((group) => selectedBases.some((base) => base.groupId !== group.id))
   }, [groups, selectedBases])
 
-  const handleBulkMove = useCallback(
-    async (groupId: string | null) => {
-      const baseIds = selectedBases.map((base) => base.id)
-      if (baseIds.length === 0) return
-      try {
-        await onMoveBases(baseIds, groupId)
-      } catch {
-        return
-      }
-      setCheckedBaseIds(new Set())
-    },
-    [onMoveBases, selectedBases]
-  )
+  // A second click before this settles would resubmit the same selection.
+  const bulkActionInFlightRef = useRef(false)
 
-  const handleBulkDelete = useCallback(async () => {
-    const baseIds = selectedBases.map((base) => base.id)
-    if (baseIds.length === 0) return
+  const runBulkAction = useCallback(async (baseIds: string[], action: () => Promise<void> | void) => {
+    if (bulkActionInFlightRef.current || baseIds.length === 0) return
+    bulkActionInFlightRef.current = true
     try {
-      await onDeleteBases(baseIds)
+      await action()
+      setCheckedBaseIds(new Set())
     } catch {
       return
+    } finally {
+      bulkActionInFlightRef.current = false
     }
-    setCheckedBaseIds(new Set())
-  }, [onDeleteBases, selectedBases])
+  }, [])
+
+  const handleBulkMove = useCallback(
+    (groupId: string | null) => {
+      const baseIds = selectedBases.map((base) => base.id)
+      return runBulkAction(baseIds, () => onMoveBases(baseIds, groupId))
+    },
+    [onMoveBases, runBulkAction, selectedBases]
+  )
+
+  const handleBulkDelete = useCallback(() => {
+    const baseIds = selectedBases.map((base) => base.id)
+    return runBulkAction(baseIds, () => onDeleteBases(baseIds))
+  }, [onDeleteBases, runBulkAction, selectedBases])
 
   return (
     <div data-ui="knowledge.navigation" style={{ width }} className="relative h-full min-h-0 shrink-0">
@@ -145,7 +149,7 @@ const BaseNavigator = ({
               groups={moveTargetGroups}
               canMoveToUngrouped={canMoveToUngrouped}
               onMove={(groupId) => void handleBulkMove(groupId)}
-              onDelete={() => void handleBulkDelete()}
+              onDelete={handleBulkDelete}
             />
           ) : (
             // Same borderless header item the assistant and agent rails use, so the three
