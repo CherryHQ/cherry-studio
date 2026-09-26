@@ -100,6 +100,14 @@ export class WindowManager extends BaseService {
   /** Window IDs indexed by type for fast lookups */
   private windowsByType = new Map<WindowType, Set<string>>()
 
+  /** Deferred macOS center, bound to the pooled lease (`use`) that requested it. */
+  private pendingCenters = new WeakMap<
+    BrowserWindow,
+    { use: number; bounds: Electron.Rectangle; onLeave: () => void }
+  >()
+  /** Bumped when a pooled window is released or leased to the next consumer. */
+  private windowUses = new WeakMap<BrowserWindow, number>()
+
   /** Warmup state per window type — shared by pooled and singleton lifecycles */
   private warmupStates = new Map<WindowType, WarmupState>()
 
@@ -538,6 +546,59 @@ export class WindowManager extends BaseService {
     return true
   }
 
+  /**
+   * Center a window on the display it currently occupies (multi-monitor safe).
+   * Uses normal (pre-maximize) size; exits fullscreen/maximized/minimized first.
+   * macOS centers within `display.bounds`; Windows/Linux use `display.workArea`.
+   */
+  public center(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return false
+
+    const window = managed.window
+    const current = window.getBounds()
+    const normal = window.getNormalBounds()
+    const display = screen.getDisplayMatching(current)
+    const area = isMac ? display.bounds : display.workArea
+    const bounds = {
+      x: Math.round(area.x + (area.width - normal.width) / 2),
+      y: Math.round(area.y + (area.height - normal.height) / 2),
+      width: normal.width,
+      height: normal.height
+    }
+    const place = (target: Electron.Rectangle) => {
+      if (window.isMaximized()) window.unmaximize()
+      if (window.isMinimized()) window.restore()
+      window.setBounds(target)
+    }
+
+    const fullscreen = window.isFullScreen()
+    const use = this.windowUse(window)
+    const pending = this.pendingCenters.get(window)
+    if (isMac && (fullscreen || (pending !== undefined && pending.use === use))) {
+      if (pending !== undefined && pending.use === use) {
+        pending.bounds = bounds
+        return true
+      }
+      if (pending) this.cancelPendingCenter(window)
+      // Native fullscreen exit is asynchronous on macOS; early bounds are discarded.
+      const onLeave = () => {
+        const current = this.pendingCenters.get(window)
+        if (!current || current.onLeave !== onLeave || this.windowUse(window) !== use) return
+        this.pendingCenters.delete(window)
+        if (!window.isDestroyed()) place(current.bounds)
+      }
+      this.pendingCenters.set(window, { use, bounds, onLeave })
+      window.once('leave-full-screen', onLeave)
+      window.setFullScreen(false)
+      return true
+    }
+
+    if (fullscreen) window.setFullScreen(false)
+    place(bounds)
+    return true
+  }
+
   public isMaximized(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
@@ -837,6 +898,9 @@ export class WindowManager extends BaseService {
         continue
       }
 
+      // New lease. A center callback from the previous use must not place on this one.
+      this.advanceWindowUse(candidate.window)
+      this.cancelPendingCenter(candidate.window)
       // Reset native geometry state to match fresh-creation config
       this.resetPooledWindowGeometry(candidate.window, type, args?.options)
 
@@ -915,6 +979,22 @@ export class WindowManager extends BaseService {
     }
   }
 
+  private windowUse(window: BrowserWindow): number {
+    return this.windowUses.get(window) ?? 0
+  }
+
+  private advanceWindowUse(window: BrowserWindow): void {
+    this.windowUses.set(window, this.windowUse(window) + 1)
+  }
+
+  /** Drop a macOS center that is still waiting for `leave-full-screen`. */
+  private cancelPendingCenter(window: BrowserWindow): void {
+    const pending = this.pendingCenters.get(window)
+    if (!pending) return
+    window.removeListener('leave-full-screen', pending.onLeave)
+    this.pendingCenters.delete(window)
+  }
+
   /**
    * Reset a recycled pooled window's native geometry state.
    * Restores from fullscreen/maximized/minimized, then applies the merged config.
@@ -969,6 +1049,11 @@ export class WindowManager extends BaseService {
       this.logWarmupEvent('release-skip', type, state, { windowId })
       return
     }
+
+    // The pooled BrowserWindow outlives close. End the lease so a deferred macOS
+    // center stays bound to the use that requested it.
+    this.advanceWindowUse(managed.window)
+    this.cancelPendingCenter(managed.window)
 
     // Clear runtime overrides before the window goes hidden/idle. The three
     // branches below all call `window.hide()` on this window before either

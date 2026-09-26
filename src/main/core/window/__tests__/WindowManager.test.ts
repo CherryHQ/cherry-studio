@@ -23,8 +23,11 @@ vi.mock('uuid', () => ({
 
 // ─── Mock: @main/core/platform ──────────────────────────────────
 
+const platformMock = vi.hoisted(() => ({ isMac: false }))
 vi.mock('@main/core/platform', () => ({
-  isMac: false,
+  get isMac() {
+    return platformMock.isMac
+  },
   isWin: false,
   isLinux: false,
   isDev: false
@@ -64,6 +67,7 @@ interface MockBrowserWindow {
   once: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   emit: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  removeListener: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
     send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
@@ -116,6 +120,8 @@ function createMockBrowserWindow(): MockBrowserWindow {
           if (idx !== -1) handlers.splice(idx, 1)
         }
       }
+      // Electron removeListener(onceCb) matches the wrapper's .listener, same as Node.
+      ;(handler as { listener?: (...args: unknown[]) => void }).listener = cb
       listeners.get(event)!.push(handler)
     }),
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
@@ -129,6 +135,12 @@ function createMockBrowserWindow(): MockBrowserWindow {
           handler(...args)
         }
       }
+    }),
+    removeListener: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      const handlers = listeners.get(event)
+      if (!handlers) return
+      const idx = handlers.findIndex((handler) => handler === cb || (handler as { listener?: unknown }).listener === cb)
+      if (idx !== -1) handlers.splice(idx, 1)
     }),
     removeAllListeners: vi.fn(() => {
       listeners.clear()
@@ -373,6 +385,7 @@ describe('WindowManager', () => {
 
   beforeEach(() => {
     BaseService.resetInstances()
+    platformMock.isMac = false
     uuidCounter = 0
     createdWindows.length = 0
     wm = new WindowManager()
@@ -1493,6 +1506,182 @@ describe('WindowManager', () => {
 
     it('isFullScreen() returns false for unknown windowId', () => {
       expect(wm.isFullScreen('does-not-exist')).toBe(false)
+    })
+
+    // center(): multi-monitor placement on the display matching the window's
+    // current bounds (not primary / cursor). Catches primary-only center,
+    // maximizing-size center, and missing-id throws.
+    it('center() places the window on the display matching its current bounds', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const normal = { x: 2100, y: 100, width: 800, height: 600 }
+      win.getNormalBounds.mockReturnValue(normal)
+      win.getBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 1920, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(screen.getDisplayMatching).toHaveBeenCalledWith(normal)
+      // Non-mac test mock → workArea: x=1920+(1920-800)/2=2480, y=(1040-600)/2=220
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2480, y: 220, width: 800, height: 600 })
+      expect(win.center).not.toHaveBeenCalled()
+    })
+
+    it('center() exits maximized/fullscreen before placing normal-size bounds', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const normal = { x: 100, y: 80, width: 800, height: 600 }
+      win.isMaximized.mockReturnValue(true)
+      win.isFullScreen.mockReturnValue(true)
+      win.getNormalBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(win.setFullScreen).toHaveBeenCalledWith(false)
+      expect(win.unmaximize).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 560, y: 220, width: 800, height: 600 })
+    })
+
+    it('center() keeps a maximized window on its current display when normal bounds are elsewhere', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const current = { x: 1920, y: 0, width: 1920, height: 1040 }
+      const normal = { x: 100, y: 80, width: 800, height: 600 }
+      win.isMaximized.mockReturnValue(true)
+      win.getBounds.mockReturnValue(current)
+      win.getNormalBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValueOnce({
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: current
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(screen.getDisplayMatching).toHaveBeenCalledWith(current)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2480, y: 220, width: 800, height: 600 })
+    })
+
+    it('center() waits for macOS fullscreen exit and applies the latest requested bounds once', async () => {
+      const { screen } = await import('electron')
+      platformMock.isMac = true
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockReturnValue({ x: 1920, y: 0, width: 1920, height: 1080 })
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      const display = {
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 1920, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display
+      vi.mocked(screen.getDisplayMatching).mockReturnValueOnce(display).mockReturnValueOnce(display)
+
+      expect(wm.center(id)).toBe(true)
+      win.isFullScreen.mockReturnValue(false)
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 900, height: 600 })
+      expect(wm.center(id)).toBe(true)
+
+      expect(win.setFullScreen).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).not.toHaveBeenCalled()
+      win.emit('leave-full-screen')
+      expect(win.setBounds).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2430, y: 240, width: 900, height: 600 })
+      win.emit('leave-full-screen')
+      expect(win.setBounds).toHaveBeenCalledTimes(1)
+    })
+
+    it('center() does not apply pending macOS bounds to a destroyed window', () => {
+      platformMock.isMac = true
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isFullScreen.mockReturnValue(true)
+
+      expect(wm.center(id)).toBe(true)
+      win.isDestroyed.mockReturnValue(true)
+      win.emit('leave-full-screen')
+      expect(win.setBounds).not.toHaveBeenCalled()
+    })
+
+    it('center() keeps a reused pooled window on the bounds leased at recycle when macOS fullscreen exit is deferred', () => {
+      platformMock.isMac = true
+      const id = wm.open('pooled' as never)
+      const win = createdWindows[0]
+      // Recycle restores this type's configured size (windowOptions 1100×720).
+      let bounds = { x: 1920, y: 0, width: 1920, height: 1080 }
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockImplementation(() => ({ ...bounds }))
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      win.setBounds.mockImplementation((next: typeof bounds) => {
+        bounds = { ...next }
+      })
+
+      expect(wm.center(id)).toBe(true)
+      wm.close(id)
+      win.isFullScreen.mockReturnValue(false)
+      expect(wm.open('pooled' as never)).toBe(id)
+
+      const leased = win.getBounds()
+      expect(leased).toMatchObject({ width: 1100, height: 720 })
+
+      win.emit('leave-full-screen')
+
+      expect(win.getBounds()).toEqual(leased)
+    })
+
+    it('center() does not let a stale macOS fullscreen callback move a later pooled lease', async () => {
+      const { screen } = await import('electron')
+      platformMock.isMac = true
+      const display = {
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display
+      vi.mocked(screen.getDisplayNearestPoint).mockReturnValue(display)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue(display)
+
+      const id = wm.open('pooled' as never)
+      const win = createdWindows[0]
+      let bounds = { x: 1920, y: 0, width: 1920, height: 1080 }
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockImplementation(() => ({ ...bounds }))
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      win.setBounds.mockImplementation((next: typeof bounds) => {
+        bounds = { ...next }
+      })
+
+      expect(wm.center(id)).toBe(true)
+      const staleCall = win.once.mock.calls.find((call) => call[0] === 'leave-full-screen')
+      expect(staleCall).toBeDefined()
+      const stale = staleCall?.[1] as () => void
+
+      // SelectionAction closes through the native close event, then the pool leases the same window again.
+      win.emit('close', { preventDefault: vi.fn() })
+      win.isFullScreen.mockReturnValue(true)
+      expect(wm.open('pooled' as never)).toBe(id)
+
+      const leased = { ...win.getBounds() }
+      expect(leased).toMatchObject({ width: 1100, height: 720 })
+
+      // The next lease requests its own center while the previous exit callback is still runnable.
+      win.getNormalBounds.mockReturnValue({ x: 0, y: 0, width: 400, height: 300 })
+      expect(wm.center(id)).toBe(true)
+      stale()
+
+      expect(win.getBounds()).toEqual(leased)
+      win.emit('leave-full-screen')
+      expect(win.getBounds()).toEqual({ x: 760, y: 390, width: 400, height: 300 })
+    })
+
+    it('center() returns false for unknown windowId', () => {
+      expect(wm.center('does-not-exist')).toBe(false)
     })
   })
 

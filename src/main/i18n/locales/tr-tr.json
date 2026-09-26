@@ -31,6 +31,7 @@
   "apiGateway.docs.tags.gemini": "Kaynak API'de olduğu gibi `/v1beta` altında sunulan Gemini uyumlu uç noktalar.",
   "apiGateway.docs.tags.openai": "OpenAI uyumlu uç noktalar. Bunları kullanmak için bir OpenAI SDK'yı bu ağ geçidinin temel URL'sine yönlendirin.",
   "appMenu.about": "Hakkında",
+  "appMenu.center": "Ortala",
   "appMenu.close": "Pencereyi Kapat",
   "appMenu.copy": "Kopyala",
   "appMenu.cut": "Kes",
