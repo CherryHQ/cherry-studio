@@ -12,7 +12,9 @@ function resolveReleaseProfile(env = process.env) {
   return Object.freeze({
     id: uarEnabled ? 'uar-enabled' : 'non-uar',
     uarEnabled,
-    nativeTools: Object.freeze(uarEnabled ? [...RETAINED_NATIVE_TOOLS, 'uar-sidecar'] : [...RETAINED_NATIVE_TOOLS]),
+    nativeTools: Object.freeze(
+      uarEnabled ? [...RETAINED_NATIVE_TOOLS, 'uar-sidecar', 'liter-llm'] : [...RETAINED_NATIVE_TOOLS]
+    ),
     supportedPlatforms: uarEnabled ? UAR_RELEASE_PLATFORM_KEYS : RELEASE_PLATFORM_KEYS
   })
 }
