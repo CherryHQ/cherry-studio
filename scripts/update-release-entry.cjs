@@ -33,10 +33,10 @@ const previous = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manife
 const previousMatchesRelease =
   previous?.version === version &&
   previous.profile === profile.id &&
-  previous.source === releaseSource &&
-  previous.features?.uar === profile.uarEnabled
+  previous.features?.uar === profile.uarEnabled &&
+  [...(previous.supportedPlatforms || [])].sort().join(',') === [...platforms].sort().join(',')
 if (previous?.version === version && !previousMatchesRelease && selected.length !== platforms.length) {
-  throw new Error('Existing release metadata does not match the frozen source and feature profile')
+  throw new Error('Existing release metadata does not match the frozen feature profile')
 }
 const retained = previousMatchesRelease
   ? previous.artifacts

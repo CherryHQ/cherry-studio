@@ -55,6 +55,8 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Freeze release version, profile, and source
+        env:
+          RELEASE_PLATFORMS: ${{ inputs.platforms }}
         run: node scripts/release-preflight.cjs
       - name: Import complete UAR sidecar payload
         if: env.THE_BOSS_UAR_ENABLED == '1'
