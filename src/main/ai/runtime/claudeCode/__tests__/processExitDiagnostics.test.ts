@@ -4,6 +4,7 @@ import { serializeError } from '../../../utils/serializeError'
 import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
+  isClaudeCodeProcessFailure,
   recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
@@ -75,5 +76,29 @@ describe('Claude Code process exit diagnostics', () => {
     resetClaudeCodeProcessDiagnostics(diagnostics)
 
     expect(diagnostics).toEqual({ reference: 'retry-ref' })
+  })
+
+  it('treats a closed transport after a recorded exit as a process failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('zypak-ref')
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'zypak-helper failed to connect to the session bus')
+
+    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(true)
+  })
+
+  it('leaves a closed transport without a recorded exit as a generic error', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('no-exit-ref')
+
+    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(
+      false
+    )
+  })
+
+  it('leaves a transport close after a clean exit as a generic error', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('clean-exit-ref')
+    recordClaudeCodeProcessExit(diagnostics, 0, null, '')
+
+    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(
+      false
+    )
   })
 })

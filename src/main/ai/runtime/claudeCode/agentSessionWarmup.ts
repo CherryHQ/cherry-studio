@@ -22,6 +22,7 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { isLinux } from '@main/core/platform'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -51,6 +52,7 @@ import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayR
 import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { hasSessionBusAddress } from './environment'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -546,6 +548,16 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     route,
     fastModeTransport
   )
+  // Fail before spawning: without a session bus the packaged Linux child dies in zypak, and
+  // prewarm skips the spawn while live connections surface this once instead of retrying.
+  if (isLinux && !hasSessionBusAddress(settings.env ?? {})) {
+    throw Object.assign(
+      new Error(
+        'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is missing). Open Cherry Studio from your desktop session so the bus address is inherited, then try again.'
+      ),
+      { name: 'ClaudeCodeLinuxSessionBusUnavailableError' }
+    )
+  }
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
