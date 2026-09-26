@@ -9,8 +9,9 @@ import type { WebSocketServer } from 'ws'
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
+
+import { isMainNetworkDevtoolsEnabled } from './isMainNetworkDevtoolsEnabled'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -134,8 +135,9 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 }
 
 /**
- * Development-only monitor for network requests initiated by this main-process
- * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ * Monitor for network requests initiated by this main-process JavaScript runtime
+ * (`fetch`, Electron `net.fetch`, and Node `http`/`https`). Active in development
+ * builds and in packaged builds when Developer Mode is enabled at startup.
  *
  * Known limitations: traffic emitted by native binaries or child processes is
  * not visible to these in-process monkey patches. In particular, Claude agent SDK
@@ -146,7 +148,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
-@Conditional(when(() => isDev, 'development mode'))
+@Conditional(when(() => isMainNetworkDevtoolsEnabled(), 'development or developer mode'))
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
