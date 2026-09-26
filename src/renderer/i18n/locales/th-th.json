@@ -2892,7 +2892,6 @@
   "miniApp.split.open": "มุมมองแยก",
   "miniApp.title": "มินิแอป",
   "miniApp.unpin_failed": "ไม่สามารถเลิกปักหมุดมินิแอป",
-  "miniApp.update_partial_failure": "อัปเดตล้มเหลว {{failed}} จาก {{total}} รายการ",
   "miniApps.ant-afu": "Ant Afu",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",

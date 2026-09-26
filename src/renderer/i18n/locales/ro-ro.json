@@ -2892,7 +2892,6 @@
   "miniApp.split.open": "Vizualizare divizată",
   "miniApp.title": "MiniApp",
   "miniApp.unpin_failed": "Nu s-a reușit dezancorarea mini-aplicației",
-  "miniApp.update_partial_failure": "{{failed}} din {{total}} actualizări au eșuat",
   "miniApps.ant-afu": "Ant Afu",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",

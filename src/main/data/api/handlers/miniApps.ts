@@ -12,7 +12,12 @@
 import { miniAppService } from '@data/services/MiniAppService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
-import { CreateMiniAppSchema, ListMiniAppsQuerySchema, UpdateMiniAppSchema } from '@shared/data/api/schemas/miniApps'
+import {
+  CreateMiniAppSchema,
+  ListMiniAppsQuerySchema,
+  MiniAppStatusBatchSchema,
+  UpdateMiniAppSchema
+} from '@shared/data/api/schemas/miniApps'
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
@@ -37,6 +42,14 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
     },
     DELETE: async ({ params }) => {
       miniAppService.delete(params.appId)
+      return undefined
+    }
+  },
+
+  '/mini-apps/status:batch': {
+    PATCH: async ({ body }) => {
+      const { updates } = MiniAppStatusBatchSchema.parse(body)
+      miniAppService.updateStatusBatch(updates)
       return undefined
     }
   },

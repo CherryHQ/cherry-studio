@@ -2892,7 +2892,6 @@
   "miniApp.split.open": "Vista divisa",
   "miniApp.title": "Mini app",
   "miniApp.unpin_failed": "Impossibile rimuovere la mini app dagli elementi fissati",
-  "miniApp.update_partial_failure": "{{failed}} aggiornamenti su {{total}} non riusciti",
   "miniApps.ant-afu": "Ant Afu",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",

@@ -2892,7 +2892,6 @@
   "miniApp.split.open": "Διαχωρισμός προβολής",
   "miniApp.title": "Μικρόπρογραμμα",
   "miniApp.unpin_failed": "Αποτυχία αποκαρφιτσώματος mini-app",
-  "miniApp.update_partial_failure": "{{failed}} από τις {{total}} ενημερώσεις απέτυχαν",
   "miniApps.ant-afu": "Ant Afu",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
