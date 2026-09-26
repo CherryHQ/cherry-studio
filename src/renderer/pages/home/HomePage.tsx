@@ -714,6 +714,7 @@ const HomePage: FC = () => {
       resourcePane={resourcePane}
       topicId={visibleTopic?.id}
       topicName={visibleTopic?.name}
+      assistantId={visibleAssistantId}
       traceId={visibleTopic?.traceId}
       present={!centerSurface}
       defaultOpen={topicPaneOpen}

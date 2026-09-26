@@ -298,6 +298,19 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/agent/useAgentTurnFastMode', async () => {
+  const { useCallback, useState } = await import('react')
+
+  return {
+    getAgentTurnFastModeCacheKey: (sessionId: string) => `agent.turn.fast_mode.${sessionId}`,
+    useAgentTurnFastMode: () => {
+      const [fastMode, setFastMode] = useState(false)
+      const setEnabled = useCallback((enabled: boolean) => setFastMode(enabled), [])
+      return [fastMode, setEnabled]
+    }
+  }
+})
+
 vi.mock('@renderer/components/OpenTarget', () => ({
   OpenTargetButton: ({ targetPath, menuTrigger }: { targetPath: string; menuTrigger?: ReactNode }) => (
     <div data-testid="workspace-open-button" data-workdir={targetPath}>

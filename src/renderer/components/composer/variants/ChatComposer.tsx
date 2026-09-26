@@ -38,6 +38,7 @@ import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalo
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
+import { useChatTurnFastMode } from '@renderer/hooks/chat/useChatTurnFastMode'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -685,7 +686,7 @@ const ChatComposerInner = ({
   const serviceTierMutationVersionRef = useRef(0)
   const serviceTier =
     serviceTierOverride?.assistantId === selectedAssistantId ? serviceTierOverride.value : canonicalServiceTier
-  const [fastMode, setFastMode] = useState(false)
+  const [fastMode, setFastMode] = useChatTurnFastMode(topicId ?? scopeKey)
 
   // A local override only bridges the latest PATCH/revalidation window. Do
   // not retire it on an intermediate refresh from an older mutation.
@@ -879,7 +880,7 @@ const ChatComposerInner = ({
 
   useEffect(() => {
     if (speedControlModel?.supportsFastMode !== true) setFastMode(false)
-  }, [speedControlModel?.supportsFastMode])
+  }, [setFastMode, speedControlModel?.supportsFastMode])
 
   const handleReasoningEffortChange = useCallback(
     (option: ReasoningEffortOption) => {

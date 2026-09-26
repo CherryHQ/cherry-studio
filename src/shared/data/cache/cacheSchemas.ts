@@ -131,6 +131,8 @@ export type UseCacheSchema = {
   'chat.web_search.searching': boolean
   // Per-topic composer draft. Renderer memory only; app restart discards it.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
+  /** Per-topic fast transport toggle; shared between composer and model settings panel. */
+  'chat.turn.fast_mode.${topicId}': boolean
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -167,6 +169,8 @@ export type UseCacheSchema = {
   'agent.session.waiting_id_map': Record<string, boolean>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
+  /** Per-session fast transport toggle; shared between composer and model settings panel. */
+  'agent.turn.fast_mode.${sessionId}': boolean
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
   'agent.ask_user_question_draft.${approvalId}': CacheValueTypes.CacheAskUserQuestionDraft
 
@@ -236,6 +240,7 @@ export const DefaultUseCache: UseCacheSchema = {
     mentionedModelIds: [],
     modelMultiSelectMode: false
   },
+  'chat.turn.fast_mode.${topicId}': false,
   'chat.scroll_anchor.${topicId}': null,
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
@@ -268,6 +273,7 @@ export const DefaultUseCache: UseCacheSchema = {
     workspaceKey: '',
     agentId: ''
   },
+  'agent.turn.fast_mode.${sessionId}': false,
   'agent.ask_user_question_draft.${approvalId}': {
     selectedAnswers: {},
     customAnswers: {},

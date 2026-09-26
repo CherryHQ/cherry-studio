@@ -12,6 +12,7 @@ import {
   Package,
   Terminal,
   Waypoints,
+  SlidersHorizontal,
   Workflow
 } from 'lucide-react'
 import { Globe } from 'lucide-react'
@@ -50,6 +51,7 @@ import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentC
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import { AgentModelSettingsRightPanel } from '@renderer/components/chat/modelSettings/AgentModelSettingsRightPanel'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -274,6 +276,7 @@ interface AgentRightPanelScope {
   previousFlowTab: AgentFlowTab | null
   goBackFlow: () => void
   meta: AgentRightPaneMeta
+  modelSettingsTitle: string
   resourcePane: ResourcePaneConfig | null
   statusTitle: string
   traceTitle: string
@@ -846,6 +849,7 @@ function AgentRightPaneStateProvider({
       previousFlowTab,
       goBackFlow,
       meta,
+      modelSettingsTitle: t('chat.model_settings.title'),
       resourcePane,
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
@@ -1626,8 +1630,27 @@ const AGENT_BROWSER_PANE_CAPABILITY = {
     canMaximize: true
   })
 } satisfies RightPanelCapability<AgentRightPanelScope>
+const AGENT_MODEL_SETTINGS_PANE_ID = 'model-settings'
+
+function resolveAgentModelSettingsReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
+  if (!scope.meta.agentId || scope.meta.conversationState === 'unavailable') return 'unavailable'
+  if (scope.meta.conversationState === 'pending') return 'pending'
+  return 'ready'
+}
+
+const AGENT_MODEL_SETTINGS_CAPABILITY = {
+  component: AgentModelSettingsRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: AGENT_MODEL_SETTINGS_PANE_ID,
+    instanceKey: `model-settings:${scope.meta.sessionId ?? ''}:${scope.meta.agentId ?? ''}`,
+    title: scope.modelSettingsTitle,
+    readiness: resolveAgentModelSettingsReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
+
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
   AGENT_RESOURCE_PANE_CAPABILITY,
+  AGENT_MODEL_SETTINGS_CAPABILITY,
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
@@ -1841,6 +1864,11 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
         tab="files"
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
+      />
+      <RightPanelShortcut
+        tab={AGENT_MODEL_SETTINGS_PANE_ID}
+        label={t('chat.model_settings.title')}
+        icon={<SlidersHorizontal className="size-3.5" />}
       />
       {browserEnabled && browserControlEnabled && (
         <RightPanelShortcut

@@ -165,18 +165,34 @@ export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelec
   return control.options.includes(tier) ? tier : control.default
 }
 
-export function ModelSpeedControl({
+export type ModelSpeedControlFieldsProps = Omit<ModelSpeedControlProps, 'side'>
+
+export function modelSpeedControlHasVisibleControls({
+  model,
+  onFastModeChange,
+  onServiceTierChange,
+  onReasoningSummaryChange
+}: ModelSpeedControlFieldsProps): boolean {
+  const reasoningOptions = deriveThinkingOptions(model) ?? []
+  const supportsReasoning = reasoningOptions.length > 1
+  const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
+  const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
+  const supportsServiceTier = serviceTierOptions.length > 0
+  const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
+  return supportsReasoning || supportsServiceTier || supportsFast || summaryOptions.length > 0
+}
+
+export function ModelSpeedControlFields({
   model,
   reasoningEffort,
   reasoningSummary,
   serviceTier = 'standard',
   fastMode = false,
-  side = 'top',
   onReasoningEffortChange,
   onReasoningSummaryChange,
   onServiceTierChange,
   onFastModeChange
-}: ModelSpeedControlProps) {
+}: ModelSpeedControlFieldsProps) {
   const { t } = useTranslation()
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
@@ -190,7 +206,11 @@ export function ModelSpeedControl({
   const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
   const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
 
-  if (!supportsReasoning && !supportsServiceTier && !supportsFast) return null
+  if (
+    !modelSpeedControlHasVisibleControls({ model, onFastModeChange, onServiceTierChange, onReasoningSummaryChange })
+  ) {
+    return null
+  }
 
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
   const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
@@ -213,12 +233,216 @@ export function ModelSpeedControl({
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
-  const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
-  const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
     if (effort) onReasoningEffortChange(effort)
   }
+
+  const fields = (
+    <>
+      {supportsReasoning || supportsFast ? (
+        <div className="flex min-h-7 items-center gap-3">
+          {supportsReasoning ? (
+            <div className="flex min-w-0 items-baseline gap-1.5 text-xs">
+              <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
+              <span
+                data-testid="model-speed-effort-label"
+                aria-live="polite"
+                className="truncate font-medium text-foreground">
+                {effortLabel}
+              </span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">{t('agent.speed.label')}</span>
+          )}
+          {showEffortSlider || supportsFast ? (
+            <div className="ml-auto flex shrink-0 items-center gap-0.5">
+              {showEffortSlider && effectiveReasoningEffort !== 'default' ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                  aria-pressed={false}
+                  onClick={() => onReasoningEffortChange('default')}>
+                  {t(EFFORT_LABEL_KEYS.default)}
+                </Button>
+              ) : null}
+              {supportsFast ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
+                  aria-label={t('agent.speed.fast')}
+                  aria-pressed={fastMode}
+                  onClick={() => onFastModeChange?.(!fastMode)}>
+                  <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {supportsReasoning && showEffortSlider ? (
+        <div className="mt-2.5">
+          <div className="flex items-center justify-between font-medium text-[11px] leading-none" aria-hidden="true">
+            <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
+            <span className="text-primary">{t('agent.speed.smarter')}</span>
+          </div>
+          <WheelStepControl
+            value={currentIndex}
+            min={0}
+            max={sliderEfforts.length - 1}
+            className="relative mt-1.5 h-7"
+            onValueChange={handleSliderValueChange}>
+            <Slider
+              value={[currentIndex]}
+              min={0}
+              max={sliderEfforts.length - 1}
+              step={1}
+              size="lg"
+              getThumbAriaLabel={() => effortControlLabel}
+              getThumbAriaValueText={() => effortLabel}
+              className={cn(
+                'h-7',
+                '[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                '[&_[data-slot=slider-range]]:bg-primary',
+                '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-[18px] [&_[data-slot=slider-thumb]]:rounded-full',
+                '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
+                '[&_[data-slot=slider-thumb]:hover]:ring-0'
+              )}
+              onValueChange={([index]) => handleSliderValueChange(index)}
+            />
+            <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
+              {sliderEfforts.map((effort, index) =>
+                index === currentIndex ? null : (
+                  <span
+                    key={effort}
+                    data-slot="model-speed-effort-step"
+                    data-index={index}
+                    className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
+                    style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                  />
+                )
+              )}
+            </div>
+          </WheelStepControl>
+        </div>
+      ) : supportsReasoning ? (
+        <RadioGroup
+          value={displayedEffort}
+          aria-label={effortControlLabel}
+          className="mt-2 gap-0"
+          onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
+          {reasoningOptions.map((effort) => (
+            <label
+              key={effort}
+              className="flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
+              <RadioGroupItem value={effort} size="sm" />
+              <span>{t(EFFORT_LABEL_KEYS[effort])}</span>
+            </label>
+          ))}
+        </RadioGroup>
+      ) : null}
+      {summaryOptions.length > 0 ? (
+        <div className="mt-3 border-frame-border border-t pt-3">
+          <span className="mb-2 block font-medium text-[11px] text-muted-foreground leading-none">
+            {t('agent.speed.summary.label')}
+          </span>
+          <div
+            role="group"
+            aria-label={t('agent.speed.summary.label')}
+            className="grid grid-cols-3 gap-1 rounded-lg bg-muted/70 p-1">
+            {summaryOptions.map((summary) => (
+              <Button
+                key={summary}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'h-8 min-w-0 rounded-md px-2 text-muted-foreground text-xs transition-colors',
+                  selectedSummary === summary
+                    ? 'bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground'
+                    : 'hover:bg-background/60 hover:text-foreground'
+                )}
+                aria-pressed={selectedSummary === summary}
+                onClick={() => onReasoningSummaryChange?.(summary)}>
+                {t(SUMMARY_LABEL_KEYS[summary])}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {supportsServiceTier ? (
+        <div
+          className={cn((supportsReasoning || summaryOptions.length > 0) && 'mt-3 border-frame-border border-t pt-3')}>
+          <div className="mb-2 font-medium text-[11px] text-muted-foreground leading-none">
+            {serviceTierControlLabel}
+          </div>
+          <RadioGroup
+            value={effectiveServiceTier}
+            aria-label={serviceTierControlLabel}
+            className="gap-0"
+            onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
+            {serviceTierOptions.map((tier) => (
+              <label
+                key={tier}
+                className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
+                <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
+                <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
+              </label>
+            ))}
+          </RadioGroup>
+        </div>
+      ) : null}
+    </>
+  )
+
+  return fields
+}
+
+export function ModelSpeedControl({
+  model,
+  reasoningEffort,
+  reasoningSummary,
+  serviceTier = 'standard',
+  fastMode = false,
+  side = 'top',
+  onReasoningEffortChange,
+  onReasoningSummaryChange,
+  onServiceTierChange,
+  onFastModeChange
+}: ModelSpeedControlProps) {
+  const { t } = useTranslation()
+
+  if (
+    !modelSpeedControlHasVisibleControls({
+      model,
+      reasoningEffort,
+      reasoningSummary,
+      serviceTier,
+      fastMode,
+      onReasoningEffortChange,
+      onReasoningSummaryChange,
+      onServiceTierChange,
+      onFastModeChange
+    })
+  ) {
+    return null
+  }
+
+  const reasoningOptions = deriveThinkingOptions(model) ?? []
+  const supportsReasoning = reasoningOptions.length > 1
+  const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
+  const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
+  const supportsServiceTier = serviceTierOptions.length > 0
+  const effectiveReasoningEffort = resolveSupportedReasoningEffort(model, reasoningEffort)
+  const displayedEffort = supportsReasoning ? effectiveReasoningEffort : undefined
+  const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
+  const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
+  const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
+  const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
 
   return (
     <Popover>
@@ -240,164 +464,17 @@ export function ModelSpeedControl({
         align="end"
         sideOffset={8}
         className="w-72 rounded-lg border-frame-border p-3 text-xs shadow-xl">
-        {supportsReasoning || supportsFast ? (
-          <div className="flex min-h-7 items-center gap-3">
-            {supportsReasoning ? (
-              <div className="flex min-w-0 items-baseline gap-1.5 text-xs">
-                <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
-                <span
-                  data-testid="model-speed-effort-label"
-                  aria-live="polite"
-                  className="truncate font-medium text-foreground">
-                  {effortLabel}
-                </span>
-              </div>
-            ) : (
-              <span className="text-muted-foreground">{t('agent.speed.label')}</span>
-            )}
-            {showEffortSlider || supportsFast ? (
-              <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                {showEffortSlider && effectiveReasoningEffort !== 'default' ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-                    aria-pressed={false}
-                    onClick={() => onReasoningEffortChange('default')}>
-                    {t(EFFORT_LABEL_KEYS.default)}
-                  </Button>
-                ) : null}
-                {supportsFast ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
-                    aria-label={t('agent.speed.fast')}
-                    aria-pressed={fastMode}
-                    onClick={() => onFastModeChange?.(!fastMode)}>
-                    <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {supportsReasoning && showEffortSlider ? (
-          <div className="mt-2.5">
-            <div className="flex items-center justify-between font-medium text-[11px] leading-none" aria-hidden="true">
-              <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
-              <span className="text-primary">{t('agent.speed.smarter')}</span>
-            </div>
-            <WheelStepControl
-              value={currentIndex}
-              min={0}
-              max={sliderEfforts.length - 1}
-              className="relative mt-1.5 h-7"
-              onValueChange={handleSliderValueChange}>
-              <Slider
-                value={[currentIndex]}
-                min={0}
-                max={sliderEfforts.length - 1}
-                step={1}
-                size="lg"
-                getThumbAriaLabel={() => effortControlLabel}
-                getThumbAriaValueText={() => effortLabel}
-                className={cn(
-                  'h-7',
-                  '[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
-                  '[&_[data-slot=slider-range]]:bg-primary',
-                  '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-[18px] [&_[data-slot=slider-thumb]]:rounded-full',
-                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
-                  '[&_[data-slot=slider-thumb]:hover]:ring-0'
-                )}
-                onValueChange={([index]) => handleSliderValueChange(index)}
-              />
-              <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                {sliderEfforts.map((effort, index) =>
-                  index === currentIndex ? null : (
-                    <span
-                      key={effort}
-                      data-slot="model-speed-effort-step"
-                      data-index={index}
-                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
-                      style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
-                    />
-                  )
-                )}
-              </div>
-            </WheelStepControl>
-          </div>
-        ) : supportsReasoning ? (
-          <RadioGroup
-            value={displayedEffort}
-            aria-label={effortControlLabel}
-            className="mt-2 gap-0"
-            onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
-            {reasoningOptions.map((effort) => (
-              <label
-                key={effort}
-                className="flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
-                <RadioGroupItem value={effort} size="sm" />
-                <span>{t(EFFORT_LABEL_KEYS[effort])}</span>
-              </label>
-            ))}
-          </RadioGroup>
-        ) : null}
-        {summaryOptions.length > 0 ? (
-          <div className="mt-3 border-frame-border border-t pt-3">
-            <span className="mb-2 block font-medium text-[11px] text-muted-foreground leading-none">
-              {t('agent.speed.summary.label')}
-            </span>
-            <div
-              role="group"
-              aria-label={t('agent.speed.summary.label')}
-              className="grid grid-cols-3 gap-1 rounded-lg bg-muted/70 p-1">
-              {summaryOptions.map((summary) => (
-                <Button
-                  key={summary}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    'h-8 min-w-0 rounded-md px-2 text-muted-foreground text-xs transition-colors',
-                    selectedSummary === summary
-                      ? 'bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground'
-                      : 'hover:bg-background/60 hover:text-foreground'
-                  )}
-                  aria-pressed={selectedSummary === summary}
-                  onClick={() => onReasoningSummaryChange?.(summary)}>
-                  {t(SUMMARY_LABEL_KEYS[summary])}
-                </Button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {supportsServiceTier ? (
-          <div
-            className={cn(
-              (supportsReasoning || summaryOptions.length > 0) && 'mt-3 border-frame-border border-t pt-3'
-            )}>
-            <div className="mb-2 font-medium text-[11px] text-muted-foreground leading-none">
-              {serviceTierControlLabel}
-            </div>
-            <RadioGroup
-              value={effectiveServiceTier}
-              aria-label={serviceTierControlLabel}
-              className="gap-0"
-              onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
-              {serviceTierOptions.map((tier) => (
-                <label
-                  key={tier}
-                  className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
-                  <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
-                  <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
-                </label>
-              ))}
-            </RadioGroup>
-          </div>
-        ) : null}
+        <ModelSpeedControlFields
+          model={model}
+          reasoningEffort={reasoningEffort}
+          reasoningSummary={reasoningSummary}
+          serviceTier={serviceTier}
+          fastMode={fastMode}
+          onReasoningEffortChange={onReasoningEffortChange}
+          onReasoningSummaryChange={onReasoningSummaryChange}
+          onServiceTierChange={onServiceTierChange}
+          onFastModeChange={onFastModeChange}
+        />
       </PopoverContent>
     </Popover>
   )

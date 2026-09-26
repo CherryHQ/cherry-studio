@@ -1,9 +1,10 @@
-import { Activity, GitBranch, Globe } from 'lucide-react'
+import { Activity, GitBranch, Globe, SlidersHorizontal } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { TopicModelSettingsRightPanel } from '@renderer/components/chat/modelSettings/TopicModelSettingsRightPanel'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -34,6 +35,7 @@ const TracePane = lazy(() =>
 interface TopicRightPaneMeta {
   topicId?: string
   topicName?: string
+  assistantId?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
   traceId?: string
 }
@@ -46,6 +48,7 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
   browserTitle: string
   branchTitle: string
   developerMode: boolean
+  modelSettingsTitle: string
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
 }
@@ -178,6 +181,7 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
 
 /** Stable capability declarations; catalog order is the fallback order. */
 const TRACE_PANE_ID = 'trace'
+const MODEL_SETTINGS_PANE_ID = 'model-settings'
 const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
 const TOPIC_TRACE_PANE_CAPABILITY = {
   component: TopicTraceRightPanel,
@@ -188,8 +192,19 @@ const TOPIC_TRACE_PANE_CAPABILITY = {
     readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
   })
 } satisfies RightPanelCapability<TopicRightPanelScope>
+const TOPIC_MODEL_SETTINGS_CAPABILITY = {
+  component: TopicModelSettingsRightPanel,
+  resolve: (scope: TopicRightPanelScope) => ({
+    id: MODEL_SETTINGS_PANE_ID,
+    instanceKey: `model-settings:${scope.topicId ?? 'unavailable'}:${scope.assistantId ?? ''}`,
+    title: scope.modelSettingsTitle,
+    readiness: scope.topicId && scope.assistantId ? 'ready' : 'unavailable'
+  })
+} satisfies RightPanelCapability<TopicRightPanelScope>
+
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   TOPIC_RESOURCE_PANE_CAPABILITY,
+  TOPIC_MODEL_SETTINGS_CAPABILITY,
   {
     component: TopicBranchRightPanel,
     resolve: (scope) => ({
@@ -218,6 +233,7 @@ function TopicRightPaneProvider({
   resourcePane,
   topicId,
   topicName,
+  assistantId,
   traceId,
   present = true,
   defaultOpen = false,
@@ -242,14 +258,16 @@ function TopicRightPaneProvider({
     () => ({
       topicId,
       topicName,
+      assistantId,
       traceId,
       resourcePane: resourcePane ?? null,
       developerMode: enableDeveloperMode,
       browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
+      modelSettingsTitle: t('chat.model_settings.title'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
+    [assistantId, enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (
@@ -288,6 +306,11 @@ function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: b
         <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
       )}
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
+      <RightPanelShortcut
+        tab={MODEL_SETTINGS_PANE_ID}
+        label={t('chat.model_settings.title')}
+        icon={<SlidersHorizontal className="size-3.5" />}
+      />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>
   )

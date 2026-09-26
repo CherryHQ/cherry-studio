@@ -464,6 +464,19 @@ vi.mock('@renderer/utils/model', () => ({
   isWebSearchModel: () => false
 }))
 
+vi.mock('@renderer/hooks/chat/useChatTurnFastMode', async () => {
+  const { useCallback, useState } = await import('react')
+
+  return {
+    getChatTurnFastModeCacheKey: (topicId: string) => `chat.turn.fast_mode.${topicId}`,
+    useChatTurnFastMode: () => {
+      const [fastMode, setFastMode] = useState(false)
+      const setEnabled = useCallback((enabled: boolean) => setFastMode(enabled), [])
+      return [fastMode, setEnabled]
+    }
+  }
+})
+
 vi.mock('@renderer/data/hooks/useCache', async () => {
   const { MockUseCache } = await import('@test-mocks/renderer/useCache')
 

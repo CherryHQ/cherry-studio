@@ -56,6 +56,7 @@ import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agen
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -845,7 +846,7 @@ const AgentComposerInner = ({
   const serviceTierMutationVersionRef = useRef(0)
   const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
   const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
-  const [fastMode, setFastMode] = useState(false)
+  const [fastMode, setFastMode] = useAgentTurnFastMode(sessionId)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
   )
@@ -904,7 +905,7 @@ const AgentComposerInner = ({
 
   useEffect(() => {
     if (model?.supportsFastMode !== true) setFastMode(false)
-  }, [model?.supportsFastMode])
+  }, [model?.supportsFastMode, setFastMode])
 
   const setText = useCallback(
     (nextText: string) => {
