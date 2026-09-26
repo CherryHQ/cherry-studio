@@ -20,7 +20,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 
 import type { MigrationContext } from '../../core/MigrationContext'
-import { ChatMigrator } from '../ChatMigrator'
+import { ChatMigrator, type TopicPromptCandidate } from '../ChatMigrator'
 import type { NewMessage, NewTopic, OldBlock, OldMainTextBlock, OldMessage, OldTopic } from '../mappings/ChatMappings'
 
 interface PreparedTopicData {
@@ -577,6 +577,120 @@ describe('ChatMigrator.prepareTopicData', () => {
       prompt: '   '
     }
     expect(await prepareTopic(oldTopic, [])).toBeNull()
+  })
+
+  describe('topic prompt handoff to PromptMigrator', () => {
+    /** Seed a migrator with the same private state the prepareTopic helper uses. */
+    function seedMigrator(meta?: { id: string; name: string; prompt?: string }): ChatMigrator {
+      const migrator = new ChatMigrator()
+      const m = migrator as unknown as Record<string, unknown>
+      m['blockLookup'] = new Map()
+      m['assistantLookup'] = new Map()
+      m['topicMetaLookup'] = new Map(meta ? [[meta.id, meta]] : [])
+      m['topicAssistantLookup'] = new Map()
+      m['skippedMessages'] = 0
+      m['reservedMessageIds'] = new Set()
+      m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+      return migrator
+    }
+
+    async function callPrepare(migrator: ChatMigrator, oldTopic: OldTopic): Promise<PreparedTopicData | null> {
+      const m = migrator as unknown as Record<string, unknown>
+      const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+      return fn.call(migrator, oldTopic, undefined)
+    }
+
+    /** prepareTopicData variant exposing the migrator for collected-prompt inspection. */
+    async function collectPrompts(
+      oldTopic: OldTopic,
+      blocks: OldBlock[],
+      meta?: { id: string; name: string; prompt?: string }
+    ): Promise<{ result: PreparedTopicData | null; collected: Map<string, TopicPromptCandidate> }> {
+      const migrator = seedMigrator(meta)
+      const m = migrator as unknown as Record<string, unknown>
+      m['blockLookup'] = new Map(blocks.map((b) => [b.id, b]))
+      const result = await callPrepare(migrator, oldTopic)
+      return { result, collected: m['collectedTopicPrompts'] as Map<string, TopicPromptCandidate> }
+    }
+
+    it('collects a merged non-empty topic prompt for PromptMigrator', async () => {
+      const b1 = block('b1', 'u1')
+      const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])
+      oldTopic.name = 'Research'
+      oldTopic.prompt = 'You are a haiku coach.'
+
+      const { result, collected } = await collectPrompts(oldTopic, [b1])
+
+      expect(result).not.toBeNull()
+      expect(collected.get('t1')).toMatchObject({
+        topicId: 't1',
+        topicName: 'Research',
+        prompt: 'You are a haiku coach.',
+        assistantId: 'ast-1',
+        createdAt: Date.parse('2025-01-01T00:00:00.000Z'),
+        updatedAt: Date.parse('2025-01-01T00:00:00.000Z')
+      })
+    })
+
+    it('prefers the Redux topic-meta prompt over the Dexie row', async () => {
+      const b1 = block('b1', 'u1')
+      const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])
+
+      const { collected } = await collectPrompts(oldTopic, [b1], {
+        id: 't1',
+        name: 'Meta name',
+        prompt: 'Meta prompt wins.'
+      })
+
+      expect(collected.get('t1')).toMatchObject({ topicName: 'Meta name', prompt: 'Meta prompt wins.' })
+    })
+
+    it('collects nothing for a blank topic prompt', async () => {
+      const b1 = block('b1', 'u1')
+      const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])
+      oldTopic.prompt = '   '
+
+      const { result, collected } = await collectPrompts(oldTopic, [b1])
+
+      expect(result).not.toBeNull()
+      expect(collected.size).toBe(0)
+    })
+
+    it('collects each topic id exactly once', async () => {
+      const migrator = seedMigrator()
+      const first: OldTopic = {
+        id: 't1',
+        assistantId: 'ast-1',
+        name: 'First',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        messages: [],
+        prompt: 'First write wins.'
+      }
+      const second: OldTopic = { ...first, name: 'Second', prompt: 'Duplicate row.' }
+
+      await callPrepare(migrator, first)
+      await callPrepare(migrator, second)
+
+      const collected = (migrator as unknown as Record<string, unknown>)['collectedTopicPrompts'] as Map<
+        string,
+        TopicPromptCandidate
+      >
+      expect(collected.size).toBe(1)
+      expect(collected.get('t1')?.prompt).toBe('First write wins.')
+    })
+
+    it('stores an empty assistant id for orphan topics (PromptMigrator maps it to global)', async () => {
+      const b1 = block('b1', 'u1')
+      const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])
+      oldTopic.assistantId = ''
+      oldTopic.prompt = 'Orphan instructions.'
+
+      const { result, collected } = await collectPrompts(oldTopic, [b1])
+
+      expect(result).not.toBeNull()
+      expect(collected.get('t1')).toMatchObject({ assistantId: '' })
+    })
   })
 
   it('sets assistantId to NULL when topic.assistantId is empty', async () => {

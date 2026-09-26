@@ -83,7 +83,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | Redux: `isNameManuallyEdited` | `isNameManuallyEdited` | Merged from Redux |
 | Redux: (parent assistant.id) | `assistantId` | From `topicAssistantLookup` mapping |
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
-| Redux: `prompt` | `prompt` | Merged from Redux |
+| Redux: `prompt` | (handed to `PromptMigrator` via `sharedData.topicPromptCandidates`) | Merged from Redux (Dexie row as fallback); the v2 `topic` schema has no topic-level prompt field, so `ChatMigrator` collects each non-empty value and `PromptMigrator` preserves it as a V2 prompt row |
 | (computed) | `activeNodeId` | Last migrated message; a terminal response group uses its first `useful` response, or its first response when none is marked |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
@@ -92,7 +92,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
 | (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
 
-**Dropped fields**: `type` ('chat' | 'session')
+**Dropped fields**: `type` ('chat' | 'session'). `prompt` is not dropped either: it has no v2 topic column, so it is handed to `PromptMigrator` (see row above) instead of being stored on the topic.
 
 ### Message Mapping
 

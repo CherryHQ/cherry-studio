@@ -5,9 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
+import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 
 import type { MigrationContext } from '../../core/MigrationContext'
+import { TOPIC_PROMPT_CANDIDATES_KEY } from '../ChatMigrator'
 import { PromptMigrator } from '../PromptMigrator'
 
 /** Helper: build a minimal MigrationContext mock */
@@ -300,6 +301,128 @@ describe('PromptMigrator', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('read error')
       expect(result.warnings).toBeUndefined()
+    })
+  })
+
+  // ── topic prompts (v1 assistants[].topics[].prompt via ChatMigrator) ──
+
+  describe('topic prompts', () => {
+    const assistantId = makeUuid(31)
+
+    /** Realistic v1 topic-prompt handoff entry as published by ChatMigrator. */
+    function topicEntry(overrides: Record<string, unknown> = {}) {
+      return {
+        topicId: 'topic-1',
+        topicName: 'Deep research',
+        prompt: 'Always cite sources.',
+        assistantId,
+        createdAt: 1700000000000,
+        updatedAt: 1700000001000,
+        ...overrides
+      }
+    }
+
+    function topicCtx(entries: unknown[]) {
+      const ctx = createMockContext({ tableExists: false, tableData: [] })
+      ctx.sharedData.set('assistantIds', new Set([assistantId]))
+      ctx.sharedData.set('legacyAssistantIdRemap', new Map())
+      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, entries)
+      return ctx
+    }
+
+    it('should preserve a topic prompt as a restricted prompt bound to its assistant', async () => {
+      const ctx = topicCtx([topicEntry()])
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      const executeResult = await migrator.execute(ctx)
+
+      expect(prepareResult).toStrictEqual({ success: true, itemCount: 1 })
+      expect(executeResult).toMatchObject({ success: true, processedCount: 1 })
+      expect(batches[0]).toHaveLength(1)
+      expect(batches[0][0]).toMatchObject({
+        title: 'Deep research',
+        content: 'Always cite sources.',
+        visibility: 'restricted'
+      })
+      // Fresh UUID: the prompt keeps the topic association via its title, never the topic id.
+      expect(PromptIdSchema.safeParse(batches[0][0].id).success).toBe(true)
+      expect(batches[0][0].id).not.toBe('topic-1')
+      expect(batches[1]).toHaveLength(1)
+      expect(batches[1][0]).toMatchObject({ targetType: 'assistant', targetId: assistantId })
+      expect(batches[1][0].promptId).toBe(batches[0][0].id)
+    })
+
+    it('should migrate each topic exactly once', async () => {
+      const ctx = topicCtx([
+        topicEntry({ prompt: 'First write wins.' }),
+        topicEntry({ prompt: 'Duplicate handoff entry.' })
+      ])
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      const validateResult = await migrator.validate(ctx)
+
+      expect(prepareResult.itemCount).toBe(1)
+      expect(prepareResult.warnings).toHaveLength(1)
+      expect(prepareResult.warnings?.[0]).toContain('Deep research')
+      expect(validateResult.stats).toMatchObject({ sourceCount: 2, skippedCount: 1 })
+    })
+
+    it('should fall back to global visibility when the owning assistant did not migrate', async () => {
+      const ctx = topicCtx([
+        topicEntry({ topicId: 'topic-9', topicName: 'Dangling', assistantId: 'missing-assistant' }),
+        topicEntry({ topicId: 'topic-10', topicName: 'Orphan', assistantId: '' })
+      ])
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      expect(prepareResult).toStrictEqual({ success: true, itemCount: 2 })
+      expect(batches[0].map((row) => row.title)).toEqual(['Dangling', 'Orphan'])
+      expect(batches[0].every((row) => row.visibility === 'global')).toBe(true)
+      expect(batches).toHaveLength(1)
+    })
+
+    it('should keep the topic id recoverable when the topic has no name', async () => {
+      const ctx = topicCtx([topicEntry({ topicName: '  ' })])
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      expect(batches[0][0]).toMatchObject({ title: 'Topic topic-1' })
+    })
+
+    it('should report unsupported topic prompts with a recovery action', async () => {
+      const ctx = topicCtx([topicEntry({ prompt: 'x'.repeat(PROMPT_CONTENT_MAX + 1) })])
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      const validateResult = await migrator.validate(ctx)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.itemCount).toBe(0)
+      expect(prepareResult.warnings).toHaveLength(1)
+      expect(prepareResult.warnings?.[0]).toContain('Deep research')
+      expect(prepareResult.warnings?.[0]).toContain('Copy it manually from the V1 backup')
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
+    })
+
+    it('should ignore blank topic prompts without counting them', async () => {
+      const ctx = topicCtx([topicEntry({ prompt: '   ' })])
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      const validateResult = await migrator.validate(ctx)
+
+      expect(prepareResult).toStrictEqual({ success: true, itemCount: 0 })
+      expect(validateResult.stats).toMatchObject({ sourceCount: 0, skippedCount: 0 })
     })
   })
 
@@ -983,5 +1106,66 @@ describe('PromptMigrator SQLite integration', () => {
       ])
     )
     expect(bindings.every((binding) => binding.orderKey.length > 0)).toBe(true)
+  })
+
+  it('migrates v1 topic prompts into recoverable prompts with assistant bindings', async () => {
+    const assistantId = makeUuid(41)
+    await dbh.db.insert(assistantTable).values([
+      {
+        id: assistantId,
+        name: 'Research assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      }
+    ])
+    const ctx = createMockContext({ tableExists: false, tableData: [] })
+    ctx.db = dbh.db
+    ctx.sharedData.set('assistantIds', new Set([assistantId]))
+    ctx.sharedData.set('legacyAssistantIdRemap', new Map())
+    ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [
+      {
+        topicId: 'topic-1',
+        topicName: 'Deep research',
+        prompt: 'Always cite sources.',
+        assistantId,
+        createdAt: 1700000000000,
+        updatedAt: 1700000001000
+      },
+      {
+        topicId: 'topic-2',
+        topicName: 'Orphaned topic',
+        prompt: 'Survives without its assistant.',
+        assistantId: 'missing-assistant',
+        createdAt: 1700000000000,
+        updatedAt: 1700000001000
+      }
+    ])
+    const migrator = new PromptMigrator()
+
+    const prepareResult = await migrator.prepare(ctx)
+    const executeResult = await migrator.execute(ctx)
+    const validateResult = await migrator.validate(ctx)
+    const prompts = await dbh.db.select().from(promptTable)
+    const bindings = await dbh.db.select().from(promptBindingTable)
+    const byTitle = new Map(prompts.map((prompt) => [prompt.title, prompt]))
+
+    expect(prepareResult).toMatchObject({ success: true, itemCount: 2 })
+    expect(executeResult).toMatchObject({ success: true, processedCount: 2 })
+    expect(validateResult.success).toBe(true)
+    expect(byTitle.get('Deep research')).toMatchObject({
+      content: 'Always cite sources.',
+      visibility: 'restricted'
+    })
+    expect(byTitle.get('Orphaned topic')).toMatchObject({
+      content: 'Survives without its assistant.',
+      visibility: 'global'
+    })
+    expect(bindings).toHaveLength(1)
+    expect(bindings[0]).toMatchObject({
+      promptId: byTitle.get('Deep research')?.id,
+      targetType: 'assistant',
+      targetId: assistantId
+    })
   })
 })
