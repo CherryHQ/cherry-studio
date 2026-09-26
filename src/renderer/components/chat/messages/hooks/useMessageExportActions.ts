@@ -36,8 +36,8 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
     return window.api.file.saveImage(fileName, dataUrl)
   }, [])
 
-  const exportToWord = useCallback((markdown: string, title: string) => {
-    return ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
+  const exportToWord = useCallback(async (markdown: string, title: string) => {
+    await ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
   }, [])
 
   const saveToKnowledge = useCallback(async (message: MessageExportView) => {
@@ -97,7 +97,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
       await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
-    return exportMarkdownToSiyuan(title, markdown)
+    await exportMarkdownToSiyuan(title, markdown)
   }, [])
 
   return useMemo(

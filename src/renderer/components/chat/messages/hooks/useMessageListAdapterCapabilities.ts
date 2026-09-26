@@ -57,6 +57,7 @@ export function useMessageListAdapterCapabilities({
   const errorActions = useMessageErrorActions({ diagnosticReport, getDoctorSubject })
   const selectionController = useMessageSelectionController({
     topicId,
+    topicName,
     messages,
     partsByMessageId,
     deleteMessage,

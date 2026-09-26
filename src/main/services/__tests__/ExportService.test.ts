@@ -40,7 +40,7 @@ describe('ExportService.exportToWord', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
       const service = await freshService()
-      await expect(service.exportToWord('# Title', 'doc.docx')).resolves.toBeUndefined()
+      await expect(service.exportToWord('# Title', 'doc.docx')).resolves.toBe(false)
 
       expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
       expect(markdownItCtor).not.toHaveBeenCalled()
@@ -65,7 +65,7 @@ describe('ExportService.exportToWord', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
-      await service.exportToWord('# Title\n\nBody paragraph', 'doc.docx')
+      await expect(service.exportToWord('# Title\n\nBody paragraph', 'doc.docx')).resolves.toBe(true)
 
       const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
       expect(documentXml).toContain('Title')

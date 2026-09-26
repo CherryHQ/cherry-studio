@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import MultiSelectActionPopup from '../MultiSelectActionPopup'
+import { defaultMessageMenuExportOptions } from '../types'
+import type { MessageMenuExportOptions } from '../types'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   // Keep the real Checkbox: tri-state and interaction assertions must cover
@@ -31,7 +33,27 @@ vi.mock('@renderer/components/icons/DeleteIcon', () => ({
 
 vi.mock('lucide-react', () => ({
   Save: () => <span data-testid="save-icon" />,
+  Upload: () => <span data-testid="upload-icon" />,
   X: () => <span data-testid="close-icon" />
+}))
+
+// Composition boundary: the menu chrome belongs to the command suite —
+// items render as plain buttons pinning only labels and forwarded targets.
+vi.mock('@renderer/components/command', () => ({
+  CommandPopupMenu: ({ children, extraItems }: any) => (
+    <div data-testid="export-menu">
+      {children}
+      {extraItems.map((item: any, index: number) =>
+        item.type === 'separator' ? (
+          <hr key={`separator-${index}`} />
+        ) : (
+          <button key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        )
+      )}
+    </div>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -168,6 +190,92 @@ describe('MultiSelectionPopup', () => {
       render(<MultiSelectActionPopup {...popupProps()} />)
 
       expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('export menu', () => {
+    const exportProps = (overrides = {}) => ({
+      selectedMessageIds: ['m1', 'm2'],
+      isMultiSelectMode: true,
+      onExport: vi.fn(),
+      exportMenuOptions: {
+        ...defaultMessageMenuExportOptions,
+        markdown: true,
+        markdown_reason: true,
+        docx: true,
+        notion: true,
+        yuque: true,
+        obsidian: true,
+        joplin: true,
+        siyuan: true
+      } satisfies MessageMenuExportOptions,
+      onClose: vi.fn(),
+      ...overrides
+    })
+
+    it('offers the enabled destinations and forwards the chosen target', async () => {
+      const props = exportProps()
+      const user = userEvent.setup()
+      render(<MultiSelectActionPopup {...props} />)
+
+      expect(buttonFor('upload-icon')).toBeEnabled()
+      for (const label of [
+        'chat.topics.export.md.label',
+        'chat.topics.export.md.reason',
+        'chat.topics.export.word',
+        'chat.topics.export.notion',
+        'chat.topics.export.yuque',
+        'chat.topics.export.obsidian',
+        'chat.topics.export.joplin',
+        'chat.topics.export.siyuan'
+      ]) {
+        expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+      }
+
+      await user.click(screen.getByRole('button', { name: 'chat.topics.export.md.label' }))
+      await user.click(screen.getByRole('button', { name: 'chat.topics.export.notion' }))
+
+      expect(props.onExport).toHaveBeenNthCalledWith(1, 'markdown')
+      expect(props.onExport).toHaveBeenNthCalledWith(2, 'notion')
+    })
+
+    it('limits the menu to the enabled destinations', () => {
+      render(
+        <MultiSelectActionPopup
+          {...exportProps({
+            exportMenuOptions: { ...defaultMessageMenuExportOptions, markdown: true, joplin: true }
+          })}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'chat.topics.export.md.label' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'chat.topics.export.joplin' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'chat.topics.export.word' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'chat.topics.export.notion' })).not.toBeInTheDocument()
+    })
+
+    it('omits the export button when no export handler is provided', () => {
+      render(<MultiSelectActionPopup {...exportProps({ onExport: undefined })} />)
+
+      expect(screen.queryByTestId('upload-icon')).not.toBeInTheDocument()
+    })
+
+    it('omits the export button when every export option is off', () => {
+      render(<MultiSelectActionPopup {...exportProps({ exportMenuOptions: { ...defaultMessageMenuExportOptions } })} />)
+
+      expect(screen.queryByTestId('upload-icon')).not.toBeInTheDocument()
+    })
+
+    it('disables the export button when nothing is selected', () => {
+      render(<MultiSelectActionPopup {...exportProps({ selectedMessageIds: [] })} />)
+
+      expect(buttonFor('upload-icon')).toBeDisabled()
+    })
+
+    it('disables the export button while select-all is still loading older pages', () => {
+      render(<MultiSelectActionPopup {...exportProps({ isSelectAllLoading: true })} />)
+
+      expect(buttonFor('upload-icon')).toBeDisabled()
     })
   })
 })
