@@ -103,12 +103,46 @@ function renderRows(force = false) {
   }
 }
 
+function shellQuoteSingle(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`
+}
+
+function buildCurlCommand(event) {
+  const parts = ['curl', shellQuoteSingle(event.url)]
+  const method = (event.method || 'GET').toUpperCase()
+  if (method !== 'GET') parts.push('-X', method)
+
+  for (const [key, value] of Object.entries(event.requestHeaders ?? {})) {
+    parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
+  }
+
+  const bodyText = event.requestBody?.text
+  if (bodyText) {
+    parts.push('--data-raw', shellQuoteSingle(bodyText))
+  } else if (event.requestBody?.note) {
+    parts.push(`# request body not captured: ${event.requestBody.note}`)
+  }
+
+  return parts.join(' \\\n  ')
+}
+
+function appendCurlSection(event) {
+  const curl = buildCurlCommand(event)
+  const content = appendSection('cURL', () => curl)
+  const pre = document.createElement('pre')
+  pre.className = 'body-preview'
+  pre.textContent = curl
+  content.appendChild(pre)
+}
+
 function renderDetails(event, force = false) {
   const nextSignature = JSON.stringify(event)
   if (!force && nextSignature === detailsSignature) return
 
   detailsSignature = nextSignature
   detailsEl.replaceChildren()
+
+  appendCurlSection(event)
 
   appendKeyValueSection('Request', {
     id: event.id,
