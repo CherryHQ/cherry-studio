@@ -99,6 +99,14 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   return resolvedPath
 }
 
+// Re-reads the file and throws when the bytes on disk differ from what was written.
+export async function verifyWrittenContent(filePath: string, expectedContent: string): Promise<void> {
+  const writtenContent = await fs.readFile(filePath, 'utf-8')
+  if (writtenContent !== expectedContent) {
+    throw new Error('Post-write verification failed: file content did not match requested content')
+  }
+}
+
 // ============================================================================
 // Edit Tool Utilities - Fuzzy matching replacers from opencode
 // ============================================================================

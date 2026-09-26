@@ -3,6 +3,7 @@ import path from 'path'
 
 import * as z from 'zod'
 
+import { withMutationLockForRequest } from '../mutationLock'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -34,61 +35,70 @@ export async function handleDeleteTool(args: unknown, baseDir: string) {
   }
 
   const targetPath = parsed.data.path
-  const validPath = await validatePath(targetPath, baseDir)
   const recursive = parsed.data.recursive || false
 
-  // Check if path exists and get stats
-  let stats
-  try {
-    stats = await fs.stat(validPath)
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      throw new Error(`Path not found: ${targetPath}`)
-    }
-    throw error
-  }
-
-  const isDirectory = stats.isDirectory()
-  const relativePath = path.relative(baseDir, validPath)
-
-  // Perform deletion
-  try {
-    if (isDirectory) {
-      if (recursive) {
-        // Delete directory recursively
-        await fs.rm(validPath, { recursive: true, force: true })
-      } else {
-        // Try to delete empty directory
-        await fs.rmdir(validPath)
+  // Hold the mutation lock across validation and mutation so concurrent mutations queue in
+  // call order even when file existence flips the lock key mid-operation (e.g. creates).
+  return withMutationLockForRequest(
+    targetPath,
+    baseDir,
+    async () => {
+      const validPath = await validatePath(targetPath, baseDir)
+      // Check if path exists and get stats
+      let stats
+      try {
+        stats = await fs.stat(validPath)
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          throw new Error(`Path not found: ${targetPath}`)
+        }
+        throw error
       }
-    } else {
-      // Delete file
-      await fs.unlink(validPath)
-    }
-  } catch (error: any) {
-    if (error.code === 'ENOTEMPTY') {
-      throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
-    }
-    throw new Error(`Failed to delete: ${error.message}`)
-  }
 
-  // Log the operation
-  logger.info('Path deleted', {
-    path: validPath,
-    type: isDirectory ? 'directory' : 'file',
-    recursive: isDirectory ? recursive : undefined
-  })
+      const isDirectory = stats.isDirectory()
+      const relativePath = path.relative(baseDir, validPath)
 
-  // Format output
-  const itemType = isDirectory ? 'Directory' : 'File'
-  const recursiveNote = isDirectory && recursive ? ' (recursive)' : ''
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `${itemType} deleted${recursiveNote}: ${relativePath}`
+      // Perform deletion
+      try {
+        if (isDirectory) {
+          if (recursive) {
+            // Delete directory recursively
+            await fs.rm(validPath, { recursive: true, force: true })
+          } else {
+            // Try to delete empty directory
+            await fs.rmdir(validPath)
+          }
+        } else {
+          // Delete file
+          await fs.unlink(validPath)
+        }
+      } catch (error: any) {
+        if (error.code === 'ENOTEMPTY') {
+          throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
+        }
+        throw new Error(`Failed to delete: ${error.message}`)
       }
-    ]
-  }
+
+      // Log the operation
+      logger.info('Path deleted', {
+        path: validPath,
+        type: isDirectory ? 'directory' : 'file',
+        recursive: isDirectory ? recursive : undefined
+      })
+
+      // Format output
+      const itemType = isDirectory ? 'Directory' : 'File'
+      const recursiveNote = isDirectory && recursive ? ' (recursive)' : ''
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${itemType} deleted${recursiveNote}: ${relativePath}`
+          }
+        ]
+      }
+    },
+    { subtreeRoot: true }
+  )
 }
