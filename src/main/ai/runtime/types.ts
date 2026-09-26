@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { AgentHookEvent } from '@shared/ai/agentHook'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -80,7 +81,24 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
   onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onHook?: AgentRuntimeHookHandler
 }
+
+export interface AgentRuntimeHookInput {
+  event: AgentHookEvent
+  approvalId?: string
+  toolName?: string
+  toolCallId?: string
+  toolInput?: unknown
+  toolOutput?: unknown
+  error?: string
+  messageId?: string
+}
+
+export type AgentRuntimeHookHandler = (
+  input: AgentRuntimeHookInput,
+  signal?: AbortSignal
+) => Promise<{ denied?: boolean; reason?: string }>
 
 export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
@@ -99,6 +117,8 @@ export interface AgentRuntimeUserInput {
  * interaction message when the requesting agent outlives that turn.
  */
 export interface AgentRuntimeToolApprovalRequest {
+  /** A user-authored answer, not permission to execute a tool. */
+  interactionKind?: 'question'
   approvalId: string
   toolCallId: string
   toolName: string

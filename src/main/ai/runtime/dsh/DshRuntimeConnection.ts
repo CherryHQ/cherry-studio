@@ -417,6 +417,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onHook: this.input.onHook,
         onDisconnect: () => {
           this.eventQueue.push({
             type: 'error',

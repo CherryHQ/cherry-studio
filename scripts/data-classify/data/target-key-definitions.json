@@ -854,6 +854,13 @@
       "description": "Command shortcut: screenshot.capture (unified command system)"
     },
     {
+      "targetKey": "agent.hooks",
+      "type": "PreferenceTypes.AgentHookPreference",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Global command Hooks for all Cherry agent sessions (Pi, Claude Code and DSH)"
+    },
+    {
       "targetKey": "data.trash.retention_days",
       "type": "number",
       "defaultValue": 30,

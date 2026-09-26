@@ -436,6 +436,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
+    application.get('ClaudeCodeSessionStateService').setAgentHookHandler(this.input.sessionId, this.input.onHook)
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
     registerMcpSessionCatalogSync(

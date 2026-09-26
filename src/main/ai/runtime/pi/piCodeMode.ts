@@ -9,6 +9,7 @@ import {
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
 
+import type { AgentRuntimeHookHandler } from '../types'
 import type { PiToolAuthorizationRequest, PiToolAuthorizer } from './approvalExtension'
 import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
@@ -64,7 +65,8 @@ const execParameters = {
 export function createPiCodeModeTools(
   tools: readonly PiMcpToolDefinition[],
   isDisabled: (toolName: string) => boolean,
-  authorizeTool: PiToolAuthorizer
+  authorizeTool: PiToolAuthorizer,
+  onHook?: AgentRuntimeHookHandler
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
   const invokeTargetTool = async (
@@ -81,12 +83,38 @@ export function createPiCodeModeTools(
     const decision = await authorizer({
       toolName: name,
       toolCallId: approvalToolCallId,
+      executionToolCallId,
       input,
       signal,
       onApprovalPending
     })
     if (decision?.block) throw new Error(decision.reason)
-    const raw = await tool.execute(executionToolCallId, input, signal, undefined, {} as never)
+    let raw: ToolResult
+    try {
+      raw = await tool.execute(executionToolCallId, input, signal, undefined, {} as never)
+    } catch (error) {
+      await onHook?.(
+        {
+          event: 'postToolUseFailure',
+          toolName: name,
+          toolCallId: executionToolCallId,
+          toolInput: input,
+          error: error instanceof Error ? error.message : String(error)
+        },
+        signal
+      )
+      throw error
+    }
+    await onHook?.(
+      {
+        event: 'postToolUse',
+        toolName: name,
+        toolCallId: executionToolCallId,
+        toolInput: input,
+        toolOutput: raw.content
+      },
+      signal
+    )
     return { raw, value: decodeToolResult(raw, tool.outputSchema, name) }
   }
 

@@ -303,10 +303,51 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  const agentHook: HookCallback = async (input, toolUseId, options) => {
+    if (
+      input.hook_event_name !== 'PreToolUse' &&
+      input.hook_event_name !== 'PostToolUse' &&
+      input.hook_event_name !== 'PostToolUseFailure'
+    )
+      return {}
+    const handler = sessionState().getAgentHookHandler(sessionId)
+    if (!handler) return {}
+    const result = await handler(
+      {
+        event:
+          input.hook_event_name === 'PreToolUse'
+            ? 'preToolUse'
+            : input.hook_event_name === 'PostToolUse'
+              ? 'postToolUse'
+              : 'postToolUseFailure',
+        toolName: input.tool_name,
+        toolCallId: toolUseId ?? input.tool_use_id,
+        toolInput: input.tool_input,
+        ...(input.hook_event_name === 'PostToolUse' ? { toolOutput: input.tool_response } : {}),
+        ...(input.hook_event_name === 'PostToolUseFailure' ? { error: input.error } : {})
+      },
+      options?.signal
+    )
+    return input.hook_event_name === 'PreToolUse' && result.denied
+      ? {
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: result.reason ?? 'The tool was denied by an Agent Hook.'
+          }
+        }
+      : {}
+  }
+
   return {
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    // User Hooks have their own matcher budget: at most 16 sequential 60s commands
+    // plus cleanup. The SDK must not time out and discard a late denial.
+    PreToolUse: [
+      { hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] },
+      { hooks: [agentHook], timeout: 1020 }
+    ],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }, { hooks: [agentHook], timeout: 1020 }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }, { hooks: [agentHook], timeout: 1020 }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }

@@ -60,6 +60,7 @@ afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 /** Build the gate, capturing its `tool_call` handler + emitted chunks. */
 function buildGate(
   overrides: Partial<{
+    onHook: PiApprovalContext['onHook']
     workspacePath: string
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
@@ -73,6 +74,7 @@ function buildGate(
 ) {
   const emitted: any[] = []
   let handler!: Handler
+  let resultHandler!: Handler
   const context: PiApprovalContext = {
     sessionId: 's1',
     workspacePath: workspace,
@@ -91,12 +93,49 @@ function buildGate(
   void factory({
     on: (evt: string, h: unknown) => {
       if (evt === 'tool_call') handler = h as Handler
+      if (evt === 'tool_result') resultHandler = h as Handler
     }
   } as never)
-  return { handler, emitted, authorizeTool: createPiToolAuthorizer(context) }
+  return { handler, resultHandler, emitted, authorizeTool: createPiToolAuthorizer(context) }
 }
 
 const extCtx = { signal: undefined }
+
+describe('Agent Hooks', () => {
+  it('denies tools even in Full Access and preserves the reason returned to Pi', async () => {
+    const onHook = vi.fn(async () => ({ denied: true, reason: 'protected by my script' }))
+    const gate = buildGate({ getPermissionMode: () => 'bypassPermissions', onHook })
+    expect(
+      await gate.handler(
+        { type: 'tool_call', toolName: 'write', toolCallId: 'write-1', input: { path: 'inside.txt', content: 'new' } },
+        extCtx
+      )
+    ).toEqual({ block: true, reason: 'protected by my script' })
+    expect(gate.emitted).toEqual([])
+    expect(onHook).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'preToolUse', toolCallId: 'write-1' }),
+      undefined
+    )
+  })
+
+  it.each([false, true])('reports the SDK result without rewriting it (error=%s)', async (isError) => {
+    const onHook = vi.fn(async () => ({ denied: true, reason: 'ignored post decision' }))
+    const gate = buildGate({ onHook })
+    const event = {
+      type: 'tool_result',
+      toolName: 'read',
+      toolCallId: 'read-1',
+      input: { path: 'inside.txt' },
+      isError,
+      content: [{ type: 'text', text: 'result' }]
+    }
+    expect(await gate.resultHandler(event, extCtx)).toBeUndefined()
+    expect(onHook).toHaveBeenCalledWith(
+      expect.objectContaining({ event: isError ? 'postToolUseFailure' : 'postToolUse', toolOutput: event.content }),
+      undefined
+    )
+  })
+})
 const toolEvent = (toolName: string, input: Record<string, unknown>) => ({
   type: 'tool_call' as const,
   toolName,
