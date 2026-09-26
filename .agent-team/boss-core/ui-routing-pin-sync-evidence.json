@@ -72,5 +72,10 @@
       "mini submodule and both integration manifest revisions match"
     ],
     "scope": "Merge reconciliation and packaged helper validation; no full installed Electron or native Windows claim."
+  },
+  "finalDocumentationPin": {
+    "revision": "cbaa3128489ca19507369aae9da33e2cb3f69c26",
+    "change": "Clarify absent proposed/upstream maintenance scripts; update catalog digests and distributions. Runtime code unchanged.",
+    "verification": "six carried-payload checks passed in mini; Boss normal skill sync/check follows"
   }
 }

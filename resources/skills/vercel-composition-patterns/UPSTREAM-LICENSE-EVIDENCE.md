@@ -1,3 +1,5 @@
+Prometheus packaging note: one referenced asset is absent — the upstream discovery-index build script mentioned in this verbatim README evidence is repository maintenance tooling, not part of this bundled skill. The following preserved text is license/provenance evidence, not local runtime instructions.
+
 # Agent Skills
 
 A collection of skills for AI coding agents. Skills are packaged instructions and scripts that extend agent capabilities.

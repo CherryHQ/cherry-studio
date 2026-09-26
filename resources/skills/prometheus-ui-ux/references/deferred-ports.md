@@ -1,5 +1,6 @@
 # Deferred full-only engine port
 ## Impeccable detector and live-browser engine
+Port status: one referenced asset is absent — the proposed Node engine below is not implemented or invocable. This document is the follow-up design, not an installation instruction.
 Dependency preventing mini inclusion: upstream Rust native engine, platform binaries, context/detect/hook implementations and browser instrumentation. Upstream launchers may download an engine. Mini forbids that runtime closure.
 Proposed Node interface: `node scripts/impeccable-engine.mjs inspect --input recorded-surface.json --output findings.json`; versioned input contains DOM tree, computed styles, viewport, theme, accessible names and screenshot references, captured by the harness's existing browser capability.
 Retain: rule identities, context precedence, mode decisions, deterministic findings with evidence and bounded completed-phase review.

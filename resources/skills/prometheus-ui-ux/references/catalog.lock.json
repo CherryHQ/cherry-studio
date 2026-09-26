@@ -1325,13 +1325,14 @@
         },
         {
           "path": "UPSTREAM-LICENSE-EVIDENCE.md",
-          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+          "sha256": "77d39c9bd47316950df8a519229f17ce8b2a83730d0567063895b1c7cdfbc769"
         }
       ],
       "adaptations": [
         "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
         "Replaced Unix/Python command examples with portable file-inspection instructions.",
-        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim.",
+        "Preface upstream README license evidence to distinguish absent repository maintenance tooling from shipped runtime instructions."
       ]
     },
     {
@@ -1422,12 +1423,13 @@
         },
         {
           "path": "UPSTREAM-LICENSE-EVIDENCE.md",
-          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+          "sha256": "77d39c9bd47316950df8a519229f17ce8b2a83730d0567063895b1c7cdfbc769"
         }
       ],
       "adaptations": [
         "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
-        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim.",
+        "Preface upstream README license evidence to distinguish absent repository maintenance tooling from shipped runtime instructions."
       ]
     },
     {
@@ -1658,13 +1660,14 @@
         },
         {
           "path": "UPSTREAM-LICENSE-EVIDENCE.md",
-          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+          "sha256": "77d39c9bd47316950df8a519229f17ce8b2a83730d0567063895b1c7cdfbc769"
         }
       ],
       "adaptations": [
         "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
         "Replaced Unix/Python command examples with portable file-inspection instructions.",
-        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim.",
+        "Preface upstream README license evidence to distinguish absent repository maintenance tooling from shipped runtime instructions."
       ]
     },
     {
@@ -1690,7 +1693,7 @@
         },
         {
           "path": "UPSTREAM-LICENSE-EVIDENCE.md",
-          "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651"
+          "sha256": "77d39c9bd47316950df8a519229f17ce8b2a83730d0567063895b1c7cdfbc769"
         },
         {
           "path": "references/web-interface-guidelines.md",
@@ -1704,7 +1707,8 @@
       "adaptations": [
         "Prepended explicit project authority, scope, version, phase-boundary and invocation contract.",
         "Pinned external Web Interface Guidelines locally; removed required runtime fetch.",
-        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim."
+        "Filled missing strict distribution license, version and metadata.tags without replacing upstream values or invocation flags. When upstream supplies no version, 1.0.0-prometheus.1 is a Prometheus packaging version, not an upstream release claim.",
+        "Preface upstream README license evidence to distinguish absent repository maintenance tooling from shipped runtime instructions."
       ]
     },
     {
@@ -2677,7 +2681,7 @@
       "assets": [
         {
           "path": "references/deferred-ports.md",
-          "sha256": "b5fd477197e5176e36e5678701ab2b7a6bd0fad0ec598124b8d340de79c52293"
+          "sha256": "d983aafe59afc1766ed6b18e5f5804e18a26dbb94fa6f968056062fe46712da3"
         },
         {
           "path": "references/pointer.md",
