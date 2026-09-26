@@ -2957,6 +2957,8 @@
   "paintings.person_generation_options.allow_none": "Nepermis",
   "paintings.person_generation_tip": "Permite modelului să genereze imagini cu persoane",
   "paintings.ppio.output_format": "Format ieșire",
+  "paintings.prompt_dock.expand": "Extinde promptul",
+  "paintings.prompt_dock.minimize": "Minimizează promptul",
   "paintings.prompt_enhancement": "Îmbunătățire prompt",
   "paintings.prompt_enhancement_tip": "Rescrie prompturile în versiuni detaliate, optimizate pentru model, când este activat",
   "paintings.prompt_placeholder": "Descrie imaginea pe care vrei să o creezi, de ex. Un lac senin la apus cu munți în fundal",

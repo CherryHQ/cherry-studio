@@ -2957,6 +2957,8 @@
   "paintings.person_generation_options.allow_none": "İzin verilmez",
   "paintings.person_generation_tip": "Modelin insan görselleri oluşturmasına izin ver",
   "paintings.ppio.output_format": "Çıktı Biçimi",
+  "paintings.prompt_dock.expand": "İstemi genişlet",
+  "paintings.prompt_dock.minimize": "İstemi küçült",
   "paintings.prompt_enhancement": "İstem İyileştirme",
   "paintings.prompt_enhancement_tip": "Etkinleştirildiğinde istemleri ayrıntılı ve modele uygun biçimde yeniden yazar",
   "paintings.prompt_placeholder": "Oluşturulacak görseli açıklayın; ör. arka planda dağların bulunduğu, gün batımında sakin bir göl",

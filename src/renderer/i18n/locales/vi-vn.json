@@ -2957,6 +2957,8 @@
   "paintings.person_generation_options.allow_none": "Không được phép",
   "paintings.person_generation_tip": "Cho phép mô hình tạo ra hình ảnh về con người",
   "paintings.ppio.output_format": "Định Dạng Đầu Ra",
+  "paintings.prompt_dock.expand": "Mở rộng prompt",
+  "paintings.prompt_dock.minimize": "Thu nhỏ prompt",
   "paintings.prompt_enhancement": "Cải thiện lời nhắc",
   "paintings.prompt_enhancement_tip": "Viết lại các lời nhắc thành phiên bản chi tiết, thân thiện với mô hình khi được bật",
   "paintings.prompt_placeholder": "Mô tả hình ảnh bạn muốn tạo, ví dụ: Một hồ yên tĩnh lúc hoàng hôn với dãy núi phía xa",

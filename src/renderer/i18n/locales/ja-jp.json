@@ -2957,6 +2957,8 @@
   "paintings.person_generation_options.allow_none": "許可しない",
   "paintings.person_generation_tip": "モデルに人物の画像を生成させることを許可する",
   "paintings.ppio.output_format": "出力形式",
+  "paintings.prompt_dock.expand": "プロンプトを展開",
+  "paintings.prompt_dock.minimize": "プロンプトを最小化",
   "paintings.prompt_enhancement": "プロンプト強化",
   "paintings.prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
   "paintings.prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
