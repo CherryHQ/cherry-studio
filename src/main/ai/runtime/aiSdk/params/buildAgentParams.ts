@@ -633,12 +633,18 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyChatPromptCacheIdentity(
+  const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
-    applyFastModeToProviderOptions(provider, model, overridden.providerOptions, request.fastMode === true),
-    request.conversation.id
+    overridden.providerOptions,
+    request.fastMode === true
   )
+  // Caller-owned turns (the API gateway) use a fresh stream id as conversation.id.
+  // A chat-derived key would change on every request and bust the caller's cache.
+  const effectiveProviderOptions =
+    request.contextOwner === 'caller'
+      ? fastModeProviderOptions
+      : applyChatPromptCacheIdentity(provider, model, fastModeProviderOptions, request.conversation.id)
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
   // `providerOptions` for callers that opted into nothing.
   const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
