@@ -125,8 +125,37 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.providerConfig
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple: omitImplicitOpenAiOutputLimit(
+      providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api)),
+      injection.api
+    )
   }
+}
+
+function omitImplicitOpenAiOutputLimit(
+  streamSimple: NonNullable<ProviderConfig['streamSimple']>,
+  api: PiApi
+): NonNullable<ProviderConfig['streamSimple']> {
+  if (api !== 'openai-completions' && api !== 'openai-responses' && api !== 'azure-openai-responses') {
+    return streamSimple
+  }
+
+  return (model, context, options) =>
+    streamSimple(model, context, {
+      ...options,
+      onPayload: async (payload, payloadModel) => {
+        let nextPayload = payload
+        const hasExplicitOutputLimit = options?.maxTokens !== undefined
+        if (!hasExplicitOutputLimit && typeof payload === 'object' && payload !== null) {
+          const payloadWithoutImplicitLimit = { ...(payload as Record<string, unknown>) }
+          delete payloadWithoutImplicitLimit.max_tokens
+          delete payloadWithoutImplicitLimit.max_completion_tokens
+          delete payloadWithoutImplicitLimit.max_output_tokens
+          nextPayload = payloadWithoutImplicitLimit
+        }
+        return (await options?.onPayload?.(nextPayload, payloadModel)) ?? nextPayload
+      }
+    })
 }
 
 function resolvePiEndpoint(provider: Provider, model: Model) {
