@@ -300,9 +300,11 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     filterMode: string
     filterList: string[]
     isCtrlkeyListenerActive: boolean
+    startMainLagHookWatchdog(): void
+    stopMainLagHookWatchdog(): void
     pauseOsHooksForMainLag(): void
     resumeOsHooksAfterMainLag(): void
-    sampleMainLagForHooks(): void
+    sampleMainLagForHooks(expectedAt?: number): void
     releaseActivationResources(): void
     isActivated: boolean
   }
@@ -360,6 +362,38 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
 
     expect(hook.stop).toHaveBeenCalledOnce()
     expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('counts interval callback delay as main-thread lag without carrying debt forward', async () => {
+    platformMock.isWin = true
+    let now = 10_000
+    let tick: (() => void) | undefined
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const proto = Object.getPrototypeOf(svc)
+    vi.spyOn(proto, 'setHookGlobalFilterMode').mockImplementation(() => {})
+    vi.spyOn(proto, 'setHookFineTunedList').mockImplementation(() => {})
+    vi.spyOn(global, 'setInterval').mockImplementation((callback) => {
+      tick = callback
+      return { unref: vi.fn() } as unknown as ReturnType<typeof setInterval>
+    })
+
+    svc.startMainLagHookWatchdog()
+    expect(tick).toBeDefined()
+
+    now += 100 + MAIN_LAG_HOOK_PAUSE_MS
+    tick!()
+    await flushImmediate()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
+
+    now += 100
+    tick!()
+    await flushImmediate()
+
+    expect(hook.start).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+    svc.stopMainLagHookWatchdog()
   })
 
   it('stops OS hooks when main-thread lag requires a pause', () => {

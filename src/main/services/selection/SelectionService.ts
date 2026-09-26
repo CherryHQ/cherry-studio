@@ -1025,8 +1025,12 @@ export class SelectionService extends BaseService implements Activatable {
   private startMainLagHookWatchdog(): void {
     if (!isWin || this.mainLagWatchdogTimer) return
 
+    let nextExpectedAt = Date.now() + MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS
     this.mainLagWatchdogTimer = setInterval(() => {
-      this.sampleMainLagForHooks()
+      const expectedAt = nextExpectedAt
+      const invokedAt = Date.now()
+      nextExpectedAt = invokedAt + MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS
+      this.sampleMainLagForHooks(expectedAt)
     }, MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS)
     this.mainLagWatchdogTimer.unref()
   }
@@ -1037,11 +1041,10 @@ export class SelectionService extends BaseService implements Activatable {
     this.mainLagWatchdogTimer = null
   }
 
-  private sampleMainLagForHooks(): void {
+  private sampleMainLagForHooks(expectedAt = Date.now()): void {
     if (!isWin || !this.selectionHook || !this.isActivated || this.mainLagSampleInFlight) return
 
     this.mainLagSampleInFlight = true
-    const scheduledAt = Date.now()
     const watchEpoch = this.mainLagWatchEpoch
     setImmediate(() => {
       // A sample queued before releaseActivationResources must not pause the next session.
@@ -1051,7 +1054,7 @@ export class SelectionService extends BaseService implements Activatable {
 
       const action = decideMainLagHookAction({
         paused: this.hooksPausedForMainLag,
-        lagMs: Date.now() - scheduledAt
+        lagMs: Math.max(0, Date.now() - expectedAt)
       })
       if (action === 'pause') {
         this.pauseOsHooksForMainLag()
