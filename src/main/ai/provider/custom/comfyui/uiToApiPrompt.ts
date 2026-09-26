@@ -217,10 +217,25 @@ function requiredInputFallbacks(info: ObjectInfo[string], values?: unknown[]): A
       if (spendsWidgetSlot(widgetType, config, values) || config.socketless === true) out.push([name, config.default])
       continue
     }
+    // A combo the schema gives no default to still starts on its first entry in
+    // the frontend, and the server requires the key. The options come either as
+    // the declaration's own list or, on the newer `"COMBO"` form, from its
+    // config — the cloud templates fail without one
+    // (`GeminiNanoBanana2V2.response_modalities`, `KlingImageGenerationNode.
+    // image_type`, `MeshyMultiImageToModelNode.symmetry_mode`).
+    const options = Array.isArray(entry[0])
+      ? entry[0]
+      : Array.isArray(config.options)
+        ? (config.options as unknown[])
+        : undefined
+    if (options !== undefined && options.length > 0 && widgetType !== 'COMFY_DYNAMICCOMBO_V3') {
+      out.push([name, options[0]])
+      continue
+    }
     // `socketless` is a value with no socket, and a workflow stores nothing for
-    // it: the frontend sends null, which the server accepts. A defaultless
-    // widget stays omitted — the workflow really is missing that value, and the
-    // server names it.
+    // it: the frontend sends null, which the server accepts. Anything else stays
+    // omitted — the workflow really is missing that value, and the server names
+    // it (`MODEL`, `LATENT`, `IMAGE` … are sockets, satisfied by a link).
     if (config.socketless === true) out.push([name, null])
   }
   return out

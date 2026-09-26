@@ -957,6 +957,8 @@ describe('required inputs the workflow carries no value for', () => {
         required: {
           steps: ['INT', { default: 25 }],
           sampler_name: [['euler', 'res_multistep'], {}],
+          modalities: ['COMBO', { advanced: true, multiselect: false, options: ['IMAGE', 'IMAGE+TEXT'] }],
+          dynamic: ['COMFY_DYNAMICCOMBO_V3', { options: [{ key: 'a', inputs: {} }] }],
           model: ['MODEL']
         },
         optional: { note: ['STRING', { default: 'hello' }] }
@@ -989,12 +991,16 @@ describe('required inputs the workflow carries no value for', () => {
     expect(prompt['3'].inputs).toEqual({ compare_view: null, image_a: ['1', 0], image_b: ['2', 0] })
   })
 
-  it('falls back to the declared default, and never invents a value for a socket or a defaultless widget', () => {
+  it('falls back to the declared default, then a combo first entry, and never to a socket', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       { nodes: [{ id: 1, type: 'Defaults', inputs: [{ name: 'model', link: null }], widgets_values: [] }], links: [] },
       compareInfo
     )
 
-    expect(prompt['1'].inputs).toEqual({ steps: 25 })
+    // No default on either combo: the frontend's widget starts on its first entry
+    // (which on the newer `"COMBO"` form lives in the config), and the server
+    // rejects the prompt when the key is absent at all. A dynamic combo's
+    // entries are objects, so nothing is invented for it.
+    expect(prompt['1'].inputs).toEqual({ steps: 25, sampler_name: 'euler', modalities: 'IMAGE' })
   })
 })
