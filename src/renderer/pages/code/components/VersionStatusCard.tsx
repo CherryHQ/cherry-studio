@@ -12,6 +12,8 @@ interface VersionStatusCardProps {
   toolId: string
   toolName: string
   status: VersionStatus
+  statusPending?: boolean
+  updatesPending?: boolean
   onInstall?: () => void
   onUpgrade?: () => void
   onRemove?: () => void
@@ -35,6 +37,8 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   toolId,
   toolName,
   status,
+  statusPending,
+  updatesPending,
   onInstall,
   onUpgrade,
   onRemove,
@@ -54,8 +58,21 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
 }) => {
   const { t } = useTranslation()
   const launchDisabledHintId = useId()
+  if (statusPending) {
+    return (
+      <div aria-busy="true" className="rounded-lg border border-border-subtle bg-background px-4 py-5">
+        <div className="flex items-center gap-3">
+          <CliIcon id={toolId} size={28} className="size-7 shrink-0" />
+          <div>
+            <span className="text-sm font-medium text-foreground">{toolName}</span>
+            <div aria-hidden="true" className="mt-2 h-3 w-16 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      </div>
+    )
+  }
   const isInstalled = status.installed
-  const canUpgrade = isInstalled && status.canUpgrade
+  const canUpgrade = isInstalled && status.canUpgrade && !updatesPending
   const removing = status.operation?.status === 'removing'
   const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
   const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
@@ -66,12 +83,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
-  // "Up to date" must describe a genuinely current tool. A runnable-but-not-applied
-  // mise state (broken/conflict/unknown) still reports installed with no upgrade, so
-  // gate the badge on a clean application fact to avoid pairing it with Retry. A
-  // bundled/system source carries no application fact and stays eligible.
+  // "Up to date" needs a clean application fact (bundled/system have none) and, for mise, known latest metadata.
+  // Pending updates or a failed latest lookup (e.g. mirror 403) cannot establish that there is no update.
   const cleanlyInstalled =
     isInstalled &&
+    !updatesPending &&
+    (status.source !== 'mise' || !!status.latest) &&
     status.applicationStatus !== 'broken' &&
     status.applicationStatus !== 'conflict' &&
     status.applicationStatus !== 'unknown'
