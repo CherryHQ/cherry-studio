@@ -474,7 +474,15 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 })
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [undefined, vi.fn()],
+  // Mirrors the real seeding: a window-scoped key falls back to the initValue
+  // (the persisted value) until an explicit write lands in the local tier.
+  useCache: (key: string, initValue?: unknown) => [
+    cacheMocks.values.has(key) ? cacheMocks.values.get(key) : initValue,
+    (value: unknown) => {
+      cacheMocks.values.set(key, value)
+      cacheMocks.setCache(key, value)
+    }
+  ],
   usePersistCache: (key: string) => [
     cacheMocks.values.get(key),
     (value: unknown) => {
