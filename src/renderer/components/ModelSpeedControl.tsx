@@ -11,9 +11,16 @@ import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } fro
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
+import {
+  previewMappedReasoningEffort,
+  resolveEffectiveUserEffortMap,
+  sanitizeUserReasoningEffortMap
+} from '@shared/ai/reasoningEffortMappings'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -178,6 +185,16 @@ export function ModelSpeedControl({
   onFastModeChange
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
+  const [effortMappings] = usePreference('feature.reasoning.effort_mappings')
+  const userEffortMap = useMemo(() => {
+    const raw = resolveEffectiveUserEffortMap(effortMappings, {
+      providerId: model.providerId,
+      modelId: parseUniqueModelId(model.id).modelId,
+      modelFamily: model.family,
+      uniqueModelId: model.id
+    })
+    return sanitizeUserReasoningEffortMap(raw, model.reasoning?.selectableEfforts)
+  }, [effortMappings, model.family, model.id, model.providerId, model.reasoning?.selectableEfforts])
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
@@ -209,7 +226,13 @@ export function ModelSpeedControl({
   const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
+  const mappedEffort =
+    displayedEffort && displayedEffort !== 'default'
+      ? previewMappedReasoningEffort(displayedEffort, model, userEffortMap)
+      : displayedEffort
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
+  const mappedEffortLabel =
+    mappedEffort && mappedEffort !== displayedEffort ? t(EFFORT_LABEL_KEYS[mappedEffort]) : undefined
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
@@ -230,7 +253,15 @@ export function ModelSpeedControl({
           className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
-          <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
+          <span>
+            {supportsReasoning
+              ? mappedEffortLabel
+                ? `${effortLabel} → ${mappedEffortLabel}`
+                : effortLabel
+              : supportsServiceTier
+                ? serviceTierLabel
+                : triggerLabel}
+          </span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
         </Button>

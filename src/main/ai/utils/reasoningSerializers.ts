@@ -14,6 +14,8 @@ import type {
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
+import type { UserReasoningEffortMap } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -42,6 +44,8 @@ export interface ResolveReasoningInvocationInput {
   profile: ReasoningWireProfile
   maxTokens?: number
   assistantSummary?: string | null
+  /** User-configured Cherry tier → native tier map (#20961); applied before model projection. */
+  userEffortMap?: UserReasoningEffortMap
 }
 
 const OMIT: ResolvedReasoningInvocation = {
@@ -185,7 +189,11 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
   }
 
-  const selection = resolveSelection(input.selection, input.model)
+  const userAdjustedSelection = applyUserReasoningEffortTranslation(requested, input.userEffortMap)
+  const selection = resolveSelection(
+    userAdjustedSelection === requested ? input.selection : userAdjustedSelection,
+    input.model
+  )
   if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)
