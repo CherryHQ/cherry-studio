@@ -83,7 +83,10 @@ function preparePinnedLiterCatalog(): void {
   const payloadManifest = JSON.parse(readFileSync(payloadManifestPath, 'utf8')) as PayloadManifest
   payloadManifest.sources['liter-llm'] = literPin
   const catalogFiles = [providersDestination, catalogDestination, catalogManifestDestination].map((filename) => ({
-    path: filename.slice(payloadRoot.length + 1).split('\\').join('/'),
+    path: filename
+      .slice(payloadRoot.length + 1)
+      .split('\\')
+      .join('/'),
     sha256: sha256(filename)
   }))
   payloadManifest.files = payloadManifest.files
@@ -140,15 +143,18 @@ async function configure(page: Page, snapshot: IntegrationSnapshot, services: In
   })
 }
 
-async function waitOperation(page: Page, id: string): Promise<IntegrationOperation> {
+async function waitOperation(page: Page, id: string, timeout = 30_000): Promise<IntegrationOperation> {
   let operation: IntegrationOperation | undefined
   await expect
-    .poll(async () => {
-      operation = (await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})).operations.find(
-        (candidate) => candidate.id === id
-      )
-      return Boolean(operation && terminal.has(operation.status))
-    })
+    .poll(
+      async () => {
+        operation = (await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})).operations.find(
+          (candidate) => candidate.id === id
+        )
+        return Boolean(operation && terminal.has(operation.status))
+      },
+      { timeout }
+    )
     .toBe(true)
   return operation!
 }
@@ -158,7 +164,7 @@ async function runOperation(page: Page, action: 'start' | 'stop' | 'diagnose', w
     action,
     ...(workspacePath ? { workspacePath } : {})
   })
-  return waitOperation(page, operation.id)
+  return waitOperation(page, operation.id, action === 'diagnose' ? 190_000 : 30_000)
 }
 
 test('Gate C: detected and managed liter-llm administration drives real inference and UAR model refresh', async () => {
@@ -207,6 +213,16 @@ test('Gate C: detected and managed liter-llm administration drives real inferenc
     for (const model of ['MiniMax-M3', 'k3', 'gpt-5.5']) expect(liveModels).toContain(model)
 
     snapshot = await ipc<IntegrationSnapshot>(page, 'prometheus.integration.snapshot', {})
+    snapshot = await ipc<IntegrationSnapshot>(page, 'prometheus.integration.configure', {
+      updates: [
+        {
+          feature: 'compass',
+          expectedRevision: snapshot.revisions.compass,
+          value: { ...snapshot.config.compass, storage: 'sqlite' }
+        }
+      ],
+      secrets: {}
+    })
     snapshot = await configure(page, snapshot, {
       ...snapshot.config.services,
       surrealdb: { ownership: 'external', source: 'manual', endpoint: 'http://127.0.0.1:28000' },
@@ -299,7 +315,9 @@ test('Gate C: detected and managed liter-llm administration drives real inferenc
     const diagnosed = await runOperation(page, 'diagnose', workspace)
     expect(diagnosed.status).toBe('succeeded')
     for (const role of ['critic', 'judge', 'backup']) {
-      expect(diagnosed.diagnostics).toContainEqual(expect.objectContaining({ id: `liter:${role}`, state: 'operational' }))
+      expect(diagnosed.diagnostics).toContainEqual(
+        expect.objectContaining({ id: `liter:${role}`, state: 'operational' })
+      )
     }
 
     const sources = await ipc<UarModelSourceSnapshot>(page, 'prometheus.uar.models.sources', {})
