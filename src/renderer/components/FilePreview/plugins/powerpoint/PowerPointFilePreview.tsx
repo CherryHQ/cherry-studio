@@ -1,12 +1,17 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { createSelectionReference } from '../../selectionReference'
@@ -26,6 +31,13 @@ const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'm
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
+
+class PptxPreviewTooLargeError extends Error {
+  constructor() {
+    super('PPTX preview source exceeds the safe size limit')
+    this.name = 'PptxPreviewTooLargeError'
+  }
+}
 
 function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
   if (data instanceof Uint8Array) return data
@@ -47,8 +59,34 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function assertSourceSize(size: number): void {
   if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
-    throw new Error('PPTX preview supports files up to 25 MB')
+    throw new PptxPreviewTooLargeError()
   }
+}
+
+function isPptxPreviewTooLargeError(error: Error): boolean {
+  return error instanceof PptxPreviewTooLargeError || error.message.startsWith('PPTX zip limit exceeded:')
+}
+
+function PowerPointPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
+  const { t } = useTranslation()
+  const handleOpenWithDefaultApp = () => {
+    void safeOpen(createFilePathHandle(filePath)).catch(() =>
+      toast.error(t('file_preview.powerpoint.too_large.open_error'))
+    )
+  }
+
+  return (
+    <div role="alert" className="absolute inset-0 bg-background">
+      <EmptyState
+        icon={FileWarning}
+        title={t('file_preview.powerpoint.too_large.title')}
+        description={t('file_preview.powerpoint.too_large.description')}
+        actionLabel={t('file_preview.powerpoint.too_large.action')}
+        onAction={handleOpenWithDefaultApp}
+        className="h-full"
+      />
+    </div>
+  )
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -109,6 +147,7 @@ export default function PowerPointFilePreview({
   const presentationRef = useRef<PresentationData | null>(null)
   const controlsBusyRef = useRef(false)
   const [error, setError] = useState<Error | null>(null)
+  const [tooLarge, setTooLarge] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
@@ -190,6 +229,7 @@ export default function PowerPointFilePreview({
     let viewer: PptxViewer | null = null
 
     setError(null)
+    setTooLarge(false)
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
@@ -199,7 +239,11 @@ export default function PowerPointFilePreview({
 
     void (async () => {
       try {
-        assertSourceSize(metadata.size)
+        // Preserve the generic load-error state for stale metadata; validate the actual bytes below
+        // so an oversized source that was misreported still gets the dedicated fallback.
+        if (metadata.size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
+          throw new Error('PPTX preview supports files up to 25 MB')
+        }
 
         const pptxData = toUint8Array(await window.api.fs.read(filePath))
         assertSourceSize(pptxData.byteLength)
@@ -272,6 +316,11 @@ export default function PowerPointFilePreview({
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
+        if (isPptxPreviewTooLargeError(normalized)) {
+          logger.warn('PPTX preview exceeded the safe size limit', { filePath, size: metadata.size })
+          setTooLarge(true)
+          return
+        }
         logger.error(`Failed to load PPTX preview: ${filePath}`, normalized)
         setError(normalized)
       } finally {
@@ -391,6 +440,7 @@ export default function PowerPointFilePreview({
               <span>{t('file_preview.loading')}</span>
             </div>
           ) : null}
+          {tooLarge ? <PowerPointPreviewTooLarge filePath={filePath} /> : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
               <EmptyState
