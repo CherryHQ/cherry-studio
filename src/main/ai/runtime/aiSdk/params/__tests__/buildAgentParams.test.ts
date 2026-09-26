@@ -23,9 +23,11 @@ import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+const { preferenceGetMock, resolveProviderAiSdkConfigMock, mcpListToolsMock, mcpListMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
-  resolveProviderAiSdkConfigMock: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  mcpListToolsMock: vi.fn().mockReturnValue([]),
+  mcpListMock: vi.fn().mockReturnValue({ items: [] })
 }))
 
 vi.mock('../../../../provider/config', () => ({
@@ -39,6 +41,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      if (name === 'McpCatalogService') return { listTools: mcpListToolsMock }
       // No connected MCP server in these tests, so nothing declares the resources capability.
       if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
       throw new Error(`unexpected service: ${name}`)
@@ -48,7 +51,7 @@ vi.mock('@application', () => ({
 
 // No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
 vi.mock('@main/data/services/McpServerService', () => ({
-  mcpServerService: { list: () => ({ items: [] }) }
+  mcpServerService: { list: mcpListMock }
 }))
 
 const {
@@ -2134,5 +2137,138 @@ describe('assistant browser tool selection', () => {
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('browser_open')
+  })
+})
+
+describe('resolveTools MCP global fallback', () => {
+  const MCP_GATED_TOOL = 'mcp__webserver__web_search'
+
+  const activeServer = () => [{ id: 'srv-1', name: 'webserver', isActive: true }]
+  const fakeTool = () => ({
+    id: MCP_GATED_TOOL,
+    serverId: 'srv-1',
+    serverName: 'webserver',
+    name: 'web_search',
+    description: 'Search the web',
+    inputSchema: { type: 'object', properties: {} }
+  })
+
+  afterEach(() => {
+    registry.deregister(MCP_GATED_TOOL)
+    mcpListToolsMock.mockReset()
+    mcpListMock.mockReset()
+  })
+
+  it('resolves globally active MCP tools when an assistant-less chat surface opts in', async () => {
+    // Quick Assist default: no assistant, temp-chat dispatch stamps `fallbackGlobalMcpTools`.
+    mcpListMock.mockReturnValue({ items: activeServer() })
+    mcpListToolsMock.mockReturnValue([fakeTool()])
+
+    const { mcpToolIds } = await resolveTools(
+      { conversation: CONVERSATION, fallbackGlobalMcpTools: true },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.has(MCP_GATED_TOOL)).toBe(true)
+  })
+
+  it('does NOT grant global MCP tools to prompt-only callers that did not opt in', async () => {
+    // API gateway shape: assistant-less request with no flag — must keep its own
+    // tool scope (`callOverrides.tools`) instead of inheriting every active MCP server.
+    mcpListMock.mockReturnValue({ items: activeServer() })
+    mcpListToolsMock.mockReturnValue([fakeTool()])
+
+    const { mcpToolIds } = await resolveTools({ conversation: CONVERSATION }, undefined, makeModel(), false, [])
+
+    expect(mcpToolIds.size).toBe(0)
+    expect(mcpToolIds.has(MCP_GATED_TOOL)).toBe(false)
+  })
+
+  it('does NOT override explicit mcpToolIds from the request', async () => {
+    mcpListMock.mockReturnValue({ items: activeServer() })
+    mcpListToolsMock.mockReturnValue([
+      {
+        id: 'mcp__webserver__other',
+        serverId: 'srv-1',
+        serverName: 'webserver',
+        name: 'other',
+        description: '',
+        inputSchema: { type: 'object', properties: {} }
+      }
+    ])
+
+    const { mcpToolIds } = await resolveTools(
+      { conversation: CONVERSATION, mcpToolIds: ['mcp__webserver__web_search'], fallbackGlobalMcpTools: true },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.has('mcp__webserver__web_search')).toBe(true)
+    expect(mcpToolIds.has('mcp__webserver__other')).toBe(false)
+  })
+
+  it('never runs the global fallback when an assistant is configured, even with the flag set', async () => {
+    // Active servers + a resolvable tool mean the fallback WOULD populate
+    // mcpToolIds if it fired — the assistant branch must take precedence and
+    // suppress it (assistant lookup fails here, so nothing resolves either way).
+    mcpListMock.mockReturnValue({ items: activeServer() })
+    mcpListToolsMock.mockReturnValue([fakeTool()])
+
+    const { mcpToolIds } = await resolveTools(
+      { conversation: CONVERSATION, assistantId: 'asst-1', fallbackGlobalMcpTools: true },
+      makeAssistant(),
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.size).toBe(0)
+    expect(mcpToolIds.has(MCP_GATED_TOOL)).toBe(false)
+  })
+
+  it('excludes approval-gated (force-prompt) tools from the global fallback', async () => {
+    // Assistant-less surfaces have no approval continuation path, so tools in
+    // the server's `disabledAutoApproveTools` policy must not leak through.
+    mcpListMock.mockReturnValue({
+      items: [
+        {
+          id: 'srv-1',
+          name: 'webserver',
+          isActive: true,
+          disabledAutoApproveTools: ['mcp__webserver__web_search']
+        }
+      ]
+    })
+    mcpListToolsMock.mockReturnValue([fakeTool()])
+
+    const { mcpToolIds } = await resolveTools(
+      { conversation: CONVERSATION, fallbackGlobalMcpTools: true },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.size).toBe(0)
+    expect(mcpToolIds.has(MCP_GATED_TOOL)).toBe(false)
+  })
+
+  it('returns an empty set when the opt-in fallback finds no active servers', async () => {
+    mcpListMock.mockReturnValue({ items: [] })
+
+    const { mcpToolIds } = await resolveTools(
+      { conversation: CONVERSATION, fallbackGlobalMcpTools: true },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.size).toBe(0)
   })
 })

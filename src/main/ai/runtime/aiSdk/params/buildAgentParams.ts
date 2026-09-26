@@ -39,7 +39,7 @@ import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provi
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
-import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
+import { resolveGlobalMcpToolIds, syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import {
   resolveAssistantMcpToolIds,
   resolveMcpResourceServers
@@ -375,6 +375,14 @@ async function resolveRequestToolSignals(
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+  }
+  // Opt-in fallback for assistant-less chat surfaces (Quick Assist with no
+  // configured assistant, selection toolbar, HomePage): derive tools from all
+  // globally active MCP servers, excluding approval-gated ones (no approval
+  // continuation path here). Prompt-only callers (API gateway) never set the
+  // flag, so they keep their own tool scope (`callOverrides.tools`).
+  if (!mcpIdList && !request.assistantId && request.fallbackGlobalMcpTools) {
+    mcpIdList = await resolveGlobalMcpToolIds()
   }
   return {
     mcpToolIds: new Set(mcpIdList ?? []),
