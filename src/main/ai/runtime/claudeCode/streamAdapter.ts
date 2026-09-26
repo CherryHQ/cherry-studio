@@ -188,6 +188,8 @@ export type ClaudeCodeStreamAdapterOptions = {
   statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /** Host-supplied launch-root lookup; see `AgentRuntimeConnectInput.resolveLaunchToolCallId`. */
+  resolveLaunchToolCallId?: (taskId: string) => string | undefined
 }
 
 export type ClaudeCodeStreamAdapterResult =
@@ -493,6 +495,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
+  private readonly resolveLaunchToolCallId?: (taskId: string) => string | undefined
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
@@ -503,6 +506,10 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
+   *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
+   *  turn's result, so clearing would strip markers from the bulk of a continued round. */
+  private readonly resumeMarkers = new Map<string, string>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -518,6 +525,7 @@ export class ClaudeCodeStreamAdapter {
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
+    this.resolveLaunchToolCallId = options.resolveLaunchToolCallId
     this.ctx = this.createTurnContext()
   }
 
@@ -1223,7 +1231,37 @@ export class ClaudeCodeStreamAdapter {
       toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
     if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
-      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
+    }
+    // A SendMessage receipt that resumed a background agent carries the launch root id in its
+    // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
+    // content of that agent for round splitting. Only-overwrite, never clear. A receipt for a
+    // still-running target has no resumedAgentId — its queued form only carries `pin.id`.
+    if (!isError && isRecord(normalizedResult)) {
+      const resumedAgentId =
+        typeof normalizedResult.resumedAgentId === 'string'
+          ? normalizedResult.resumedAgentId
+          : isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+            ? normalizedResult.pin.id
+            : undefined
+      if (resumedAgentId) {
+        let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
+        // when the registration-time recovery failed or never ran, recover the launch root here
+        // rather than leaving the task permanently unmapped.
+        if (!launchToolCallId) {
+          launchToolCallId = this.resolveLaunchToolCallId?.(resumedAgentId)
+          if (launchToolCallId) {
+            this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
+            if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
+          }
+        }
+        if (launchToolCallId) {
+          this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+          const cherry = providerMetadata.cherry as Record<string, unknown>
+          cherry.launchToolCallId = launchToolCallId
+        }
+      }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -1425,9 +1463,19 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string, allowToolCallIdFallback: boolean): void {
+    // First registration wins: resume edges carry the resuming call's id, not the launch root.
+    if (this.backgroundTaskToolCallIds.has(taskId)) return
+    // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
+    // authoritative and must win over a resume edge that arrives before the launch receipt context.
+    const launchToolCallId = this.resolveLaunchToolCallId?.(taskId)
+    if (launchToolCallId) {
+      this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
+    } else if (allowToolCallIdFallback) {
+      // The launch receipt's own call id is the launch root (miss is transient pre-persist);
+      // a task edge's id may be a resume call's and must not be pinned while the row is absent.
+      this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    }
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
@@ -1464,7 +1512,7 @@ export class ClaudeCodeStreamAdapter {
         eventData.taskType === 'local_workflow' ||
         eventData.subagentType)
     ) {
-      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
+      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId, false)
     }
 
     // Keep a process-scoped per-task surface for status history and stop targets.
@@ -1818,17 +1866,20 @@ export class ClaudeCodeStreamAdapter {
 
   private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
+    const resumedViaCallId = this.resumeMarkers.get(sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {})
       }
     }
   }
 
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
+    const resumedViaCallId = state.parentToolCallId ? this.resumeMarkers.get(state.parentToolCallId) : undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
@@ -1840,6 +1891,7 @@ export class ClaudeCodeStreamAdapter {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {}),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),

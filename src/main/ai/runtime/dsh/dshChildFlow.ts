@@ -94,11 +94,16 @@ export class DshSubagentCoordinator {
       return
     }
     if (chunk.type !== 'tool-input-available' || !CHILD_ANCHOR_TOOLS.has(chunk.toolName)) return
-    const input = chunk.input as { description?: unknown; subagent_id?: unknown } | null | undefined
+    const input = chunk.input as { agent_id?: unknown; description?: unknown; subagent_id?: unknown } | null | undefined
     if (chunk.toolName === 'send_message') {
       // Queued only for unbound targets: a warm wake reuses the persistent
       // binding, so its anchor would sit unconsumed in the queue forever.
-      const target = typeof input?.subagent_id === 'string' ? input.subagent_id : undefined
+      const target =
+        typeof input?.agent_id === 'string'
+          ? input.agent_id
+          : typeof input?.subagent_id === 'string'
+            ? input.subagent_id
+            : undefined
       if (!target || this.children.get(target)?.rootCallId !== undefined) return
       this.pendingAnchors.push({ callId: chunk.toolCallId, target })
       return
