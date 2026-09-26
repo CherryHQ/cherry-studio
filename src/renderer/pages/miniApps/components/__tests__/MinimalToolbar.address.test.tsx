@@ -92,6 +92,7 @@ function renderToolbar(webview: WebviewTag | null, currentUrl: string | null = a
         currentUrl={currentUrl}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}
@@ -215,6 +216,7 @@ describe('MinimalToolbar address bar', () => {
         currentUrl={null}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}
@@ -255,6 +257,7 @@ describe('MinimalToolbar address bar', () => {
         currentUrl={null}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}
