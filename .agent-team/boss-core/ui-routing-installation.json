@@ -1,0 +1,53 @@
+{
+  "project": "/Users/gqadonis/Projects/prometheus/the-boss/.worktrees/update-agent-team-skills-mini",
+  "activeTeam": "boss-core",
+  "manifest": ".agent-team/boss-core/team.json",
+  "nativeDefinitions": [
+    ".codex/agents/boss-lead.toml",
+    ".codex/agents/boss-product.toml",
+    ".codex/agents/boss-ux.toml",
+    ".codex/agents/boss-renderer.toml",
+    ".codex/agents/boss-desktop.toml",
+    ".codex/agents/boss-runtime.toml",
+    ".codex/agents/boss-providers.toml",
+    ".codex/agents/boss-data.toml",
+    ".codex/agents/boss-security.toml",
+    ".codex/agents/boss-verifier.toml"
+  ],
+  "changed": [
+    ".agent-team/boss-core/team.json",
+    "AGENTS.md",
+    ".agent-team/project-routing.json"
+  ],
+  "clean": false,
+  "dryRun": false,
+  "check": false,
+  "fingerprints": [
+    {
+      "file": ".agent-team/boss-core/team.json",
+      "before": "673e108a34a9cd51b37d1d3ac9fa5c6ba932f82069cb13e30286204411001b8b",
+      "after": "829578e116f9002ee551fb0ca65a7ee18195c9c615ec0b0c05f5a52019bd2faa"
+    },
+    {
+      "file": "AGENTS.md",
+      "before": "6c9df9f3974e2ff880d18993a02ca5b65e6ad549a931f5ac8b9986a217d49734",
+      "after": "ca9736e017511dd2cc73c8a93fa10a3ef69c0c32bcf7c279a1e784a82085c691"
+    },
+    {
+      "file": ".agent-team/project-routing.json",
+      "before": null,
+      "after": "1b44d9fcf5a9547c6f8c63833c882ea3f6b5278f831887ecfb57d0329bc4c744"
+    }
+  ],
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "Standalone agent files are supported. A Codex plugin agents manifest field is not verified; no such field is emitted.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them.",
+    "Preserved existing native file .codex/agents/boss-ux.toml; project role bindings apply through the shared instructions. Native prompt/configuration edits require a deliberate merge.",
+    "Preserved existing native file .codex/agents/boss-renderer.toml; project role bindings apply through the shared instructions. Native prompt/configuration edits require a deliberate merge.",
+    "Preserved existing native file .codex/agents/boss-security.toml; project role bindings apply through the shared instructions. Native prompt/configuration edits require a deliberate merge.",
+    "Preserved existing native file .codex/agents/boss-verifier.toml; project role bindings apply through the shared instructions. Native prompt/configuration edits require a deliberate merge."
+  ],
+  "recovery": ".agent-team/recovery/dde7cf4f751aeadec9ca9156.json"
+}

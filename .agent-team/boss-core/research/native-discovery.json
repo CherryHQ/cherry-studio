@@ -1,0 +1,10 @@
+{
+  "opencode": {
+    "status": 0,
+    "signal": null,
+    "name": "boss-lead",
+    "mode": "primary",
+    "promptMatches": true
+  },
+  "remainingRoles": "Static export/installation validation only; inference not run."
+}

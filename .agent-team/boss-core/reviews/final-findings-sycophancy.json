@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"audit_trail\": {\n    \"agent_did\": null,\n    \"executed_at\": \"2026-09-24T23:42:37.713867Z\",\n    \"hook_log\": [],\n    \"passes\": 0,\n    \"skill_id\": \"sycophancy.correction\",\n    \"strictness\": \"strict\",\n    \"version\": \"1.0.0\"\n  },\n  \"classifications\": [],\n  \"correction_mandatory\": false,\n  \"delta_summary\": \"No changes needed: score below clean threshold and no sycophancy patterns were detected.\",\n  \"sycophancy_score\": 0.0\n}"
+    }
+  ],
+  "isError": false
+}

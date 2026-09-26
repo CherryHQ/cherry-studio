@@ -1,0 +1,10 @@
+{
+  "version": "2",
+  "plugins": [
+    {
+      "id": "boss-core",
+      "displayName": "boss-core",
+      "source": "./plugins/boss-core"
+    }
+  ]
+}

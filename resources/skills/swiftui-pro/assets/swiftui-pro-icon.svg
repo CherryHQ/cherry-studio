@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="227.72" height="227.72" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 227.72 227.72">
+  <defs>
+    <style>
+      .st0 {
+        fill: none;
+        stroke: url(#linear-gradient1);
+        stroke-miterlimit: 10;
+        stroke-width: 6px;
+      }
+
+      .st1 {
+        fill: url(#linear-gradient);
+        fill-rule: evenodd;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="58.405" y1="206.955" x2="178.785" y2="86.575" gradientTransform="translate(0 260) scale(1 -1)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00d9ff"/>
+      <stop offset="1" stop-color="#006efd"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient1" x1="33.349" y1="218.651" x2="194.371" y2="57.629" gradientTransform="translate(0 252) scale(1 -1)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00eeaf"/>
+      <stop offset="0" stop-color="#00d8ff"/>
+      <stop offset="1" stop-color="#006ffd"/>
+    </linearGradient>
+  </defs>
+  <path class="st1" d="M165.43,131.08c3.87-8.17,16.03-46.62-38.6-85.38,7.61,7.03,40.19,39.2,26.05,75.5-34.2-25.27-87.91-66.75-87.91-66.75,0,0,63.69,60.57,83.58,79.15,19.9,18.59,26.97,27.71,26.47,43.59,0,.01,14.58-23.23-9.59-46.11ZM130.89,145.79c-39.35,18.56-78.42-20.82-78.42-20.82,0,0,21.12,26.7,45.19,35.06,33.72,11.71,54.61-9.64,54.61-9.64L52.42,59.03s56.43,62.62,78.47,86.76Z"/>
+  <circle class="st0" cx="113.86" cy="113.86" r="110.86"/>
+</svg>

@@ -39,12 +39,17 @@ function listSkillNames(): string[] {
 }
 
 /** Every file under `dir`, relative to it. Sorted so two runs compare deterministically. */
-function filesUnder(dir: string, prefix = ''): FileEntry[] {
+function filesUnder(dir: string, prefix = '', shippedOnly = false): FileEntry[] {
   const out: FileEntry[] = []
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (
+      shippedOnly &&
+      (['node_modules', '__tests__', '.git'].includes(entry.name) || /\.test\.[cm]?[jt]s$/.test(entry.name))
+    )
+      continue
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
     const absolute = path.join(dir, entry.name)
-    if (entry.isDirectory()) out.push(...filesUnder(absolute, relative))
+    if (entry.isDirectory()) out.push(...filesUnder(absolute, relative, shippedOnly))
     else if (entry.isFile()) out.push({ relative, absolute })
   }
   return out.sort((a, b) => a.relative.localeCompare(b.relative))
@@ -61,7 +66,7 @@ function syncSkill(name: string, check: boolean): string[] {
   const sourceSkill = path.join(SOURCE_DIR, name)
   const targetSkill = path.join(TARGET_DIR, name)
 
-  for (const file of filesUnder(sourceSkill)) {
+  for (const file of filesUnder(sourceSkill, '', true)) {
     const target = path.join(targetSkill, ...file.relative.split('/'))
     if (!differs(file.absolute, target)) continue
 
@@ -76,7 +81,7 @@ function syncSkill(name: string, check: boolean): string[] {
   // A file the pack no longer ships must not linger in the target: it would keep being
   // installed as part of the skill long after it was deleted upstream.
   if (fs.existsSync(targetSkill)) {
-    const sourceNames = new Set(filesUnder(sourceSkill).map((file) => file.relative))
+    const sourceNames = new Set(filesUnder(sourceSkill, '', true).map((file) => file.relative))
     for (const file of filesUnder(targetSkill)) {
       if (sourceNames.has(file.relative)) continue
       if (check) {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Team Models"
+  short_description: "Match model capability and cost to team work"
+  default_prompt: "Use $agent-team-models to choose models for my team within its capability and cost constraints."

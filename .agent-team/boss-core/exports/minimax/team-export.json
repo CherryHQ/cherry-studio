@@ -1,0 +1,65 @@
+{
+  "target": "minimax",
+  "verification": {
+    "level": "source-verified",
+    "source": "https://github.com/MiniMax-AI/minimax-code/blob/main/packages/local-runtime-v2/src/service/agent/storage/canonical-agent-config.ts",
+    "version": "@minimax-ai/code 0.4.12; source inspected 2026-09-24",
+    "live": "unverified"
+  },
+  "diagnostics": [
+    "Source-verified serialization only; installed native validation and live execution are unverified.",
+    "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+    "mcode exec has no verified custom-agent selector. The MiniMax plugin manifest supports skills/MCP/hooks/apps, not an agents field; no agent plugin is invented.",
+    "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+  ],
+  "instructions": [
+    "Review staged artifacts before installation. Export grants no execution or registration authority.",
+    "Install agents/<name>/agent.md under the active MiniMax user-data directory: MINIMAX_DATA_DIR, MAVIS_DATA_DIR, or default ~/.minimax. Export does not install there."
+  ],
+  "files": [
+    {
+      "file": "agents/boss-lead/agent.md",
+      "sha256": "1d8f6661d82f099a3fe50a933cf37a5a115887eadcde59dbe75a9be3d522c9da"
+    },
+    {
+      "file": "agents/boss-product/agent.md",
+      "sha256": "9185c39fc968ca5a6c4b9a3f4d7c0382d72c1dd2f012d93738177333136f9499"
+    },
+    {
+      "file": "agents/boss-ux/agent.md",
+      "sha256": "5e81bbec9164adf1a8b0492b13f9c3b05b7919afc41990f159cae15fb24e87fd"
+    },
+    {
+      "file": "agents/boss-renderer/agent.md",
+      "sha256": "fce81237f0cfe78852faadf053aa4bece37b19374038a0de3935015ce5a06b04"
+    },
+    {
+      "file": "agents/boss-desktop/agent.md",
+      "sha256": "1604c7bae2cbe01cfdf3512029b8cdf25c98e5de64fbe11a182ea52217c29a8d"
+    },
+    {
+      "file": "agents/boss-runtime/agent.md",
+      "sha256": "f34bbaf7f5e62afed7b4bc009bb10508a5205f535c218149fdf31be350cf0c74"
+    },
+    {
+      "file": "agents/boss-providers/agent.md",
+      "sha256": "8def7a48043137c4f29b380eb49642139d6e3048e3221e65878fceeced487bff"
+    },
+    {
+      "file": "agents/boss-data/agent.md",
+      "sha256": "9d8232536e0cf634b6f05a7913aed2ea9928490ddd6cb2fb2f47150190045627"
+    },
+    {
+      "file": "agents/boss-security/agent.md",
+      "sha256": "ffbb66eca79932619324a7a36064922434bcb88dced0b6575d9a49eddcd20374"
+    },
+    {
+      "file": "agents/boss-verifier/agent.md",
+      "sha256": "a5d21cd997b68fc48bd142b2afdbfd6e40610e755c8eae5719c46bfb8d66f882"
+    },
+    {
+      "file": "export-receipt.json",
+      "sha256": "53a9132e12580b125eb9e0522bf096b2b0afed41c4e824b6de4d296882147ad2"
+    }
+  ]
+}

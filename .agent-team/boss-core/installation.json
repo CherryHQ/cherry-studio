@@ -1,0 +1,350 @@
+{
+  "schemaVersion": 1,
+  "installedAt": "2026-09-24T23:32:21.315Z",
+  "nativeRoles": 50,
+  "files": [
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-data.toml",
+      "path": ".codex/agents/boss-data.toml",
+      "sha256": "2e6966e58b8a452412e5c407649b3070d41e756baa0ed7b4856017249127985e"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-desktop.toml",
+      "path": ".codex/agents/boss-desktop.toml",
+      "sha256": "05cbf1c343fe71b660393f3f9953bde4efb167982293280a7c513dc1011356c3"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-lead.toml",
+      "path": ".codex/agents/boss-lead.toml",
+      "sha256": "44663e7ab06a10d30e8a82228f1f311efbe5b8d4772ab44373ec69fc952a79fe"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-product.toml",
+      "path": ".codex/agents/boss-product.toml",
+      "sha256": "7b943c2108a361eef0971af9174c457f4b837cf24135cc29b05a49c5f4193f61"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-providers.toml",
+      "path": ".codex/agents/boss-providers.toml",
+      "sha256": "d09e1783dde8c87c527c879456bf8109424b4aa7ff92dac4b9a158e7a905821e"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-renderer.toml",
+      "path": ".codex/agents/boss-renderer.toml",
+      "sha256": "b45c63b036fb35338cf9adaad1f13be372c1d82165bbc5ad069ee1940b6c1d75"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-runtime.toml",
+      "path": ".codex/agents/boss-runtime.toml",
+      "sha256": "469d170bcaf39553ffa36f3af65ab5fc93e2c663c665a2f64ffc38bb29166fda"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-security.toml",
+      "path": ".codex/agents/boss-security.toml",
+      "sha256": "67979655f05bb03879e6ff855bf4d323ddf792845d37a59baa94bac7459cb13d"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-ux.toml",
+      "path": ".codex/agents/boss-ux.toml",
+      "sha256": "69c4371cd7da38aee0a550f3cf7c78bbfaabe9d3079f692da7efa703f7400b8a"
+    },
+    {
+      "target": "codex",
+      "source": ".agent-team/boss-core/exports/codex/.codex/agents/boss-verifier.toml",
+      "path": ".codex/agents/boss-verifier.toml",
+      "sha256": "8d54ff9c19b5366cef5f2b5ca61deab861f13192ec80be66b80b7457699998de"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-data.md",
+      "path": ".claude/agents/boss-data.md",
+      "sha256": "d53f92d58a67e083665bb0a15c963c570c8b2034003d251affada5af20adf195"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-desktop.md",
+      "path": ".claude/agents/boss-desktop.md",
+      "sha256": "94928708e90dcf6e49fb9979070ac2b745a4186dbba51c5c12491f3e8e1c5d50"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-lead.md",
+      "path": ".claude/agents/boss-lead.md",
+      "sha256": "8c98a0779a53699949ee6a770fbae2c54d5c8eb9c0a6846ccb3f6014dfc03b27"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-product.md",
+      "path": ".claude/agents/boss-product.md",
+      "sha256": "929decd927d68ca1b84081456939a5ca4b7b82fc6f0878935d794afb8fbe5fc6"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-providers.md",
+      "path": ".claude/agents/boss-providers.md",
+      "sha256": "d856342a088ace5427cf30879e03dbaad9712e7aa95eecc9a2096f2ce421a920"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-renderer.md",
+      "path": ".claude/agents/boss-renderer.md",
+      "sha256": "8b4c3f087a23a27598888c10df9ee6d902eef022555d2b913664a4614b382164"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-runtime.md",
+      "path": ".claude/agents/boss-runtime.md",
+      "sha256": "c771b1c1f6c02bf3bfafc72625b9ec5ea5fe13f8be06f59fc4e0ec1418043e3c"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-security.md",
+      "path": ".claude/agents/boss-security.md",
+      "sha256": "9daadbcf0d197fcc30542e848d7319a88b9ad799fd120df77c0fbdff4999510b"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-ux.md",
+      "path": ".claude/agents/boss-ux.md",
+      "sha256": "0d6590ae0b7560ce1d19f489a693306fa5a3f523816e778ffa7e321da08738bd"
+    },
+    {
+      "target": "claude",
+      "source": ".agent-team/boss-core/exports/claude/.claude/agents/boss-verifier.md",
+      "path": ".claude/agents/boss-verifier.md",
+      "sha256": "084311b6a0cf5aca96fe9d36c3362c9de96fd4caae135806a751cf3d3953dabf"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-data.md",
+      "path": ".kimi-code/agents/boss-data.md",
+      "sha256": "045268692b617657120b3b42fa913c6a492d9fae13e51bea120995c3b8c34e40"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-desktop.md",
+      "path": ".kimi-code/agents/boss-desktop.md",
+      "sha256": "d4a9a0cb6cce3bec8b3e9b47ccd5e4e7c946091eb789673c01ead7b03fdc2f51"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-lead.md",
+      "path": ".kimi-code/agents/boss-lead.md",
+      "sha256": "56c47aa071d0fdcf61ddcb38f345abf03c8b76eb111720b9094d236624085887"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-product.md",
+      "path": ".kimi-code/agents/boss-product.md",
+      "sha256": "14d3385b46f35c9af11728e13c88549edc9e13f705c018e288d82eb4563fef79"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-providers.md",
+      "path": ".kimi-code/agents/boss-providers.md",
+      "sha256": "8b881a87cb06d269110f582875fadd9df11f9b3ca0b97734d85de5ea297eceea"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-renderer.md",
+      "path": ".kimi-code/agents/boss-renderer.md",
+      "sha256": "921a5f777f3af0b83499cb8e8b74305f0804398a4683a77af100037ab286f78f"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-runtime.md",
+      "path": ".kimi-code/agents/boss-runtime.md",
+      "sha256": "4a1e1a0274143d9e584dd72eaced2f43466bbfa6093400f3e997182b58402d5b"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-security.md",
+      "path": ".kimi-code/agents/boss-security.md",
+      "sha256": "0bd0d6739c59b580afd52a3884de76c049ea9e74e6b33add0e3779a70d592bf4"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-ux.md",
+      "path": ".kimi-code/agents/boss-ux.md",
+      "sha256": "d58a7d629df29c7b2fe1333892e0ef618b5c7a9671efa5fcc9c274b9ad4958c7"
+    },
+    {
+      "target": "kimi",
+      "source": ".agent-team/boss-core/exports/kimi/.kimi-code/agents/boss-verifier.md",
+      "path": ".kimi-code/agents/boss-verifier.md",
+      "sha256": "7eef33f266a4b5a4113eb723b6d97649befd34bc54cb2369c511ccd08493c76c"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-data.md",
+      "path": ".opencode/agents/boss-data.md",
+      "sha256": "ceac61a13c42f95424c0a33aab72594358dc7dbbddc92f85940824e1ccb849a5"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-desktop.md",
+      "path": ".opencode/agents/boss-desktop.md",
+      "sha256": "0cd890e1f3f4711f6e8385999590f8ff3b439190c22bc7e652e13438a0d49e01"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-lead.md",
+      "path": ".opencode/agents/boss-lead.md",
+      "sha256": "45a36963c118e8e1df81bd93b819104c0f63f6cd7ddcd1411a35ca28dc98073b"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-product.md",
+      "path": ".opencode/agents/boss-product.md",
+      "sha256": "4708689354619ad341a438da51f14fd993965001dd8f6d1acc177e9690b7af3f"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-providers.md",
+      "path": ".opencode/agents/boss-providers.md",
+      "sha256": "6a7f8cf1ede98875989da9e5eb8e31ec45ee68f4f05894d7f5a527d3c13bc3c2"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-renderer.md",
+      "path": ".opencode/agents/boss-renderer.md",
+      "sha256": "71a59197174929ef2e0708d5629c413cb3c301f7e7866af4c92331d2c54274b8"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-runtime.md",
+      "path": ".opencode/agents/boss-runtime.md",
+      "sha256": "dfff03e31c73f456cda50b7c258c5e80debe39a44afa1c8e5dc637bdfeff2b22"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-security.md",
+      "path": ".opencode/agents/boss-security.md",
+      "sha256": "9527eaef2bb82fe86651fd103162a34f8abb4487a423e675a1c18242a294b25e"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-ux.md",
+      "path": ".opencode/agents/boss-ux.md",
+      "sha256": "e37492ad8c7dfb89bd6b0fa8a60c228d419036a921a88355b6576322f21418e6"
+    },
+    {
+      "target": "opencode",
+      "source": ".agent-team/boss-core/exports/opencode/.opencode/agents/boss-verifier.md",
+      "path": ".opencode/agents/boss-verifier.md",
+      "sha256": "7c2b5cc6b0388d68c7c219ee979a88345191bfba7d97a41ae545d1576014cc76"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-data/agent.md",
+      "path": ".minimax/agents/boss-data/agent.md",
+      "sha256": "9d8232536e0cf634b6f05a7913aed2ea9928490ddd6cb2fb2f47150190045627"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-desktop/agent.md",
+      "path": ".minimax/agents/boss-desktop/agent.md",
+      "sha256": "1604c7bae2cbe01cfdf3512029b8cdf25c98e5de64fbe11a182ea52217c29a8d"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-lead/agent.md",
+      "path": ".minimax/agents/boss-lead/agent.md",
+      "sha256": "1d8f6661d82f099a3fe50a933cf37a5a115887eadcde59dbe75a9be3d522c9da"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-product/agent.md",
+      "path": ".minimax/agents/boss-product/agent.md",
+      "sha256": "9185c39fc968ca5a6c4b9a3f4d7c0382d72c1dd2f012d93738177333136f9499"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-providers/agent.md",
+      "path": ".minimax/agents/boss-providers/agent.md",
+      "sha256": "8def7a48043137c4f29b380eb49642139d6e3048e3221e65878fceeced487bff"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-renderer/agent.md",
+      "path": ".minimax/agents/boss-renderer/agent.md",
+      "sha256": "fce81237f0cfe78852faadf053aa4bece37b19374038a0de3935015ce5a06b04"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-runtime/agent.md",
+      "path": ".minimax/agents/boss-runtime/agent.md",
+      "sha256": "f34bbaf7f5e62afed7b4bc009bb10508a5205f535c218149fdf31be350cf0c74"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-security/agent.md",
+      "path": ".minimax/agents/boss-security/agent.md",
+      "sha256": "ffbb66eca79932619324a7a36064922434bcb88dced0b6575d9a49eddcd20374"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-ux/agent.md",
+      "path": ".minimax/agents/boss-ux/agent.md",
+      "sha256": "5e81bbec9164adf1a8b0492b13f9c3b05b7919afc41990f159cae15fb24e87fd"
+    },
+    {
+      "target": "minimax",
+      "source": ".agent-team/boss-core/exports/minimax/agents/boss-verifier/agent.md",
+      "path": ".minimax/agents/boss-verifier/agent.md",
+      "sha256": "a5d21cd997b68fc48bd142b2afdbfd6e40610e755c8eae5719c46bfb8d66f882"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/agent-team-creator",
+      "link": "../../.agents/skills/agent-team-creator"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/agent-team-manage",
+      "link": "../../.agents/skills/agent-team-manage"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/agent-team-handoff",
+      "link": "../../.agents/skills/agent-team-handoff"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/agent-team-models",
+      "link": "../../.agents/skills/agent-team-models"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/create-prd",
+      "link": "../../.agents/skills/create-prd"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/stakeholder-map",
+      "link": "../../.agents/skills/stakeholder-map"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/a11y-gate",
+      "link": "../../.agents/skills/a11y-gate"
+    },
+    {
+      "target": "claude-skill-link",
+      "path": ".claude/skills/vercel-composition-patterns",
+      "link": "../../.agents/skills/vercel-composition-patterns"
+    }
+  ],
+  "globalWrites": false,
+  "runningTeam": false,
+  "skillGovernance": "Eight skills added to public-skills.txt; pnpm skills:sync generated ignore rules and canonical Claude links using Boss existing convention."
+}

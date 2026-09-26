@@ -42,6 +42,40 @@ function inventory(directory, prefix = '') {
   })
 }
 
+function renderPackSkills(payload) {
+  const skillRoot = path.join(payload, 'skills')
+  if (!fs.existsSync(skillRoot)) return
+  for (const file of inventory(skillRoot)) {
+    if (!file.path.endsWith('.md')) continue
+    const filename = path.join(skillRoot, file.path)
+    const skill = file.path.split('/')[0]
+    const text = fs
+      .readFileSync(filename, 'utf8')
+      .replace(/\bnode scripts\/([a-zA-Z0-9_./-]+\.mjs)\b/g, (command, helper) =>
+        fs.existsSync(path.join(skillRoot, skill, 'scripts', helper)) ? command : `boss-mini ${helper}`
+      )
+    fs.writeFileSync(filename, text)
+  }
+}
+
+/** Materialize the source-controlled runtime, including each skill's scripts and data, without network access. */
+function copyPrometheusPayload(sourceRoot, destinationRoot) {
+  fs.mkdirSync(destinationRoot, { recursive: true })
+  for (const entry of entries) {
+    const from = path.join(sourceRoot, entry)
+    if (fs.existsSync(from))
+      fs.cpSync(from, path.join(destinationRoot, entry), {
+        recursive: true,
+        dereference: true,
+        filter: (filename) =>
+          !/(?:^|[\\/])(?:node_modules|__tests__|\.git)(?:[\\/]|$)|\.test\.[cm]?[jt]s$/.test(filename)
+      })
+  }
+  for (const filename of files) fs.copyFileSync(path.join(sourceRoot, filename), path.join(destinationRoot, filename))
+  renderPackSkills(destinationRoot)
+  return { files: inventory(destinationRoot) }
+}
+
 function packagePrometheus() {
   const artifacts = JSON.parse(fs.readFileSync(path.join(root, 'build', 'integration-artifacts.json'), 'utf8'))
   const revision = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -55,18 +89,7 @@ function packagePrometheus() {
   if (revision !== artifacts.sources.mini.revision)
     throw new Error('The packaged mini revision does not match the pinned integration revision')
   fs.rmSync(destination, { recursive: true, force: true })
-  fs.mkdirSync(destination, { recursive: true })
-  for (const entry of entries) {
-    const from = path.join(source, entry)
-    if (fs.existsSync(from))
-      fs.cpSync(from, path.join(destination, entry), {
-        recursive: true,
-        dereference: true,
-        filter: (filename) =>
-          !/(?:^|[\\/])(?:node_modules|__tests__|\.git)(?:[\\/]|$)|\.test\.[cm]?[jt]s$/.test(filename)
-      })
-  }
-  for (const filename of files) fs.copyFileSync(path.join(source, filename), path.join(destination, filename))
+  copyPrometheusPayload(source, destination)
   const literSource = path.join(source, 'tools', 'liter-llm')
   const literCatalogDestination = path.join(destination, 'catalogs', 'liter-llm')
   const literRevision = execFileSync('git', ['-C', literSource, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -97,6 +120,7 @@ function packagePrometheus() {
       2
     )}\n`
   )
+
   // OpenSpec's exact dependency graph comes from mini's checked-in npm lock. The
   // runtime includes its JS dependencies; no install step runs on the user's PC.
   const npm = process.env.npm_execpath
@@ -139,12 +163,7 @@ function packagePrometheus() {
     .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(destination, 'skills', entry.name, 'SKILL.md')))
     .map((entry) => entry.name)
     .sort()
-  for (const file of inventory(path.join(destination, 'skills'))) {
-    if (!file.path.endsWith('.md')) continue
-    const filename = path.join(destination, 'skills', file.path)
-    const text = fs.readFileSync(filename, 'utf8').replace(/\bnode scripts\/([a-zA-Z0-9_./-]+\.mjs)\b/g, 'boss-mini $1')
-    fs.writeFileSync(filename, text)
-  }
+  renderPackSkills(destination)
   // The existing builtin synchronizer discovers this directory and registers every
   // skill for agent runtimes. Keep the runnable dependencies in the adjacent pack.
   for (const skill of skills)
@@ -164,5 +183,5 @@ function packagePrometheus() {
   console.log(`Packaged mini ${revision}: ${skills.length} skills and ${manifest.files.length} runtime files`)
 }
 
-module.exports = { packagePrometheus }
+module.exports = { packagePrometheus, copyPrometheusPayload }
 if (require.main === module) packagePrometheus()

@@ -1,0 +1,13 @@
+{
+  "name": "boss-core-marketplace",
+  "owner": {
+    "name": "boss-core"
+  },
+  "plugins": [
+    {
+      "name": "boss-core",
+      "source": "./plugins/boss-core",
+      "description": "Deliver verified improvements to The Boss desktop workspace with explicit product, usability, execution, data and trust contracts; coordinate planned UAR integration through bounded handoffs."
+    }
+  ]
+}

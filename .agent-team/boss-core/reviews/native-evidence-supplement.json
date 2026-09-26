@@ -1,0 +1,1268 @@
+{
+  "native": [
+    {
+      "file": ".codex/agents/boss-data.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-data",
+        "description": "Own persistence, migrations and cross-process data classification.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "8f0d07593f841a98d2ba82369a45598b2810693fa303015dbf9bf9dee293680a",
+      "exportSha256": "2e6966e58b8a452412e5c407649b3070d41e756baa0ed7b4856017249127985e"
+    },
+    {
+      "file": ".codex/agents/boss-desktop.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-desktop",
+        "description": "Own Electron lifecycle, preload/IPC and platform integration.",
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "84ab4110d0118eee31a09e0bf168a257b18c90d35777aac65de19a68ebd759d0",
+      "exportSha256": "05cbf1c343fe71b660393f3f9953bde4efb167982293280a7c513dc1011356c3"
+    },
+    {
+      "file": ".codex/agents/boss-lead.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-lead",
+        "description": "Coordinate architecture, task ownership, UAR handoffs and delivery evidence.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "e88c6817902744252a62c6d8188aa6fd1f4176132f8822033c417cbfdf801ff6",
+      "exportSha256": "44663e7ab06a10d30e8a82228f1f311efbe5b8d4772ab44373ec69fc952a79fe"
+    },
+    {
+      "file": ".codex/agents/boss-product.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-product",
+        "description": "Own product outcomes, prioritization, acceptance criteria and stakeholder coordination.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "05ab5bdbb79b03b5fa8b388bb3c6746fc6fe71f299f3d959cf6cf31e578e95a1",
+      "exportSha256": "7b943c2108a361eef0971af9174c457f4b837cf24135cc29b05a49c5f4193f61"
+    },
+    {
+      "file": ".codex/agents/boss-providers.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-providers",
+        "description": "Own provider adapters, model capabilities and streaming normalization.",
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "8f147390e748377c7603de83cbaf9b98cdbe1369b51626480eaf8b780593c6a2",
+      "exportSha256": "d09e1783dde8c87c527c879456bf8109424b4aa7ff92dac4b9a158e7a905821e"
+    },
+    {
+      "file": ".codex/agents/boss-renderer.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-renderer",
+        "description": "Implement renderer features and shared React UI.",
+        "model": "gpt-5.6-terra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "d5354da0e44d5b0c72c92a2733ba8d953224bffd89609dee5ee7353d9f118f26",
+      "exportSha256": "b45c63b036fb35338cf9adaad1f13be372c1d82165bbc5ad069ee1940b6c1d75"
+    },
+    {
+      "file": ".codex/agents/boss-runtime.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-runtime",
+        "description": "Own agent execution, DSH sessions and planned Boss-to-UAR integration.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "634ca42054b3187342252c053895af40ea3327b1cd4d9d50a57f97fbd0ab6646",
+      "exportSha256": "469d170bcaf39553ffa36f3af65ab5fc93e2c663c665a2f64ffc38bb29166fda"
+    },
+    {
+      "file": ".codex/agents/boss-security.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-security",
+        "description": "Own MCP/tool execution boundaries and source-grounded security review.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "48b320bee32c316f8d4e4417bb0a1bc19b1834f7a2212be97034dad56ba369f2",
+      "exportSha256": "67979655f05bb03879e6ff855bf4d323ddf792845d37a59baa94bac7459cb13d"
+    },
+    {
+      "file": ".codex/agents/boss-ux.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-ux",
+        "description": "Own interaction design, information architecture, accessibility and usability acceptance.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "74278719f96284fc20aa4fc34563e61e667233ffa9575d46f8286b0f9437308d",
+      "exportSha256": "69c4371cd7da38aee0a550f3cf7c78bbfaabe9d3079f692da7efa703f7400b8a"
+    },
+    {
+      "file": ".codex/agents/boss-verifier.toml",
+      "target": "codex",
+      "envelope": {
+        "name": "boss-verifier",
+        "description": "Independently assess completed behavior, usability evidence and release readiness.",
+        "model": "gpt-6-astra",
+        "model_reasoning_effort": "high"
+      },
+      "promptSha256": "6c3a821a1fb7f260f5f624be27d197a14489db760ab9ee985a367ad5f3468f08",
+      "exportSha256": "8d54ff9c19b5366cef5f2b5ca61deab861f13192ec80be66b80b7457699998de"
+    },
+    {
+      "file": ".claude/agents/boss-data.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-data",
+        "description": "Own persistence, migrations and cross-process data classification.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "8f0d07593f841a98d2ba82369a45598b2810693fa303015dbf9bf9dee293680a",
+      "exportSha256": "d53f92d58a67e083665bb0a15c963c570c8b2034003d251affada5af20adf195"
+    },
+    {
+      "file": ".claude/agents/boss-desktop.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-desktop",
+        "description": "Own Electron lifecycle, preload/IPC and platform integration.",
+        "skills": [],
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "promptSha256": "84ab4110d0118eee31a09e0bf168a257b18c90d35777aac65de19a68ebd759d0",
+      "exportSha256": "94928708e90dcf6e49fb9979070ac2b745a4186dbba51c5c12491f3e8e1c5d50"
+    },
+    {
+      "file": ".claude/agents/boss-lead.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-lead",
+        "description": "Coordinate architecture, task ownership, UAR handoffs and delivery evidence.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "e88c6817902744252a62c6d8188aa6fd1f4176132f8822033c417cbfdf801ff6",
+      "exportSha256": "8c98a0779a53699949ee6a770fbae2c54d5c8eb9c0a6846ccb3f6014dfc03b27"
+    },
+    {
+      "file": ".claude/agents/boss-product.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-product",
+        "description": "Own product outcomes, prioritization, acceptance criteria and stakeholder coordination.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "05ab5bdbb79b03b5fa8b388bb3c6746fc6fe71f299f3d959cf6cf31e578e95a1",
+      "exportSha256": "929decd927d68ca1b84081456939a5ca4b7b82fc6f0878935d794afb8fbe5fc6"
+    },
+    {
+      "file": ".claude/agents/boss-providers.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-providers",
+        "description": "Own provider adapters, model capabilities and streaming normalization.",
+        "skills": [],
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "promptSha256": "8f147390e748377c7603de83cbaf9b98cdbe1369b51626480eaf8b780593c6a2",
+      "exportSha256": "d856342a088ace5427cf30879e03dbaad9712e7aa95eecc9a2096f2ce421a920"
+    },
+    {
+      "file": ".claude/agents/boss-renderer.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-renderer",
+        "description": "Implement renderer features and shared React UI.",
+        "skills": [],
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "promptSha256": "d5354da0e44d5b0c72c92a2733ba8d953224bffd89609dee5ee7353d9f118f26",
+      "exportSha256": "8b4c3f087a23a27598888c10df9ee6d902eef022555d2b913664a4614b382164"
+    },
+    {
+      "file": ".claude/agents/boss-runtime.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-runtime",
+        "description": "Own agent execution, DSH sessions and planned Boss-to-UAR integration.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "634ca42054b3187342252c053895af40ea3327b1cd4d9d50a57f97fbd0ab6646",
+      "exportSha256": "c771b1c1f6c02bf3bfafc72625b9ec5ea5fe13f8be06f59fc4e0ec1418043e3c"
+    },
+    {
+      "file": ".claude/agents/boss-security.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-security",
+        "description": "Own MCP/tool execution boundaries and source-grounded security review.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "48b320bee32c316f8d4e4417bb0a1bc19b1834f7a2212be97034dad56ba369f2",
+      "exportSha256": "9daadbcf0d197fcc30542e848d7319a88b9ad799fd120df77c0fbdff4999510b"
+    },
+    {
+      "file": ".claude/agents/boss-ux.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-ux",
+        "description": "Own interaction design, information architecture, accessibility and usability acceptance.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "74278719f96284fc20aa4fc34563e61e667233ffa9575d46f8286b0f9437308d",
+      "exportSha256": "0d6590ae0b7560ce1d19f489a693306fa5a3f523816e778ffa7e321da08738bd"
+    },
+    {
+      "file": ".claude/agents/boss-verifier.md",
+      "target": "claude",
+      "envelope": {
+        "name": "boss-verifier",
+        "description": "Independently assess completed behavior, usability evidence and release readiness.",
+        "skills": [],
+        "model": "opus",
+        "effort": "high"
+      },
+      "promptSha256": "6c3a821a1fb7f260f5f624be27d197a14489db760ab9ee985a367ad5f3468f08",
+      "exportSha256": "084311b6a0cf5aca96fe9d36c3362c9de96fd4caae135806a751cf3d3953dabf"
+    },
+    {
+      "file": ".kimi-code/agents/boss-data.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-data",
+        "description": "Own persistence, migrations and cross-process data classification."
+      },
+      "promptSha256": "8f0d07593f841a98d2ba82369a45598b2810693fa303015dbf9bf9dee293680a",
+      "exportSha256": "045268692b617657120b3b42fa913c6a492d9fae13e51bea120995c3b8c34e40"
+    },
+    {
+      "file": ".kimi-code/agents/boss-desktop.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-desktop",
+        "description": "Own Electron lifecycle, preload/IPC and platform integration."
+      },
+      "promptSha256": "84ab4110d0118eee31a09e0bf168a257b18c90d35777aac65de19a68ebd759d0",
+      "exportSha256": "d4a9a0cb6cce3bec8b3e9b47ccd5e4e7c946091eb789673c01ead7b03fdc2f51"
+    },
+    {
+      "file": ".kimi-code/agents/boss-lead.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-lead",
+        "description": "Coordinate architecture, task ownership, UAR handoffs and delivery evidence."
+      },
+      "promptSha256": "e88c6817902744252a62c6d8188aa6fd1f4176132f8822033c417cbfdf801ff6",
+      "exportSha256": "56c47aa071d0fdcf61ddcb38f345abf03c8b76eb111720b9094d236624085887"
+    },
+    {
+      "file": ".kimi-code/agents/boss-product.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-product",
+        "description": "Own product outcomes, prioritization, acceptance criteria and stakeholder coordination."
+      },
+      "promptSha256": "05ab5bdbb79b03b5fa8b388bb3c6746fc6fe71f299f3d959cf6cf31e578e95a1",
+      "exportSha256": "14d3385b46f35c9af11728e13c88549edc9e13f705c018e288d82eb4563fef79"
+    },
+    {
+      "file": ".kimi-code/agents/boss-providers.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-providers",
+        "description": "Own provider adapters, model capabilities and streaming normalization."
+      },
+      "promptSha256": "8f147390e748377c7603de83cbaf9b98cdbe1369b51626480eaf8b780593c6a2",
+      "exportSha256": "8b881a87cb06d269110f582875fadd9df11f9b3ca0b97734d85de5ea297eceea"
+    },
+    {
+      "file": ".kimi-code/agents/boss-renderer.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-renderer",
+        "description": "Implement renderer features and shared React UI."
+      },
+      "promptSha256": "d5354da0e44d5b0c72c92a2733ba8d953224bffd89609dee5ee7353d9f118f26",
+      "exportSha256": "921a5f777f3af0b83499cb8e8b74305f0804398a4683a77af100037ab286f78f"
+    },
+    {
+      "file": ".kimi-code/agents/boss-runtime.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-runtime",
+        "description": "Own agent execution, DSH sessions and planned Boss-to-UAR integration."
+      },
+      "promptSha256": "634ca42054b3187342252c053895af40ea3327b1cd4d9d50a57f97fbd0ab6646",
+      "exportSha256": "4a1e1a0274143d9e584dd72eaced2f43466bbfa6093400f3e997182b58402d5b"
+    },
+    {
+      "file": ".kimi-code/agents/boss-security.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-security",
+        "description": "Own MCP/tool execution boundaries and source-grounded security review."
+      },
+      "promptSha256": "48b320bee32c316f8d4e4417bb0a1bc19b1834f7a2212be97034dad56ba369f2",
+      "exportSha256": "0bd0d6739c59b580afd52a3884de76c049ea9e74e6b33add0e3779a70d592bf4"
+    },
+    {
+      "file": ".kimi-code/agents/boss-ux.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-ux",
+        "description": "Own interaction design, information architecture, accessibility and usability acceptance."
+      },
+      "promptSha256": "74278719f96284fc20aa4fc34563e61e667233ffa9575d46f8286b0f9437308d",
+      "exportSha256": "d58a7d629df29c7b2fe1333892e0ef618b5c7a9671efa5fcc9c274b9ad4958c7"
+    },
+    {
+      "file": ".kimi-code/agents/boss-verifier.md",
+      "target": "kimi",
+      "envelope": {
+        "name": "boss-verifier",
+        "description": "Independently assess completed behavior, usability evidence and release readiness."
+      },
+      "promptSha256": "6c3a821a1fb7f260f5f624be27d197a14489db760ab9ee985a367ad5f3468f08",
+      "exportSha256": "7eef33f266a4b5a4113eb723b6d97649befd34bc54cb2369c511ccd08493c76c"
+    },
+    {
+      "file": ".opencode/agents/boss-data.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own persistence, migrations and cross-process data classification.",
+        "mode": "subagent"
+      },
+      "promptSha256": "8f0d07593f841a98d2ba82369a45598b2810693fa303015dbf9bf9dee293680a",
+      "exportSha256": "ceac61a13c42f95424c0a33aab72594358dc7dbbddc92f85940824e1ccb849a5"
+    },
+    {
+      "file": ".opencode/agents/boss-desktop.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own Electron lifecycle, preload/IPC and platform integration.",
+        "mode": "subagent"
+      },
+      "promptSha256": "84ab4110d0118eee31a09e0bf168a257b18c90d35777aac65de19a68ebd759d0",
+      "exportSha256": "0cd890e1f3f4711f6e8385999590f8ff3b439190c22bc7e652e13438a0d49e01"
+    },
+    {
+      "file": ".opencode/agents/boss-lead.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Coordinate architecture, task ownership, UAR handoffs and delivery evidence.",
+        "mode": "primary"
+      },
+      "promptSha256": "e88c6817902744252a62c6d8188aa6fd1f4176132f8822033c417cbfdf801ff6",
+      "exportSha256": "45a36963c118e8e1df81bd93b819104c0f63f6cd7ddcd1411a35ca28dc98073b"
+    },
+    {
+      "file": ".opencode/agents/boss-product.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own product outcomes, prioritization, acceptance criteria and stakeholder coordination.",
+        "mode": "subagent"
+      },
+      "promptSha256": "05ab5bdbb79b03b5fa8b388bb3c6746fc6fe71f299f3d959cf6cf31e578e95a1",
+      "exportSha256": "4708689354619ad341a438da51f14fd993965001dd8f6d1acc177e9690b7af3f"
+    },
+    {
+      "file": ".opencode/agents/boss-providers.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own provider adapters, model capabilities and streaming normalization.",
+        "mode": "subagent"
+      },
+      "promptSha256": "8f147390e748377c7603de83cbaf9b98cdbe1369b51626480eaf8b780593c6a2",
+      "exportSha256": "6a7f8cf1ede98875989da9e5eb8e31ec45ee68f4f05894d7f5a527d3c13bc3c2"
+    },
+    {
+      "file": ".opencode/agents/boss-renderer.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Implement renderer features and shared React UI.",
+        "mode": "subagent"
+      },
+      "promptSha256": "d5354da0e44d5b0c72c92a2733ba8d953224bffd89609dee5ee7353d9f118f26",
+      "exportSha256": "71a59197174929ef2e0708d5629c413cb3c301f7e7866af4c92331d2c54274b8"
+    },
+    {
+      "file": ".opencode/agents/boss-runtime.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own agent execution, DSH sessions and planned Boss-to-UAR integration.",
+        "mode": "subagent"
+      },
+      "promptSha256": "634ca42054b3187342252c053895af40ea3327b1cd4d9d50a57f97fbd0ab6646",
+      "exportSha256": "dfff03e31c73f456cda50b7c258c5e80debe39a44afa1c8e5dc637bdfeff2b22"
+    },
+    {
+      "file": ".opencode/agents/boss-security.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own MCP/tool execution boundaries and source-grounded security review.",
+        "mode": "subagent"
+      },
+      "promptSha256": "48b320bee32c316f8d4e4417bb0a1bc19b1834f7a2212be97034dad56ba369f2",
+      "exportSha256": "9527eaef2bb82fe86651fd103162a34f8abb4487a423e675a1c18242a294b25e"
+    },
+    {
+      "file": ".opencode/agents/boss-ux.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Own interaction design, information architecture, accessibility and usability acceptance.",
+        "mode": "subagent"
+      },
+      "promptSha256": "74278719f96284fc20aa4fc34563e61e667233ffa9575d46f8286b0f9437308d",
+      "exportSha256": "e37492ad8c7dfb89bd6b0fa8a60c228d419036a921a88355b6576322f21418e6"
+    },
+    {
+      "file": ".opencode/agents/boss-verifier.md",
+      "target": "opencode",
+      "envelope": {
+        "description": "Independently assess completed behavior, usability evidence and release readiness.",
+        "mode": "subagent"
+      },
+      "promptSha256": "6c3a821a1fb7f260f5f624be27d197a14489db760ab9ee985a367ad5f3468f08",
+      "exportSha256": "7c2b5cc6b0388d68c7c219ee979a88345191bfba7d97a41ae545d1576014cc76"
+    },
+    {
+      "file": ".minimax/agents/boss-data/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-data",
+        "description": "Own persistence, migrations and cross-process data classification.",
+        "skills": []
+      },
+      "promptSha256": "8f0d07593f841a98d2ba82369a45598b2810693fa303015dbf9bf9dee293680a",
+      "exportSha256": "9d8232536e0cf634b6f05a7913aed2ea9928490ddd6cb2fb2f47150190045627"
+    },
+    {
+      "file": ".minimax/agents/boss-desktop/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-desktop",
+        "description": "Own Electron lifecycle, preload/IPC and platform integration.",
+        "skills": []
+      },
+      "promptSha256": "84ab4110d0118eee31a09e0bf168a257b18c90d35777aac65de19a68ebd759d0",
+      "exportSha256": "1604c7bae2cbe01cfdf3512029b8cdf25c98e5de64fbe11a182ea52217c29a8d"
+    },
+    {
+      "file": ".minimax/agents/boss-lead/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-lead",
+        "description": "Coordinate architecture, task ownership, UAR handoffs and delivery evidence.",
+        "skills": []
+      },
+      "promptSha256": "e88c6817902744252a62c6d8188aa6fd1f4176132f8822033c417cbfdf801ff6",
+      "exportSha256": "1d8f6661d82f099a3fe50a933cf37a5a115887eadcde59dbe75a9be3d522c9da"
+    },
+    {
+      "file": ".minimax/agents/boss-product/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-product",
+        "description": "Own product outcomes, prioritization, acceptance criteria and stakeholder coordination.",
+        "skills": []
+      },
+      "promptSha256": "05ab5bdbb79b03b5fa8b388bb3c6746fc6fe71f299f3d959cf6cf31e578e95a1",
+      "exportSha256": "9185c39fc968ca5a6c4b9a3f4d7c0382d72c1dd2f012d93738177333136f9499"
+    },
+    {
+      "file": ".minimax/agents/boss-providers/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-providers",
+        "description": "Own provider adapters, model capabilities and streaming normalization.",
+        "skills": []
+      },
+      "promptSha256": "8f147390e748377c7603de83cbaf9b98cdbe1369b51626480eaf8b780593c6a2",
+      "exportSha256": "8def7a48043137c4f29b380eb49642139d6e3048e3221e65878fceeced487bff"
+    },
+    {
+      "file": ".minimax/agents/boss-renderer/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-renderer",
+        "description": "Implement renderer features and shared React UI.",
+        "skills": []
+      },
+      "promptSha256": "d5354da0e44d5b0c72c92a2733ba8d953224bffd89609dee5ee7353d9f118f26",
+      "exportSha256": "fce81237f0cfe78852faadf053aa4bece37b19374038a0de3935015ce5a06b04"
+    },
+    {
+      "file": ".minimax/agents/boss-runtime/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-runtime",
+        "description": "Own agent execution, DSH sessions and planned Boss-to-UAR integration.",
+        "skills": []
+      },
+      "promptSha256": "634ca42054b3187342252c053895af40ea3327b1cd4d9d50a57f97fbd0ab6646",
+      "exportSha256": "f34bbaf7f5e62afed7b4bc009bb10508a5205f535c218149fdf31be350cf0c74"
+    },
+    {
+      "file": ".minimax/agents/boss-security/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-security",
+        "description": "Own MCP/tool execution boundaries and source-grounded security review.",
+        "skills": []
+      },
+      "promptSha256": "48b320bee32c316f8d4e4417bb0a1bc19b1834f7a2212be97034dad56ba369f2",
+      "exportSha256": "ffbb66eca79932619324a7a36064922434bcb88dced0b6575d9a49eddcd20374"
+    },
+    {
+      "file": ".minimax/agents/boss-ux/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-ux",
+        "description": "Own interaction design, information architecture, accessibility and usability acceptance.",
+        "skills": []
+      },
+      "promptSha256": "74278719f96284fc20aa4fc34563e61e667233ffa9575d46f8286b0f9437308d",
+      "exportSha256": "5e81bbec9164adf1a8b0492b13f9c3b05b7919afc41990f159cae15fb24e87fd"
+    },
+    {
+      "file": ".minimax/agents/boss-verifier/agent.md",
+      "target": "minimax",
+      "envelope": {
+        "name": "boss-verifier",
+        "description": "Independently assess completed behavior, usability evidence and release readiness.",
+        "skills": []
+      },
+      "promptSha256": "6c3a821a1fb7f260f5f624be27d197a14489db760ab9ee985a367ad5f3468f08",
+      "exportSha256": "a5d21cd997b68fc48bd142b2afdbfd6e40610e755c8eae5719c46bfb8d66f882"
+    }
+  ],
+  "verification": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-09-24T23:39:35.056Z",
+    "head": "8344b485203427952716cd142da28c181162be61",
+    "manifestValidation": "creator CLI passed",
+    "roleCount": 10,
+    "nativeCount": 50,
+    "nativeSyntax": [
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-lead.toml",
+        "name": "boss-lead",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-lead.md",
+        "name": "boss-lead",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-lead.md",
+        "name": "boss-lead",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-lead.md",
+        "name": "boss-lead",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-lead/agent.md",
+        "name": "boss-lead",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-product.toml",
+        "name": "boss-product",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-product.md",
+        "name": "boss-product",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-product.md",
+        "name": "boss-product",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-product.md",
+        "name": "boss-product",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-product/agent.md",
+        "name": "boss-product",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-ux.toml",
+        "name": "boss-ux",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-ux.md",
+        "name": "boss-ux",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-ux.md",
+        "name": "boss-ux",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-ux.md",
+        "name": "boss-ux",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-ux/agent.md",
+        "name": "boss-ux",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-renderer.toml",
+        "name": "boss-renderer",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-renderer.md",
+        "name": "boss-renderer",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-renderer.md",
+        "name": "boss-renderer",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-renderer.md",
+        "name": "boss-renderer",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-renderer/agent.md",
+        "name": "boss-renderer",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-desktop.toml",
+        "name": "boss-desktop",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-desktop.md",
+        "name": "boss-desktop",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-desktop.md",
+        "name": "boss-desktop",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-desktop.md",
+        "name": "boss-desktop",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-desktop/agent.md",
+        "name": "boss-desktop",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-runtime.toml",
+        "name": "boss-runtime",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-runtime.md",
+        "name": "boss-runtime",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-runtime.md",
+        "name": "boss-runtime",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-runtime.md",
+        "name": "boss-runtime",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-runtime/agent.md",
+        "name": "boss-runtime",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-providers.toml",
+        "name": "boss-providers",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-providers.md",
+        "name": "boss-providers",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-providers.md",
+        "name": "boss-providers",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-providers.md",
+        "name": "boss-providers",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-providers/agent.md",
+        "name": "boss-providers",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-data.toml",
+        "name": "boss-data",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-data.md",
+        "name": "boss-data",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-data.md",
+        "name": "boss-data",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-data.md",
+        "name": "boss-data",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-data/agent.md",
+        "name": "boss-data",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-security.toml",
+        "name": "boss-security",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-security.md",
+        "name": "boss-security",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-security.md",
+        "name": "boss-security",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-security.md",
+        "name": "boss-security",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-security/agent.md",
+        "name": "boss-security",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "codex",
+        "file": ".codex/agents/boss-verifier.toml",
+        "name": "boss-verifier",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "claude",
+        "file": ".claude/agents/boss-verifier.md",
+        "name": "boss-verifier",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "kimi",
+        "file": ".kimi-code/agents/boss-verifier.md",
+        "name": "boss-verifier",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "opencode",
+        "file": ".opencode/agents/boss-verifier.md",
+        "name": "boss-verifier",
+        "syntax": "passed",
+        "promptMatches": true
+      },
+      {
+        "target": "minimax",
+        "file": ".minimax/agents/boss-verifier/agent.md",
+        "name": "boss-verifier",
+        "syntax": "passed",
+        "promptMatches": true
+      }
+    ],
+    "exportBytesMatch": true,
+    "skillBindings": "all exist",
+    "defaultOwnership": "no overlaps detected",
+    "preservation": {
+      "preexistingChanged": [
+        ".gitignore",
+        "CLAUDE.md"
+      ],
+      "allowed": [
+        "CLAUDE.md routing appended",
+        ".gitignore Boss role exceptions appended; prior Compass entries preserved"
+      ],
+      "compassDefinitions": "unchanged and matching",
+      "agentsLink": "CLAUDE.md"
+    },
+    "nativeDiscovery": {
+      "opencode": {
+        "status": 0,
+        "signal": null,
+        "name": "boss-lead",
+        "mode": "primary",
+        "promptMatches": true
+      },
+      "remainingRoles": "Static export/installation validation only; inference not run."
+    },
+    "modelDiscovery": {
+      "status": "unavailable",
+      "error": "transport_unavailable_or_redirect_refused"
+    },
+    "applicationTests": "not applicable; configuration/docs only",
+    "errors": [],
+    "documentationGate": {
+      "command": "pnpm docs:check",
+      "exitCode": 0,
+      "note": "Initial copied-source links fixed to shipped compiled modules, adaptation hashes recorded."
+    },
+    "launcher": {
+      "command": "node .agent-team/boss-core/launch.mjs --help",
+      "exitCode": 0
+    },
+    "review": {
+      "status": "in-progress"
+    },
+    "skillGovernance": {
+      "publicSkills": 18,
+      "command": "pnpm skills:check",
+      "exitCode": 0,
+      "generatedBy": "pnpm skills:sync",
+      "newSkills": 8,
+      "claudeSkillLinks": 8
+    },
+    "openSpec": {
+      "command": "node /Users/gqadonis/Projects/references/OpenSpec/bin/openspec.js validate boss-development-team --strict",
+      "exitCode": 0,
+      "note": "No application behavior changes; skip_specs enabled."
+    },
+    "gitRetention": "All installed native roles and skill links are visible to Git",
+    "configurationBoundary": "creator validate -> init -> five native exports -> install -> parse all 50 native files and compare prompts/hashes -> native OpenCode lead discovery; no model inference or app launch",
+    "additionalChecks": {
+      "gitDiffCheck": 0,
+      "launcherSyntaxCheck": 0
+    },
+    "sycophancy": {
+      "descriptorScore": 0.01785714365541935,
+      "mandatoryCorrection": false,
+      "note": "Only low-severity aggregate length heuristic; reviewed for relevant role-specific content."
+    }
+  },
+  "exportReceipts": {
+    "codex": {
+      "target": "codex",
+      "verification": {
+        "level": "source-verified",
+        "source": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+        "version": "documentation inspected 2026-09-24",
+        "live": "unverified"
+      },
+      "nativeProvenance": null,
+      "nativeOptions": null,
+      "roleOverrides": {
+        "boss-lead": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-product": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-ux": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-renderer": {
+          "model": "gpt-5.6-terra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-desktop": {
+          "model": "gpt-5.6-terra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-runtime": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-providers": {
+          "model": "gpt-5.6-terra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-data": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-security": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        },
+        "boss-verifier": {
+          "model": "gpt-6-astra",
+          "model_reasoning_effort": "high"
+        }
+      },
+      "diagnostics": [
+        "Source-verified serialization only; installed native validation and live execution are unverified.",
+        "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+        "Standalone agent files are supported. A Codex plugin agents manifest field is not verified; no such field is emitted.",
+        "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+      ],
+      "instructions": [
+        "Review staged artifacts before installation. Export grants no execution or registration authority.",
+        "Review and merge .codex/agents and optional .codex/config.toml into the project; config values are native Codex options."
+      ]
+    },
+    "claude": {
+      "target": "claude",
+      "verification": {
+        "level": "source-verified",
+        "source": "https://code.claude.com/docs/en/sub-agents",
+        "version": "documentation inspected 2026-09-24",
+        "live": "unverified"
+      },
+      "nativeProvenance": null,
+      "nativeOptions": null,
+      "roleOverrides": {
+        "boss-lead": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-product": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-ux": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-renderer": {
+          "model": "sonnet",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-desktop": {
+          "model": "sonnet",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-runtime": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-providers": {
+          "model": "sonnet",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-data": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-security": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        },
+        "boss-verifier": {
+          "model": "opus",
+          "effort": "high",
+          "skills": []
+        }
+      },
+      "diagnostics": [
+        "Source-verified serialization only; installed native validation and live execution are unverified.",
+        "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+        "These are native subagents; installing them does not create an experimental Claude agent team or enable that feature.",
+        "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+      ],
+      "instructions": [
+        "Review staged artifacts before installation. Export grants no execution or registration authority.",
+        "Choose project .claude/agents or the staged local marketplace/plugin. Do not install both copies. Settings options are a proposed project .claude/settings.json."
+      ]
+    },
+    "kimi": {
+      "target": "kimi",
+      "verification": {
+        "level": "source-verified",
+        "source": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/customization/agents.md",
+        "version": "main documentation inspected 2026-09-24",
+        "live": "unverified"
+      },
+      "nativeProvenance": null,
+      "nativeOptions": null,
+      "roleOverrides": {
+        "boss-lead": {},
+        "boss-product": {},
+        "boss-ux": {},
+        "boss-renderer": {},
+        "boss-desktop": {},
+        "boss-runtime": {},
+        "boss-providers": {},
+        "boss-data": {},
+        "boss-security": {},
+        "boss-verifier": {}
+      },
+      "diagnostics": [
+        "Source-verified serialization only; installed native validation and live execution are unverified.",
+        "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+        "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+      ],
+      "instructions": [
+        "Review staged artifacts before installation. Export grants no execution or registration authority.",
+        "Choose project .kimi-code/agents or the staged Kimi v2 marketplace/plugin. Literal ${base_prompt} in supplied prompts remains unchanged."
+      ]
+    },
+    "opencode": {
+      "target": "opencode",
+      "verification": {
+        "level": "source-verified",
+        "source": "https://opencode.ai/docs/agents/",
+        "version": "deployed singular agent schema inspected 2026-09-24",
+        "live": "unverified"
+      },
+      "nativeProvenance": null,
+      "nativeOptions": null,
+      "roleOverrides": {
+        "boss-lead": {
+          "mode": "primary"
+        },
+        "boss-product": {
+          "mode": "subagent"
+        },
+        "boss-ux": {
+          "mode": "subagent"
+        },
+        "boss-renderer": {
+          "mode": "subagent"
+        },
+        "boss-desktop": {
+          "mode": "subagent"
+        },
+        "boss-runtime": {
+          "mode": "subagent"
+        },
+        "boss-providers": {
+          "mode": "subagent"
+        },
+        "boss-data": {
+          "mode": "subagent"
+        },
+        "boss-security": {
+          "mode": "subagent"
+        },
+        "boss-verifier": {
+          "mode": "subagent"
+        }
+      },
+      "diagnostics": [
+        "Source-verified serialization only; installed native validation and live execution are unverified.",
+        "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+        "OpenCode JS/TS or npm plugins are separate from agent definitions; no agent marketplace manifest is invented.",
+        "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+      ],
+      "instructions": [
+        "Review staged artifacts before installation. Export grants no execution or registration authority.",
+        "Review .opencode/agents/*.md and optional opencode.json. Native configuration uses singular agent and permission keys."
+      ]
+    },
+    "minimax": {
+      "target": "minimax",
+      "verification": {
+        "level": "source-verified",
+        "source": "https://github.com/MiniMax-AI/minimax-code/blob/main/packages/local-runtime-v2/src/service/agent/storage/canonical-agent-config.ts",
+        "version": "@minimax-ai/code 0.4.12; source inspected 2026-09-24",
+        "live": "unverified"
+      },
+      "nativeProvenance": null,
+      "nativeOptions": null,
+      "roleOverrides": {
+        "boss-lead": {
+          "skills": []
+        },
+        "boss-product": {
+          "skills": []
+        },
+        "boss-ux": {
+          "skills": []
+        },
+        "boss-renderer": {
+          "skills": []
+        },
+        "boss-desktop": {
+          "skills": []
+        },
+        "boss-runtime": {
+          "skills": []
+        },
+        "boss-providers": {
+          "skills": []
+        },
+        "boss-data": {
+          "skills": []
+        },
+        "boss-security": {
+          "skills": []
+        },
+        "boss-verifier": {
+          "skills": []
+        }
+      },
+      "diagnostics": [
+        "Source-verified serialization only; installed native validation and live execution are unverified.",
+        "Only explicit model IDs are translated. Resolve tier, skill, capability and price policies with agent-team-models before native invocation.",
+        "mcode exec has no verified custom-agent selector. The MiniMax plugin manifest supports skills/MCP/hooks/apps, not an agents field; no agent plugin is invented.",
+        "Role overrides are preserved without native schema certification. Skill IDs refer to separately installed skills; prompt mentions do not install or authorize them."
+      ],
+      "instructions": [
+        "Review staged artifacts before installation. Export grants no execution or registration authority.",
+        "Install agents/<name>/agent.md under the active MiniMax user-data directory: MINIMAX_DATA_DIR, MAVIS_DATA_DIR, or default ~/.minimax. Export does not install there."
+      ]
+    }
+  },
+  "scope": "Native syntax/export consistency and observed OpenCode boss-lead discovery only. No inference, MiniMax activation or all-harness runtime certification."
+}

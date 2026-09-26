@@ -1,0 +1,78 @@
+import { config, contains } from './data.mjs';
+export function parseDecisionRules(raw) {
+    const rules = JSON.parse(raw || '{}');
+    if (!rules || typeof rules !== 'object' || Array.isArray(rules))
+        throw new Error('decision rules must be a JSON object');
+    const keys = new Set();
+    for (const match of (raw || '{}').matchAll(/("(?:[^"\\]|\\.)*")\s*:/g)) {
+        const key = JSON.parse(match[1]);
+        if (keys.has(key))
+            throw new Error(`duplicate decision-rule key: ${key}`);
+        keys.add(key);
+    }
+    for (const [condition, actions] of Object.entries(rules)) {
+        if (condition !== 'must_have' && !(condition in config.conditions))
+            throw new Error(`unknown decision-rule condition: ${condition}`);
+        if (!Array.isArray(actions) || !actions.length)
+            throw new Error(`${condition} must map to a non-empty action array`);
+        for (const action of actions) {
+            if (typeof action !== 'string' || !action.includes(':'))
+                throw new Error(`action must use a known prefix: ${action}`);
+            const split = action.indexOf(':'), prefix = action.slice(0, split), value = action.slice(split + 1);
+            if (!['constraint', 'style', 'pattern', 'mode'].includes(prefix))
+                throw new Error(`unknown decision-rule action: ${action}`);
+            if (['constraint', 'style'].includes(prefix) && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value))
+                throw new Error(`invalid ${prefix} action value: ${value}`);
+            if (prefix === 'pattern' && !value.trim())
+                throw new Error('pattern action must name a pattern');
+            if (prefix === 'mode' && !['dark', 'light'].includes(value))
+                throw new Error('mode action must be dark or light');
+        }
+        if (new Set(actions).size !== actions.length)
+            throw new Error(`${condition} contains duplicate actions`);
+    }
+    return rules;
+}
+export function applyDecisionRules(rules, query) { const result = { activated: [], style_ids: [], constraints: [], pattern: null, mode: null }; const text = query.toLowerCase(); for (const [condition, actions] of Object.entries(rules)) {
+    if (condition !== 'must_have' && !(config.conditions[condition] ?? []).some(signal => contains(text, signal)))
+        continue;
+    result.activated.push({ condition, actions: [...actions] });
+    for (const action of actions) {
+        const split = action.indexOf(':'), prefix = action.slice(0, split), value = action.slice(split + 1);
+        if (prefix === 'style' && !result.style_ids.includes(value))
+            result.style_ids.push(value);
+        else if (prefix === 'constraint' && !result.constraints.includes(value))
+            result.constraints.push(value);
+        else if (prefix === 'pattern')
+            result.pattern = value;
+        else if (prefix === 'mode')
+            result.mode = value;
+    }
+} return result; }
+export function luminance(hex) { let value = hex?.trim().replace(/^#/, ''); if (value?.length === 3)
+    value = [...value].map(c => c + c).join(''); if (!/^[0-9a-f]{6}$/i.test(value ?? ''))
+    return null; const channels = [0, 2, 4].map(i => parseInt(value.slice(i, i + 2), 16) / 255).map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]; }
+function contrast(a, b) { const x = luminance(a), y = luminance(b); return x === null || y === null ? 0 : (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+export function resolveColorMode(query, style) {
+    if (['dark mode', 'dark theme', 'dark ui', 'dark-mode', 'darkmode', 'night mode', 'midnight', 'oled'].some(x => query.toLowerCase().includes(x)))
+        return 'dark';
+    const preferred = style['Preferred Mode']?.trim().toLowerCase();
+    if (preferred === 'dark' || preferred === 'light')
+        return preferred;
+    if (style['Light Mode ✓'] === 'not-recommended' && style['Dark Mode ✓'] === 'supported')
+        return 'dark';
+    const text = `${style['Light Mode ✓'] ?? ''} ${style['Dark Mode ✓'] ?? ''}`.toLowerCase();
+    return ['dark mode primary', 'dark primary', 'dark-only', 'dark only', 'dark preferred', 'dark focused', 'dark-first', 'dark rich', 'light mode only as exception'].some(x => text.includes(x)) ? 'dark' : 'light';
+}
+export function selectPalette(palettes, mode, category) {
+    const isDark = (p) => (luminance(p.Background) ?? 1) < 0.18;
+    const categoryPalette = palettes.find(p => p['Product Type'] === category);
+    if (categoryPalette) {
+        if (mode === 'dark' && !isDark(categoryPalette)) {
+            const background = '#0F172A', ring = [categoryPalette.Ring, categoryPalette.Accent, categoryPalette.Primary, '#60A5FA'].find(c => contrast(c, background) >= 3) ?? '#60A5FA';
+            return { ...categoryPalette, Background: background, Foreground: '#F8FAFC', Card: '#111827', 'Card Foreground': '#F8FAFC', Muted: '#1E293B', 'Muted Foreground': '#CBD5E1', Border: '#334155', Ring: ring, _mode_derivation: 'derived-dark' };
+        }
+        return categoryPalette;
+    }
+    return (mode === 'dark' ? palettes.find(isDark) : undefined) ?? palettes[0] ?? {};
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Team Manager"
+  short_description: "Assign work and manage team ownership safely"
+  default_prompt: "Use $agent-team-manage to organize the work and ownership of my existing team."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expo Native UI"
+  short_description: "Build beautiful, native-feeling Expo screens: HIG styling, semantic colors, controls, SF Symbols, media, and visual effects"
+  default_prompt: "Use $expo-native-ui to style native-feeling Expo screens, choose semantic colors and native controls, add media and visual effects, and decide when Expo Go is enough before creating native builds."
