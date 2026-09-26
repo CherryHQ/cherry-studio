@@ -192,6 +192,40 @@ function widgetInputNames(
 export const isReference = (value: unknown): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
 
+/** Required inputs the prompt must still carry when the workflow saved no
+ * value for them: the frontend's widgets always hold something (the declared
+ * default, a combo's first entry, or null), and ComfyUI rejects the whole
+ * prompt when a required key is simply absent — the built-in `ImageCompare`
+ * (`compare_view`, socketless) failed every Qwen-Image-Edit run that way. */
+function requiredInputFallbacks(info: ObjectInfo[string], values?: unknown[]): Array<[string, unknown]> {
+  const spec = info.input?.required as JsonObject | undefined
+  if (!spec) return []
+  const declared = info.input_order?.required ?? []
+  const names = declared.length > 0 ? declared.filter((name) => name in spec) : Object.keys(spec)
+  const out: Array<[string, unknown]> = []
+  for (const name of names) {
+    const entry = spec[name] as unknown[]
+    if (!Array.isArray(entry) || entry.length === 0) continue
+    const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
+    // A socket is satisfied by a link, never by a value, so only a declaration
+    // the frontend renders as a widget (or marks `socketless`) can carry one:
+    // `MODEL`, `LATENT`, `IMAGE` … cannot.
+    const widgetType = widgetTypeOf(entry[0], config)
+    if (config.forceInput) continue
+    if ('default' in config) {
+      // The frontend's widget carries the declared default from the start.
+      if (spendsWidgetSlot(widgetType, config, values) || config.socketless === true) out.push([name, config.default])
+      continue
+    }
+    // `socketless` is a value with no socket, and a workflow stores nothing for
+    // it: the frontend sends null, which the server accepts. A defaultless
+    // widget stays omitted — the workflow really is missing that value, and the
+    // server names it.
+    if (config.socketless === true) out.push([name, null])
+  }
+  return out
+}
+
 /**
  * The ComfyUI frontend's `isValidConnection`: a wildcard or empty type matches
  * anything, comma-separated unions match on any member, otherwise it is a
@@ -303,53 +337,74 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     return out
   }
 
-  /** Positional widget values, aligned to the backend's declaration order. */
+  /** Widget values, aligned to the backend's declaration order. */
   function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     if (!info) return {}
+    let out: Record<string, unknown>
+    let values: unknown[]
     // Named values (widgets_values_named, or the object form of widgets_values)
     // key straight to the inputs — a schema change cannot silently remap them
-    // to a different position.
+    // to a different position. A node the frontend has no widget for can still
+    // carry an EMPTY map (the built-in `ImageCompare`), so both paths fall
+    // through to the required-key pass below.
     if (Array.isArray(raw) && node.widgets_values_named) {
-      return namedValues(node.widgets_values_named, linked)
-    }
-    if (raw !== undefined && !Array.isArray(raw)) {
-      return namedValues(raw, linked)
-    }
-    if (!Array.isArray(raw)) return {}
-    const base = widgetInputNames(info, false, undefined, undefined, raw)
-    let names = widgetNames(base)
-    const curves = base.curves
-    // A workflow saved before frontend 1.16 spends a dummy slot on every
-    // `forceInput` input the frontend has since turned into a socket, so its
-    // array only lines up once those dummies are dropped — exactly what the
-    // frontend's own `migrateWidgetsValues` does on load.
-    const aligned =
-      base.positions.length === raw.length ? raw.filter((_, index) => base.positions[index] !== null) : undefined
-    let values = aligned !== undefined && aligned.length === names.length ? aligned : raw
-    if (values.length !== names.length) {
-      // The advanced set has its own slot list, so align it the same way.
-      const wider = widgetInputNames(info, true, undefined, undefined, values)
-      const widerNames = widgetNames(wider)
-      const widerValues =
-        wider.positions.length === values.length ? values.filter((_, index) => wider.positions[index] !== null) : values
-      if (widerValues.length === widerNames.length) {
-        names = widerNames
-        values = widerValues
-        curves.clear()
-        for (const curveName of wider.curves) curves.add(curveName)
+      out = namedValues(node.widgets_values_named, linked)
+      values = raw
+    } else if (raw !== undefined && !Array.isArray(raw)) {
+      out = namedValues(raw, linked)
+      values = []
+    } else if (!Array.isArray(raw)) {
+      out = {}
+      values = []
+    } else {
+      const base = widgetInputNames(info, false, undefined, undefined, raw)
+      let names = widgetNames(base)
+      const curves = base.curves
+      // A workflow saved before frontend 1.16 spends a dummy slot on every
+      // `forceInput` input the frontend has since turned into a socket, so its
+      // array only lines up once those dummies are dropped — exactly what the
+      // frontend's own `migrateWidgetsValues` does on load.
+      const aligned =
+        base.positions.length === raw.length ? raw.filter((_, index) => base.positions[index] !== null) : undefined
+      values = aligned !== undefined && aligned.length === names.length ? aligned : raw
+      if (values.length !== names.length) {
+        // The advanced set has its own slot list, so align it the same way.
+        const wider = widgetInputNames(info, true, undefined, undefined, values)
+        const widerNames = widgetNames(wider)
+        const widerValues =
+          wider.positions.length === values.length
+            ? values.filter((_, index) => wider.positions[index] !== null)
+            : values
+        if (widerValues.length === widerNames.length) {
+          names = widerNames
+          values = widerValues
+          curves.clear()
+          for (const curveName of wider.curves) curves.add(curveName)
+        }
       }
+      const positional: Record<string, unknown> = {}
+      names.forEach((name, index) => {
+        if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
+        // A curve widget value rides the frontend's envelope; the backend
+        // unwraps it during execution.
+        positional[name] = curves.has(name)
+          ? { __type__: 'CURVE', __value__: values[index] }
+          : wrapWidgetValue(values[index])
+      })
+      if (values.length !== names.length) {
+        warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
+      }
+      out = positional
     }
-    const out: Record<string, unknown> = {}
-    names.forEach((name, index) => {
-      if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
-      // A curve widget value rides the frontend's envelope; the backend
-      // unwraps it during execution.
-      out[name] = curves.has(name) ? { __type__: 'CURVE', __value__: values[index] } : wrapWidgetValue(values[index])
-    })
-    if (values.length !== names.length) {
-      warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
+    // A required input the workflow carries no value for still has to be in the
+    // prompt: the frontend's widgets always hold something, and ComfyUI rejects
+    // the whole prompt when the key is absent (`ImageCompare`'s socketless
+    // `compare_view` failed every Qwen-Image-Edit run that way).
+    for (const [name, fallback] of requiredInputFallbacks(info, values)) {
+      if (linked.has(name) || name in out) continue
+      out[name] = wrapWidgetValue(fallback)
     }
     return out
   }

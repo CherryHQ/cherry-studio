@@ -939,3 +939,62 @@ describe('applySeed', () => {
     expect(graph['1'].inputs.value).toBe(42)
   })
 })
+
+describe('required inputs the workflow carries no value for', () => {
+  /** `Compare Images` is a real backend node whose only required input is a
+   * socketless marker the workflow never stores a value for. */
+  const compareInfo: ObjectInfo = {
+    LoadImage: { input: { required: { image: [['a.png', 'b.png'], {}] } } },
+    ImageCompare: {
+      input: {
+        required: { compare_view: ['IMAGECOMPARE', { socketless: true }] },
+        optional: { image_a: ['IMAGE'], image_b: ['IMAGE'] }
+      },
+      input_order: { required: ['compare_view'], optional: ['image_a', 'image_b'] }
+    },
+    Defaults: {
+      input: {
+        required: {
+          steps: ['INT', { default: 25 }],
+          sampler_name: [['euler', 'res_multistep'], {}],
+          model: ['MODEL']
+        },
+        optional: { note: ['STRING', { default: 'hello' }] }
+      }
+    }
+  }
+
+  it('sends a socketless required input as null instead of dropping the key', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'LoadImage', widgets_values: ['a.png'] },
+          { id: 2, type: 'LoadImage', widgets_values: ['b.png'] },
+          {
+            id: 3,
+            type: 'ImageCompare',
+            inputs: [
+              { name: 'image_a', link: 1 },
+              { name: 'image_b', link: 2 },
+              { name: 'compare_view', link: null }
+            ],
+            widgets_values: []
+          }
+        ],
+        links: [link(1, 1, 0, 3, 0), link(2, 2, 0, 3, 1)]
+      },
+      compareInfo
+    )
+
+    expect(prompt['3'].inputs).toEqual({ compare_view: null, image_a: ['1', 0], image_b: ['2', 0] })
+  })
+
+  it('falls back to the declared default, and never invents a value for a socket or a defaultless widget', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      { nodes: [{ id: 1, type: 'Defaults', inputs: [{ name: 'model', link: null }], widgets_values: [] }], links: [] },
+      compareInfo
+    )
+
+    expect(prompt['1'].inputs).toEqual({ steps: 25 })
+  })
+})
