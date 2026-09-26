@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   toastError: vi.fn(),
   openSettingsTab: vi.fn(),
-  defaultModel: null as null | typeof TEST_DEFAULT_MODEL
+  defaultModel: null as null | typeof TEST_DEFAULT_MODEL,
+  isDefaultModelLoading: false
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -35,7 +36,10 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: mocks.defaultModel })
+  useDefaultModel: () => ({
+    defaultModel: mocks.defaultModel,
+    isDefaultModelLoading: mocks.isDefaultModelLoading
+  })
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -133,6 +137,7 @@ beforeEach(() => {
   mocks.toastError.mockReset()
   mocks.openSettingsTab.mockReset()
   mocks.defaultModel = { ...TEST_DEFAULT_MODEL }
+  mocks.isDefaultModelLoading = false
 })
 
 const POLISH_BUTTON = 'Polish prompt · GPT-4o'
@@ -170,6 +175,43 @@ describe('PromptPolishActions', () => {
     const toast = mocks.toastError.mock.calls[0]?.[0] as { action: { onClick: () => void } }
     toast.action.onClick()
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/model')
+  })
+
+  it('polishes and generates while the default model is still loading instead of reporting it missing', async () => {
+    mocks.defaultModel = null
+    mocks.isDefaultModelLoading = true
+    mocks.fetchGenerate.mockResolvedValueOnce('Polished while loading').mockResolvedValueOnce('Generated while loading')
+    const { unmount } = render(<Harness initialValue="Original prompt" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt · No default model' }))
+
+    await waitFor(() =>
+      expect(mocks.fetchGenerate).toHaveBeenCalledWith({
+        prompt: TEST_EXISTING_SYSTEM_PROMPT,
+        content: 'Original prompt',
+        model: null,
+        throwOnError: true,
+        signal: expect.any(AbortSignal)
+      })
+    )
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    unmount()
+
+    mocks.fetchGenerate.mockClear()
+    render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt · No default model' }))
+
+    await waitFor(() =>
+      expect(mocks.fetchGenerate).toHaveBeenCalledWith({
+        prompt: TEST_GENERATE_SYSTEM_PROMPT,
+        content: 'Alpha Agent',
+        model: null,
+        throwOnError: true,
+        signal: expect.any(AbortSignal)
+      })
+    )
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('rewrites an existing prompt with the caller-provided strategy and supports one-step undo', async () => {

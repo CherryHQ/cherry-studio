@@ -52,7 +52,7 @@ export function PromptPolishActions({
   disabled = false
 }: PromptPolishActionsProps) {
   const { t } = useTranslation()
-  const { defaultModel } = useDefaultModel()
+  const { defaultModel, isDefaultModelLoading = false } = useDefaultModel()
   const [running, setRunning] = useState(false)
   const [restoreState, setRestoreState] = useState<RestoreState | null>(null)
   const inFlightRef = useRef(false)
@@ -135,7 +135,9 @@ export function PromptPolishActions({
     )
     const requestModel = defaultModelRef.current
 
-    if (!requestModel) {
+    // The default-model query is normally empty while it loads. That is not a missing model;
+    // fetchGenerate resolves the id asynchronously. A settled miss still stops here.
+    if (!requestModel && !isDefaultModelLoading) {
       toast.error({
         title: failureTitle,
         description: t('error.model.not_exists'),
