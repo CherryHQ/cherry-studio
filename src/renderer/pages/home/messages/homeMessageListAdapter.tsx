@@ -26,12 +26,17 @@ import {
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { parseMessagePartId } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import {
+  getDirectAssistantModelsByUserId,
+  getMessageListItemModel,
+  toMessageListItem
+} from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -47,6 +52,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { loadMessageBranch } from '@renderer/utils/message/loadMessageBranch'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -121,7 +127,14 @@ export function useHomeMessageListProviderValue({
   })
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
+  const { editingMessage, editingMessageId, startEditing: startEditingSnapshot } = useMessageEditing()
+  const editingRequestIdRef = useRef(0)
+  useEffect(
+    () => () => {
+      editingRequestIdRef.current += 1
+    },
+    [topicId, editingMessage?.editingSessionId]
+  )
   const canStartNewContext =
     normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
   const resolvedAssistantId = assistant?.id ?? assistantId
@@ -157,7 +170,48 @@ export function useHomeMessageListProviderValue({
   }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
+  const startEditing = useCallback<NonNullable<MessageListActions['startEditing']>>(
+    (message, parts, options) => {
+      const requestId = ++editingRequestIdRef.current
+      if (options || message.role !== 'user') {
+        startEditingSnapshot(message, parts, options)
+        return
+      }
+
+      const startEditingWithModels = (models?: SharedModel[]) => {
+        startEditingSnapshot(message, parts, {
+          lockedMentionedModels: models && models.length > 1 ? models : undefined
+        })
+      }
+      const loadedModels = message.isActiveBranch
+        ? getDirectAssistantModelsByUserId(messagesRef.current).get(message.id)
+        : undefined
+      if (loadedModels?.length) {
+        startEditingWithModels(loadedModels)
+        return
+      }
+
+      void loadMessageBranch(topicId, message.id)
+        .then((branch) => {
+          if (requestId !== editingRequestIdRef.current) return
+          const branchItems = branch.map((item) =>
+            toMessageListItem(item, { assistantId: resolvedAssistantId, topicId })
+          )
+          startEditingWithModels(getDirectAssistantModelsByUserId(branchItems).get(message.id))
+        })
+        .catch((error) => {
+          if (requestId !== editingRequestIdRef.current) return
+          logger.error('Failed to load models for message editing', { error, messageId: message.id, topicId })
+          toast.error(t('common.error'))
+        })
+    },
+    [resolvedAssistantId, startEditingSnapshot, t, topicId]
+  )
+
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const getMessageParts = useCallback(async (messageId: string) => {
+    return partsByMessageIdRef.current[messageId] ?? (await dataApiService.get(`/messages/${messageId}`)).data.parts
+  }, [])
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -438,7 +492,10 @@ export function useHomeMessageListProviderValue({
       const { msgBlockId, originalContent, newContent } = data
 
       try {
-        const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
+        const messageId = parseMessagePartId(msgBlockId)?.messageId
+        const sourceParts = messageId ? await getMessageParts(messageId) : undefined
+        const resolved =
+          messageId && sourceParts ? resolvePartFromParts({ [messageId]: sourceParts }, msgBlockId) : null
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
@@ -448,7 +505,7 @@ export function useHomeMessageListProviderValue({
             toast.error(t('code_block.edit.save.failed.label'))
             return
           }
-          const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
+          const allParts = [...sourceParts!]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
@@ -465,7 +522,7 @@ export function useHomeMessageListProviderValue({
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
-    [requireChatWrite, t]
+    [getMessageParts, requireChatWrite, t]
   )
 
   const openPath = useCallback((path: string) => {
@@ -524,7 +581,8 @@ export function useHomeMessageListProviderValue({
       const write = requireChatWrite('translateMessage')
       const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = await getMessageParts(messageId)
+      if (!isCurrentTranslation()) return null
       if (!currentParts) {
         logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
@@ -571,7 +629,7 @@ export function useHomeMessageListProviderValue({
         waitForPendingUpdates: () => pendingUpdate
       }
     },
-    [requireChatWrite, topic.id]
+    [getMessageParts, requireChatWrite, topic.id]
   )
 
   const translateMessage = useCallback<NonNullable<MessageListActions['translateMessage']>>(
@@ -608,16 +666,16 @@ export function useHomeMessageListProviderValue({
         // a superseding call will have set a new controller by now and
         // owns the current data-translation part.
         if (translationAbortControllersRef.current.get(messageId) === controller) {
-          const currentParts = partsByMessageIdRef.current[messageId]
-          if (currentParts) {
-            const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
-            if (baseParts.length !== currentParts.length) {
-              try {
+          try {
+            const currentParts = await getMessageParts(messageId)
+            if (translationAbortControllersRef.current.get(messageId) === controller && currentParts) {
+              const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+              if (baseParts.length !== currentParts.length) {
                 await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
-              } catch (cleanupError) {
-                logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
               }
             }
+          } catch (cleanupError) {
+            logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
           }
         }
       } finally {
@@ -627,7 +685,7 @@ export function useHomeMessageListProviderValue({
         }
       }
     },
-    [createTranslationUpdater, requireChatWrite, setMessageTranslating, t]
+    [createTranslationUpdater, getMessageParts, requireChatWrite, setMessageTranslating, t]
   )
 
   const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
@@ -639,13 +697,13 @@ export function useHomeMessageListProviderValue({
 
   const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
     async (messageId) => {
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = await getMessageParts(messageId)
       if (!currentParts) return
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
       if (baseParts.length === currentParts.length) return
       await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
     },
-    [requireChatWrite]
+    [getMessageParts, requireChatWrite]
   )
 
   const getMessageSiblings = useCallback(
@@ -690,7 +748,9 @@ export function useHomeMessageListProviderValue({
   )
 
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
-    (messageId) => requireChatWrite('setActiveBranch').setActiveBranch(messageId),
+    async (messageId) => {
+      await requireChatWrite('setActiveBranch').setActiveBranch(messageId)
+    },
     [requireChatWrite]
   )
 

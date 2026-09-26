@@ -191,7 +191,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     refresh: branchCachePaths
   })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
-    refresh: branchCachePaths
+    refresh: ({ result }) => [...branchCachePaths, `/messages/${result.id}`]
   })
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
     refresh: branchCachePaths

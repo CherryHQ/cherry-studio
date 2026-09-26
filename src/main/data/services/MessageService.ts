@@ -1213,10 +1213,9 @@ export class MessageService {
   }
 
   /**
-   * Persist empty branch nodes below an assistant message.
+   * Persist one empty branch node below an assistant message.
    *
-   * A leaf gets two children so the first reservation forms a real branch; an anchor
-   * with children gets one. `activate=false` keeps the current streaming path active.
+   * `activate=false` keeps the current streaming path active.
    */
   reserveBranch(anchorId: string, activate: boolean = true): Message {
     const message = application.get('DbService').withWriteTx((tx) => {
@@ -1225,13 +1224,6 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('reserve branch', 'the branch anchor must be an assistant message')
       }
 
-      const hasChild =
-        tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.parentId, anchor.id), isNull(messageTable.deletedAt)))
-          .limit(1)
-          .get() !== undefined
       const createdAt = Date.now()
       const reservation: typeof messageTable.$inferInsert = {
         topicId: anchor.topicId,
@@ -1242,11 +1234,6 @@ export class MessageService {
         siblingsGroupId: 0,
         createdAt,
         updatedAt: createdAt
-      }
-
-      // A leaf needs two children for the new reservation to form a real branch.
-      if (!hasChild) {
-        tx.insert(messageTable).values(reservation).run()
       }
 
       const [row] = tx.insert(messageTable).values(reservation).returning().all()
