@@ -3,21 +3,23 @@ const path = require('node:path')
 const { resolveReleaseProfile } = require('./release-profile.cjs')
 const root = path.resolve(__dirname, '..')
 const directory = path.join(root, 'manifests')
+const selectedManifest = process.env.RELEASE_MANIFEST_FILE
 const entries = fs
   .readdirSync(directory)
-  .filter((name) => /^installers-.*\.json$/.test(name))
+  .filter((name) => (selectedManifest ? name === selectedManifest : /^installers-.*\.json$/.test(name)))
   .map((name) => JSON.parse(fs.readFileSync(path.join(directory, name))))
 const version = require('../package.json').version
 const profile = resolveReleaseProfile()
 const platforms = profile.supportedPlatforms
 const selected = (process.env.RELEASE_PLATFORMS || platforms.join(',')).split(',')
+const releaseSource = process.env.RELEASE_SOURCE_SHA || process.env.GITHUB_SHA
 for (const target of selected) {
   if (!platforms.includes(target)) throw new Error(`Unknown release platform: ${target}`)
   const [platform, arch] = target.split('-')
   const entry = entries.find((value) => value.platform === platform && value.arch === arch)
   if (
     !entry ||
-    entry.source !== process.env.GITHUB_SHA ||
+    entry.source !== releaseSource ||
     entry.version !== version ||
     entry.profile !== profile.id ||
     entry.features?.uar !== profile.uarEnabled ||
@@ -31,7 +33,7 @@ const previous = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manife
 const previousMatchesRelease =
   previous?.version === version &&
   previous.profile === profile.id &&
-  previous.source === process.env.GITHUB_SHA &&
+  previous.source === releaseSource &&
   previous.features?.uar === profile.uarEnabled
 if (previous?.version === version && !previousMatchesRelease && selected.length !== platforms.length) {
   throw new Error('Existing release metadata does not match the frozen source and feature profile')
@@ -58,15 +60,12 @@ const artifactRows = [
 const pendingPlatforms = platforms.filter(
   (target) => !artifactRows.some((item) => `${item.platform}-${item.arch}` === target)
 )
-if (pendingPlatforms.length > 0) {
-  throw new Error(`Release is missing supported platforms: ${pendingPlatforms.join(', ')}`)
-}
 const manifest = {
   version,
   profile: profile.id,
   features: { uar: profile.uarEnabled },
   supportedPlatforms: [...platforms],
-  source: process.env.GITHUB_SHA,
+  source: releaseSource,
   publishedAt: new Date().toISOString(),
   pendingPlatforms,
   artifacts: artifactRows

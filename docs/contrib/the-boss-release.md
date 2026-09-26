@@ -1,11 +1,15 @@
 ---
-description: Native integration payloads, installer publication, and installed Windows acceptance for The Boss
+description: Native integration payloads, serialized publication, and installed acceptance for The Boss
 sources:
   - .github/workflows/integration-payload.yml
   - .github/workflows/the-boss-release.yml
   - build/integration-sources.json
   - scripts/import-uar-sidecar-payloads.cjs
   - scripts/package-prometheus.js
+  - scripts/coordinate-release-publication.cjs
+  - scripts/queue-release-publication.cjs
+  - scripts/release-capacity.cjs
+  - scripts/release-preflight.cjs
   - scripts/release-profile.cjs
   - scripts/update-release-entry.cjs
   - src/renderer/pages/settings/PrometheusSettings/IntegrationSettings.tsx
@@ -16,16 +20,20 @@ sources:
 The Boss uses **The Boss integration payload** followed by **The Boss Release**.
 The upstream Cherry Studio release runbook describes a separate workflow. For this
 integration release, the operator has authorized commits and publication and has
-selected the installed Windows application as the functional acceptance boundary.
+selected installed Windows x64 and Apple Silicon applications as the functional
+acceptance boundaries.
 Do not run intermediate test suites, review loops, or standalone verification
 builds. Fix compiler and packaging failures in the actual release builds.
 
 ## Select the customer release profile
 
-The release workflow defaults to the existing `non-uar` customer profile on
-manual dispatches and all pushes to `main`. It publishes Windows x64/ARM64 and
-macOS arm64/x64 with `THE_BOSS_UAR_ENABLED=0`; this remains the emergency path
-when UAR sidecar payloads are unavailable.
+The release workflow is manually dispatched with an explicit frozen application
+version and customer profile. `release_version` must match `package.json`, and a
+version already associated with another source or profile is rejected. The
+`non-uar` profile publishes Windows x64/ARM64 and macOS arm64/x64 with
+`THE_BOSS_UAR_ENABLED=0`; it remains the emergency path when UAR sidecar payloads
+are unavailable. The 2.2.2 dispatch defaults to `uar-enabled`; selecting the
+emergency profile is explicit.
 
 For a UAR customer release, dispatch the workflow with `release_profile` set to
 `uar-enabled` and provide both immutable sidecar release record URLs. The workflow
@@ -56,25 +64,31 @@ sidecar payloads are published.
 4. Download the generated `integration-artifacts.json` into `build/`, then commit
    it. Never substitute placeholder hashes or URLs. Its source revisions, binary
    hashes, Compass skill archive, and image digests define the payload.
-5. Dispatch `the-boss-release.yml` from that committed source with the intended
-   customer release profile. The non-UAR profile produces two Windows setup
+5. Set a new application version, then dispatch `the-boss-release.yml` from that
+   committed source with the exact `release_version` and intended customer
+   release profile. Version, profile, and source SHA are frozen before a draft
+   release is created. Each native runner reports free disk, free/total memory,
+   packaged payload size, and the immutable native payload identities before
+   packaging. The non-UAR profile produces two Windows setup
    installers and two macOS DMGs. The UAR profile requires both sidecar release
    records and produces Windows x64 and macOS arm64 installers. Compiler checks
    inside the packaging commands are part of the build. Retain the separate
    Windows and macOS signing configuration and report actual signing status in
    the release metadata.
-6. Successful jobs publish installers through IPFS. The final job requires every
-   selected platform from the same source commit before generating and committing
-   `release-manifest.json` and the new `RELEASES.md` entry. The operator has authorized
-   shipping the five ready platforms before Intel macOS. Record pending platforms
-   explicitly and retain each artifact's source commit when adding Intel later.
-   Keep the source branch
-   unchanged during this final build so the metadata commit can succeed.
-7. In `Know-Me-Tools/boss-landing-spot`, generate download data from the completed
-   release entry with `scripts/sync-release.mjs --file <RELEASES.md> --verify`.
-   Commit it and publish the connected **The Boss Landing** Lovable project.
-   Advertise completed platforms immediately; retain the previous Intel download,
-   labeled with its own version, until the new Intel installer is published.
+6. Each successful native job uploads its installer and an immutable
+   `release-platform-v<version>-<profile>-<platform>-<arch>-<source>.json` asset to
+   GitHub Releases. It then submits that asset to the single publication queue.
+   Publication runs are serialized under `the-boss-release-publication`; native
+   builds remain independent. The coordinator reloads the current branch, merges
+   one idempotent platform record while retaining completed peers, and retries a
+   changed branch head instead of overwriting newer metadata.
+7. The coordinator makes the release public, downloads the installer, verifies
+   its recorded byte size and SHA-256, and dispatches
+   `boss_release_platform_published` to `Know-Me-Tools/boss-landing-spot`. The
+   repository secret `REPO_DISPATCH_TOKEN` must be authorized to dispatch that
+   repository. The landing receiver resolves the immutable manifest asset from
+   the public GitHub Release, regenerates and deploys its release data, and
+   verifies the public bytes before accepting the next queued platform.
 
 For a failed native build, the payload workflow retains completed tool artifacts
 and compiler caches. Its `reuse_native_run`, `native_tools`, and `reuse_image_run`

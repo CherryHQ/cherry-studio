@@ -9,13 +9,19 @@ const profileNote = profile.uarEnabled
   ? `Feature profile: ${profile.id}. Includes the complete pinned UAR sidecar payload for Windows x64 and Apple Silicon.`
   : `Feature profile: ${profile.id}. UAR is unavailable in this customer release while its sidecar packaging is corrected.`
 
-const existing = spawnSync('gh', ['release', 'view', tag, '--repo', repository, '--json', 'body', '--jq', '.body'], {
+const existing = spawnSync('gh', ['release', 'view', tag, '--repo', repository, '--json', 'body,targetCommitish'], {
   encoding: 'utf8'
 })
 if (existing.status === 0) {
-  const existingProfile = existing.stdout.match(/^Feature profile: ([a-z-]+)\./m)?.[1]
+  const release = JSON.parse(existing.stdout)
+  const existingProfile = release.body.match(/^Feature profile: ([a-z-]+)\./m)?.[1]
   if (existingProfile !== profile.id) {
     throw new Error(`GitHub Release ${tag} already belongs to feature profile ${existingProfile || 'unknown'}`)
+  }
+  if (release.targetCommitish !== process.env.GITHUB_SHA) {
+    throw new Error(
+      `GitHub Release ${tag} targets ${release.targetCommitish}, not frozen source ${process.env.GITHUB_SHA}`
+    )
   }
   console.log(`Using existing GitHub Release ${tag}`)
   process.exit(0)

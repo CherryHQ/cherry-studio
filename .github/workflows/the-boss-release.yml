@@ -1,12 +1,17 @@
 name: The Boss Release
-run-name: Installers (${{ github.event_name == 'workflow_dispatch' && inputs.release_profile || 'non-uar' }}) ${{ github.ref_name }} @ ${{ github.sha }}
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Publish {0}-{1} {2}', github.event.client_payload.platform, github.event.client_payload.arch, github.event.client_payload.tag) || format('Installers ({0}) {1} @ {2}', inputs.release_profile, inputs.release_version, github.sha) }}
 on:
   workflow_dispatch:
     inputs:
+      release_version:
+        description: Frozen application version (must match package.json)
+        required: true
+        default: 2.2.2
+        type: string
       release_profile:
         description: Customer release profile
         required: true
-        default: non-uar
+        default: uar-enabled
         type: choice
         options:
           - non-uar
@@ -23,28 +28,22 @@ on:
         description: Immutable darwin-arm64 UAR sidecar release record URL (required for uar-enabled)
         required: false
         type: string
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - docs/**
-      - .kbd-orchestrator/**
-      - .prometheus/**
-      - openspec/**
-      - release-manifest.json
-      - build/integration-artifacts.json
+  repository_dispatch:
+    types: [boss_release_platform_published]
 concurrency:
-  group: the-boss-release-${{ github.ref }}
+  group: ${{ github.event_name == 'repository_dispatch' && 'the-boss-release-publication' || format('the-boss-release-{0}', github.ref) }}
   cancel-in-progress: false
 env:
   NODE_OPTIONS: --max-old-space-size=8192
-  THE_BOSS_UAR_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.release_profile == 'uar-enabled' && '1' || '0' }}
+  RELEASE_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || inputs.release_version }}
+  THE_BOSS_UAR_ENABLED: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.profile == 'uar-enabled' && '1' || inputs.release_profile == 'uar-enabled' && '1' || '0' }}
   UAR_WIN32_X64_RECORD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.uar_win32_x64_record_url || '' }}
   UAR_DARWIN_ARM64_RECORD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.uar_darwin_arm64_record_url || '' }}
 permissions:
   contents: read
 jobs:
   platforms:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
@@ -52,6 +51,11 @@ jobs:
       profile: ${{ steps.select.outputs.profile }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Freeze release version, profile, and source
+        run: node scripts/release-preflight.cjs
       - name: Import complete UAR sidecar payload
         if: env.THE_BOSS_UAR_ENABLED == '1'
         run: node scripts/import-uar-sidecar-payloads.cjs
@@ -60,6 +64,8 @@ jobs:
           RELEASE_PLATFORMS: ${{ inputs.platforms }}
         run: node scripts/release-platforms.cjs
   prepare-release:
+    if: github.event_name == 'workflow_dispatch'
+    needs: platforms
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -70,6 +76,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/prepare-github-release.cjs
   build:
+    if: github.event_name == 'workflow_dispatch'
     needs: [platforms, prepare-release]
     name: Installer (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -100,6 +107,8 @@ jobs:
       - name: Import complete UAR sidecar payload
         if: env.THE_BOSS_UAR_ENABLED == '1'
         run: node scripts/import-uar-sidecar-payloads.cjs
+      - name: Report native release capacity and payloads
+        run: node scripts/release-capacity.cjs --platform ${{ matrix.platform }}-${{ matrix.arch }} --report-only
       - uses: pnpm/action-setup@v5
       - uses: actions/cache@v6
         with:
@@ -124,15 +133,18 @@ jobs:
             echo "macOS releases require Developer ID signing and App Store Connect notarization credentials" >&2
             exit 1
           fi
-      - name: Check Windows runner capacity
+      - name: Recover Windows runner capacity
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          node scripts/release-capacity.cjs
+          node scripts/release-capacity.cjs --platform ${{ matrix.platform }}-${{ matrix.arch }}
           if ($LASTEXITCODE -ne 0) {
             pnpm store prune
-            node scripts/release-capacity.cjs
+            node scripts/release-capacity.cjs --platform ${{ matrix.platform }}-${{ matrix.arch }}
           }
+      - name: Require macOS runner capacity
+        if: runner.os == 'macOS'
+        run: node scripts/release-capacity.cjs --platform ${{ matrix.platform }}-${{ matrix.arch }}
       - name: Compile Windows NSIS uninstall hook
         if: runner.os == 'Windows'
         shell: pwsh
@@ -188,48 +200,46 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/publish-installers.cjs
+      - name: Queue serialized metadata and site publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/queue-release-publication.cjs
       - name: Record release runner capacity
-        if: runner.os == 'Windows'
-        run: node scripts/release-capacity.cjs --report-only
+        run: node scripts/release-capacity.cjs --platform ${{ matrix.platform }}-${{ matrix.arch }} --report-only
       - uses: actions/upload-artifact@v5
         with:
           name: installers-${{ matrix.platform }}-${{ matrix.arch }}
           path: installers-${{ matrix.platform }}-${{ matrix.arch }}.json
           if-no-files-found: error
           retention-days: 90
-  publish-complete-release:
-    needs: [build, platforms]
+  publish-platform:
+    if: github.event_name == 'repository_dispatch'
     runs-on: ubuntu-24.04
     permissions:
-      actions: read
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - uses: actions/download-artifact@v6
-        with:
-          pattern: installers-*
-          path: manifests
-          merge-multiple: true
-      - name: Generate complete release entry
-        env:
-          RELEASE_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
-        run: node scripts/update-release-entry.cjs
-      - name: Commit release metadata through GitHub
+      - name: Merge, publish, verify, and dispatch platform
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/commit-release-entry.cjs
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "v$(node -p "require('./package.json').version")" --draft=false --latest
-      - name: Verify public release assets
-        run: node scripts/verify-github-release.cjs
+          LANDING_DISPATCH_TOKEN: ${{ secrets.REPO_DISPATCH_TOKEN }}
+          LANDING_REPOSITORY: Know-Me-Tools/boss-landing-spot
+          RELEASE_ARCH: ${{ github.event.client_payload.arch }}
+          RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_MANIFEST_ASSET: ${{ github.event.client_payload.manifestAsset }}
+          RELEASE_PLATFORM: ${{ github.event.client_payload.platform }}
+          RELEASE_PROFILE: ${{ github.event.client_payload.profile }}
+          RELEASE_TAG: ${{ github.event.client_payload.tag }}
+        run: node scripts/coordinate-release-publication.cjs
       - uses: actions/upload-artifact@v5
         with:
-          name: complete-release
+          name: published-${{ github.event.client_payload.platform }}-${{ github.event.client_payload.arch }}
           path: |
             release-manifest.json
             RELEASES.md
