@@ -283,9 +283,10 @@ export function registerAgentMethods(
         ...(updatedInput ? { updatedInput } : {}),
         ...('reason' in response ? { reason: response.reason } : {})
       }
-      if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
-      ) {
+      const { dispatched } = application
+        .get('AgentSessionRuntimeService')
+        .respondToolApproval(params.interactionId, decision, anchorId)
+      if (!dispatched) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
       journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')

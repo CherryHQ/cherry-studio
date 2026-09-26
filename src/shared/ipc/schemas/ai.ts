@@ -310,9 +310,10 @@ export const aiRequestSchemas = {
       reason: z.string().optional(),
       updatedInput: z.record(z.string(), z.unknown()).optional(),
       topicId: z.string().optional(),
-      anchorId: z.string().optional()
+      anchorId: z.string().optional(),
+      executionModelId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.object({ ok: z.boolean(), executionModelId: z.string().optional() })
   }),
 
   // ── Agent session warm-connection lifecycle ──

@@ -67,7 +67,11 @@ const fake = vi.hoisted(() => {
         beforeAbort?.()
       })
     },
-    runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+    runtime: {
+      assertSessionWritable() {},
+      isSessionBusy: () => false,
+      respondToolApproval: vi.fn(() => ({ dispatched: true, modelHandoff: false }))
+    }
   }
 })
 

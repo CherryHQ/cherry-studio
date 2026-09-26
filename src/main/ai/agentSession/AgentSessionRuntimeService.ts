@@ -122,6 +122,9 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/** Plan-exit tool names across runtimes (Claude Code `ExitPlanMode`, dsh `exit_plan_mode`) — the
+ *  only approvals eligible for the approve-with-execution-model handoff. */
+const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set(['ExitPlanMode', 'exit_plan_mode'])
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -1440,14 +1443,19 @@ export class AgentSessionRuntimeService extends BaseService {
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
    * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+  respondToolApproval(
+    approvalId: string,
+    decision: DispatchDecision,
+    anchorId?: string,
+    options?: { executionModelId?: string }
+  ): { dispatched: boolean; modelHandoff: boolean } {
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return false
+    if (!pending) return { dispatched: false, modelHandoff: false }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
+        return { dispatched: false, modelHandoff: false }
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1460,18 +1468,48 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return false
+        return { dispatched: false, modelHandoff: false }
       }
     }
 
     const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
-    if (!dispatched) return false
+    if (!dispatched) return { dispatched: false, modelHandoff: false }
 
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
+
+    const modelHandoff =
+      decision.approved &&
+      typeof options?.executionModelId === 'string' &&
+      PLAN_EXIT_TOOL_NAMES.has(dispatched.toolName) &&
+      this.stopTurnForModelHandoff(dispatched.sessionId, options.executionModelId)
+    return { dispatched: true, modelHandoff }
+  }
+
+  /**
+   * Plan-approval model handoff: the plan was approved (the SDK history records the tool result as
+   * allowed), but the user asked for a different execution model. The running model is spawn-frozen
+   * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
+   * Stop performs — and the renderer completes it by switching the agent model and sending the
+   * execution follow-up, which starts a fresh turn on the new model with the session resumed.
+   * Returns false (no handoff) when the session has no entry or the turn already runs that model.
+   */
+  private stopTurnForModelHandoff(sessionId: string, executionModelId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return false
+    const runningModelId = this.liveTurn(entry)?.modelId ?? entry.modelId
+    if (runningModelId === executionModelId) return false
+
+    logger.info('Stopping approved plan turn for execution-model handoff', {
+      sessionId,
+      executionModelId,
+      runningModelId
+    })
+    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    void this.closeSession(sessionId)
     return true
   }
 

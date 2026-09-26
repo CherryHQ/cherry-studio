@@ -38,6 +38,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toEqual({
       sessionId: 's1',
       toolCallId: 'tc1',
+      toolName: 'bash',
       presentation: 'stream'
     })
     await expect(result).resolves.toEqual({ approved: true })

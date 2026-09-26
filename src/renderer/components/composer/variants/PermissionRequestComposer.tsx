@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -12,10 +12,12 @@ import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/A
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import type { Model } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -24,6 +26,9 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+/** Plan-exit tool names across runtimes — the approvals that offer an execution-model handoff. */
+const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set([AgentToolsType.ExitPlanMode, 'exit_plan_mode'])
 
 function isHandledElsewhere(event: KeyboardEvent) {
   return event.defaultPrevented || event.isComposing
@@ -162,6 +167,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
+  // Plan approval only: a model chosen for execution restarts the turn on that model; undefined
+  // keeps the "current model" option, which approves and continues the running turn as before.
+  const [executionModel, setExecutionModel] = useState<Model | undefined>(undefined)
+  const isPlanExitApproval = PLAN_EXIT_TOOL_NAMES.has(request.toolResponse.tool.name.trim())
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
@@ -193,11 +202,12 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     await respond(
       {
         match: request.match,
-        approved: true
+        approved: true,
+        ...(executionModel ? { executionModelId: executionModel.id } : {})
       },
       'approve'
     )
-  }, [isSubmitting, request.match, respond])
+  }, [executionModel, isSubmitting, request.match, respond])
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
@@ -251,6 +261,37 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
+
+        {isPlanExitApproval ? (
+          <div className="mt-2.5 flex items-center gap-2 px-1" data-testid="plan-execution-model">
+            <span className="shrink-0 text-muted-foreground text-xs">
+              {t('agent.toolPermission.executionModel.label')}
+            </span>
+            <ModelSelector
+              multiple={false}
+              includeAgentOnlyModels
+              value={executionModel}
+              noneOptionLabel={t('agent.toolPermission.executionModel.current')}
+              onSelect={setExecutionModel}
+              side="top"
+              align="start"
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isSubmitting}
+                  className="h-7 min-w-0 flex-1 justify-between gap-1 px-2 text-xs font-normal"
+                  aria-label={t('agent.toolPermission.executionModel.label')}>
+                  <span className="truncate" title={executionModel?.name}>
+                    {executionModel ? executionModel.name : t('agent.toolPermission.executionModel.current')}
+                  </span>
+                  <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                </Button>
+              }
+            />
+          </div>
+        ) : null}
 
         <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
           <span>{t('agent.toolPermission.reasonLabel')}</span>
