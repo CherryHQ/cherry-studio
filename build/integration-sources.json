@@ -20,7 +20,7 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "cbaa3128489ca19507369aae9da33e2cb3f69c26"
+      "revision": "2650b3d470373d822f9cfd2349229942c05c1566"
     },
     "uar": {
       "repository": "Prometheus-AGS/universal-agent-runtime",
@@ -32,7 +32,7 @@
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",
-      "revision": "7a8c7540a77962112e7ca99a2f77f2316ed86601"
+      "revision": "4f25d39f0075656b70bf945880d6033beda6d663"
     }
   },
   "tools": {
@@ -67,7 +67,7 @@
     "liter-llm": {
       "source": "liter-llm",
       "package": "liter-llm-cli",
-      "version": "2.0.3"
+      "version": "2.1.1"
     }
   },
   "parser": {
