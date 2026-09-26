@@ -207,6 +207,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Tooltip: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
+      <>
+        {children}
+        <span role="tooltip">{content}</span>
+      </>
+    ),
     PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
       <div>
         <h2>{title}</h2>
@@ -1405,7 +1411,14 @@ describe('BaseNavigator', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
     expect(screen.getByText('已选 2 项')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '移动到' }))
+    const moveButton = screen.getByRole('button', { name: '移动到' })
+    const deleteButton = screen.getByRole('button', { name: '删除' })
+    expect(moveButton).toHaveTextContent('')
+    expect(deleteButton).toHaveTextContent('')
+    expect(screen.getByRole('tooltip', { name: '移动到' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '删除' })).toBeInTheDocument()
+
+    fireEvent.click(moveButton)
     fireEvent.click(getMenuButton('Research'))
 
     await waitFor(() => {
