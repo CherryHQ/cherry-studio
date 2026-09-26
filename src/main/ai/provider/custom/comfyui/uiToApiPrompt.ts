@@ -198,7 +198,7 @@ export const isReference = (value: unknown): value is Reference =>
  * prompt when a required key is simply absent — the built-in `ImageCompare`
  * (`compare_view`, socketless) failed every Qwen-Image-Edit run that way. */
 function requiredInputFallbacks(info: ObjectInfo[string], values?: unknown[]): Array<[string, unknown]> {
-  const spec = info.input?.required as JsonObject | undefined
+  const spec = info.input?.required
   if (!spec) return []
   const declared = info.input_order?.required ?? []
   const names = declared.length > 0 ? declared.filter((name) => name in spec) : Object.keys(spec)
