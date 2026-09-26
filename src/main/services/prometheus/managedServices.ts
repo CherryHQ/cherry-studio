@@ -225,7 +225,32 @@ export async function runManagedServiceAction(
       total: managed.length,
       unit: 'services'
     })
-    results.push(await run('up', service === 'memory' ? 'surreal-memory' : 'liter-llm'))
+    if (service === 'liter') {
+      results.push(
+        await runIntegrationProcess(
+          'docker',
+          [
+            'compose',
+            '--project-name',
+            'the-boss-prometheus',
+            '--project-directory',
+            serviceDirectory(),
+            '--env-file',
+            path.join(serviceDirectory(), '.env'),
+            '-f',
+            path.join(serviceDirectory(), 'compose.yaml'),
+            'up',
+            '-d',
+            '--no-build',
+            '--force-recreate',
+            'liter-llm'
+          ],
+          { signal, onOutput, secrets: Object.values(secrets) }
+        )
+      )
+    } else {
+      results.push(await run('up', 'surreal-memory'))
+    }
     onStage('starting', {
       current: (managed.includes('surrealdb') ? 1 : 0) + index + 1,
       total: managed.length,

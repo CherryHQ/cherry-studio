@@ -48,6 +48,7 @@ import {
 import { StaleIntegrationRevisionError } from './integrationErrors'
 import { IntegrationOperationRunner, type IntegrationOperationControls } from './integrationOperationRunner'
 import { fetchLiterLiveModels, reconcileLiterCatalog, type LiterLiveModel } from './literGatewayCatalog'
+import { synchronizeManagedLiterRoles } from './literRoleAssignments'
 import { runManagedServiceAction, serviceDirectory } from './managedServices'
 import { writeMiniConfiguration } from './miniCommands'
 import { discoverServiceCandidates } from './serviceDiscovery'
@@ -271,6 +272,7 @@ export class PrometheusIntegrationService extends BaseService {
         revisions: { ...document.revisions, services: document.revisions.services + 1 },
         config
       })
+      await synchronizeManagedLiterRoles()
       await writeMiniConfiguration()
       if (isUarEnabled()) await readUarModelSources()
       return { revision: document.revisions.services + 1, assignments: mutation.assignments }

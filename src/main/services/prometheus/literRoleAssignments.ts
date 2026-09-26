@@ -56,11 +56,13 @@ async function resolveSource(source: LiterRoleSource): Promise<{ path: string; c
 
 type LiterRoleCandidate =
   | {
+      status: 'conflict'
       current: Awaited<ReturnType<typeof resolveSource>>
       currentRevision: string
       conflict: { expectedRevision: string; currentRevision: string }
     }
   | {
+      status: 'ready'
       current: Awaited<ReturnType<typeof resolveSource>>
       currentRevision: string
       content: string
@@ -96,7 +98,7 @@ async function candidate(source: LiterRoleSource, expectedRevision: string): Pro
   const current = await resolveSource(source)
   const currentRevision = revisionOf(current.content)
   if (currentRevision !== expectedRevision) {
-    return { current, currentRevision, conflict: { expectedRevision, currentRevision } }
+    return { status: 'conflict', current, currentRevision, conflict: { expectedRevision, currentRevision } }
   }
   const assignments = readIntegrationConfig().services.literRoles
   if (!assignments) throw new Error('prometheus.error.literRolesIncomplete')
@@ -121,7 +123,7 @@ async function candidate(source: LiterRoleSource, expectedRevision: string): Pro
       content = editToml(content, `role_identities.${role}_model_id`, assignment.model.modelId)
     }
     if (!assignmentsFromDocument(parseToml(content))) throw new Error('invalid role assignment document')
-    return { current, currentRevision, content }
+    return { status: 'ready', current, currentRevision, content }
   } catch {
     throw new Error('prometheus.error.literRoleInvalid')
   }
@@ -181,7 +183,7 @@ export async function applySavedLiterRoles(
   expectedRevision: string
 ): Promise<LiterRoleApplyResult> {
   const prepared = await candidate(source, expectedRevision)
-  if (!('content' in prepared)) {
+  if (prepared.status === 'conflict') {
     return {
       source,
       state: 'conflict',
@@ -201,12 +203,18 @@ export async function applySavedLiterRoles(
   }
 }
 
+export async function synchronizeManagedLiterRoles(): Promise<LiterRoleApplyResult> {
+  const source = { ownership: 'managed' } as const
+  const current = await readLiterRoleDocument(source)
+  return applySavedLiterRoles(source, current.revision)
+}
+
 export async function exportSavedLiterRoles(
   source: LiterRoleSource,
   expectedRevision: string
 ): Promise<LiterRoleExportResult> {
   const prepared = await candidate(source, expectedRevision)
-  if (!('content' in prepared)) {
+  if (prepared.status === 'conflict') {
     return { cancelled: false, state: 'conflict', conflict: prepared.conflict }
   }
   const selected = await dialog.showSaveDialog({

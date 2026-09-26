@@ -29,6 +29,14 @@ const EMPTY_CONFIG =
   '[server]\nhost = "0.0.0.0"\nport = 4000\n\n[general]\nmaster_key = "${LITER_LLM_MASTER_KEY}"\n\n[security]\noutbound_policy = "deny_private"\n'
 type TomlEditor = typeof import('@rainbowatcher/toml-edit-js')
 
+type LiterModelDocument = {
+  name: string
+  provider_model: string
+  api_key?: string
+  base_url?: string
+  timeout_secs: number
+}
+
 let tomlEditorReady: Promise<TomlEditor> | undefined
 
 function revisionOf(source: string): string {
@@ -76,11 +84,13 @@ async function resolveSource(source: LiterConfigSource): Promise<{ path: string;
 
 type LiterConfigCandidate =
   | {
+      status: 'conflict'
       current: Awaited<ReturnType<typeof resolveSource>>
       currentRevision: string
       conflict: { expectedRevision: string; currentRevision: string }
     }
   | {
+      status: 'ready'
       current: Awaited<ReturnType<typeof resolveSource>>
       currentRevision: string
       content: string
@@ -145,6 +155,32 @@ async function validate(
   }
 }
 
+function upsertModelTables(document: string, models: LiterModelDocument[], editor: TomlEditor): string {
+  const parsed = editor.parse(document) as { models?: unknown }
+  const existing = Array.isArray(parsed.models) ? parsed.models : []
+  const indices = new Map<string, number>()
+  existing.forEach((model, index) => {
+    if (model && typeof model === 'object' && typeof (model as { name?: unknown }).name === 'string') {
+      indices.set((model as { name: string }).name, index)
+    }
+  })
+
+  let content = document
+  let nextIndex = existing.length
+  for (const model of models) {
+    const index = indices.get(model.name)
+    if (index === undefined) {
+      const separator = content.endsWith('\n') ? '\n' : '\n\n'
+      content = `${content}${separator}[[models]]\n${editor.stringify(model).trim()}\n`
+      indices.set(model.name, nextIndex++)
+      continue
+    }
+    for (const field of ['name', 'provider_model', 'api_key', 'base_url', 'timeout_secs'] as const) {
+      content = editor.edit(content, `models.[${index}].${field}`, model[field])
+    }
+  }
+  return content
+}
 async function candidate(
   source: LiterConfigSource,
   expectedRevision: string,
@@ -154,34 +190,40 @@ async function candidate(
   const currentRevision = revisionOf(current.content)
   if (currentRevision !== expectedRevision) {
     return {
+      status: 'conflict',
       current,
       currentRevision,
       conflict: { expectedRevision, currentRevision }
     }
   }
-  const { edit: editToml, parse: parseToml } = await ensureTomlEditor()
+  const editor = await ensureTomlEditor()
   try {
-    parseToml(current.content)
-    const content = edits.reduce((document, change) => editToml(document, change.path, change.value), current.content)
-    return { current, currentRevision, content }
+    editor.parse(current.content)
+    const content = edits.reduce(
+      (document, change) =>
+        change.path === 'models' && Array.isArray(change.value)
+          ? upsertModelTables(document, change.value as LiterModelDocument[], editor)
+          : editor.edit(document, change.path, change.value),
+      current.content
+    )
+    return { status: 'ready', current, currentRevision, content }
   } catch {
     throw new Error('prometheus.error.literConfigInvalid')
   }
-}
-
-type LiterModelDocument = {
-  name: string
-  provider_model: string
-  api_key?: string
-  base_url?: string
-  timeout_secs: number
 }
 
 function selectedGatewayId(endpoint: string): string {
   return `gateway-${createHash('sha256').update(new URL(endpoint).href).digest('hex').slice(0, 16)}`
 }
 
-async function savedGatewayEdits(): Promise<LiterConfigEdit[]> {
+function managedProviderUrl(value: string): { value: string; replacedLoopback: boolean } {
+  const url = new URL(value)
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return { value, replacedLoopback: false }
+  url.hostname = 'host.docker.internal'
+  return { value: url.href.replace(/\/$/, ''), replacedLoopback: true }
+}
+
+async function savedGatewayEdits(source: LiterConfigSource): Promise<LiterConfigEdit[]> {
   const config = readIntegrationConfig()
   const gatewayConnectionId = selectedGatewayId(config.services.liter.endpoint)
   const connections = new Map(
@@ -190,20 +232,36 @@ async function savedGatewayEdits(): Promise<LiterConfigEdit[]> {
       .map((connection) => [connection.providerConnectionId, connection])
   )
   const models: LiterModelDocument[] = []
+  const outboundOrigins = new Set<string>()
+  let replacedLoopback = false
   for (const alias of config.services.literAliases) {
     if (!alias.enabled || alias.gatewayConnectionId !== gatewayConnectionId) continue
     const connection = connections.get(alias.target.providerConnectionId)
     if (!connection) continue
     const credential = await readLiterConnectionCredential(connection.providerConnectionId)
+    const baseUrl =
+      source.ownership === 'managed' && connection.baseUrl
+        ? managedProviderUrl(connection.baseUrl)
+        : { value: connection.baseUrl, replacedLoopback: false }
+    if (baseUrl.value) outboundOrigins.add(new URL(baseUrl.value).origin)
+    replacedLoopback ||= baseUrl.replacedLoopback
     models.push({
       name: alias.alias,
       provider_model: `${alias.target.providerId}/${alias.target.modelId}`,
       ...(credential ? { api_key: credential } : {}),
-      ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
+      ...(baseUrl.value ? { base_url: baseUrl.value } : {}),
       timeout_secs: Math.max(1, Math.ceil(connection.timeoutMs / 1000))
     })
   }
-  return [{ path: 'models', value: models }]
+  return [
+    { path: 'models', value: models },
+    ...(replacedLoopback
+      ? [
+          { path: 'security.outbound_policy', value: 'allowlist' },
+          { path: 'security.outbound_allowlist', value: [...outboundOrigins] }
+        ]
+      : [])
+  ]
 }
 
 export async function readLiterConfig(source: LiterConfigSource): Promise<LiterConfigSnapshot> {
@@ -225,7 +283,7 @@ export async function previewLiterConfig(
   edits: LiterConfigEdit[]
 ): Promise<LiterConfigPreview> {
   const prepared = await candidate(source, expectedRevision, edits)
-  if (!('content' in prepared)) {
+  if (prepared.status === 'conflict') {
     return {
       source,
       baseRevision: prepared.currentRevision,
@@ -249,7 +307,7 @@ export async function previewSavedLiterConfig(
   source: LiterConfigSource,
   expectedRevision: string
 ): Promise<LiterConfigPreview> {
-  return previewLiterConfig(source, expectedRevision, await savedGatewayEdits())
+  return previewLiterConfig(source, expectedRevision, await savedGatewayEdits(source))
 }
 
 async function writeCandidate(
@@ -284,7 +342,7 @@ export async function applyLiterConfig(
   edits: LiterConfigEdit[]
 ): Promise<LiterConfigApplyResult> {
   const prepared = await candidate(source, expectedRevision, edits)
-  if (!('content' in prepared)) {
+  if (prepared.status === 'conflict') {
     return {
       source,
       baseRevision: prepared.currentRevision,
@@ -318,7 +376,7 @@ export async function applySavedLiterConfig(
   source: LiterConfigSource,
   expectedRevision: string
 ): Promise<LiterConfigApplyResult> {
-  return applyLiterConfig(source, expectedRevision, await savedGatewayEdits())
+  return applyLiterConfig(source, expectedRevision, await savedGatewayEdits(source))
 }
 
 export async function exportLiterConfig(
@@ -328,7 +386,7 @@ export async function exportLiterConfig(
   remoteEndpoint?: string
 ): Promise<LiterConfigExportResult> {
   const prepared = await candidate(source, expectedRevision, edits)
-  if (!('content' in prepared)) {
+  if (prepared.status === 'conflict') {
     return {
       cancelled: false,
       remoteEndpoint,
@@ -338,22 +396,33 @@ export async function exportLiterConfig(
   }
   const validation = (await validate(prepared.content)).result
   if (!validation.valid) return { cancelled: false, remoteEndpoint, validation }
-  const selected = await dialog.showSaveDialog({
-    defaultPath: 'liter-llm-proxy.toml',
-    filters: [{ name: 'TOML configuration', extensions: ['toml'] }]
-  })
-  if (selected.canceled || !selected.filePath) return { cancelled: true, remoteEndpoint }
-  const staged = `${selected.filePath}.${randomUUID()}.tmp`
+  let exportPath: string
+  if (remoteEndpoint) {
+    const directory = path.join(integrationDirectory(), 'exports')
+    await fs.mkdir(directory, { recursive: true, mode: 0o700 })
+    exportPath = path.join(
+      directory,
+      `liter-llm-${createHash('sha256').update(new URL(remoteEndpoint).href).digest('hex').slice(0, 16)}.toml`
+    )
+  } else {
+    const selected = await dialog.showSaveDialog({
+      defaultPath: 'liter-llm-proxy.toml',
+      filters: [{ name: 'TOML configuration', extensions: ['toml'] }]
+    })
+    if (selected.canceled || !selected.filePath) return { cancelled: true }
+    exportPath = selected.filePath
+  }
+  const staged = `${exportPath}.${randomUUID()}.tmp`
   try {
     await fs.writeFile(staged, prepared.content, { mode: 0o600 })
-    await fs.rename(staged, selected.filePath)
+    await fs.rename(staged, exportPath)
   } finally {
     await fs.rm(staged, { force: true })
   }
   return {
     cancelled: false,
     remoteEndpoint,
-    path: selected.filePath,
+    path: exportPath,
     revision: revisionOf(prepared.content),
     validation,
     state: 'deployment-required'
@@ -366,5 +435,5 @@ export async function exportSavedLiterConfig(
   expectedRevision: string,
   remoteEndpoint?: string
 ): Promise<LiterConfigExportResult> {
-  return exportLiterConfig(source, expectedRevision, await savedGatewayEdits(), remoteEndpoint)
+  return exportLiterConfig(source, expectedRevision, await savedGatewayEdits(source), remoteEndpoint)
 }
