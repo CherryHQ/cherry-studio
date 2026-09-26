@@ -3573,24 +3573,32 @@ export class AgentSessionRuntimeService extends BaseService {
     if (connectionAttempt) closings.push(connectionAttempt)
     return Promise.allSettled(closings).then(async () => {
       const cacheService = application.get('CacheService')
-      // Roots still unresolved get one last look-up; whatever the row never claimed is reported
-      // rather than dropped silently, so a lost flow is observable instead of invisible.
+      // Roots still unresolved get one last look-up. A thrown lookup is a transient failure, not an
+      // absent row, so it is retried once and reported as an error before the root is written off.
       for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
-        try {
-          this.recoverDetachedFlowHost(entry, rootToolCallId)
-        } catch (error) {
-          logger.warn('Detached flow recovery lookup failed at teardown', {
+        let lastError: unknown
+        let recovered = false
+        for (let attempt = 0; attempt < 2 && !recovered; attempt += 1) {
+          try {
+            recovered = this.recoverDetachedFlowHost(entry, rootToolCallId) !== undefined
+          } catch (error) {
+            lastError = error
+          }
+        }
+        if (lastError !== undefined && !recovered) {
+          logger.error('Detached flow recovery lookup failed at teardown', {
             sessionId: entry.sessionId,
             rootToolCallId,
-            error
+            error: lastError
           })
         }
         const leftover = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
         if (leftover?.length) {
-          logger.warn('Detached subagent flow chunks dropped at teardown without a host row', {
+          logger.warn('Detached subagent flow chunks dropped at teardown', {
             sessionId: entry.sessionId,
             rootToolCallId,
-            chunkCount: leftover.length
+            chunkCount: leftover.length,
+            reason: lastError !== undefined && !recovered ? 'lookup-failed' : 'no-host-row'
           })
         }
       }

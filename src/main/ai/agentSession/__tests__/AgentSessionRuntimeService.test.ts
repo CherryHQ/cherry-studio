@@ -2844,6 +2844,31 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingBackgroundFlowChunks).toBeUndefined()
     })
 
+    it('retries a throwing teardown lookup before writing the root off', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      // Every lookup fails: a transient failure must not read as an absent row on the first throw.
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'lost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      mocks.findFlowHostMessageId.mockClear()
+      await service.closeSession('session-1')
+
+      // The in-flight attempt plus the teardown retry.
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
+    })
+
     it('hands failed-flush parts to the cache overlay so teardown does not lose them', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
