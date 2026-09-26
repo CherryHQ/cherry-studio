@@ -42,6 +42,7 @@ import { cn } from '@renderer/utils/style'
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
+import { useCodeBlockWrapLines } from './wrapLinesContext'
 
 const logger = loggerService.withContext('CodeBlockView')
 const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
@@ -92,6 +93,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
   const [codeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable] = usePreference('chat.code.wrappable')
+  const wrapLines = useCodeBlockWrapLines()
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
@@ -182,7 +184,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     () => maxHeight === undefined && (!codeCollapsible || expandOverride),
     [codeCollapsible, expandOverride, maxHeight]
   )
-  const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+  const shouldWrap = useMemo(
+    () => wrapLines || (codeWrappable && wrapOverride),
+    [codeWrappable, wrapLines, wrapOverride]
+  )
   const sourceMaxHeight =
     typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
@@ -303,7 +308,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   useWrapTool({
     enabled: !isInSpecialView,
     wrapped: shouldWrap,
-    wrappable: codeWrappable,
+    wrappable: codeWrappable && !wrapLines,
     toggle: handleToggleWrapped,
     setTools
   })
