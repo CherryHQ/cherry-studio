@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Agents domain API Handlers
  *
  * Thin routing layer between the DataApi transport and the existing agent
@@ -73,6 +73,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      const result = agentService.deleteAgent(params.agentId)
+      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return result
     }
   },
 
