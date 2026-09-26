@@ -439,6 +439,8 @@ export const ModelSnapshotSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   provider: z.string(),
+  /** Provider/channel display name frozen at message creation time. */
+  providerName: z.string().optional(),
   group: z.string().optional()
 })
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
