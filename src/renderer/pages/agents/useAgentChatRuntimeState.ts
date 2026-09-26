@@ -153,6 +153,12 @@ interface UseAgentChatRuntimeStateParams {
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
+  /**
+   * Plan-approval model handoff: Main approved the plan, stopped the turn, and reported the
+   * chosen execution model. The host page completes the handoff — switch the agent model, wait
+   * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
+   */
+  onPlanModelHandoff?: (modelId: string) => void
 }
 
 export function useAgentChatRuntimeState({
@@ -161,7 +167,8 @@ export function useAgentChatRuntimeState({
   agentType,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
-  reservedMessages
+  reservedMessages,
+  onPlanModelHandoff
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
@@ -389,7 +396,8 @@ export function useAgentChatRuntimeState({
           reason,
           updatedInput,
           topicId: sessionTopicId,
-          anchorId: match.messageId
+          anchorId: match.messageId,
+          executionModelId: input.executionModelId
         })
       } catch (error) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
@@ -400,9 +408,10 @@ export function useAgentChatRuntimeState({
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
         throw new Error('Tool approval response was not accepted')
       }
+      if (result.executionModelId) onPlanModelHandoff?.(result.executionModelId)
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

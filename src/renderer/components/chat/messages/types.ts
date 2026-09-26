@@ -183,6 +183,8 @@ export interface MessageToolApprovalInput {
   approved: boolean
   reason?: string
   updatedInput?: Record<string, unknown>
+  /** Plan approval only: execute the approved plan with this model (turn restarts on it). */
+  executionModelId?: string
 }
 
 export interface MessageErrorDetailInput {
