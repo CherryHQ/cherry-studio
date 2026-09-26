@@ -513,6 +513,7 @@
           "CommandOrControl",
           "["
         ],
+        "customized": false,
         "enabled": true
       },
       "status": "classified",
@@ -752,6 +753,7 @@
           "CommandOrControl",
           "]"
         ],
+        "customized": false,
         "enabled": true
       },
       "status": "classified",
@@ -769,6 +771,32 @@
       },
       "status": "classified",
       "description": "Command shortcut: tab.close (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.history.back",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "["
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.history.back (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.history.forward",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "]"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.history.forward (unified command system)"
     },
     {
       "targetKey": "shortcut.tab.next",

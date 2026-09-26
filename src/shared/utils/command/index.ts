@@ -20,6 +20,8 @@ export {
   type FindKeybindingConflictsOptions,
   getCommandAccelerator,
   getCommandDefaultShortcutPreference,
+  inferLegacySidebarShortcutCustomized,
+  isLegacySidebarDefaultBinding,
   isPlatformSupported,
   type KeybindingConflict,
   type KeybindingTriggerSource,

@@ -15,6 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { inferLegacySidebarShortcutCustomized } from '@shared/utils/command'
 import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
@@ -102,7 +103,8 @@ export const transformShortcuts: TransformFunction = (sources) => {
     const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
-    result[targetKey] = { binding, enabled }
+    const customized = inferLegacySidebarShortcutCustomized(targetKey)
+    result[targetKey] = { binding, ...(customized !== undefined ? { customized } : {}), enabled }
     priorities.set(targetKey, currentPriority)
   }
 
