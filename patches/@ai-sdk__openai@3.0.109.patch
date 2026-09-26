@@ -53,7 +53,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..c4aaf9f856e9c7a5973e681610ff29b1
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
 +              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = typeof rawId === "string" && rawId.startsWith("msg_") ? rawId : void 0;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
@@ -224,7 +224,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..a9114c0ddb248377f07b423d3da1ef6d
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
 +              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = typeof rawId === "string" && rawId.startsWith("msg_") ? rawId : void 0;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
@@ -395,7 +395,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..6594767d4e6dff63871b7d2aaecbb103
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
 +              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = typeof rawId === "string" && rawId.startsWith("msg_") ? rawId : void 0;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
@@ -566,7 +566,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..87b9a01d671494174f38a1215d5f37f7
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
 +              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = typeof rawId === "string" && rawId.startsWith("msg_") ? rawId : void 0;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
@@ -750,7 +750,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..c8e8abbd473354c7f3f70c9779138e96
 -              const id = providerOpts?.itemId as string | undefined;
 +              const rawId = providerOpts?.itemId as string | undefined;
 +              const id =
-+                typeof rawId === 'string' && rawId.startsWith('msg_')
++                store || (typeof rawId === 'string' && rawId.startsWith('msg_'))
 +                  ? rawId
 +                  : undefined;
                const phase = providerOpts?.phase as
