@@ -69,25 +69,31 @@ export class KnowledgeBaseAdminService {
     await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      let artifactCleanup: Promise<void>
       try {
         const vectorStoreService = application.get('KnowledgeVectorStoreService')
-        await vectorStoreService.deleteStore(baseId)
+        artifactCleanup = vectorStoreService.deleteStore(baseId)
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
         throw error
       }
 
+      void artifactCleanup.catch((error) => {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
+      })
+
       try {
         knowledgeBaseService.delete(baseId)
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
-        logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, {
+        logger.error('Failed to delete knowledge base SQLite row after artifact cleanup started', normalizedError, {
           baseId
         })
         throw DataApiErrorFactory.invalidOperation(
           'deleteBase',
-          `Vector artifacts were deleted, but SQLite knowledge base cleanup failed: ${normalizedError.message}`
+          `Vector artifact cleanup started, but SQLite knowledge base cleanup failed: ${normalizedError.message}`
         )
       }
     })
