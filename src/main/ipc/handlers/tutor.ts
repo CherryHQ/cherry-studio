@@ -5,11 +5,17 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const tutorHandlers: IpcHandlersFor<typeof tutorRequestSchemas> = {
   'tutor.course.create': async (payload) => {
-    const course = courseService.create({ title: payload.title, knowledgeBaseId: payload.knowledgeBaseId })
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue('course.build-syllabus', { courseId: course.id })
-    courseService.patch(course.id, { syllabusJobId: handle.id, syllabusStatus: 'building' })
-    return { courseId: course.id, jobId: handle.id }
+    // Course row, its syllabus job, and the job-id backlink all commit or roll back together —
+    // otherwise a failure between steps leaves an orphan course with no job, or a job the course
+    // row never learned about.
+    const { courseId, jobId } = application.get('DbService').withWriteTx((tx) => {
+      const course = courseService.createTx(tx, { title: payload.title, knowledgeBaseId: payload.knowledgeBaseId })
+      const handle = jobManager.enqueueTx(tx, 'course.build-syllabus', { courseId: course.id })
+      courseService.patchTx(tx, course.id, { syllabusJobId: handle.id, syllabusStatus: 'building' })
+      return { courseId: course.id, jobId: handle.id }
+    })
+    return { courseId, jobId }
   },
 
   'tutor.course.list': async () => courseService.list(),

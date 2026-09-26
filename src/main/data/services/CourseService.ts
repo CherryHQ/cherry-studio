@@ -1,6 +1,7 @@
 import { asc, desc, eq } from 'drizzle-orm'
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { courseLessonTable, courseTable } from '@main/data/db/schemas/course'
 import type { Course, CourseLesson, LessonStatus } from '@shared/data/types/course'
 
@@ -37,8 +38,11 @@ function toLesson(row: typeof courseLessonTable.$inferSelect): CourseLesson {
 
 class CourseService {
   create(input: { title: string; knowledgeBaseId: string }): Course {
-    const db = application.get('DbService').getDb()
-    const rows = db
+    return this.createTx(application.get('DbService').getDb(), input)
+  }
+
+  createTx(tx: DbOrTx, input: { title: string; knowledgeBaseId: string }): Course {
+    const rows = tx
       .insert(courseTable)
       .values({ title: input.title, knowledgeBaseId: input.knowledgeBaseId })
       .returning()
@@ -66,8 +70,17 @@ class CourseService {
       Pick<Course, 'currentLessonId' | 'syllabusJobId' | 'syllabusStatus' | 'totalLessons' | 'completedLessons'>
     >
   ): void {
-    const db = application.get('DbService').getDb()
-    db.update(courseTable).set(updates).where(eq(courseTable.id, id)).run()
+    this.patchTx(application.get('DbService').getDb(), id, updates)
+  }
+
+  patchTx(
+    tx: DbOrTx,
+    id: string,
+    updates: Partial<
+      Pick<Course, 'currentLessonId' | 'syllabusJobId' | 'syllabusStatus' | 'totalLessons' | 'completedLessons'>
+    >
+  ): void {
+    tx.update(courseTable).set(updates).where(eq(courseTable.id, id)).run()
   }
 
   delete(id: string): void {
