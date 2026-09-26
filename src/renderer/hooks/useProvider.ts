@@ -187,7 +187,10 @@ export function useProviderMutations(providerId: string) {
   const addApiKey = useCallback(
     async (key: string, label?: string) => {
       try {
-        await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
+        // The runtime Provider strips key secrets, so the new entry can't be matched back by
+        // value — but the handler always appends, so it is whichever entry now comes last.
+        const provider = await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
+        return provider?.apiKeys?.at(-1)
       } catch (error) {
         logger.error('Failed to add API key', { providerId, errorType: getErrorType(error) })
         throw error

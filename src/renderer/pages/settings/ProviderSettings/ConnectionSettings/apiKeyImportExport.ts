@@ -1,7 +1,22 @@
 import { loggerService } from '@logger'
+import type { UpdateApiKeyDto } from '@shared/data/api/schemas/providers'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('apiKeyImportExport')
+
+/**
+ * The create endpoint only takes key/label, so a row's tier/renewal/note metadata (present in a
+ * CSV/JSON export) must be applied as a follow-up patch — otherwise round-tripping an export
+ * silently drops it. Returns `{}` when the row carried none, so the caller can skip the patch.
+ */
+export function importMetadataPatch(partial: Partial<ApiKeyEntry>): UpdateApiKeyDto {
+  const patch: UpdateApiKeyDto = {}
+  if (partial.tier) patch.tier = partial.tier
+  if (partial.renewalAnchor) patch.renewalAnchor = partial.renewalAnchor
+  if (partial.renewalTimezone) patch.renewalTimezone = partial.renewalTimezone
+  if (partial.note) patch.note = partial.note
+  return patch
+}
 
 export interface ExportFormat {
   version: 1

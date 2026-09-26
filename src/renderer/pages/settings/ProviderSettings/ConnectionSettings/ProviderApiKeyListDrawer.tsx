@@ -29,6 +29,7 @@ import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
 import {
   detectFormat,
   generateCSVContent,
+  importMetadataPatch,
   parseCSVContent,
   parseENVContent,
   parseJSONContent
@@ -172,7 +173,11 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         for (const partial of importedKeys) {
           if (!partial.key) continue
           try {
-            await addApiKey(partial.key, partial.label)
+            const created = await addApiKey(partial.key, partial.label)
+            const metadata = importMetadataPatch(partial)
+            if (created && Object.keys(metadata).length > 0) {
+              await updateApiKey(created.id, metadata)
+            }
             imported++
           } catch (error) {
             logger.warn('Failed to import key', { error })
@@ -187,7 +192,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     })
 
     input.click()
-  }, [addApiKey, t])
+  }, [addApiKey, t, updateApiKey])
 
   const handleExport = useCallback(() => {
     try {
@@ -228,9 +233,13 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     }
 
     const label = draft.label.trim()
-    const saved = await persist(() =>
-      draft.isNew ? addApiKey(key, label || undefined) : updateApiKey(draft.id, { key, label })
-    )
+    const saved = await persist(async () => {
+      if (draft.isNew) {
+        await addApiKey(key, label || undefined)
+      } else {
+        await updateApiKey(draft.id, { key, label })
+      }
+    })
     if (saved) {
       cancelEdit()
       // A key that was never exercised looks identical to a working one, which is how a

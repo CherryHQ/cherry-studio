@@ -6,12 +6,36 @@ import {
   detectFormat,
   generateCSVContent,
   generateJSONExport,
+  importMetadataPatch,
   parseCSVContent,
   parseENVContent,
   parseJSONContent
 } from '../apiKeyImportExport'
 
 describe('apiKeyImportExport', () => {
+  describe('importMetadataPatch', () => {
+    it('carries tier, renewal anchor/timezone, and note through to a patch', () => {
+      const patch = importMetadataPatch({
+        key: 'sk-123',
+        tier: 'paid',
+        renewalAnchor: '2024-01-01',
+        renewalTimezone: 'UTC',
+        note: 'Main account'
+      })
+
+      expect(patch).toEqual({
+        tier: 'paid',
+        renewalAnchor: '2024-01-01',
+        renewalTimezone: 'UTC',
+        note: 'Main account'
+      })
+    })
+
+    it('returns an empty patch for a row that carried no metadata, so the caller skips the update call', () => {
+      expect(importMetadataPatch({ key: 'sk-123' })).toEqual({})
+    })
+  })
+
   describe('parseCSVContent', () => {
     it('parses basic CSV with key column only', () => {
       const csv = 'key\nsk-123\nsk-456'
