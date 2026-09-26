@@ -15,20 +15,16 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { assertUarEnabled, isUarEnabled } from '@shared/ai/agentRuntimeCapabilities'
 import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
+import { redactSecretText } from '@shared/utils/redaction'
 
+import { inspectUarPayload, requireUarPayload, type UarPayload } from './uarPayload'
 import { uarPrincipalForSession } from './uarPrincipal'
 import { type AppliedUarStorage, readAppliedUarStorage, writeAppliedUarStorage } from './uarStorageProfile'
-import { inspectUarPayload, requireUarPayload, type UarPayload } from './uarPayload'
 
 const logger = loggerService.withContext('UarSidecarService')
 const START_TIMEOUT_MS = 30_000
 const STOP_TIMEOUT_MS = 5_000
-const PROVIDER_CREDENTIAL_ENV_PATTERNS = [
-  /_API_KEY$/i,
-  /_API_TOKEN$/i,
-  /_ACCESS_TOKEN$/i,
-  /_SECRET_KEY$/i
-]
+const PROVIDER_CREDENTIAL_ENV_PATTERNS = [/_API_KEY$/i, /_API_TOKEN$/i, /_ACCESS_TOKEN$/i, /_SECRET_KEY$/i]
 const LEGACY_UAR_ENV_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'COHERE_API_KEY',
@@ -359,6 +355,9 @@ export class UarSidecarService extends BaseService {
     return new Promise((resolve, reject) => {
       const output = readline.createInterface({ input: child.stdout! })
       let startupDiagnostic = ''
+      const appendDiagnostic = (value: string) => {
+        startupDiagnostic = `${startupDiagnostic}${redactSecretText(value)}`.slice(-2_000)
+      }
       const timeout = setTimeout(() => settle(new Error('UAR sidecar readiness timed out')), START_TIMEOUT_MS)
       timeout.unref()
       const settle = (error?: Error, port?: number) => {
@@ -371,8 +370,7 @@ export class UarSidecarService extends BaseService {
         else resolve(port!)
       }
       const onStderr = (chunk: Buffer | string) => {
-        if (startupDiagnostic.length < 2_000)
-          startupDiagnostic += String(chunk).slice(0, 2_000 - startupDiagnostic.length)
+        appendDiagnostic(String(chunk))
       }
       const onError = (error: Error) => settle(new Error(`Failed to launch UAR sidecar: ${error.message}`))
       const onExit = (code: number | null) =>
@@ -386,7 +384,10 @@ export class UarSidecarService extends BaseService {
       child.once('exit', onExit)
       output.on('line', (line) => {
         const match = /^READY:(\d{1,5})$/.exec(line)
-        if (!match) return
+        if (!match) {
+          appendDiagnostic(`${line}\n`)
+          return
+        }
         const port = Number(match[1])
         if (!Number.isInteger(port) || port < 1 || port > 65_535) {
           settle(new Error('UAR sidecar reported an invalid readiness port'))
