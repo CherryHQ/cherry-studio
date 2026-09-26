@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f4d64c79-0089-4773-83d8-f13d974311b1",
+  "id": "ba5e70d9-757c-413b-85b9-073af609895f",
   "prevId": "92e82a74-fbe1-4767-96a0-a57f01cff2f7",
   "tables": {
     "agent": {
@@ -170,81 +170,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_background_task": {
-      "name": "agent_background_task",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "record": {
-          "name": "record",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_background_task_agent_started_idx": {
-          "name": "agent_background_task_agent_started_idx",
-          "columns": [
-            "agent_id",
-            "started_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_background_task_agent_id_agent_id_fk": {
-          "name": "agent_background_task_agent_id_agent_id_fk",
-          "tableFrom": "agent_background_task",
-          "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2313,6 +2238,58 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "diagnostic_report": {
+      "name": "diagnostic_report",
+      "columns": {
+        "report_id": {
+          "name": "report_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processing_status": {
+          "name": "processing_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "diagnostic_report_submitted_at_idx": {
+          "name": "diagnostic_report_submitted_at_idx",
+          "columns": [
+            "submitted_at",
+            "report_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "diagnostic_report_processing_status_check": {
+          "name": "diagnostic_report_processing_status_check",
+          "value": "\"diagnostic_report\".\"processing_status\" IN ('pending', 'unprocessed', 'investigating', 'resolved', 'closed')"
+        }
+      }
     },
     "file_entry": {
       "name": "file_entry",

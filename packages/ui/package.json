@@ -172,7 +172,7 @@
     "tsdown": "^0.22.14",
     "tsx": "^4.20.6",
     "typescript": "5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.1"
   },
   "peerDependencies": {
     "@hookform/resolvers": "^5.0.0",

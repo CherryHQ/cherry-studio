@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "и ещё проблем: {{count}}",
   "openclaw.errors.preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw.",
+  "openclaw.errors.preflight_timeout": "OpenClaw не вернул схему конфигурации за {{seconds}} секунд. Cherry Studio прекратила ожидание. На медленном диске или при высокой нагрузке запуск OpenClaw может занять больше времени. Повторите попытку.",
   "paintings.generate_failed": "Не удалось сгенерировать изображение",
   "paintings.image_mix_failed": "Не удалось объединить изображения",
   "selection.name": "Помощник выбора",
