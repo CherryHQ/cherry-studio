@@ -2,16 +2,29 @@ import { Elysia } from 'elysia'
 
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import {
+  AddKnowledgeDocumentsRequestSchema,
+  AddKnowledgeDocumentsResponseSchema,
+  AddKnowledgeDocumentsUnavailableResponseSchema,
+  CreateKnowledgeBaseRequestSchema,
+  DeleteKnowledgeBaseResponseSchema,
+  DeleteKnowledgeDocumentResponseSchema,
   KnowledgeBaseIdParamSchema,
   KnowledgeBaseResponseSchema,
+  KnowledgeDocumentIdParamSchema,
+  KnowledgeDocumentsQuerySchema,
+  KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES,
+  KnowledgeDocumentsPayloadTooLargeResponseSchema,
   KnowledgeSearchSchema,
+  ListKnowledgeDocumentsResponseSchema,
   ListKnowledgeBasesResponseSchema,
   PaginationQuerySchema,
+  ReindexKnowledgeDocumentResponseSchema,
   SearchKnowledgeResponseSchema
 } from './knowledgeSchemas'
 
@@ -48,6 +61,29 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         tags: [DOC_TAGS.cherry],
         summary: 'List Knowledge Bases',
         description: DOC_DESCRIPTIONS.list_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/',
+    async ({ body, status }) => {
+      const orchestrator = application.get('KnowledgeService')
+      return status(
+        201,
+        await orchestrator.createBase({
+          name: body.name,
+          embeddingModelId: body.embedding_model_id,
+          dimensions: body.dimensions
+        })
+      )
+    },
+    {
+      body: CreateKnowledgeBaseRequestSchema,
+      response: { 201: KnowledgeBaseResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Create Knowledge Base',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
       }
     }
   )
@@ -146,6 +182,154 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         tags: [DOC_TAGS.cherry],
         summary: 'Search Knowledge Bases',
         description: DOC_DESCRIPTIONS.search_knowledge_bases
+      }
+    }
+  )
+  .get(
+    '/:id/documents',
+    ({ params, query }) => {
+      const page = knowledgeItemService.listMetadata(params.id, query)
+      const documents = page.items.map((document) => ({
+        id: document.id,
+        type: document.type,
+        status: document.status,
+        group_id: document.groupId ?? null,
+        source: document.source,
+        error: document.error
+      }))
+      return { documents, total: page.total, next_cursor: page.nextCursor }
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      query: KnowledgeDocumentsQuerySchema,
+      response: { 200: ListKnowledgeDocumentsResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'List Knowledge Documents',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/:id/documents',
+    async ({ params, body, status }) => {
+      const orchestrator = application.get('KnowledgeService')
+      const result = await orchestrator.addItemsWithAdmission(
+        params.id,
+        body.documents.map((document) => ({
+          type: 'note' as const,
+          groupId: document.group_id,
+          data: { source: document.title, content: document.content }
+        })),
+        'rename'
+      )
+      if (result.status !== 'accepted') {
+        throw new Error('Rename conflict strategy unexpectedly returned conflicts')
+      }
+      return status(202, {
+        status: 'accepted' as const,
+        documents: result.items.map((item) => ({
+          id: item.id,
+          status: item.status,
+          error: item.error
+        }))
+      })
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      body: AddKnowledgeDocumentsRequestSchema,
+      response: {
+        202: AddKnowledgeDocumentsResponseSchema,
+        413: KnowledgeDocumentsPayloadTooLargeResponseSchema,
+        503: AddKnowledgeDocumentsUnavailableResponseSchema
+      },
+      parse: [
+        async ({ request, contentType, set, status }) => {
+          const reader = request.body?.getReader()
+          if (!reader) return undefined
+
+          const chunks: Uint8Array[] = []
+          let size = 0
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              size += value.byteLength
+              if (size > KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES) {
+                set.headers.connection = 'close'
+                throw status(413, {
+                  error: {
+                    code: 'PAYLOAD_TOO_LARGE',
+                    message: `Knowledge document request body exceeds ${KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES} bytes`
+                  }
+                })
+              }
+              chunks.push(value)
+            }
+          } finally {
+            reader.releaseLock()
+          }
+
+          const requestBody = Buffer.concat(chunks, size).toString('utf8')
+          return contentType === 'application/json' ? JSON.parse(requestBody) : requestBody
+        },
+        'json'
+      ],
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Add Raw-Text Documents',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .delete(
+    '/:id/documents/:documentId',
+    async ({ params, status }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.deleteItems(params.id, [params.documentId])
+      return status(202, { status: 'queued' as const })
+    },
+    {
+      params: KnowledgeDocumentIdParamSchema,
+      response: { 202: DeleteKnowledgeDocumentResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Delete Knowledge Document',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/:id/documents/:documentId/reindex',
+    async ({ params, status }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.reindexItems(params.id, [params.documentId])
+      return status(202, { status: 'queued' as const })
+    },
+    {
+      params: KnowledgeDocumentIdParamSchema,
+      response: { 202: ReindexKnowledgeDocumentResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Reindex Knowledge Document',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .delete(
+    '/:id',
+    async ({ params }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.deleteBase(params.id)
+      return { deleted: true as const }
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      response: { 200: DeleteKnowledgeBaseResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Delete Knowledge Base',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
       }
     }
   )

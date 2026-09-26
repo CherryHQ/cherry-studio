@@ -22,6 +22,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "Liste les bases de connaissances disponibles dans cette instance de Cherry Studio.",
   "apiGateway.docs.operations.list_mcp_servers": "Lister les serveurs MCP activés dans Cherry Studio, chacun avec l'URL permettant de s'y connecter.",
   "apiGateway.docs.operations.list_models": "Liste les modèles disponibles via cette passerelle, au format models d'OpenAI.",
+  "apiGateway.docs.operations.manage_knowledge_bases": "Crée ou supprime des bases de connaissances et répertorie ou modifie leurs documents texte via le flux de travail Knowledge persistant.",
   "apiGateway.docs.operations.mcp_proxy": "Point de terminaison Model Context Protocol pour un serveur MCP (Streamable HTTP). Utilisez cette URL dans n'importe quel client MCP pour accéder au serveur via Cherry Studio.",
   "apiGateway.docs.operations.messages": "Crée un message. Les corps de requête et de réponse suivent le format Anthropic Messages ; avec `stream: true`, la sortie est incrémentale.",
   "apiGateway.docs.operations.responses": "Crée une réponse. Les corps de requête et de réponse suivent le format OpenAI Responses.",

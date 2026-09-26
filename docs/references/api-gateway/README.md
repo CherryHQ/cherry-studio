@@ -50,7 +50,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │   ├── responses.ts                 ← POST /v1/responses (OpenAI Responses)
 │   ├── gemini.ts                    ← POST /v1beta/models/{model}:{method}
 │   ├── models.ts                    ← GET  /v1/models
-│   ├── knowledge.ts                 ← GET/POST /v1/knowledge-bases[/search|/:id]
+│   ├── knowledge.ts                 ← knowledge-base create/read/delete, document add/list/delete/reindex, and search
 │   ├── mcp.ts                       ← MCP catalog + Streamable HTTP proxy
 │   └── schemas.ts                   ← loose Zod body schemas (validate only what the gateway needs)
 ├── tokens/                          ← Anthropic/Gemini token estimation and wire-tool projections
@@ -113,11 +113,23 @@ guard, described below.
 | `POST /v1beta/models/{provider:model}:countTokens` | Gemini | local converted-request estimate |
 | `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |
 | `GET /v1/knowledge-bases` | Cherry REST | list (offset/limit) |
+| `POST /v1/knowledge-bases` | Cherry REST | create a vector or BM25-only base |
 | `POST /v1/knowledge-bases/search` | Cherry REST | semantic search across bases |
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
+| `DELETE /v1/knowledge-bases/:id` | Cherry REST | delete a base and its owned artifacts |
+| `GET /v1/knowledge-bases/:id/documents` | Cherry REST | list document and directory records |
+| `POST /v1/knowledge-bases/:id/documents` | Cherry REST | add raw-text documents, optionally under an existing directory |
+| `DELETE /v1/knowledge-bases/:id/documents/:documentId` | Cherry REST | enqueue document subtree deletion |
+| `POST /v1/knowledge-bases/:id/documents/:documentId/reindex` | Cherry REST | enqueue document subtree reindexing |
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
+
+Raw-text document adds cap the request stream at 10,000,000 bytes before JSON
+parsing. A successful add returns `202 Accepted` with each created document's ID
+and current workflow status; indexing continues asynchronously. If queue admission
+fails after some rows were created, the `503` error's `details.documents` contains
+the current status of every created row so clients can reconcile the partial batch.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.

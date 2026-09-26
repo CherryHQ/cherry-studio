@@ -22,6 +22,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "Παραθέτει τις βάσεις γνώσης που είναι διαθέσιμες σε αυτή την εγκατάσταση του Cherry Studio.",
   "apiGateway.docs.operations.list_mcp_servers": "Εμφάνιση των διακομιστών MCP που είναι ενεργοποιημένοι στο Cherry Studio, μαζί με το URL σύνδεσης για καθέναν.",
   "apiGateway.docs.operations.list_models": "Παραθέτει τα διαθέσιμα μοντέλα αυτής της πύλης, σε μορφή OpenAI models.",
+  "apiGateway.docs.operations.manage_knowledge_bases": "Δημιουργεί ή διαγράφει βάσεις γνώσης και παραθέτει ή τροποποιεί τα έγγραφα απλού κειμένου μέσω της μόνιμης ροής εργασίας Knowledge.",
   "apiGateway.docs.operations.mcp_proxy": "Τελικό σημείο Model Context Protocol για έναν διακομιστή MCP (Streamable HTTP). Χρησιμοποιήστε αυτό το URL σε οποιονδήποτε πελάτη MCP για να χρησιμοποιήσετε τον διακομιστή μέσω του Cherry Studio.",
   "apiGateway.docs.operations.messages": "Δημιουργεί ένα μήνυμα. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή Anthropic Messages· με `stream: true` η έξοδος γίνεται σταδιακά.",
   "apiGateway.docs.operations.responses": "Δημιουργεί μια απόκριση. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή OpenAI Responses.",
