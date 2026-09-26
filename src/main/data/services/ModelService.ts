@@ -13,6 +13,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -277,6 +278,20 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
     foreignKey: () =>
       DataApiErrorFactory.invalidOperation(`delete model ${identifier}`, 'model is in use by a knowledge base')
   } satisfies SqliteErrorHandlers
+}
+
+/**
+ * Broadcast an order write so every renderer window converges. Other windows
+ * hold their own `GET /models` cache, and the initiating window's `refresh` is
+ * local to it — without this a second window keeps showing the old order.
+ * Mirrors `PinService`'s order notification.
+ */
+function notifyModelOrderChange(entityIds: readonly string[]): void {
+  if (entityIds.length === 0) return
+
+  notifyDataApiDataChange([
+    { endpoint: '/models', kind: 'order', dimension: 'orderKey', entityIds: [...new Set(entityIds)] }
+  ])
 }
 
 /**
@@ -1300,17 +1315,19 @@ class ModelService {
    * `delete` deliberately do not apply here.
    */
   reorder(uniqueModelId: string, anchor: OrderRequest): void {
-    withSqliteErrors(
+    const orderedIds = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           applyScopedMoves(tx, userModelTable, [{ id: uniqueModelId, anchor }], {
             pkColumn: userModelTable.id,
             scopeColumn: userModelTable.providerId
           })
+          return this.selectProviderModelIdsTx(tx, uniqueModelId)
         }),
       defaultHandlersFor('Model', uniqueModelId)
     )
 
+    notifyModelOrderChange(orderedIds)
     logger.info('Reordered model', { uniqueModelId })
   }
 
@@ -1322,21 +1339,48 @@ class ModelService {
   reorderBatch(moves: OrderBatchRequest['moves']): void {
     if (moves.length === 0) return
 
-    withSqliteErrors(
+    const orderedIds = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           applyScopedMoves(tx, userModelTable, moves, {
             pkColumn: userModelTable.id,
             scopeColumn: userModelTable.providerId
           })
+          // A batch is a group block move, so the whole partition's relative
+          // order changes, not only the moved rows.
+          return this.selectProviderModelIdsTx(tx, moves[0].id)
         }),
       defaultHandlersFor('Model', `batch(${moves.length} items)`)
     )
 
+    notifyModelOrderChange(orderedIds)
     logger.info('Reordered models', {
       count: moves.length,
       ids: moves.map((move) => move.id)
     })
+  }
+
+  /**
+   * Every model id in the partition that owns `uniqueModelId`, which is the
+   * set whose order a move can change.
+   */
+  private selectProviderModelIdsTx(tx: Pick<DbType, 'select'>, uniqueModelId: string): string[] {
+    const [target] = tx
+      .select({ providerId: userModelTable.providerId })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, uniqueModelId))
+      .all()
+
+    if (!target) {
+      throw DataApiErrorFactory.notFound('Model', uniqueModelId)
+    }
+
+    return tx
+      .select({ id: userModelTable.id })
+      .from(userModelTable)
+      .where(eq(userModelTable.providerId, target.providerId))
+      .all()
+      .map((row) => row.id)
   }
 }
 

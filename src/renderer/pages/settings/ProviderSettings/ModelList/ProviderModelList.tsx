@@ -66,12 +66,14 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   )
 
   const handleReorderGroups = useCallback(
-    (activeGroupName: string, overGroupName: string) => {
+    (activeGroupName: string, overGroupName: string, sourceIndex: number, targetIndex: number) => {
       if (disabled) return
       const next = reorderModelGroups({
         models: modelList.sections.orderedModels,
         activeGroupName,
-        overGroupName
+        overGroupName,
+        sourceIndex,
+        targetIndex
       })
       if (next === modelList.sections.orderedModels) return
 

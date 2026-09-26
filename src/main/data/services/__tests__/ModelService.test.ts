@@ -2840,6 +2840,29 @@ describe('ModelService.reorder', () => {
 
     expect(await orderKeysById()).toEqual(before)
   })
+
+  it('broadcasts the order change for the moved provider partition only', async () => {
+    await seedProviderModels()
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.reorder(id('c'), { position: 'first' })
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    const [effects] = notifyDataApiDataChangeMock.mock.calls[0]
+    const [effect] = effects
+    expect(effect).toMatchObject({ endpoint: '/models', kind: 'order', dimension: 'orderKey' })
+    // The whole partition reorders, and only that partition.
+    expect([...effect.entityIds].sort()).toEqual([id('a'), id('b'), id('c')].sort())
+  })
+
+  it('does not broadcast when the write is rejected', async () => {
+    await seedProviderModels()
+    notifyDataApiDataChangeMock.mockClear()
+
+    expect(() => modelService.reorder(id('ghost'), { position: 'first' })).toThrow()
+
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('ModelService.reorderBatch', () => {

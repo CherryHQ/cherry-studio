@@ -57,8 +57,12 @@ interface ModelListSectionsProps {
    * it to move every member of a group, including rows a filter is hiding.
    */
   orderedModels?: readonly Model[]
-  /** Persist a whole-group move. Omitted when the list is not reorderable. */
-  onReorderGroups?: (activeGroupName: string, overGroupName: string) => void
+  /**
+   * Persist a whole-group move. Omitted when the list is not reorderable.
+   * The drag's `sourceIndex` / `targetIndex` decide whether the group lands
+   * before or after the target.
+   */
+  onReorderGroups?: (activeGroupName: string, overGroupName: string, sourceIndex: number, targetIndex: number) => void
 }
 
 /**
@@ -146,7 +150,12 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
     (payload: GroupedSortableVirtualListDragPayload<ModelListGroupData, Model>) => {
       if (payload.type === 'group') {
         if (!onReorderGroups || !orderedModels) return
-        onReorderGroups(payload.activeGroup.groupName, payload.overGroup.groupName)
+        onReorderGroups(
+          payload.activeGroup.groupName,
+          payload.overGroup.groupName,
+          payload.sourceIndex,
+          payload.targetIndex
+        )
         return
       }
 
