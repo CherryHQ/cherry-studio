@@ -118,12 +118,15 @@ export class ModelRoutingService extends BaseService {
 }
 
 /** Identity of the inputs, so the poll can skip the ranking when nothing moved. */
-function fingerprintOf(models: readonly RoutableModel[], exhaustedProviderIds: ReadonlySet<string>): string {
+export function fingerprintOf(models: readonly RoutableModel[], exhaustedProviderIds: ReadonlySet<string>): string {
   return [
     models
-      .map((model) => model.id)
+      .map(
+        (model) =>
+          `${model.id}:${[...model.capabilities].sort().join(',')}:${[...(model.outputModalities ?? [])].sort().join(',')}`
+      )
       .sort()
-      .join(','),
+      .join('|'),
     [...exhaustedProviderIds].sort().join(',')
-  ].join('|')
+  ].join('||')
 }
