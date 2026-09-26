@@ -3989,6 +3989,32 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
+  it('reports a persisted empty completion error to Agent delivery listeners', async () => {
+    const service = new AgentSessionRuntimeService()
+    const terminal = vi.fn()
+    service.onTurnTerminal(terminal)
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    mocks.getSessionMessage.mockReturnValue({ id: 'assistant-1', status: 'error' })
+
+    await persistenceListener(handle).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })
+    terminalListener(handle).onDone()
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ status: 'error' }) }),
+      { publishDataChange: true }
+    )
+    expect(terminal).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      status: 'error',
+      boundary: 'turn'
+    })
+  })
+
   it('persists empty paused terminals to the active assistant placeholder', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

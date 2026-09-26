@@ -377,6 +377,25 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
+  it('fails delivery when the persisted Agent completion is empty', async () => {
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    mocks.findByTurnRef.mockReturnValue(delivering)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.terminalListeners) {
+      listener({ sessionId: 'target', assistantMessageId: assistant.id, status: 'error' })
+    }
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'failed'
+    })
+  })
+
   it('reconciles a persisted terminal delivery when runtime closes before the terminal event', async () => {
     const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
     const completedAssistant = { ...assistant, status: 'success' }
