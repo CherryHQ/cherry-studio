@@ -6,9 +6,12 @@ import { v4 as uuid } from 'uuid'
 import { loggerService } from '@logger'
 import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import {
   type CloseConversationTabs,
   CloseConversationTabsContext,
+  ConversationTabsSyncContext,
+  type ConversationTabsSync,
   findClosableConversationTabIds,
   type OpenTabOptions,
   TabsContext,
@@ -17,6 +20,11 @@ import {
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
+import {
+  findConversationTabIds,
+  getConversationAppId,
+  getConversationType
+} from '@renderer/utils/conversationNavigation'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 
@@ -207,6 +215,7 @@ export function TabsProvider({
 }: TabsProviderProps) {
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
+  const invalidate = useInvalidateCache()
 
   // Pinned tabs - persistent storage. The setter natively supports functional
   // updates resolved against the latest persisted value, so callers can use
@@ -502,6 +511,59 @@ export function TabsProvider({
     if (tabIds.length > 0) closeLatestTabs(tabIds)
   }, [])
 
+  // Ref-backed for the same reason as the close action above: callers sit in page roots
+  // (data hooks, list rows) that must not subscribe to the whole tab state.
+  const syncConversationTabsStateRef = useRef({ tabs, updateTab })
+  useLayoutEffect(() => {
+    syncConversationTabsStateRef.current = { tabs, updateTab }
+  }, [tabs, updateTab])
+
+  const applyConversationTabs = useCallback<ConversationTabsSync['apply']>((appId, key, visuals) => {
+    // An empty name must never blank a tab: `withLocalizedRouteTitle` would then
+    // replace the title with the route default.
+    if (!visuals.title) return
+    const { tabs: latestTabs, updateTab: updateLatestTab } = syncConversationTabsStateRef.current
+    for (const tabId of findConversationTabIds(latestTabs, appId, key)) {
+      const tab = latestTabs.find((candidate) => candidate.id === tabId)
+      if (!tab || tab.title === visuals.title) continue
+      updateLatestTab(tabId, { title: visuals.title })
+    }
+  }, [])
+
+  const syncConversationTabs = useCallback<ConversationTabsSync['sync']>(
+    (appId, key, visuals) => {
+      applyConversationTabs(appId, key, visuals)
+      void ipcApi
+        .request('tab.sync_conversation_title', {
+          conversationType: getConversationType(appId),
+          conversationId: key,
+          title: visuals.title
+        })
+        .catch((error) => logger.warn('Failed to relay a conversation retitle', error as Error, { appId, key }))
+    },
+    [applyConversationTabs]
+  )
+
+  const conversationTabsSync = useMemo<ConversationTabsSync>(
+    () => ({ apply: applyConversationTabs, sync: syncConversationTabs }),
+    [applyConversationTabs, syncConversationTabs]
+  )
+
+  // Another window renamed a conversation this one also shows. Its tabs may all be
+  // background/dormant, so nothing here would ever re-derive the new name.
+  useIpcOn('tab.conversation_title_synced', ({ conversationType, conversationId, title }) => {
+    const appId = getConversationAppId(conversationType)
+    const { tabs: latestTabs } = syncConversationTabsStateRef.current
+    if (findConversationTabIds(latestTabs, appId, conversationId).length === 0) return
+
+    const key = conversationType === 'agent' ? `/agent-sessions/${conversationId}` : `/topics/${conversationId}`
+    // Refresh before retitling: a tab woken later mounts from this cache and would
+    // otherwise stamp the old name straight back over the relayed one.
+    void invalidate([key])
+      .catch((error) => logger.warn('Failed to refresh a relayed conversation title', error as Error, { key }))
+      .finally(() => applyConversationTabs(appId, conversationId, { title }))
+  })
+
   /**
    * Open a Tab - reuses existing tab or creates new one
    */
@@ -684,10 +746,12 @@ export function TabsProvider({
 
   return (
     <CloseConversationTabsContext value={closeConversationTabs}>
-      <TabsContext value={value}>
-        {children}
-        <AgentBrowserRuntimeHost />
-      </TabsContext>
+      <ConversationTabsSyncContext value={conversationTabsSync}>
+        <TabsContext value={value}>
+          {children}
+          <AgentBrowserRuntimeHost />
+        </TabsContext>
+      </ConversationTabsSyncContext>
     </CloseConversationTabsContext>
   )
 }

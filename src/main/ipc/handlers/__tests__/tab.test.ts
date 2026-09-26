@@ -7,6 +7,7 @@ import { tabHandlers } from '../tab'
 
 const windowManager = { getWindow: vi.fn() }
 const subWindowService = { createWindow: vi.fn(), attachTab: vi.fn() }
+const ipcApiService = { broadcast: vi.fn() }
 
 const tab = { id: 't1', title: 'T' } as Parameters<(typeof tabHandlers)['tab.attach']>[0]
 const detachPayload = { id: 't1', url: 'http://x' } as Parameters<(typeof tabHandlers)['tab.detach']>[0]
@@ -17,6 +18,7 @@ beforeEach(() => {
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
     if (name === 'SubWindowService') return subWindowService
+    if (name === 'IpcApiService') return ipcApiService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -42,5 +44,15 @@ describe('tabHandlers', () => {
   it('drag_end is a no-op when there is no caller id', async () => {
     await tabHandlers['tab.drag_end'](undefined, ctx(null))
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('relays a conversation retitle to every window', async () => {
+    const payload = { conversationType: 'assistant', conversationId: 'topic-1', title: 'Renamed topic' } as Parameters<
+      (typeof tabHandlers)['tab.sync_conversation_title']
+    >[0]
+
+    await tabHandlers['tab.sync_conversation_title'](payload, ctx('w1'))
+
+    expect(ipcApiService.broadcast).toHaveBeenCalledWith('tab.conversation_title_synced', payload)
   })
 })

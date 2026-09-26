@@ -1,9 +1,14 @@
 import { useEffect } from 'react'
 
+import type { ConversationAppId } from '@renderer/types/conversation'
+import { findConversationTabIds } from '@renderer/utils/conversationNavigation'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useCurrentTabId } from './useCurrentTab'
 import { useOptionalTabsContext } from './useTabsContext'
+
+const EMPTY_TABS: readonly Tab[] = []
 
 export interface TabSelfVisuals {
   title: string
@@ -13,6 +18,12 @@ export interface TabSelfVisuals {
   routePrefix?: string
   /** Keep the tab's stored title/icon while the bound conversation is still loading. */
   preserveVisuals?: boolean
+  /**
+   * Conversation these visuals describe. When set, every tab bound to it is stamped, not
+   * just the owning one — sibling tabs whose page is hidden or dormant cannot derive the
+   * title themselves, so a rename would otherwise strand them on the old name.
+   */
+  conversation?: { appId: ConversationAppId; key: string }
 }
 
 /**
@@ -28,12 +39,16 @@ export function useTabSelfVisuals({
   emoji,
   icon: imageIcon,
   routePrefix,
-  preserveVisuals = false
+  preserveVisuals = false,
+  conversation
 }: TabSelfVisuals): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
-  const currentTab = tabsContext?.tabs.find((tab) => tab.id === currentTabId)
+  const tabs = tabsContext?.tabs ?? EMPTY_TABS
+  const currentTab = tabs.find((tab) => tab.id === currentTabId)
+  const conversationAppId = conversation?.appId
+  const conversationKey = conversation?.key
 
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
@@ -46,7 +61,28 @@ export function useTabSelfVisuals({
     )
       return
     const icon = imageIcon ?? emojiTabIcon(emoji)
-    if (currentTab.title === title && currentTab.icon === icon) return
-    updateTab(currentTabId, { title, icon })
-  }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])
+    // The owning tab is always included: its URL can still lag a just-committed
+    // conversation selection, which the key-based match below cannot see yet.
+    const targetIds = new Set([currentTabId])
+    if (conversationAppId && conversationKey) {
+      for (const tabId of findConversationTabIds(tabs, conversationAppId, conversationKey)) targetIds.add(tabId)
+    }
+    for (const tab of tabs) {
+      if (!targetIds.has(tab.id)) continue
+      if (tab.title === title && tab.icon === icon) continue
+      updateTab(tab.id, { title, icon })
+    }
+  }, [
+    conversationAppId,
+    conversationKey,
+    currentTabId,
+    currentTab,
+    tabs,
+    updateTab,
+    title,
+    emoji,
+    imageIcon,
+    routePrefix,
+    preserveVisuals
+  ])
 }

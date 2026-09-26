@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import type * as DataApiHooks from '@renderer/data/hooks/useDataApi'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -77,6 +78,12 @@ const setNormalTabsMock = vi.fn()
 let activeTabIdValue = ''
 const setActiveTabIdMock = vi.fn()
 
+// Hoisted: the '@renderer/ipc' factory below runs from an import, before this module's
+// own declarations exist.
+const mockIpcRequest = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockUseIpcOn = vi.hoisted(() => vi.fn())
+const mockInvalidate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -118,15 +125,25 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 })
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
-  useIpcOn: vi.fn()
+  ipcApi: { request: mockIpcRequest },
+  useIpcOn: mockUseIpcOn
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof DataApiHooks>()),
+  useInvalidateCache: () => mockInvalidate
 }))
 
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
   useWindowInitData: () => null
 }))
 
-import { useCloseConversationTabs, useMainWindowNavigation, useTabsContext } from '@renderer/hooks/tab'
+import {
+  useCloseConversationTabs,
+  useConversationTabsSync,
+  useMainWindowNavigation,
+  useTabsContext
+} from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -207,6 +224,53 @@ function ConversationTabActionProbe() {
     <button type="button" onClick={() => closeConversationTabs('assistants', ['topic-a'])}>
       Close background topic
     </button>
+  )
+}
+
+function ConversationTabsSyncControls() {
+  const { sync } = useConversationTabsSync()
+  const { addTab, tabs, updateTab } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          addTab({
+            id: 'topic-a-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-a',
+            title: 'Topic A',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+          addTab({
+            id: 'topic-a-background-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-a',
+            title: 'Topic A (background)',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+          addTab({
+            id: 'topic-b-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-b',
+            title: 'Topic B',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+        }}>
+        Seed conversation tabs
+      </button>
+      <button type="button" onClick={() => updateTab('topic-a-background-tab', { isDormant: true })}>
+        Hibernate background topic tab
+      </button>
+      <button type="button" onClick={() => sync('assistants', 'topic-a', { title: 'Renamed Topic' })}>
+        Sync renamed topic
+      </button>
+      <div data-testid="sync-tab-snapshot">{tabs.map((tab) => `${tab.id}:${tab.title}`).join(',')}</div>
+    </>
   )
 }
 
@@ -509,6 +573,117 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close background topic' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('topic-a-tab'))
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+  })
+
+  it('retitles every tab of a renamed conversation, including a dormant one', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabsSyncControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed conversation tabs' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent('topic-a-background-tab:Topic A (background)')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hibernate background topic tab' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sync renamed topic' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent(
+        'topic-a-tab:Renamed Topic,topic-a-background-tab:Renamed Topic'
+      )
+    )
+    // A tab of another conversation keeps its own title.
+    expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent('topic-b-tab:Topic B')
+    // The other windows get told as well: a tab left there may be dormant with no
+    // page that could ever derive the new name.
+    expect(mockIpcRequest).toHaveBeenCalledWith('tab.sync_conversation_title', {
+      conversationType: 'assistant',
+      conversationId: 'topic-a',
+      title: 'Renamed Topic'
+    })
+  })
+
+  it('applies a conversation retitle relayed from another window', async () => {
+    let onTitleSynced:
+      | ((payload: { conversationType: string; conversationId: string; title: string }) => void)
+      | undefined
+    mockUseIpcOn.mockImplementation(
+      (
+        event: string,
+        handler: (payload: { conversationType: string; conversationId: string; title: string }) => void
+      ) => {
+        if (event === 'tab.conversation_title_synced') onTitleSynced = handler
+      }
+    )
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabsSyncControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed conversation tabs' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent('topic-a-background-tab:Topic A (background)')
+    )
+
+    // The refresh has to land first: a tab woken later mounts from this cache, and a
+    // page still holding the old name would stamp it straight back over the retitle.
+    let resolveInvalidate = () => {}
+    mockInvalidate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInvalidate = resolve
+        })
+    )
+
+    act(() => {
+      onTitleSynced?.({ conversationType: 'assistant', conversationId: 'topic-a', title: 'Renamed Elsewhere' })
+    })
+
+    expect(mockInvalidate).toHaveBeenCalledWith(['/topics/topic-a'])
+    expect(screen.getByTestId('sync-tab-snapshot')).not.toHaveTextContent('Renamed Elsewhere')
+
+    await act(async () => {
+      resolveInvalidate()
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent(
+        'topic-a-tab:Renamed Elsewhere,topic-a-background-tab:Renamed Elsewhere'
+      )
+    )
+    expect(screen.getByTestId('sync-tab-snapshot')).toHaveTextContent('topic-b-tab:Topic B')
+  })
+
+  it('ignores a relayed retitle for a conversation no tab here shows', async () => {
+    let onTitleSynced:
+      | ((payload: { conversationType: string; conversationId: string; title: string }) => void)
+      | undefined
+    mockUseIpcOn.mockImplementation(
+      (
+        event: string,
+        handler: (payload: { conversationType: string; conversationId: string; title: string }) => void
+      ) => {
+        if (event === 'tab.conversation_title_synced') onTitleSynced = handler
+      }
+    )
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabsSyncControls />
+      </TabsProvider>
+    )
+
+    act(() => {
+      onTitleSynced?.({ conversationType: 'agent', conversationId: 'session-1', title: 'Renamed Elsewhere' })
+    })
+
+    await act(async () => {})
+    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 
   it('preserves page-owned titles for the fixed home conversation tab', async () => {

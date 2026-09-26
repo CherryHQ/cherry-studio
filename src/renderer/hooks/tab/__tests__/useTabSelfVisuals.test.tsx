@@ -107,6 +107,33 @@ describe('useTabSelfVisuals', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
+  it('stamps every tab bound to the same conversation, not just the owning one', async () => {
+    mocks.tabs = [
+      { id: 'tab-1', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Old title' },
+      { id: 'tab-2', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Sibling title' },
+      { id: 'tab-3', type: 'route', url: '/app/chat?topicId=topic-2', title: 'Other topic' },
+      { id: 'tab-4', type: 'route', url: '/app/files', title: 'Files' }
+    ]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter
+          title="Topic title"
+          emoji="spark"
+          routePrefix="/app/chat"
+          conversation={{ appId: 'assistants', key: 'topic-1' }}
+        />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-2', { title: 'Topic title', icon: 'icon:spark' })
+    )
+    expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', { title: 'Topic title', icon: 'icon:spark' })
+    expect(mocks.updateTab).not.toHaveBeenCalledWith('tab-3', expect.anything())
+    expect(mocks.updateTab).not.toHaveBeenCalledWith('tab-4', expect.anything())
+  })
+
   it('skips the update when title and icon already match', async () => {
     mocks.tabs = [
       {
