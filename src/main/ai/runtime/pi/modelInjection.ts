@@ -33,7 +33,7 @@ import {
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getRawModelId } from '@shared/utils/model'
+import { getRawModelId, isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
@@ -238,6 +238,14 @@ export function buildPiGatewayInjection(
   model: Model,
   gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }
 ): PiGatewayProviderInjection {
+  const modelAddress = `${provider.id}:${getRawModelId(model)}`
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
+  if (!isGatewayRoutableModel(model)) throw new PiUnsupportedProviderError(provider.id)
   const resolvedEndpoint = resolvePiEndpoint(provider, model)
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
@@ -354,8 +362,17 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
 
+  const modelAddress = `${providerId}:${model.apiModelId ?? modelId}`
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${providerId}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
+
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (usesPiGateway(provider)) {
+    if (!isGatewayRoutableModel(model)) throw new PiUnsupportedProviderError(providerId)
     const resolvedEndpoint = resolvePiEndpoint(provider, model)
     const adapterFamily = resolvedEndpoint.endpointType
       ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily

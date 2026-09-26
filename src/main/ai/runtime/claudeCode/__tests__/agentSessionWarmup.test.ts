@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import type * as GatewayModels from '@main/features/apiGateway/utils/models'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
   isRegistryProvider: vi.fn(),
+  assertGatewayModelAvailable: vi.fn(),
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
@@ -110,6 +112,13 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
 
 vi.mock('../../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
+}))
+
+// Route-derivation tests stub pure resolvers (same convention as `resolveEffectiveEndpoint` above).
+// The availability predicate itself is covered in the gateway models suite.
+vi.mock('@main/features/apiGateway/utils/models', async (importOriginal) => ({
+  ...(await importOriginal<typeof GatewayModels>()),
+  assertAgentGatewayModelAvailable: mocks.assertGatewayModelAvailable
 }))
 
 vi.mock('../settingsBuilder', () => ({
@@ -686,6 +695,40 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_MODEL: 'opencode:deepseek-v4-pro'
     })
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  // #20285: a stale/disabled gateway model fails fast instead of a late generic gateway 400.
+  // Agent traffic carries internal usage headers, so agent-only providers are allowed.
+  it('fails fast when the gateway model availability check rejects the route', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'opencode',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://opencode.ai/zen/go/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://opencode.ai/zen/go/v1' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-pro',
+      apiModelId: 'deepseek-v4-pro',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.assertGatewayModelAvailable.mockImplementationOnce(() => {
+      throw new Error('Agent model "opencode:deepseek-v4-pro" is not available: provider "opencode" is disabled.')
+    })
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toThrow(
+      'provider "opencode" is disabled'
+    )
+    expect(mocks.assertGatewayModelAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'opencode' }),
+      expect.objectContaining({ apiModelId: 'deepseek-v4-pro' }),
+      'opencode:deepseek-v4-pro',
+      true
+    )
+    expect(mocks.apiGatewayEnsureRunning).not.toHaveBeenCalled()
   })
 
   it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {

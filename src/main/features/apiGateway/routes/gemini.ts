@@ -1,6 +1,7 @@
 import { bearer } from '@elysia/bearer'
 import { Elysia } from 'elysia'
 
+import { application } from '@application'
 import {
   ANTIGRAVITY_MODEL_PATH_SEPARATOR,
   isReservedGeminiGatewayModelId,
@@ -98,8 +99,11 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       }
 
       if (method === 'countTokens') {
+        // Same internal-agent contract as generation (`processMessage`): agent-only models
+        // must resolve here exactly when they would resolve for generation.
+        const allowAgentOnly = application.get('ApiGatewayService').isInternalAgentRequest(request.headers)
         return {
-          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal)
+          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, allowAgentOnly)
         }
       }
       if (!GENERATE_METHODS.has(method)) {

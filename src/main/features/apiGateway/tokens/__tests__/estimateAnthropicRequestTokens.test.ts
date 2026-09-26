@@ -110,6 +110,31 @@ describe('estimateAnthropicRequestTokens', () => {
     expect(count).toBeGreaterThan(0)
   })
 
+  // #20285: token estimation resolves through the same gateway identity contract as
+  // generation — an internal-agent request reaches the provider's authoritative count
+  // for models only it may serve, while an external request falls back to the local walk.
+  it('uses the remote count for internal-agent models and the local fallback otherwise', async () => {
+    mocks.resolveGatewayModelAddress.mockImplementation((_address, allowAgentOnly) => {
+      if (!allowAgentOnly) throw new Error('not available through the API gateway')
+      return {
+        providerId: 'p',
+        apiModelId: 'm',
+        uniqueModelId: 'p::m',
+        provider: anthropicProvider(),
+        model: textModel
+      }
+    })
+    mocks.tryRemoteAnthropicCount.mockResolvedValue(4242)
+
+    const internal = await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hi' }]), undefined, true)
+    expect(internal).toBe(4242)
+
+    mocks.tryRemoteAnthropicCount.mockResolvedValue(undefined)
+    const external = await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hi' }]), undefined, false)
+    expect(Number.isFinite(external)).toBe(true)
+    expect(external).not.toBe(4242)
+  })
+
   // Relocation works on every wire (that is why it replaced in-tool-result media): the image
   // leaves the tool output and rides the user message, so even an openai wire counts a real
   // image with its own constant (~765) rather than a note — and never the ~100K base64.

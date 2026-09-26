@@ -22,6 +22,7 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { assertAgentGatewayModelAvailable } from '@main/features/apiGateway/utils/models'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -710,6 +711,15 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
+    // Fail fast on stale/disabled/unroutable Agent models: every slot routes through the gateway.
+    // Agent traffic carries internal usage headers, so agent-only providers are allowed.
+    for (const ref of modelRefs) {
+      const address = `${ref.providerId}:${ref.apiModelId}`
+      if (!ref.provider || !ref.model) {
+        throw new Error(`Agent model "${address}" is not available: the configured provider or model no longer exists.`)
+      }
+      assertAgentGatewayModelAvailable(ref.provider, ref.model, address, true)
+    }
     const apiGatewayService = application.get('ApiGatewayService')
     const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
