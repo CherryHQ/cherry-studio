@@ -3,11 +3,23 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Model } from '@shared/data/types/model'
+
 import GeneralSettings from '../GeneralSettings'
+
+const mockUseModels = vi.fn(() => ({
+  models: [] as Model[],
+  isLoading: false,
+  refetch: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => mockUseModels()
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -22,9 +34,15 @@ vi.mock('@renderer/components/Selector', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
-}))
+vi.mock('@renderer/components/ModelSelector', async () => {
+  const selection = await import('@renderer/components/ModelSelector/selection')
+  return {
+    ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
+    countStaleSelectedModelIds: selection.countStaleSelectedModelIds,
+    hasStaleSelectedModelIds: selection.hasStaleSelectedModelIds,
+    resolveSelectedModelIds: selection.resolveSelectedModelIds
+  }
+})
 
 vi.mock('../ContextManagementSettings', () => ({
   ContextManagementSettings: () => (
@@ -111,8 +129,24 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+const makeModel = (id: string): Model =>
+  ({
+    id,
+    providerId: 'openai',
+    name: id,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }) as Model
+
 describe('GeneralSettings', () => {
   beforeEach(() => {
+    mockUseModels.mockReturnValue({
+      models: [],
+      isLoading: false,
+      refetch: vi.fn()
+    })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.tray.enabled': true,
@@ -135,6 +169,11 @@ describe('GeneralSettings', () => {
   })
 
   it('renders model retry settings in General and persists changes', async () => {
+    mockUseModels.mockReturnValue({
+      models: [makeModel('openai::gpt-4o')],
+      isLoading: false,
+      refetch: vi.fn()
+    })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
       'chat.retry.max_attempts': 3,
@@ -153,6 +192,40 @@ describe('GeneralSettings', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)
     })
+  })
+
+  it('marks persisted fallback model ids missing from the catalog as unavailable', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::deleted-model']
+    })
+
+    render(<GeneralSettings />)
+
+    const fallbackTrigger = screen.getByText('settings.models.retry.fallback_models_unavailable').closest('button')
+    expect(fallbackTrigger).toBeInTheDocument()
+    expect(fallbackTrigger).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('does not mark fallback models unavailable while the model catalog is still loading', () => {
+    mockUseModels.mockReturnValue({
+      models: [],
+      isLoading: true,
+      refetch: vi.fn()
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::deleted-model']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.retry.fallback_models_count').closest('button')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
   })
 
   it('turns off every tray-dependent preference when the tray is disabled', async () => {
