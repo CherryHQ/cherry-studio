@@ -110,7 +110,11 @@ export async function runIntegrationDiagnostics(
       })
     })
   }
-  if (secrets.compassPassword)
+  if (
+    config.compass.enabled &&
+    (config.compass.storage === 'automatic' || config.compass.storage === 'remote') &&
+    secrets.compassPassword
+  )
     await check('surrealdb', async () => {
       const response = await fetch(new URL('/health', config.compass.endpoint), {
         signal: AbortSignal.any([signal, AbortSignal.timeout(5000)])
@@ -127,8 +131,15 @@ export async function runIntegrationDiagnostics(
       results.push({ id: 'surrealdb:credentials', state: 'authenticated' })
     })
   else results.push({ id: 'surrealdb', state: 'disabled' })
-  for (const role of ['judge', 'critic'] as const) {
-    if (!config.services[role].name) {
+  const literRoles = config.services.literRoles
+  const gatewayRoles = literRoles
+    ? (['critic', 'judge', 'backup'] as const).map((role) => ({
+        role,
+        model: literRoles[role].servedAlias.alias
+      }))
+    : (['judge', 'critic'] as const).map((role) => ({ role, model: config.services[role].name }))
+  for (const { role, model } of gatewayRoles) {
+    if (!model) {
       results.push({ id: `liter:${role}`, state: 'disabled' })
       continue
     }
@@ -138,7 +149,7 @@ export async function runIntegrationDiagnostics(
         signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secrets.literKey ?? ''}` },
         body: JSON.stringify({
-          model: `kbd-${role}`,
+          model,
           messages: [{ role: 'user', content: 'Reply with OK.' }],
           max_tokens: 16
         })
