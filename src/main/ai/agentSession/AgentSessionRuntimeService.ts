@@ -122,6 +122,13 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/**
+ * How long a fresh turn waits for detached background work to release a spawn-stale connection
+ * before forcing the rebuild. Detached work has no host-side liveness probe, so work whose
+ * process already died (e.g. an OS restart the runtime state never observed) would otherwise
+ * defer the rebuild — and with it turn admission — forever.
+ */
+const BACKGROUND_WORK_REBUILD_GRACE_MS = 120_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -451,10 +458,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
-  /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
+  /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase.
+   *  The promise settles `true` when the driver reports the work released, `false` on grace expiry. */
   private readonly backgroundWorkWaiters = new Map<
     string,
-    { connection: AgentRuntimeConnection; promise: Promise<void>; resolve: () => void }
+    {
+      connection: AgentRuntimeConnection
+      promise: Promise<boolean>
+      settle: (released: boolean) => void
+      timer: ReturnType<typeof setTimeout>
+    }
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
@@ -1625,6 +1638,18 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
+    // Live, driver-reported work whose SDK stream rides the current connection — reconciling or
+    // tearing that connection down mid-flight would kill it.
+    const carriesProtectedExecution = () => {
+      const turn = this.currentTurn(entry)
+      return (
+        isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
+        isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
+        (turn !== undefined &&
+          isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
+          this.isTurnLive(entry, turn))
+      )
+    }
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
       const closing = this.closingSessions.get(entry.sessionId)
@@ -1645,14 +1670,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // this point, so `admitted` alone protects the still-streaming roll. (This also closes
         // #16796's steer-window edge case: the continuation always reuses the transition's connection.)
         // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
-        const turn = this.currentTurn(entry)
-        if (
-          isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
-          isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-          (turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) && this.isTurnLive(entry, turn))
-        ) {
-          return true
-        }
+        if (carriesProtectedExecution()) return true
 
         // TOCTOU discipline: reconcile acts on the CAPTURED connection (its live patches land on
         // the right object even if the entry moves on), and every close decision below re-validates
@@ -1669,16 +1687,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (this.currentConnection(entry) !== connection) continue
         // A turn may have been admitted while reconcile awaited (e.g. a racing openTurnStream that
         // reused the connection) — its stream now rides this connection, so stop touching it.
-        const turnAfter = this.currentTurn(entry)
-        if (
-          isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
-          isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-          (turnAfter &&
-            isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turnAfter) &&
-            this.isTurnLive(entry, turnAfter))
-        ) {
-          return true
-        }
+        if (carriesProtectedExecution()) return true
 
         switch (verdict) {
           case 'current':
@@ -1692,11 +1701,40 @@ export class AgentSessionRuntimeService extends BaseService {
               logger.info('Deferring connection rebuild until background work releases', {
                 sessionId: entry.sessionId
               })
-              await this.waitForBackgroundWorkRelease(entry, connection, target)
-              if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) continue
-              logger.info('Background work released; retrying connection rebuild', {
-                sessionId: entry.sessionId
-              })
+              while (true) {
+                const released = await this.waitForBackgroundWorkRelease(entry, connection, target)
+                if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
+                if (released) {
+                  logger.info('Background work released; retrying connection rebuild', {
+                    sessionId: entry.sessionId
+                  })
+                  break
+                }
+                // Grace expired. The zombie hypothesis holds only while no protected work went
+                // live on this connection during the wait: an autonomous generation (or
+                // transition, or admitted live turn) that began meanwhile is driver-reported
+                // live work — forcing the rebuild now would kill it and strand the deferred
+                // turn with it. Re-arm the grace window; that work's own release still
+                // settles the waiter.
+                if (carriesProtectedExecution()) continue
+                // Without a turn waiting to admit (a prewarm re-prime), killing the occupancy
+                // buys nothing — abandon the rebuild; the next real turn re-reconciles.
+                const waitingTurn = this.currentTurn(entry)
+                if (!waitingTurn || !this.isTurnLive(entry, waitingTurn)) {
+                  logger.info('Abandoning deferred connection rebuild; no turn is waiting on it', {
+                    sessionId: entry.sessionId
+                  })
+                  return false
+                }
+                // Unowned occupancy only — prefer the pending user turn over an unbounded
+                // wait: force the rebuild on the regular teardown path, which structurally
+                // clears the occupancy.
+                logger.warn('Forcing connection rebuild after background work grace expiry', {
+                  sessionId: entry.sessionId
+                })
+                this.closeConnectionAsync(entry)
+                break
+              }
               continue
             }
             this.closeConnectionAsync(entry)
@@ -2410,22 +2448,34 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     connection: AgentRuntimeConnection,
     target: AgentSessionConnectionTarget
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (
       !this.isCurrentEntry(entry) ||
       this.currentConnection(entry) !== connection ||
       !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
     ) {
-      return Promise.resolve()
+      return Promise.resolve(true)
     }
     const existing = this.backgroundWorkWaiters.get(entry.sessionId)
     if (existing?.connection === connection) return existing.promise
 
-    let resolve!: () => void
-    const promise = new Promise<void>((done) => {
-      resolve = done
+    let settle!: (released: boolean) => void
+    const promise = new Promise<boolean>((done) => {
+      settle = done
     })
-    this.backgroundWorkWaiters.set(entry.sessionId, { connection, promise, resolve })
+    const sessionId = entry.sessionId
+    const timer = setTimeout(() => {
+      logger.warn('Background work did not release within the grace period', {
+        sessionId,
+        graceMs: BACKGROUND_WORK_REBUILD_GRACE_MS
+      })
+      if (this.backgroundWorkWaiters.get(sessionId)?.timer === timer) {
+        this.backgroundWorkWaiters.delete(sessionId)
+      }
+      settle(false)
+    }, BACKGROUND_WORK_REBUILD_GRACE_MS)
+    timer.unref()
+    this.backgroundWorkWaiters.set(sessionId, { connection, promise, settle, timer })
     this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-deferred', connection, target })
     return promise
   }
@@ -2434,7 +2484,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const waiter = this.backgroundWorkWaiters.get(entry.sessionId)
     if (!waiter || (connection && waiter.connection !== connection)) return
     this.backgroundWorkWaiters.delete(entry.sessionId)
-    waiter.resolve()
+    clearTimeout(waiter.timer)
+    waiter.settle(true)
   }
 
   private handleAutonomousGenerationFinished(
