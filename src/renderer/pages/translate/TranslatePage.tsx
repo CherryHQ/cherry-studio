@@ -446,9 +446,12 @@ const TranslatePage: FC = () => {
     ): Promise<void> => {
       if ((!rawText.trim() && !image) || !selectedModelId || isDetecting || isTranslating) return
 
-      if (image && !rawText.trim()) {
+      // A clipboard image stays on the selected target. Accompanying text must not
+      // reverse the bidirectional pair or block the request on language detection.
+      if (image) {
         setDetectedLanguage(null)
-        await translate(rawText, null, targetLanguage, image)
+        const history = await translate(rawText, null, targetLanguage, image)
+        if (history && rawText.trim()) backfillHistorySourceLanguage(history.id, rawText)
         return
       }
 

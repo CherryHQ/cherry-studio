@@ -1404,6 +1404,80 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
+  it('keeps a clipboard image with optional text on the selected target in bidirectional mode', async () => {
+    // Accompanying text used to be detected and flipped to the other side of the
+    // bidirectional pair, so the image left the language the user selected.
+    mockModel.capabilities = ['image-recognition'] as any
+    ;(mockModel as any).inputModalities = ['image']
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    fileMock.getPathForFile.mockReturnValue('')
+    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
+    fileMock.get.mockResolvedValue({
+      path: '/tmp/pasted.png',
+      size: 10,
+      type: 'image',
+      name: 'pasted.png',
+      origin_name: 'pasted.png'
+    })
+    translateCoreMock.detectLanguage.mockResolvedValue('en-us')
+    translateCoreMock.translateText.mockImplementation(
+      async (_text, _lang, onResponse?: (text: string, done: boolean) => void) => {
+        onResponse?.('translated', true)
+        return 'translated'
+      }
+    )
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+      target: { value: 'translate this screenshot' }
+    })
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalled())
+    const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
+    expect(translateArgs?.[0]).toBe('translate this screenshot')
+    expect(translateArgs?.[1]).toBe('en-us')
+    expect(translateArgs?.[4]).toBe('/tmp/pasted.png')
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'translate this screenshot',
+        targetText: 'translated',
+        sourceLanguage: null,
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
   it('ignores empty text data when handling drops', async () => {
     dropMock.getTextFromDropEvent.mockResolvedValue('')
 
