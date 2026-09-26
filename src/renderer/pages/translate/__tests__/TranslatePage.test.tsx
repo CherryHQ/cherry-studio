@@ -16,16 +16,15 @@ import type { TranslationFiles } from '../translationFiles'
 
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
+  read: vi.fn(),
   readText: vi.fn(),
   readExternal: vi.fn(),
   startJob: vi.fn(),
   getFileExtension: vi.fn(() => 'txt'),
-  isTextFile: vi.fn(),
-  getPathForFile: vi.fn(),
-  createTempFile: vi.fn(),
-  write: vi.fn(),
-  get: vi.fn()
+  isTextFile: vi.fn()
 }))
+const createObjectURLMock = vi.hoisted(() => vi.fn())
+const revokeObjectURLMock = vi.hoisted(() => vi.fn())
 
 const useJobMock = vi.hoisted(() => vi.fn())
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
@@ -118,9 +117,18 @@ vi.mock('@renderer/components/Navbar', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: (props: { trigger: React.ReactNode }) => {
+  ModelSelector: (props: {
+    trigger: React.ReactNode
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    filter?: (model: unknown) => boolean
+  }) => {
     modelSelectorMock(props)
-    return <>{props.trigger}</>
+    return (
+      <div data-testid="translate-model-selector" data-open={String(Boolean(props.open))}>
+        {props.trigger}
+      </div>
+    )
   }
 }))
 
@@ -333,6 +341,9 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile,
     onDrop,
     onCancelOcr,
+    clipboardImage,
+    onRemoveClipboardImage,
+    onReplaceClipboardImage,
     copied,
     onCopy,
     disabled,
@@ -345,12 +356,15 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     onCancelOcr: () => void
+    clipboardImage: { name: string; previewUrl: string } | null
+    onRemoveClipboardImage: () => void
+    onReplaceClipboardImage: () => void
     copied: boolean
     onCopy: () => void
     disabled?: boolean
     ocrProcessing?: boolean
   }) => {
-    translateInputPaneMock({ onSelectFile })
+    translateInputPaneMock({ onSelectFile, clipboardImage })
     return (
       <div data-testid="translate-input-pane" onDrop={onDrop}>
         <textarea
@@ -364,6 +378,13 @@ vi.mock('../components/TranslateInputPane', () => ({
         <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
         <button type="button" aria-label="input.copy" onClick={onCopy} />
         <span data-testid="translate-input-copied">{String(copied)}</span>
+        {clipboardImage && (
+          <div data-testid="translate-clipboard-image-preview">
+            <span>{clipboardImage.name}</span>
+            <button type="button" aria-label="translate.image.remove" onClick={onRemoveClipboardImage} />
+            <button type="button" aria-label="translate.image.replace" onClick={onReplaceClipboardImage} />
+          </div>
+        )}
         {ocrProcessing && (
           <div data-testid="translate-input-ocr-processing">
             ocr.processing
@@ -483,6 +504,8 @@ import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
+    mockModel.capabilities = []
+    delete (mockModel as { inputModalities?: unknown }).inputModalities
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.setCacheValue('translate.input', '')
@@ -500,17 +523,18 @@ describe('TranslatePage', () => {
       'feature.translate.page.enable_markdown': false
     })
     fileMock.onSelectFile.mockReset()
+    fileMock.read.mockReset()
     fileMock.readText.mockReset()
     fileMock.readExternal.mockReset()
     fileMock.startJob.mockReset()
     fileMock.getFileExtension.mockReset()
     fileMock.getFileExtension.mockReturnValue('txt')
     fileMock.isTextFile.mockResolvedValue(true)
-    fileMock.getPathForFile.mockReset()
-    fileMock.createTempFile.mockReset()
-    fileMock.write.mockReset()
-    fileMock.write.mockResolvedValue(undefined)
-    fileMock.get.mockReset()
+    let previewId = 0
+    createObjectURLMock.mockReset().mockImplementation(() => `blob:translate-preview-${++previewId}`)
+    revokeObjectURLMock.mockReset()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURLMock })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURLMock })
     fileMock.startJob.mockResolvedValue({
       id: 'job-ocr-1',
       type: 'file-processing.background',
@@ -573,13 +597,10 @@ describe('TranslatePage', () => {
     })
     ;(window as any).api = {
       file: {
-        readExternal: fileMock.readExternal,
-        getPathForFile: fileMock.getPathForFile,
-        createTempFile: fileMock.createTempFile,
-        write: fileMock.write,
-        get: fileMock.get
+        readExternal: fileMock.readExternal
       },
       fs: {
+        read: fileMock.read,
         readText: fileMock.readText
       }
     }
@@ -1200,16 +1221,19 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('starts an image_to_text job for a pasted image without a file path', async () => {
-    fileMock.getPathForFile.mockReturnValue('')
-    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
-    fileMock.get.mockResolvedValue({ path: '/tmp/pasted.png', size: 10, type: 'image' })
-
+  it('attaches a pasted clipboard image with an object URL preview instead of starting OCR', async () => {
+    // Catches the regression where Translation still OCR'd clipboard screenshots
+    // instead of keeping them as a removable vision attachment (#20024).
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
     render(<TranslatePage />)
 
     const pastedImage = {
       name: 'pasted.png',
       type: 'image/png',
+      size: 8,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
     }
     fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
@@ -1219,15 +1243,351 @@ describe('TranslatePage', () => {
       }
     })
 
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    expect(screen.getByTestId('translate-clipboard-image-preview')).toHaveTextContent('pasted.png')
+    expect(fileMock.startJob).not.toHaveBeenCalled()
+    expect(createObjectURLMock).toHaveBeenCalledWith(pastedImage)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.remove' }))
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes the old object URL when replacing an image and the replacement on unmount', async () => {
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    fileMock.onSelectFile.mockResolvedValue([
+      {
+        path: '/Users/test/replacement.jpg',
+        size: 3,
+        type: 'image',
+        name: 'replacement.jpg',
+        origin_name: 'replacement.jpg'
+      }
+    ])
+    fileMock.read.mockResolvedValue(new Uint8Array([1, 2, 3]))
+
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.replace' }))
+
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1'))
+    expect(screen.getByTestId('translate-clipboard-image-preview')).toHaveTextContent('replacement.jpg')
+    unmount()
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-2')
+    expect(revokeObjectURLMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('revokes a clipboard preview when the page unmounts', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    unmount()
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes a clipboard preview when history replaces the current view', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+  })
+
+  it('revokes a preview created after an in-flight paste finishes post-unmount', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    let resolveBytes: ((value: ArrayBuffer) => void) | undefined
+    const arrayBuffer = vi.fn(
+      () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveBytes = resolve
+        })
+    )
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [{ name: 'late.png', type: 'image/png', size: 8, arrayBuffer }]
+      }
+    })
+    await waitFor(() => expect(arrayBuffer).toHaveBeenCalled())
+
+    unmount()
+    await act(async () => resolveBytes?.(new ArrayBuffer(8)))
+
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1'))
+  })
+
+  it('revokes a replacement preview created after its file read finishes post-unmount', async () => {
+    fileMock.getFileExtension.mockReturnValue('.png')
+    fileMock.onSelectFile.mockResolvedValue([
+      {
+        path: '/Users/test/replacement.png',
+        size: 8,
+        type: 'image',
+        name: 'replacement.png',
+        origin_name: 'replacement.png'
+      }
+    ])
+    let resolveBytes: ((value: Uint8Array) => void) | undefined
+    fileMock.read.mockImplementationOnce(
+      () =>
+        new Promise<Uint8Array>((resolve) => {
+          resolveBytes = resolve
+        })
+    )
+    const { unmount } = render(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.replace' }))
+    await waitFor(() => expect(fileMock.read).toHaveBeenCalledWith('/Users/test/replacement.png'))
+
+    unmount()
+    await act(async () => resolveBytes?.(new Uint8Array(8)))
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-1')
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:translate-preview-2'))
+  })
+
+  it('prefers a clipboard image over a coexisting text flavor and keeps the attachment', async () => {
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    render(<TranslatePage />)
+
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'screenshot' : ''),
+        files: [
+          {
+            name: 'win-shot.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    expect(fileMock.startJob).not.toHaveBeenCalled()
+  })
+
+  it('opens model selection and keeps the image when translating without a vision-capable model', async () => {
+    // Catches silent image drop / OCR fallback when the selected translate model
+    // cannot accept image input (#20024 acceptance: model-selection action).
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(screen.getByTestId('translate-model-selector')).toHaveAttribute('data-open', 'true'))
+    expect(toast.info).toHaveBeenCalledWith('translate.image.vision_model_required')
+    expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument()
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+  })
+
+  it('translates an image-only input to the selected target in auto bidirectional mode', async () => {
+    mockModel.capabilities = ['image-recognition'] as any
+    ;(mockModel as any).inputModalities = ['image']
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    translateCoreMock.translateText.mockImplementation(
+      async (_text, _lang, onResponse?: (text: string, done: boolean) => void) => {
+        onResponse?.('translated', true)
+        return 'translated'
+      }
+    )
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalled())
+    const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
+    expect(translateArgs?.[0]).toBe('')
+    expect(translateArgs?.[1]).toBe('en-us')
+    expect(translateArgs?.[4]).toEqual({ data: new Uint8Array(8), filename: 'pasted.png' })
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+  })
+
+  it('keeps a clipboard image with optional text on the selected target in bidirectional mode', async () => {
+    // Accompanying text used to be detected and flipped to the other side of the
+    // bidirectional pair, so the image left the language the user selected.
+    mockModel.capabilities = ['image-recognition'] as any
+    ;(mockModel as any).inputModalities = ['image']
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    fileMock.getFileExtension.mockImplementation((name?: string) => {
+      const match = /\.[^.]+$/.exec(name ?? '')
+      return match?.[0] ?? ''
+    })
+    translateCoreMock.detectLanguage.mockResolvedValue('en-us')
+    translateCoreMock.translateText.mockImplementation(
+      async (_text, _lang, onResponse?: (text: string, done: boolean) => void) => {
+        onResponse?.('translated', true)
+        return 'translated'
+      }
+    )
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [
+          {
+            name: 'pasted.png',
+            type: 'image/png',
+            size: 8,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+          }
+        ]
+      }
+    })
+    await waitFor(() => expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+      target: { value: 'translate this screenshot' }
+    })
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalled())
+    const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
+    expect(translateArgs?.[0]).toBe('translate this screenshot')
+    expect(translateArgs?.[1]).toBe('en-us')
+    expect(translateArgs?.[4]).toEqual({ data: new Uint8Array(8), filename: 'pasted.png' })
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
     await waitFor(() =>
-      expect(fileMock.startJob).toHaveBeenCalledWith({
-        feature: 'image_to_text',
-        file: { kind: 'path', path: '/tmp/pasted.png' }
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'translate this screenshot',
+        targetText: 'translated',
+        sourceLanguage: null,
+        targetLanguage: 'en-us'
       })
     )
-    // Pasted images have no path → temp-file fallback (createTempFile + write) runs before the job starts.
-    expect(fileMock.createTempFile).toHaveBeenCalledWith('pasted.png')
-    expect(fileMock.write).toHaveBeenCalled()
   })
 
   it('ignores empty text data when handling drops', async () => {
@@ -1606,7 +1966,7 @@ describe('TranslatePage', () => {
 
     expect(dropMock.getTextFromDropEvent).not.toHaveBeenCalled()
     expect(dropMock.getFilesFromDropEvent).not.toHaveBeenCalled()
-    expect(fileMock.getPathForFile).not.toHaveBeenCalled()
+    expect(createObjectURLMock).not.toHaveBeenCalled()
 
     await act(async () => {
       resolveTranslate('done')

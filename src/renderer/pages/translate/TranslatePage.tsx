@@ -28,7 +28,7 @@ import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelLogoRef, isVisionModel } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
@@ -47,11 +47,17 @@ import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { MB } from '@shared/utils/constants'
+import { MAX_TRANSLATE_IMAGE_BYTES, MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 
+import {
+  ingestTranslateClipboardImage,
+  shouldPreferTranslateClipboardImage,
+  TRANSLATE_CLIPBOARD_IMAGE_EXTS,
+  type TranslateClipboardImage
+} from './clipboardImagePaste'
 import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
@@ -244,9 +250,12 @@ const TranslatePage: FC = () => {
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+  const [requireVisionModel, setRequireVisionModel] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
+  const [clipboardImage, setClipboardImage] = useState<TranslateClipboardImage | null>(null)
   const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
   /** Set only when reopening a finished translation from history; `key` remounts the view. */
   const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
@@ -255,10 +264,28 @@ const TranslatePage: FC = () => {
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
   const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
+  const mountedRef = useRef(true)
+  const clipboardImageRef = useRef<TranslateClipboardImage | null>(null)
+  const updateClipboardImage = useCallback((next: TranslateClipboardImage | null) => {
+    const previous = clipboardImageRef.current
+    clipboardImageRef.current = next
+    setClipboardImage(next)
+    if (previous && previous.previewUrl !== next?.previewUrl) URL.revokeObjectURL(previous.previewUrl)
+  }, [])
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
   const isTranslationRunning = isTranslating || pdfStatus.running
   const babelDoc = useBabelDoc(isPdfMode)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      const current = clipboardImageRef.current
+      clipboardImageRef.current = null
+      if (current) URL.revokeObjectURL(current.previewUrl)
+    }
+  }, [])
 
   const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -366,12 +393,17 @@ const TranslatePage: FC = () => {
     async (
       rawText: string,
       actualSourceLanguage: TranslateLangCode | null,
-      actualTargetLanguage: TranslateLangCode
+      actualTargetLanguage: TranslateLangCode,
+      image?: TranslateClipboardImage | null
     ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
       smoothReset('')
-      const translated = await runTranslate(rawText, actualTargetLanguage)
+      const translated = await runTranslate(
+        rawText,
+        actualTargetLanguage,
+        image ? { image: { data: image.data, filename: image.name } } : undefined
+      )
       if (!translated) {
         return
       }
@@ -392,6 +424,8 @@ const TranslatePage: FC = () => {
           100
         )
       }
+
+      if (image && !rawText.trim()) return
 
       return addHistory({
         sourceText: rawText,
@@ -423,18 +457,32 @@ const TranslatePage: FC = () => {
   )
 
   const translateTextContent = useCallback(
-    async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
-      if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
+    async (
+      rawText: string,
+      allowBidirectional: boolean,
+      isCurrent?: () => boolean,
+      image?: TranslateClipboardImage | null
+    ): Promise<void> => {
+      if ((!rawText.trim() && !image) || !selectedModelId || isDetecting || isTranslating) return
+
+      // A clipboard image stays on the selected target. Accompanying text must not
+      // reverse the bidirectional pair or block the request on language detection.
+      if (image) {
+        setDetectedLanguage(null)
+        const history = await translate(rawText, null, targetLanguage, image)
+        if (history && rawText.trim()) backfillHistorySourceLanguage(history.id, rawText)
+        return
+      }
 
       if (allowBidirectional && !isBidirectional) {
         setDetectedLanguage(null)
-        const history = await translate(rawText, null, targetLanguage)
-        if (history) backfillHistorySourceLanguage(history.id, rawText)
+        const history = await translate(rawText, null, targetLanguage, image)
+        if (history && rawText.trim()) backfillHistorySourceLanguage(history.id, rawText)
         return
       }
 
       let actualSourceLanguage = sourceLanguage
-      if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
+      if (rawText.trim() && ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto')) {
         setIsDetecting(true)
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
@@ -465,7 +513,7 @@ const TranslatePage: FC = () => {
         return
       }
 
-      await translate(rawText, actualSourceLanguage, targetResult.language)
+      await translate(rawText, actualSourceLanguage, targetResult.language, image)
     },
     [
       backfillHistorySourceLanguage,
@@ -542,15 +590,24 @@ const TranslatePage: FC = () => {
       return
     }
 
+    if (clipboardImage && (!selectedModel || !isVisionModel(selectedModel))) {
+      setRequireVisionModel(true)
+      setModelSelectorOpen(true)
+      toast.info(t('translate.image.vision_model_required'))
+      return
+    }
+
     const requestId = ++textRequestIdRef.current
-    await translateTextContent(translateInput, true, () => textRequestIdRef.current === requestId)
+    await translateTextContent(translateInput, true, () => textRequestIdRef.current === requestId, clipboardImage)
   }, [
     babelDoc.availability,
     babelDoc.installing,
     bidirectionalPair,
+    clipboardImage,
     isSelectedPdfModelRoutable,
     pdfFile,
     pdfStatus.running,
+    selectedModel,
     sourceLanguage,
     t,
     targetLanguage,
@@ -588,6 +645,7 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
+        updateClipboardImage(null)
         textRequestIdRef.current += 1
         if (isTranslating) cancel()
         smoothReset('')
@@ -595,6 +653,7 @@ const TranslatePage: FC = () => {
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
+        updateClipboardImage(null)
         textRequestIdRef.current += 1
         if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
@@ -617,7 +676,8 @@ const TranslatePage: FC = () => {
       setTranslateInput,
       smoothReset,
       t,
-      targetLanguage
+      targetLanguage,
+      updateClipboardImage
     ]
   )
 
@@ -634,17 +694,67 @@ const TranslatePage: FC = () => {
   const translateReasoning = useTranslateReasoningEffort()
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
-    (model) =>
-      !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
-    [babelDoc.availability, isPdfMode]
+    (model) => {
+      if (isNonChatModel(model)) return false
+      if (requireVisionModel && !isVisionModel(model)) return false
+      return !isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)
+    },
+    [babelDoc.availability, isPdfMode, requireVisionModel]
   )
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {
       void safePersist(setTranslateModelId(modelId ?? null), 'translate model id')
+      if (modelId) setRequireVisionModel(false)
     },
     [safePersist, setTranslateModelId]
   )
+
+  const attachClipboardImage = useCallback(
+    (image: TranslateClipboardImage) => {
+      if (!mountedRef.current) {
+        URL.revokeObjectURL(image.previewUrl)
+        return
+      }
+      resetPdfMode()
+      updateClipboardImage(image)
+    },
+    [resetPdfMode, updateClipboardImage]
+  )
+
+  const clearClipboardImage = useCallback(() => updateClipboardImage(null), [updateClipboardImage])
+
+  const replaceClipboardImage = useCallback(async () => {
+    if (selecting || isTranslationRunning || isOcrRunning) return
+    setIsProcessing(true)
+    try {
+      const [file] = await onSelectFile({ multipleSelections: false })
+      if (file && isImageFileMetadata(file)) {
+        if (file.size <= 0 || file.size > MAX_TRANSLATE_IMAGE_BYTES) {
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${MAX_TRANSLATE_IMAGE_BYTES / MB} MB)`)
+          return
+        }
+        const data = new Uint8Array(await window.api.fs.read(file.path))
+        if (data.byteLength <= 0 || data.byteLength > MAX_TRANSLATE_IMAGE_BYTES) {
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${MAX_TRANSLATE_IMAGE_BYTES / MB} MB)`)
+          return
+        }
+        attachClipboardImage({
+          name: file.origin_name || file.name,
+          data,
+          previewUrl: URL.createObjectURL(new Blob([data]))
+        })
+      } else if (file) {
+        toast.info(t('common.file.not_supported', { type: getFileExtension(file.path) }))
+      }
+    } catch (error) {
+      logger.error('Unknown error when replacing clipboard image.', error as Error)
+      toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+    } finally {
+      clearFiles()
+      setIsProcessing(false)
+    }
+  }, [attachClipboardImage, clearFiles, isOcrRunning, isTranslationRunning, onSelectFile, selecting, t])
 
   const readFile = useCallback(
     async (file: FileMetadata) => {
@@ -725,6 +835,7 @@ const TranslatePage: FC = () => {
           toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
           return
         }
+        updateClipboardImage(null)
         pdfTextRequestIdRef.current += 1
         pdfTextCacheRef.current = null
         pdfTextFallbackStartedRef.current = false
@@ -737,13 +848,14 @@ const TranslatePage: FC = () => {
       }
 
       resetPdfMode()
+      updateClipboardImage(null)
       if (isImageFileMetadata(file)) {
         await startOcr(file)
       } else {
         await readFile(file)
       }
     },
-    [readFile, resetPdfMode, startOcr, t, translateOutput]
+    [readFile, resetPdfMode, startOcr, t, translateOutput, updateClipboardImage]
   )
 
   const handleSelectFile = useCallback(async () => {
@@ -816,36 +928,43 @@ const TranslatePage: FC = () => {
   const onPaste = useCallback(
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
       if (isProcessing || isOcrRunning || isTranslationRunning) return
-      const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
-      if (!hasFiles) return
+      const clipboardFiles = Array.from(event.clipboardData.files ?? [])
+      if (clipboardFiles.length === 0) return
+
+      const clipboardText = event.clipboardData.getData('text')
+      const preferClipboardImage = shouldPreferTranslateClipboardImage(clipboardFiles, TRANSLATE_CLIPBOARD_IMAGE_EXTS)
+      // Text-only (or text+unsupported-file) paste keeps the browser default.
+      if (!isEmpty(clipboardText) && !preferClipboardImage) {
+        return
+      }
+
       setIsProcessing(true)
       try {
-        const clipboardText = event.clipboardData.getData('text')
-        if (!isEmpty(clipboardText)) {
+        event.preventDefault()
+        if (clipboardFiles.length === 0) return
+        if (clipboardFiles.length > 1) {
+          toast.error(t('translate.files.error.multiple'))
           return
         }
-
-        event.preventDefault()
-        const file = getSingleFile(event.clipboardData.files) as File
+        const file = clipboardFiles[0]
         if (!file) return
 
-        const filePath = window.api.file.getPathForFile(file)
-        let selectedFile: FileMetadata | null
-
-        if (!filePath) {
-          if (!file.type.startsWith('image/')) {
+        if (preferClipboardImage || file.type.startsWith('image/')) {
+          const ingestedImage = await ingestTranslateClipboardImage(file)
+          if (!ingestedImage) {
             toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
             return
           }
-          const tempFilePath = await window.api.file.createTempFile(file.name)
-          const arrayBuffer = await file.arrayBuffer()
-          const uint8Array = new Uint8Array(arrayBuffer)
-          await window.api.file.write(tempFilePath, uint8Array)
-          selectedFile = await window.api.file.get(tempFilePath)
-        } else {
-          selectedFile = await window.api.file.get(filePath)
+          attachClipboardImage(ingestedImage)
+          return
         }
 
+        const filePath = window.api.file.getPathForFile(file)
+        if (!filePath) {
+          toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
+          return
+        }
+        const selectedFile = await window.api.file.get(filePath)
         if (!selectedFile) {
           toast.error(t('translate.files.error.unknown'))
           return
@@ -858,7 +977,7 @@ const TranslatePage: FC = () => {
         setIsProcessing(false)
       }
     },
-    [getSingleFile, isOcrRunning, isProcessing, isTranslationRunning, processFile, t]
+    [attachClipboardImage, isOcrRunning, isProcessing, isTranslationRunning, processFile, t]
   )
 
   const handlePdfHandleChange = useCallback((handle: PdfTranslationHandle | null) => {
@@ -879,7 +998,12 @@ const TranslatePage: FC = () => {
       !pdfStatus.running &&
       !isTranslating &&
       !isProcessing
-    : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
+    : (!isEmpty(translateInput) || !!clipboardImage) &&
+      !!selectedModelId &&
+      !isTranslating &&
+      !isDetecting &&
+      !isProcessing &&
+      !isOcrRunning
 
   return (
     <div
@@ -937,6 +1061,11 @@ const TranslatePage: FC = () => {
               selectionType="id"
               value={selectedModelId}
               onSelect={handleModelIdSelect}
+              open={modelSelectorOpen}
+              onOpenChange={(open) => {
+                setModelSelectorOpen(open)
+                if (!open) setRequireVisionModel(false)
+              }}
               filter={modelSelectorFilter}
               showTagFilter={false}
               showPinnedModels
@@ -1067,6 +1196,9 @@ const TranslatePage: FC = () => {
                 onPaste={onPaste}
                 onDrop={onDrop}
                 onSelectFile={handleSelectFile}
+                clipboardImage={clipboardImage}
+                onRemoveClipboardImage={clearClipboardImage}
+                onReplaceClipboardImage={() => void replaceClipboardImage()}
                 copied={inputCopied}
                 onCopy={onCopyInput}
                 onCancelOcr={clearOcrJob}

@@ -1,12 +1,22 @@
 import * as z from 'zod'
 
 import { type TranslateLangCode, TranslateLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import { SafeNameSchema } from '@shared/data/types/file'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { MAX_TRANSLATE_IMAGE_BYTES } from '@shared/utils/constants'
 
 import { defineRoute } from '../define'
+import { uint8ArraySchema } from './common'
 
 const pdfJobInputSchema = z.strictObject({ jobId: z.uuid() })
+const translateImageSchema = z.strictObject({
+  data: uint8ArraySchema.refine(
+    (data) => data.byteLength > 0 && data.byteLength <= MAX_TRANSLATE_IMAGE_BYTES,
+    'translation image bytes out of range'
+  ),
+  filename: SafeNameSchema
+})
 
 /**
  * Translate IPC schema — an independent micro-domain (plan ruling 16). `translate.open`
@@ -17,12 +27,14 @@ const pdfJobInputSchema = z.strictObject({ jobId: z.uuid() })
  */
 export const translateRequestSchemas = {
   'translate.open': defineRoute({
-    input: z.object({
+    input: z.strictObject({
       streamId: z.string(),
       text: z.string(),
-      targetLangCode: z.custom<TranslateLangCode>()
+      targetLangCode: z.custom<TranslateLangCode>(),
+      /** Clipboard/screenshot bytes captured during the user's paste/select action. */
+      image: translateImageSchema.optional()
     }),
-    output: z.object({ streamId: z.string() })
+    output: z.strictObject({ streamId: z.string() })
   }),
   'translate.pdf.start': defineRoute({
     input: pdfJobInputSchema.extend({

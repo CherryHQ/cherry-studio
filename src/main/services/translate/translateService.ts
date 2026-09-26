@@ -16,6 +16,8 @@
  * `src/main/ipc/handlers/translate.ts`.
  */
 
+import { fileTypeFromBuffer } from 'file-type'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CallOverrides } from '@main/ai/types'
@@ -29,13 +31,15 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { imageExts } from '@shared/utils/file'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import { WebContentsListener } from '../../ai/streamManager'
+import { type StreamListener, WebContentsListener } from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -75,6 +79,8 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
+  /** Optional image bytes captured during the user's paste/select action. */
+  image?: { data: Uint8Array; filename: string }
 }
 
 export interface TranslateOpenResult {
@@ -94,11 +100,10 @@ export class TranslateService {
   /**
    * IPC entry-point (called from `AiService.onInit`). Resolves the model +
    * prompt, then dispatches the stream through `AiStreamManager.streamPrompt`.
-   * Returns the `streamId` synchronously so the renderer can subscribe to
-   * `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` before chunks
-   * start flowing.
+   * The renderer subscribes to `ai.stream.chunk` / `done` / `error` before
+   * invoking this method, so no chunk can race past its listeners.
    */
-  open(sender: Electron.WebContents, req: TranslateOpenRequest): TranslateOpenResult {
+  async open(sender: Electron.WebContents, req: TranslateOpenRequest): Promise<TranslateOpenResult> {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {
       throw new Error(`streamId must be prefixed '${TRANSLATE_STREAM_PREFIX}' (got '${req.streamId}')`)
     }
@@ -112,14 +117,89 @@ export class TranslateService {
     const wcListener = new WebContentsListener(sender, req.streamId)
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({
-      streamId: req.streamId,
-      uniqueModelId,
-      prompt: content,
-      listener: wcListener,
-      reasoningEffort,
-      callOverrides
-    })
+    const image = req.image
+    let cleanupStagedImage: (() => Promise<void>) | undefined
+    // Abort uses this same per-topic lock. Holding it across async image
+    // validation makes an abort wait until streamPrompt has synchronously
+    // registered the stream, instead of disappearing against an unknown topic.
+    try {
+      await streamManager.withDispatchLock(req.streamId, async () => {
+        if (image) {
+          const detected = await fileTypeFromBuffer(image.data)
+          if (!detected || !detected.mime.startsWith('image/')) {
+            throw new Error('Translation image bytes must contain a recognized image')
+          }
+          if (!imageExts.includes(`.${detected.ext}`)) {
+            throw new Error(`Unsupported translation image type: ${detected.ext}`)
+          }
+
+          const fileManager = application.get('FileManager')
+          const imageEntry = await fileManager.createInternalEntry({
+            source: 'bytes',
+            data: image.data,
+            name: 'translation-image',
+            ext: detected.ext,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
+
+          let cleanupPromise: Promise<void> | undefined
+          cleanupStagedImage = () => {
+            cleanupPromise ??= fileManager.permanentDelete(imageEntry.id).catch((error) => {
+              logger.warn('Failed to delete staged translation image', { imageEntryId: imageEntry.id, error })
+            })
+            return cleanupPromise
+          }
+
+          const imagePrompt = req.text.trim()
+            ? content
+            : `Identify the language of the text in the attached image and translate it into ${targetLanguage.value}. Provide only the translation and preserve the original formatting.`
+          const messages: CherryUIMessage[] = [
+            {
+              id: 'translate-user',
+              role: 'user',
+              parts: [
+                { type: 'text', text: imagePrompt },
+                {
+                  type: 'file',
+                  mediaType: detected.mime,
+                  url: fileManager.getUrl(imageEntry.id),
+                  filename: image.filename
+                }
+              ]
+            }
+          ]
+          const cleanupListener: StreamListener = {
+            id: `translate-cleanup:${req.streamId}`,
+            terminalPhase: 'cleanup',
+            onChunk: () => {},
+            onDone: cleanupStagedImage,
+            onPaused: cleanupStagedImage,
+            onError: cleanupStagedImage,
+            isAlive: () => true
+          }
+          streamManager.streamPrompt({
+            streamId: req.streamId,
+            uniqueModelId,
+            messages,
+            listener: [wcListener, cleanupListener],
+            reasoningEffort,
+            callOverrides
+          })
+        } else {
+          streamManager.streamPrompt({
+            streamId: req.streamId,
+            uniqueModelId,
+            prompt: content,
+            listener: wcListener,
+            reasoningEffort,
+            callOverrides
+          })
+        }
+      })
+    } catch (error) {
+      await cleanupStagedImage?.()
+      throw error
+    }
 
     // `info`, and with the overrides: this is the only record of what translate
     // actually put on the request, and `resolveReasoningInvocation` logs the
@@ -128,7 +208,8 @@ export class TranslateService {
       streamId: req.streamId,
       uniqueModelId,
       reasoningEffort,
-      callOverrides
+      callOverrides,
+      hasImage: Boolean(image)
     })
     return { streamId: req.streamId }
   }
