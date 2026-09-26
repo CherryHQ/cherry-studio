@@ -41,7 +41,7 @@
     "@types/ws": "^8.18.1",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.1.10",
+    "vitest": "^5.0.1",
     "ws": "^8.18.3"
   }
 }

@@ -121,6 +121,7 @@
   "openclaw.errors.external_config_invalid": "OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "and {{count}} more issue(s)",
   "openclaw.errors.preflight_failed": "Cherry Studio could not validate the OpenClaw configuration.",
+  "openclaw.errors.preflight_timeout": "OpenClaw did not return its configuration schema within {{seconds}} seconds. Cherry Studio stopped waiting. OpenClaw may start slowly on a slow disk or under high load. Try again.",
   "paintings.generate_failed": "Failed to generate image",
   "paintings.image_mix_failed": "Failed to mix images",
   "selection.name": "Selection Assistant",

@@ -57,12 +57,15 @@ export const handlePaste = async (
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
-    // supported image in that case; letting the editor handle the text flavor can render a preview
-    // without ever adding an attachment to composer state.
-    const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
+    // supported image when no rich text representation is present; letting the editor handle the
+    // text flavor can render a preview without ever adding an attachment to composer state.
+    const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+    const clipboardHtml = event.clipboardData?.getData('text/html') || ''
+    const hasTextualClipboardRepresentation = Boolean(clipboardText && clipboardHtml)
+    const shouldPreferClipboardImage =
+      !hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportExts)
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
-    const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText && !shouldPreferClipboardImage) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
