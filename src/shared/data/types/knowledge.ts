@@ -878,25 +878,49 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
 }
 
 /**
- * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
- * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
- * `test_2.md`) when present, else the source basename. An add-input has no
- * relativePath yet, so it keys off the source basename and detection still fires;
- * an existing item keys off its deduped relativePath, so `replace` targets only
- * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
- * {@link getKnowledgeNoteName} the display title uses, normalized through
- * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
- * already-indexed note is stored under. url stays separate from its display title: it keys off the
- * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
- * absent at add-time — keying off that would miss real duplicate urls.
+ * Normalize an original path into a stable same-path identity for conflict keying.
+ * Unifies separators so equivalent spellings compare equal — Windows `C:\Docs\a.pdf`
+ * vs `C:/Docs/a.pdf`, UNC `\\server\share\a.pdf` vs `//server/share/a.pdf` — and
+ * trims trailing separators (a directory's `/a/docs/` == `/a/docs`), but never below
+ * a filesystem root: a POSIX root `/` keeps a non-empty key so it can still collide
+ * and be replaced (an empty key is deliberately excluded from detection). Returns
+ * '' only for a genuinely empty source. String ops only (no `node:path`) — safe in
+ * the renderer.
+ */
+function normalizeKnowledgePathKey(value: string): string {
+  const unified = value.trim().replace(/\\/g, '/')
+  if (unified === '') {
+    return ''
+  }
+  // Trailing separators only (leading UNC `//` is meaningful and preserved). A value
+  // that is all separators is a root, so keep a single `/` rather than collapsing to ''.
+  return unified.replace(/\/+$/, '') || '/'
+}
+
+/**
+ * Per-type same-name detection key. Unlike {@link getKnowledgeItemDisplayTitle}
+ * (which prefers the deduped `raw/` name so kept copies stay distinguishable),
+ * detection keys off the *original path*, not the basename: two files that share a
+ * basename but live in different folders (`/a/report.docx` vs `/b/report.docx`)
+ * are distinct sources and must not be flagged as duplicates. So file/directory key
+ * off the full `data.source` — the original path, carried identically on an existing
+ * item and on an add-input —
+ * normalized to a stable same-path identity (see {@link normalizeKnowledgePathKey})
+ * so the two sides compare equal for the same path and stay distinct for different
+ * ones. note keys off the same {@link getKnowledgeNoteName} the display title uses, normalized
+ * through {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches
+ * the slug an already-indexed note is stored under. url stays separate from its display title: it
+ * keys off the raw `data.url` (exact, no normalization) because its deduped name is a post-index
+ * snapshot name absent at add-time — keying off that would miss real duplicate urls.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
   switch (item.type) {
     case 'file':
     case 'directory':
-      return getKnowledgePathBasename(data.relativePath || data.source || '')
+      // Full path (not a basename), or different-folder same-name sources would
+      // alias into a phantom conflict (the bug this fixes).
+      return normalizeKnowledgePathKey(data.source || '')
     case 'note': {
       const name = getKnowledgeNoteName(data)
       // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
