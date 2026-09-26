@@ -1415,6 +1415,11 @@ export class BinaryManager extends BaseService {
     return application.get('PreferenceService').get('feature.binary.tools')
   }
 
+  /** The Dependencies page renders custom definitions, but not discovered installs or fixed Code CLIs. */
+  public hasCustomDependencyDefinition(name: string): boolean {
+    return !FIXED_CATALOG.has(name) && this.getCustomDefinitions().some((definition) => definition.name === name)
+  }
+
   private async upsertCustomDefinition(definition: CustomToolDefinition): Promise<void> {
     const definitions = this.getCustomDefinitions()
     await application
