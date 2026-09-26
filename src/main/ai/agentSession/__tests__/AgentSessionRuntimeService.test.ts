@@ -790,6 +790,35 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('attributes gateway usage to the session agent when the turn has no author snapshot', () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      name: 'Current Agent'
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    expect(service.getActiveUsageContext('session-1')).toEqual({
+      agentSessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Current Agent', icon: '🤖' }
+    })
+  })
+
+  it('keeps the agent identity for gateway usage when the agent entity is unavailable', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    mocks.getAgent.mockReturnValue(null)
+
+    expect(service.getActiveUsageContext('session-1')).toEqual({
+      agentSessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      source: { type: 'agent', id: 'agent-1', name: null, icon: null }
+    })
+  })
+
   it('records runtime model usage against the exact turn and frozen source', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
@@ -947,6 +976,82 @@ describe('AgentSessionRuntimeService', () => {
       source: 'agent'
     })
     void service.closeSession('session-1')
+  })
+
+  it('attributes SDK usage without an author snapshot and preserves live and stateless message references', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      usageCapture: {
+        owner: 'agent-sdk' as const,
+        credentialReceipt: { attribution: 'explicit' as const, id: 'key-a', masked: 'key-***' },
+        providerId: 'claude-code',
+        providerName: 'Claude Code',
+        source: null,
+        frozenModels: []
+      },
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    events.push({
+      type: 'usage',
+      invocation: {
+        requestId: 'sdk-live-request',
+        model: 'claude-sonnet-4-5',
+        messageAssociation: 'current-turn',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+      }
+    })
+    await vi.waitFor(() =>
+      expect(mocks.recordUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'sdk-live-request',
+          context: expect.objectContaining({
+            source: { type: 'agent', id: 'agent-1', name: null, icon: '🤖' },
+            messageRef: { kind: 'agent-session', id: 'assistant-1' }
+          })
+        })
+      )
+    )
+
+    getEntry(service).currentTurn = undefined
+    events.push({
+      type: 'usage',
+      invocation: {
+        requestId: 'sdk-lost-turn-request',
+        model: 'claude-sonnet-4-5',
+        messageAssociation: 'current-turn',
+        usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 }
+      }
+    })
+    await vi.waitFor(() =>
+      expect(mocks.recordUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'sdk-lost-turn-request',
+          context: expect.objectContaining({
+            source: { type: 'agent', id: 'agent-1', name: null, icon: '🤖' },
+            messageRef: null
+          })
+        })
+      )
+    )
+    void service.closeSession('session-1')
+    await reader.cancel().catch(() => undefined)
   })
 
   it('ignores SDK usage when provider-call middleware owns the gateway route', () => {
@@ -5528,6 +5633,10 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).runtimeState.execution).toMatchObject({
         kind: 'turn',
         reservation: expect.anything()
+      })
+      expect(service.getActiveUsageContext('session-1')).toMatchObject({
+        agentSessionId: 'session-1',
+        source: { type: 'agent', id: 'agent-1', name: null, icon: '🤖' }
       })
 
       events.push({ type: 'turn-complete' })
