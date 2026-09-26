@@ -2,12 +2,15 @@ import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useMermaid } from '@renderer/hooks/useMermaid'
+import { mermaidRenderService } from '@renderer/services/MermaidRenderService'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
+
+type MermaidRenderInvocation = ReturnType<typeof mermaidRenderService.enqueue>
 
 /**
  * 预览 Mermaid 图表
@@ -22,40 +25,71 @@ const MermaidPreview = ({
   const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
+  const [previewBackgroundColor, setPreviewBackgroundColor] = useState<string>()
+  const invocations = useRef(new Set<MermaidRenderInvocation>())
+
+  useEffect(
+    () => () => {
+      for (const invocation of invocations.current) invocation.cancel()
+      invocations.current.clear()
+    },
+    []
+  )
 
   /**
    * 定义渲染函数，在临时容器中测量，在 shadow dom 中渲染。
    * 如果这个方案有问题，可以回退到 innerHTML。
    */
   const renderMermaid = useCallback(
-    async (content: string, container: HTMLDivElement) => {
-      // 验证语法，提前抛出异常
-      await mermaid.parse(content)
-
-      // 获取容器宽度
-      const { width } = container.getBoundingClientRect()
-      if (width === 0) return
-
-      // 创建临时的 div 用于 mermaid 测量
-      const measureEl = document.createElement('div')
-      measureEl.style.position = 'absolute'
-      measureEl.style.left = '-9999px'
-      measureEl.style.top = '-9999px'
-      measureEl.style.width = `${width}px`
-      document.body.appendChild(measureEl)
-
-      try {
-        const { svg } = await mermaid.render(diagramId, content, measureEl)
-
-        // 避免不可见时产生 undefined 和 NaN
-        const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
-
-        // 有问题可以回退到 innerHTML
-        renderSvgInShadowHost(fixedSvg, container)
-        // container.innerHTML = fixedSvg
-      } finally {
-        document.body.removeChild(measureEl)
+    (content: string, container: HTMLDivElement) => {
+      for (const invocation of invocations.current) {
+        if (invocation.isQueued()) invocation.cancel()
       }
+
+      const invocation = mermaidRenderService.enqueue(async (isCancelled) => {
+        try {
+          if (isCancelled()) return
+          // 验证语法，提前抛出异常
+          await mermaid.parse(content)
+          if (isCancelled()) return
+          const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
+
+          // 获取容器宽度
+          const { width } = container.getBoundingClientRect()
+          if (width === 0) return
+
+          // 创建临时的 div 用于 mermaid 测量
+          const measureEl = document.createElement('div')
+          measureEl.style.position = 'absolute'
+          measureEl.style.left = '-9999px'
+          measureEl.style.top = '-9999px'
+          measureEl.style.width = `${width}px`
+          document.body.appendChild(measureEl)
+
+          try {
+            const { svg } = await mermaid.render(diagramId, content, measureEl)
+            if (isCancelled()) return
+
+            // 避免不可见时产生 undefined 和 NaN
+            const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
+
+            // 有问题可以回退到 innerHTML
+            renderSvgInShadowHost(fixedSvg, container)
+            setPreviewBackgroundColor(renderBackgroundColor)
+            // container.innerHTML = fixedSvg
+          } finally {
+            document.body.removeChild(measureEl)
+          }
+        } catch (error) {
+          if (!isCancelled()) throw error
+        }
+      })
+      invocations.current.add(invocation)
+      void invocation.promise.then(
+        () => invocations.current.delete(invocation),
+        () => invocations.current.delete(invocation)
+      )
+      return invocation.promise
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [diagramId, mermaid, forceRenderKey]
@@ -130,6 +164,7 @@ const MermaidPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
+      previewBackgroundColor={previewBackgroundColor}
       source="mermaid">
       <ShadowTransparentContainer
         ref={containerRef}

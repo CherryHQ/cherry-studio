@@ -60,12 +60,14 @@ export const useDebouncedRender = (
 
   const containerRef = useRef<HTMLDivElement>(null)
   const debouncedFunctionRef = useRef<ReturnType<typeof debounce> | null>(null)
+  const renderGenerationRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   // 包装渲染函数，添加容器检查和错误处理
   const wrappedRenderFunction = useCallback(
     async (content: string): Promise<void> => {
+      const renderGeneration = ++renderGenerationRef.current
       // 检查渲染前条件
       if ((shouldRender && !shouldRender()) || !content) {
         return
@@ -82,13 +84,15 @@ export const useDebouncedRender = (
         await renderFunction(content, containerRef.current)
 
         // 渲染成功，确保清除错误状态
-        setError(null)
+        if (renderGeneration === renderGenerationRef.current) setError(null)
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
-        logger.error(errorMessage)
-        setError(errorMessage)
+        if (renderGeneration === renderGenerationRef.current) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
+          logger.error(errorMessage)
+          setError(errorMessage)
+        }
       } finally {
-        setIsLoading(false)
+        if (renderGeneration === renderGenerationRef.current) setIsLoading(false)
       }
     },
     [renderFunction, shouldRender]
@@ -111,6 +115,7 @@ export const useDebouncedRender = (
   // 手动触发渲染的函数
   const triggerRender = useCallback(
     (content: string) => {
+      renderGenerationRef.current++
       if (content) {
         setIsLoading(true)
         debouncedRender(content)
@@ -131,6 +136,7 @@ export const useDebouncedRender = (
         debouncedRender.cancel()
         void wrappedRenderFunction(content)
       } else {
+        renderGenerationRef.current++
         debouncedRender.cancel()
         setIsLoading(false)
         setError(null)
@@ -140,6 +146,7 @@ export const useDebouncedRender = (
   )
 
   const cancelRender = useCallback(() => {
+    renderGenerationRef.current++
     debouncedRender.cancel()
     setIsLoading(false)
   }, [debouncedRender])
