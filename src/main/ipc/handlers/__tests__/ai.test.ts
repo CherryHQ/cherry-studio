@@ -403,7 +403,7 @@ describe('aiHandlers', () => {
     )
   })
 
-  it('normalizes a non-Error throw into an AI_REQUEST_FAILED IpcError', async () => {
+  it('preserves a safe string throw in an AI_REQUEST_FAILED IpcError', async () => {
     aiService.checkModel.mockRejectedValue('boom')
 
     const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
