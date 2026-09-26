@@ -2,7 +2,7 @@ import { getRelativePath, isPathInside, isSamePath, toPathKey } from '@renderer/
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { PosixRelativeFilePath } from '@shared/utils/file'
+import { canonicalizeFilePath, type PosixRelativeFilePath } from '@shared/utils/file'
 
 /**
  * Agent-specific policy over the generic renderer path primitives: match a path
@@ -13,11 +13,89 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
  * `WorkspaceFileGuard.resolveWorkspaceFile`.
  */
 
+const isUncAbsolutePath = (path: AbsoluteFilePath): boolean => path.startsWith('\\\\') || path.startsWith('//')
+
+/**
+ * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
+ * case-insensitive on macOS/Windows (default APFS/NTFS), case-sensitive on Linux.
+ */
+const isCaseInsensitivePlatform = isMac || isWin
+
+const UNC_ROOT_SEGMENT_COUNT = 2
+
+const foldPathSegment = (segment: string) => (isCaseInsensitivePlatform ? segment.toLowerCase() : segment)
+
+/** Resolve a UNC path to segments; returns `null` when `..` would escape the share root. */
+const resolveUncPathSegments = (path: AbsoluteFilePath): string[] | null => {
+  const normalized = path
+    .replace(/\//g, '\\')
+    .replace(/^\\+/, '')
+    .replace(/[\\]+$/, '')
+  if (!normalized) return null
+  const stack: string[] = []
+  for (const segment of normalized.split('\\')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (stack.length <= UNC_ROOT_SEGMENT_COUNT) return null
+      stack.pop()
+      continue
+    }
+    stack.push(segment)
+  }
+  return stack
+}
+
+const uncSegmentsMatchPrefix = (fileSegments: string[], workspaceSegments: string[]): boolean => {
+  if (fileSegments.length < workspaceSegments.length) return false
+  for (let index = 0; index < workspaceSegments.length; index++) {
+    if (foldPathSegment(fileSegments[index]) !== foldPathSegment(workspaceSegments[index])) return false
+  }
+  return true
+}
+
+/** Lexical containment when `toPathKey` cannot canonicalize UNC roots. */
+const isPathWithinUncPath = (filePath: AbsoluteFilePath, workspacePath: AbsoluteFilePath): boolean => {
+  const fileSegments = resolveUncPathSegments(filePath)
+  const workspaceSegments = resolveUncPathSegments(workspacePath)
+  if (!fileSegments || !workspaceSegments) return false
+  return uncSegmentsMatchPrefix(fileSegments, workspaceSegments)
+}
+
+const asPathPrefix = (pathKey: string) => (pathKey.endsWith('/') ? pathKey : `${pathKey}/`)
+
+/** Case-aware containment for paths `toPathKey` can canonicalize (drive-letter / POSIX). */
+const isPathWithinCanonicalPath = (filePath: AbsoluteFilePath, workspacePath: AbsoluteFilePath): boolean => {
+  const fileKey = toPathKey(filePath)
+  const workspaceKey = toPathKey(workspacePath)
+  if (fileKey === null || workspaceKey === null) return false
+  const file = isCaseInsensitivePlatform ? fileKey.toLowerCase() : fileKey
+  const workspace = isCaseInsensitivePlatform ? workspaceKey.toLowerCase() : workspaceKey
+  if (file === workspace) return true
+  return file.startsWith(asPathPrefix(workspace))
+}
+
+/** Reference key for accessible attachments; UNC paths stay as absolute bytes. */
+export const accessibleFileReference = (filePath: AbsoluteFilePath): AbsoluteFilePath => {
+  if (isUncAbsolutePath(filePath)) {
+    return filePath
+  }
+  try {
+    return canonicalizeFilePath(filePath)
+  } catch {
+    return filePath
+  }
+}
+
 /** True iff `filePath` is one of `accessiblePaths` or a descendant of one. */
 export const isPathWithinAccessiblePath = (
   filePath: AbsoluteFilePath,
   accessiblePaths: readonly AbsoluteFilePath[]
-): boolean => accessiblePaths.some((base) => isSamePath(filePath, base) || isPathInside(filePath, base))
+): boolean =>
+  accessiblePaths.some((base) => {
+    if (isSamePath(filePath, base) || isPathInside(filePath, base)) return true
+    if (isCaseInsensitivePlatform && isPathWithinCanonicalPath(filePath, base)) return true
+    return isUncAbsolutePath(filePath) && isUncAbsolutePath(base) && isPathWithinUncPath(filePath, base)
+  })
 
 /**
  * `filePath` relative to the accessible base that contains it, or `filePath`
@@ -39,12 +117,6 @@ export const getAccessiblePathRelativePath = (
   }
   return filePath
 }
-
-/**
- * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
- * case-insensitive on macOS/Windows (default APFS/NTFS), case-sensitive on Linux.
- */
-const isCaseInsensitivePlatform = isMac || isWin
 
 /**
  * A `Set`-able identity key for mention dedup — **deliberately looser than

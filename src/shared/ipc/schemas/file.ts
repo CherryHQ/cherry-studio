@@ -169,6 +169,14 @@ export const fileRequestSchemas = {
     input: z.strictObject({ sourcePath: AbsoluteFilePathSchema, destPath: AbsoluteFilePathSchema }),
     output: z.void()
   }),
+  // Best-effort undo for failed workspace attachment copies (create-only `file.copy` leaves partial files).
+  'file.unlink': defineRoute({
+    input: z.strictObject({
+      path: AbsoluteFilePathSchema,
+      sessionId: z.string().min(1)
+    }),
+    output: z.void()
+  }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
 

@@ -7,5 +7,7 @@ export const fileErrorCodes = {
   /** New bytes committed, but FileEntry metadata must be recovered before retrying. */
   COMMITTED_METADATA_PENDING: 'FILE_COMMITTED_METADATA_PENDING',
   /** DirectoryTreeManager shut down while the create was in flight — the UI is going away. */
-  DIRECTORY_TREE_STOPPED: 'FILE_DIRECTORY_TREE_STOPPED'
+  DIRECTORY_TREE_STOPPED: 'FILE_DIRECTORY_TREE_STOPPED',
+  /** Create-only copy rejected because the destination path already exists. */
+  DESTINATION_EXISTS: 'FILE_DESTINATION_EXISTS'
 } as const

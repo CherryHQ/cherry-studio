@@ -825,15 +825,22 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.ipcApiRequest.mockReset()
     mocks.ipcApiRequest.mockImplementation(
-      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string; destPath?: string }) => {
+        if (route === 'file.copy') {
+          return undefined
+        }
         if (route === 'file.get_metadata') {
           // The session workspace-status preflight stays pending so it never flips the composer into a
-          // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
-          // (from buildFileParts) resolve to a real file MIME instead.
+          // blocking warning (mirrors the former hanging `isDirectory` default).
           if (input.kind === 'path' && input.path === mocks.sessionWorkspacePath) {
             return new Promise(() => undefined)
           }
-          return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+          // Internal FileEntry physical paths still need readable metadata at send time.
+          if (input.kind === 'path' && input.path?.startsWith('/p/')) {
+            return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+          }
+          // Workspace copy checks treat a non-null result as "destination exists".
+          return null
         }
         if (route !== 'file.batch_get_metadata') return {}
         return Object.fromEntries(
@@ -4341,14 +4348,14 @@ describe('AgentComposer', () => {
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
       items: [
         { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
-        { key: '/workspace/docs/beta.md', handle: { kind: 'path', path: '/workspace/docs/beta.md' } }
+        { key: '/workspace/docs/beta.md', handle: { kind: 'path', path: '/workspace/docs/beta.md' } },
+        { key: '/workspace/local.md', handle: { kind: 'path', path: '/workspace/local.md' } }
       ]
     })
-    expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
-      source: 'path',
-      path: '/tmp/local.md',
-      cleanupPolicy: 'delete_when_unreferenced'
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.copy', {
+      sourcePath: '/tmp/local.md',
+      destPath: '/workspace/local.md'
     })
 
     const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
@@ -4360,7 +4367,7 @@ describe('AgentComposer', () => {
     ])
     expect(userMessageParts?.slice(1).map((part) => (part as FileUIPart).url)).toEqual([
       'file:///workspace/docs/alpha.md',
-      'file:///p/fe-1.png',
+      'file:///workspace/local.md',
       'file:///workspace/docs/beta.md'
     ])
   })
@@ -4434,6 +4441,94 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('sends system workspace resource file references without internalizing them', async () => {
+    const systemWorkspacePath = '/Users/jd/Library/Application Support/CherryStudioDev/Data/Agents/system-workspace-1'
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: `${systemWorkspacePath}/notes.md`
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      }
+    ]
+    mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{
+          workspaceId: 'system-workspace-1',
+          workspace: {
+            id: 'system-workspace-1',
+            type: 'system',
+            name: 'agent.session.workspace_selector.no_project',
+            path: systemWorkspacePath
+          }
+        }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.copy', expect.anything())
+    const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
+    expect(userMessageParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'file',
+          url: 'file:///Users/jd/Library/Application%20Support/CherryStudioDev/Data/Agents/system-workspace-1/notes.md',
+          mediaType: 'text/markdown',
+          filename: 'notes.md',
+          providerMetadata: {
+            cherry: {
+              fileTokenSourceId: 'source-workspace-file-1'
+            }
+          }
+        })
+      ])
+    )
+  })
+
+  it('falls back to internal FileEntry storage when the agent session has no workspace', async () => {
+    mocks.files = [file]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{ workspaceId: null, workspace: null }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.copy', expect.anything())
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/notes.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+  })
+
   it('fails the send when a workspace reference is missing from the batch metadata lookup', async () => {
     const workspaceFile = {
       id: 'workspace-file-1',
@@ -4485,13 +4580,13 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    // The FileEntry is created at send time: the file part carries both file identities,
-    // a file:// URL, and a real MIME instead of the raw path / literal extension.
+    // External attachments copy into the session workspace at send time and reference the
+    // workspace path directly instead of creating a managed FileEntry.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
-      source: 'path',
-      path: '/tmp/notes.md',
-      cleanupPolicy: 'delete_when_unreferenced'
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.copy', {
+      sourcePath: '/tmp/notes.md',
+      destPath: '/workspace/notes.md'
     })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
@@ -4525,12 +4620,11 @@ describe('AgentComposer', () => {
             },
             {
               type: 'file',
-              url: 'file:///p/fe-1.png',
+              url: 'file:///workspace/notes.md',
               mediaType: 'text/markdown',
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
-                  fileEntryId: 'fe-1',
                   fileTokenSourceId: 'source-file-1'
                 }
               }

@@ -70,6 +70,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
+import { copyAttachmentToWorkspace, rollbackWorkspaceCopies } from '@renderer/utils/file/copyAttachmentToWorkspace'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -87,7 +88,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
@@ -96,7 +97,7 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
-import { isPathWithinAccessiblePath } from './agent/accessiblePath'
+import { accessibleFileReference, isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   AgentConversationControls,
   type AgentConversationControlsProps,
@@ -157,7 +158,7 @@ const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
   attachment: ComposerAttachment
-  filePath: CanonicalFilePath
+  filePath: AbsoluteFilePath
   index: number
 }
 
@@ -187,7 +188,7 @@ const requestAccessiblePathMetadata = async (
 
 const buildAccessiblePathFilePart = (
   attachment: ComposerAttachment,
-  filePath: CanonicalFilePath,
+  filePath: AbsoluteFilePath,
   metadataByPath: OutputFor<'file.batch_get_metadata'>
 ): FileUIPart => {
   const metadata = metadataByPath[filePath]
@@ -225,9 +226,12 @@ const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[
 
 const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
-  accessiblePaths: readonly AbsoluteFilePath[]
-): Promise<FileUIPart[]> => {
+  accessiblePaths: readonly AbsoluteFilePath[],
+  sessionId: string
+): Promise<{ fileParts: FileUIPart[]; copiedDestPaths: AbsoluteFilePath[] }> => {
+  const workspacePath = accessiblePaths[0]
   const accessibleAttachments: AccessibleAttachment[] = []
+  const workspaceCopiedAttachments: Array<{ attachment: ComposerAttachment; index: number }> = []
   const internalizedAttachments: ComposerAttachment[] = []
   const internalizedIndexes: number[] = []
 
@@ -238,9 +242,14 @@ const buildAgentFilePartsForAttachments = async (
     if (attachment.path && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
       accessibleAttachments.push({
         attachment,
-        filePath: canonicalizeFilePath(attachment.path),
+        filePath: accessibleFileReference(attachment.path),
         index
       })
+      return
+    }
+
+    if (workspacePath && attachment.path) {
+      workspaceCopiedAttachments.push({ attachment, index })
       return
     }
 
@@ -248,26 +257,47 @@ const buildAgentFilePartsForAttachments = async (
     internalizedIndexes.push(index)
   })
 
-  const [metadataByPath, internalizedFileParts] = await Promise.all([
-    requestAccessiblePathMetadata(accessibleAttachments),
-    buildFilePartsForAttachments(internalizedAttachments)
-  ])
-
-  const fileParts = new Array<FileUIPart>(attachments.length)
-
-  accessibleAttachments.forEach(({ attachment, filePath, index }) => {
-    fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
-  })
-
-  internalizedFileParts.forEach((filePart, offset) => {
-    const originalIndex = internalizedIndexes[offset]
-    if (originalIndex === undefined || !filePart) {
-      throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
+  const workspaceCopyReservation = { reservedDestinations: new Set<string>() }
+  const copiedAttachments: AccessibleAttachment[] = []
+  const copiedDestPaths: AbsoluteFilePath[] = []
+  try {
+    for (const { attachment, index } of workspaceCopiedAttachments) {
+      const { reference, destPath } = await copyAttachmentToWorkspace(
+        attachment.path!,
+        workspacePath,
+        attachment.origin_name || attachment.name,
+        workspaceCopyReservation
+      )
+      copiedDestPaths.push(destPath)
+      copiedAttachments.push({ attachment, filePath: reference, index })
     }
-    fileParts[originalIndex] = filePart
-  })
 
-  return fileParts
+    const [metadataByPath, internalizedFileParts] = await Promise.all([
+      requestAccessiblePathMetadata([...accessibleAttachments, ...copiedAttachments]),
+      buildFilePartsForAttachments(internalizedAttachments)
+    ])
+
+    const fileParts = new Array<FileUIPart>(attachments.length)
+
+    for (const { attachment, filePath, index } of [...accessibleAttachments, ...copiedAttachments]) {
+      fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
+    }
+
+    internalizedFileParts.forEach((filePart, offset) => {
+      const originalIndex = internalizedIndexes[offset]
+      if (originalIndex === undefined || !filePart) {
+        throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
+      }
+      fileParts[originalIndex] = filePart
+    })
+
+    return { fileParts, copiedDestPaths }
+  } catch (error) {
+    if (copiedDestPaths.length > 0) {
+      await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
+    }
+    throw error
+  }
 }
 
 const createSkillQuickPanelItems = (
@@ -437,7 +467,7 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
-    const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
+    const accessiblePaths = toAccessiblePaths(session.workspace?.path)
     return {
       agentId,
       sessionId,
@@ -1467,6 +1497,7 @@ const AgentComposerInner = ({
 
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
+      let copiedDestPaths: AbsoluteFilePath[] = []
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
@@ -1474,12 +1505,14 @@ const AgentComposerInner = ({
           const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
           return index >= 0 ? originals[index] : undefined
         })
-        const addedParts = await buildAgentFilePartsForAttachments(
+        const built = await buildAgentFilePartsForAttachments(
           attachments.filter((_, index) => !retainedParts[index]),
-          accessiblePaths
+          accessiblePaths,
+          sessionId
         )
+        copiedDestPaths = built.copiedDestPaths
         let addedIndex = 0
-        const fileParts = retainedParts.map((part) => part ?? addedParts[addedIndex++])
+        const fileParts = retainedParts.map((part) => part ?? built.fileParts[addedIndex++])
         const sent = await chatSendMessage(
           { text: payload.text },
           {
@@ -1493,12 +1526,21 @@ const AgentComposerInner = ({
             }
           }
         )
-        if (sent === false) return false
+        if (sent === false) {
+          if (copiedDestPaths.length > 0) {
+            await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
+          }
+          return false
+        }
+        copiedDestPaths = []
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
+        if (copiedDestPaths.length > 0) {
+          await rollbackWorkspaceCopies(sessionId, copiedDestPaths)
+        }
         logger.warn('Failed to send message:', error as Error)
         toast.error(t('chat.input.send_failed'))
         return false
