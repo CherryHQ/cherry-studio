@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { and, eq, sql, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { videoTable } from '@main/data/db/schemas/video'
 import type { ListVideosQuery, VideoListResponse } from '@shared/data/api/schemas/videos'
 import type { Video } from '@shared/data/types/video'
@@ -37,10 +38,22 @@ class VideoService {
     duration?: number
     resolution?: string
   }): Video {
-    const db = application.get('DbService').getDb()
+    return this.createTx(application.get('DbService').getDb(), input)
+  }
+
+  createTx(
+    tx: DbOrTx,
+    input: {
+      providerId: string
+      modelId: string
+      prompt: string
+      duration?: number
+      resolution?: string
+    }
+  ): Video {
     const now = Date.now()
     const id = randomUUID()
-    db.insert(videoTable)
+    tx.insert(videoTable)
       .values({
         id,
         providerId: input.providerId,
@@ -53,7 +66,7 @@ class VideoService {
         updatedAt: now
       })
       .run()
-    const row = db.select().from(videoTable).where(eq(videoTable.id, id)).get()
+    const row = tx.select().from(videoTable).where(eq(videoTable.id, id)).get()
     if (!row) throw new Error(`VideoService: insert failed for id ${id}`)
     return toVideo(row)
   }

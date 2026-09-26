@@ -1152,22 +1152,27 @@ export class AiService extends BaseService {
     resolution?: string
   }): Promise<{ videoId: string; jobId: string }> {
     const { providerId, modelId } = parseUniqueModelId(payload.uniqueModelId as `${string}::${string}`)
-    const video = videoService.create({
-      providerId,
-      modelId,
-      prompt: payload.prompt,
-      duration: payload.duration,
-      resolution: payload.resolution
-    })
     const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue('video-generation.generate', {
-      uniqueModelId: payload.uniqueModelId as `${string}::${string}`,
-      prompt: payload.prompt,
-      duration: payload.duration,
-      resolution: payload.resolution,
-      videoId: video.id
+    // The video row and its generation job commit together — otherwise a failure between
+    // the two leaves an orphan pending video row with no job that will ever advance it.
+    const { videoId, jobId } = application.get('DbService').withWriteTx((tx) => {
+      const video = videoService.createTx(tx, {
+        providerId,
+        modelId,
+        prompt: payload.prompt,
+        duration: payload.duration,
+        resolution: payload.resolution
+      })
+      const handle = jobManager.enqueueTx(tx, 'video-generation.generate', {
+        uniqueModelId: payload.uniqueModelId as `${string}::${string}`,
+        prompt: payload.prompt,
+        duration: payload.duration,
+        resolution: payload.resolution,
+        videoId: video.id
+      })
+      return { videoId: video.id, jobId: handle.id }
     })
-    return { videoId: video.id, jobId: handle.id }
+    return { videoId, jobId }
   }
 
   // ── Embedding ──

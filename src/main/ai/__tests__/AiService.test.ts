@@ -65,6 +65,7 @@ const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
+const mockVideoCreateTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
@@ -82,6 +83,12 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: {
     addFileRefsTx: (...args: unknown[]) => mockAddFileRefsTx(...args)
+  }
+}))
+
+vi.mock('@data/services/VideoService', () => ({
+  videoService: {
+    createTx: (...args: unknown[]) => mockVideoCreateTx(...args)
   }
 }))
 
@@ -2605,6 +2612,58 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       })
     ).rejects.toThrow('ref insert boom')
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+})
+
+describe('AiService.runVideoRequest', () => {
+  beforeEach(() => {
+    mockVideoCreateTx.mockReset()
+  })
+
+  it('creates the video row and enqueues its job inside one transaction', async () => {
+    const service = createService()
+    const tx = { marker: 'the-one-tx' }
+    mockVideoCreateTx.mockReturnValue({ id: 'video-1' })
+    const enqueueTx = vi.fn().mockReturnValue({ id: 'job-1', snapshot: {}, finished: new Promise(() => {}) })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'JobManager') return { enqueueTx }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn(tx) }
+      return undefined
+    })
+
+    const result = await service.runVideoRequest({ uniqueModelId: 'ppio::wan-video', prompt: 'a cat running' })
+
+    expect(result).toEqual({ videoId: 'video-1', jobId: 'job-1' })
+    // Both writes must run against the SAME tx handed out by withWriteTx — that is
+    // what makes them commit or roll back together, not merely happen in sequence.
+    expect(mockVideoCreateTx).toHaveBeenCalledWith(tx, expect.objectContaining({ prompt: 'a cat running' }))
+    expect(enqueueTx).toHaveBeenCalledWith(
+      tx,
+      'video-generation.generate',
+      expect.objectContaining({ videoId: 'video-1' })
+    )
+  })
+
+  it('never leaves an orphan video row when enqueueing its job fails', async () => {
+    // withWriteTx's fake here just calls fn(tx) directly (no real rollback machinery),
+    // so this test's job is to prove the *shape*: video creation and job enqueue are
+    // composed inside the same withWriteTx callback, so a thrown enqueueTx propagates
+    // out of runVideoRequest instead of being caught and leaving a persisted video row
+    // with no job — real better-sqlite3 rolls back the whole tx on that throw.
+    const service = createService()
+    mockVideoCreateTx.mockReturnValue({ id: 'video-2' })
+    const enqueueTx = vi.fn().mockImplementation(() => {
+      throw new Error('enqueue boom')
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'JobManager') return { enqueueTx }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
+      return undefined
+    })
+
+    await expect(
+      service.runVideoRequest({ uniqueModelId: 'ppio::wan-video', prompt: 'a dog jumping' })
+    ).rejects.toThrow('enqueue boom')
   })
 })
 
