@@ -77,9 +77,15 @@ describe('buildAgentParams provider resolution', () => {
       request: { conversation: { id: 'topic-123', topicId: 'topic-123' } },
       signal: undefined,
       provider,
-      model
+      model,
+      modelUsageFeature: 'translate'
     })
     expect(withoutCallerHeaders.options.headers).toEqual({ 'x-opencode-session': 'topic-123' })
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({ modelUsageFeature: 'translate' })
+    )
 
     const withCallerHeaders = await buildAgentParams({
       request: {

@@ -30,7 +30,11 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import {
+  ModelSelector,
+  type ModelSelectorDetailDescriptionResolver,
+  type ModelSelectorFilter
+} from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
@@ -689,6 +693,7 @@ export function CompactModelField({
   emptyLabel,
   filter,
   isModelDisabled,
+  getModelDetailDescription,
   includeAgentOnlyModels = false,
   portalContainer,
   modelLabels,
@@ -708,6 +713,7 @@ export function CompactModelField({
   emptyLabel?: string
   filter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  getModelDetailDescription?: ModelSelectorDetailDescriptionResolver
   includeAgentOnlyModels?: boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -753,6 +759,7 @@ export function CompactModelField({
                 value={selectorValue}
                 filter={filter}
                 isModelDisabled={isModelDisabled}
+                getModelDetailDescription={getModelDetailDescription}
                 portalContainer={portalContainer}
                 onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {

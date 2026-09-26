@@ -92,7 +92,8 @@ import type {
   AiTransportOptions,
   AppProviderSettingsMap,
   InProcessUsageContext,
-  ListModelsRequest
+  ListModelsRequest,
+  ModelUsageFeature
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
@@ -254,6 +255,8 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
+  /** Trusted in-process feature used by managed providers for model admission. */
+  modelUsageFeature?: ModelUsageFeature
   resolvedModel?: { readonly provider: Provider; readonly model: Model }
 }
 
@@ -672,6 +675,7 @@ export class AiService extends BaseService {
         },
         fallbacks: buildFallbackModels({
           request,
+          modelUsageFeature: request.modelUsageFeature ?? 'chat',
           assistant,
           signal,
           primaryUniqueModelId: model.id,
@@ -831,6 +835,7 @@ export class AiService extends BaseService {
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
+          modelUsageFeature: request.modelUsageFeature ?? 'chat',
           assistant,
           signal,
           primaryUniqueModelId: model.id,
@@ -1457,6 +1462,7 @@ export class AiService extends BaseService {
       provider,
       model,
       assistant,
+      modelUsageFeature: request.modelUsageFeature ?? 'chat',
       extraFeatures,
       getRepairUsagePlugins,
       compactionSink: request.compactionSink
