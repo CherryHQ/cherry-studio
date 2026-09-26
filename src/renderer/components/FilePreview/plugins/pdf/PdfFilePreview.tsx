@@ -27,6 +27,7 @@ import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
+import { PdfjsBundledCMapReaderFactory, PdfjsBundledStandardFontDataFactory } from './pdfjsResourceFactories'
 import { type PdfDestination, PdfOutline, type PdfOutlineItem, type PdfOutlineStatus } from './PdfOutline'
 import { pageToPdfAnchor } from './pdfSelectionAnchor'
 
@@ -400,7 +401,12 @@ export default function PdfFilePreview({
           range: rangeTransport,
           rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
           disableAutoFetch: true,
-          disableStream: true
+          disableStream: true,
+          // Non-embedded CID-keyed fonts decode to no glyphs without these; the
+          // packaged bundle is served over IPC because file:// pages cannot
+          // fetch asset URLs (see pdfjsResourceFactories.ts).
+          CMapReaderFactory: PdfjsBundledCMapReaderFactory,
+          StandardFontDataFactory: PdfjsBundledStandardFontDataFactory
         })
         const nextDocument = await loadingTask.promise
         if (cancelled || failed) return
