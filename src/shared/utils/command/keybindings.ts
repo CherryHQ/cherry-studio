@@ -125,17 +125,20 @@ const LEGACY_SIDEBAR_DEFAULT_BINDINGS: Record<LegacySidebarShortcutPreferenceKey
   ]
 }
 
-export const inferLegacySidebarShortcutCustomized = (
-  preferenceKey: string,
-  binding: ShortcutBinding,
-  timestamps?: { createdAt: number; updatedAt: number }
-): boolean | undefined => {
+export const isLegacySidebarDefaultBinding = (preferenceKey: string, binding: ShortcutBinding): boolean => {
   const defaults = LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]
-  if (!defaults) return undefined
-  if (!defaults.some((candidate) => shortcutBindingMatches(binding, candidate))) return true
-  // A later write of the same default is an explicit re-entry. v1 migration
-  // inserts both timestamps together, so an untouched row stays uncustomized.
-  return timestamps !== undefined && timestamps.updatedAt > timestamps.createdAt
+  if (!defaults) return false
+  const normalized = normalizeShortcutBinding(binding)
+  return defaults.some((candidate) => shortcutBindingMatches(normalized, candidate))
+}
+
+export const inferLegacySidebarShortcutCustomized = (preferenceKey: string): boolean | undefined => {
+  if (!LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]) {
+    return undefined
+  }
+  // Every stored sidebar row keeps its chord. Equal v1 timestamps cannot prove
+  // the old default was unused, so they must not opt the row into a remap.
+  return true
 }
 
 const getTriggerBindings = (
@@ -195,10 +198,14 @@ const getDefaultShortcutPreferenceForRule = (
   }
 }
 
+const SIDEBAR_SHORTCUT_PREFERENCE_KEYS = new Set<string>([
+  'shortcut.app.sidebar.toggle',
+  'shortcut.topic.sidebar.toggle'
+])
+
 /**
- * Stored binding to honour, or undefined to fall back to the default. `usePreference`
- * hydrates unset keys with the platform-agnostic schema default, so a stored binding
- * equal to it is not a user choice and must still yield to the platform override.
+ * Stored binding to honour, or undefined to fall back to the default.
+ * A sidebar row without `customized` keeps its chord, including Cmd+[ / Cmd+].
  */
 const resolvePreferredBinding = (
   rule: RegisteredKeybindingRule,
@@ -213,11 +220,17 @@ const resolvePreferredBinding = (
   }
 
   const binding = normalizeShortcutBinding(preference.binding)
-  if (preference.customized === true) {
+  const sidebarShortcut = SIDEBAR_SHORTCUT_PREFERENCE_KEYS.has(rule.preferenceKey)
+  if (preference.customized === true || (sidebarShortcut && preference.customized !== false)) {
     return binding
   }
   const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
   if (preference.customized === false) {
+    // Fresh defaults use the shared schema chord. Any other stored chord,
+    // including a migrated Command+[ tagged uncustomized, stays as saved.
+    if (sidebarShortcut && !shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
+      return binding
+    }
     return platformBinding ?? getSharedDefaultBinding(rule)
   }
   if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {

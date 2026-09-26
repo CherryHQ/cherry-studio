@@ -99,7 +99,7 @@ describe('transformShortcuts', () => {
     expect(result).toEqual({
       'shortcut.topic.sidebar.toggle': {
         binding: ['CommandOrControl', ']'],
-        customized: false,
+        customized: true,
         enabled: true
       }
     })

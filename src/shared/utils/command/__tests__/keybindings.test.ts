@@ -150,47 +150,13 @@ describe('command definitions', () => {
 })
 
 describe('inferLegacySidebarShortcutCustomized', () => {
-  it('treats an untouched legacy default as uncustomized', () => {
-    expect(
-      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['CommandOrControl', '['], {
-        createdAt: 10,
-        updatedAt: 10
-      })
-    ).toBe(false)
-    expect(
-      inferLegacySidebarShortcutCustomized('shortcut.topic.sidebar.toggle', ['Ctrl', ']'], {
-        createdAt: 10,
-        updatedAt: 10
-      })
-    ).toBe(false)
-  })
-
-  it('keeps an explicit re-entry of the same legacy default', () => {
-    expect(
-      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['Command', '['], {
-        createdAt: 10,
-        updatedAt: 11
-      })
-    ).toBe(true)
-    expect(
-      inferLegacySidebarShortcutCustomized('shortcut.topic.sidebar.toggle', ['CommandOrControl', ']'], {
-        createdAt: 10,
-        updatedAt: 40
-      })
-    ).toBe(true)
-  })
-
-  it('keeps a non-default legacy binding when migration timestamps are equal', () => {
-    expect(
-      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['CommandOrControl', 'Shift', '['], {
-        createdAt: 10,
-        updatedAt: 10
-      })
-    ).toBe(true)
+  it('preserves an untouched legacy default instead of treating it as uncustomized', () => {
+    expect(inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle')).toBe(true)
+    expect(inferLegacySidebarShortcutCustomized('shortcut.topic.sidebar.toggle')).toBe(true)
   })
 
   it('leaves unrelated shortcuts unclassified', () => {
-    expect(inferLegacySidebarShortcutCustomized('shortcut.tab.history.back', ['Alt', 'Left'])).toBeUndefined()
+    expect(inferLegacySidebarShortcutCustomized('shortcut.tab.history.back')).toBeUndefined()
   })
 })
 
@@ -308,14 +274,72 @@ describe('command shortcut preferences', () => {
     ).toEqual(['CommandOrControl', ']'])
   })
 
-  it('uses the current platform default for an explicitly uncustomized legacy shortcut', () => {
+  it('keeps unmarked stored sidebar chords that match the shared default on macOS', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference(
+        'topic.sidebar.toggle',
+        { binding: ['CommandOrControl', ']'], enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', ']'])
+  })
+
+  it('keeps an explicit Cmd+[ / Cmd+] sidebar selection on macOS', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], customized: true, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference(
+        'topic.sidebar.toggle',
+        { binding: ['Command', ']'], customized: true, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['Command', ']'])
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['Command', '['], customized: false, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['Command', '['])
+  })
+
+  it('uses the macOS sidebar chord only for a fresh shared default', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], customized: false, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', 'Alt', '['])
+    expect(
+      resolveCommandShortcutPreference(
+        'topic.sidebar.toggle',
+        { binding: ['CommandOrControl', ']'], customized: false, enabled: false },
+        'darwin'
+      )
+    ).toEqual({ binding: ['CommandOrControl', 'Alt', ']'], enabled: false })
+  })
+
+  it('keeps a migrated sidebar chord tagged uncustomized when it is not the shared schema default', () => {
     expect(
       resolveCommandShortcutPreference(
         'app.sidebar.toggle',
         { binding: ['Ctrl', '['], customized: false, enabled: false },
         'darwin'
       )
-    ).toEqual({ binding: ['CommandOrControl', 'Alt', '['], enabled: false })
+    ).toEqual({ binding: ['Ctrl', '['], enabled: false })
   })
 
   it('applies the platform default to preferences hydrated from the schema default', () => {

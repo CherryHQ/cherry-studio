@@ -280,7 +280,7 @@ describe('PreferencesMigrator', () => {
       await migrator.execute(ctx)
 
       const [appSidebar] = await selectByKey(dbh.db, 'shortcut.app.sidebar.toggle')
-      expect(appSidebar.value).toEqual({ binding: ['Command', '['], customized: false, enabled: false })
+      expect(appSidebar.value).toEqual({ binding: ['Command', '['], customized: true, enabled: false })
 
       const [topicSidebar] = await selectByKey(dbh.db, 'shortcut.topic.sidebar.toggle')
       expect(topicSidebar.value).toEqual({

@@ -103,7 +103,7 @@ export const transformShortcuts: TransformFunction = (sources) => {
     const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
-    const customized = inferLegacySidebarShortcutCustomized(targetKey, binding)
+    const customized = inferLegacySidebarShortcutCustomized(targetKey)
     result[targetKey] = { binding, ...(customized !== undefined ? { customized } : {}), enabled }
     priorities.set(targetKey, currentPriority)
   }

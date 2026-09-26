@@ -21,6 +21,7 @@ export {
   getCommandAccelerator,
   getCommandDefaultShortcutPreference,
   inferLegacySidebarShortcutCustomized,
+  isLegacySidebarDefaultBinding,
   isPlatformSupported,
   type KeybindingConflict,
   type KeybindingTriggerSource,

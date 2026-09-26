@@ -54,7 +54,7 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
     })
   })
 
-  it('maps untouched legacy defaults to the current platform shortcut', () => {
+  it('preserves untouched stored sidebar chords instead of adopting the macOS platform default', () => {
     for (const [key, binding, enabled] of [
       [SIDEBAR_SHORTCUT_KEYS[0], ['Ctrl', '['], false],
       [SIDEBAR_SHORTCUT_KEYS[1], ['Command', ']'], true]
@@ -66,16 +66,11 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
 
     const appSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
     const topicSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[1]) as PreferenceShortcutType
-    expect(appSidebar).toMatchObject({ customized: false, enabled: false })
-    expect(topicSidebar).toMatchObject({ customized: false, enabled: true })
-    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual([
-      'CommandOrControl',
-      'Alt',
-      '['
-    ])
+    expect(appSidebar).toEqual({ binding: ['Ctrl', '['], customized: true, enabled: false })
+    expect(topicSidebar).toEqual({ binding: ['Command', ']'], customized: true, enabled: true })
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual(['Ctrl', '['])
     expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar, 'darwin')?.binding).toEqual([
-      'CommandOrControl',
-      'Alt',
+      'Command',
       ']'
     ])
   })
@@ -111,20 +106,30 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
     ])
   })
 
-  it('does not mark defaults inserted later for a fresh installation', () => {
+  it('keeps a fresh installation on the shared default so macOS can apply its platform chord', () => {
     new SeedRunner(dbh.db).runAll([new CommandShortcutPreferenceUpgradeSeeder(), new PreferenceSeeder()])
 
-    for (const key of SIDEBAR_SHORTCUT_KEYS) {
-      expect(readPreference(key)).not.toHaveProperty('customized')
-    }
+    const appSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
+    const topicSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[1]) as PreferenceShortcutType
+    expect(appSidebar).toEqual({ binding: ['CommandOrControl', '['], customized: false, enabled: true })
+    expect(topicSidebar).toEqual({ binding: ['CommandOrControl', ']'], customized: false, enabled: true })
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      '['
+    ])
+    expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar, 'win32')?.binding).toEqual([
+      'CommandOrControl',
+      ']'
+    ])
   })
 
-  it.each([true, false])('keeps existing customized: %s provenance', (customized) => {
+  it('keeps an explicit customized true provenance', () => {
     dbh.db
       .insert(preferenceTable)
       .values({
         key: SIDEBAR_SHORTCUT_KEYS[0],
-        value: { binding: ['CommandOrControl', '['], customized, enabled: true }
+        value: { binding: ['CommandOrControl', '['], customized: true, enabled: true }
       })
       .run()
 
@@ -132,7 +137,44 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
 
     expect(readPreference(SIDEBAR_SHORTCUT_KEYS[0])).toEqual({
       binding: ['CommandOrControl', '['],
-      customized,
+      customized: true,
+      enabled: true
+    })
+  })
+
+  it('promotes a legacy chord that was tagged uncustomized', () => {
+    dbh.db
+      .insert(preferenceTable)
+      .values({
+        key: SIDEBAR_SHORTCUT_KEYS[0],
+        value: { binding: ['CommandOrControl', '['], customized: false, enabled: true }
+      })
+      .run()
+
+    new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
+
+    const stored = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
+    expect(stored).toEqual({ binding: ['CommandOrControl', '['], customized: true, enabled: true })
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', stored, 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      '['
+    ])
+  })
+
+  it('leaves a reset platform chord tagged uncustomized', () => {
+    dbh.db
+      .insert(preferenceTable)
+      .values({
+        key: SIDEBAR_SHORTCUT_KEYS[0],
+        value: { binding: ['CommandOrControl', 'Alt', '['], customized: false, enabled: true }
+      })
+      .run()
+
+    new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
+
+    expect(readPreference(SIDEBAR_SHORTCUT_KEYS[0])).toEqual({
+      binding: ['CommandOrControl', 'Alt', '['],
+      customized: false,
       enabled: true
     })
   })

@@ -513,6 +513,7 @@
           "CommandOrControl",
           "["
         ],
+        "customized": false,
         "enabled": true
       },
       "status": "classified",
@@ -752,6 +753,7 @@
           "CommandOrControl",
           "]"
         ],
+        "customized": false,
         "enabled": true
       },
       "status": "classified",

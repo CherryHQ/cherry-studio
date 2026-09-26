@@ -1,47 +1,52 @@
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { preferenceTable } from '@data/db/schemas/preference'
-import { inferLegacySidebarShortcutCustomized } from '@shared/utils/command'
-import { normalizeShortcutBinding } from '@shared/utils/shortcut'
+import { isLegacySidebarDefaultBinding } from '@shared/utils/command'
+import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { DbType, ISeeder } from '../../types'
 
 const LEGACY_SIDEBAR_SHORTCUT_KEYS = ['shortcut.app.sidebar.toggle', 'shortcut.topic.sidebar.toggle'] as const
 
-function isUnmarkedShortcutPreference(value: unknown): value is Record<string, unknown> {
+function isShortcutPreference(value: unknown): value is Record<string, unknown> & { binding: ShortcutBinding } {
   return (
     typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
     Array.isArray((value as Record<string, unknown>).binding) &&
-    typeof (value as Record<string, unknown>).enabled === 'boolean' &&
-    (value as Record<string, unknown>).customized === undefined
+    typeof (value as Record<string, unknown>).enabled === 'boolean'
   )
+}
+
+function shouldPreserveSidebarShortcut(
+  value: Record<string, unknown> & { binding: ShortcutBinding },
+  key: string
+): boolean {
+  if (value.customized === true) return false
+  const binding = normalizeShortcutBinding(value.binding)
+  // A reset stores the current platform chord with customized: false. A legacy
+  // chord tagged the same way is an existing binding and must be kept.
+  if (value.customized === false) return isLegacySidebarDefaultBinding(key, binding)
+  return true
 }
 
 export class CommandShortcutPreferenceUpgradeSeeder implements ISeeder {
   readonly name = 'command-shortcut-preference-upgrade'
-  readonly version = '1'
+  readonly version = '2'
   readonly description = 'Preserve existing sidebar shortcut bindings before platform defaults change'
 
   run(db: DbType): void {
     const rows = db
       .select({
-        createdAt: preferenceTable.createdAt,
         key: preferenceTable.key,
-        updatedAt: preferenceTable.updatedAt,
         value: preferenceTable.value
       })
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), inArray(preferenceTable.key, [...LEGACY_SIDEBAR_SHORTCUT_KEYS])))
       .all()
-    const updates = rows.flatMap(({ createdAt, key, updatedAt, value }) => {
-      if (!isUnmarkedShortcutPreference(value)) return []
-      const customized = inferLegacySidebarShortcutCustomized(key, normalizeShortcutBinding(value.binding), {
-        createdAt,
-        updatedAt
-      })
-      return customized === undefined ? [] : [{ customized, key, value }]
+    const updates = rows.flatMap(({ key, value }) => {
+      if (!isShortcutPreference(value) || !shouldPreserveSidebarShortcut(value, key)) return []
+      return [{ customized: true, key, value }]
     })
 
     if (!updates.length) return
