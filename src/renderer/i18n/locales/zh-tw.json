@@ -1370,6 +1370,7 @@
   "error.http.504": "閘道器逾時，請稍後再試",
   "error.image_unreadable_for_non_vision_model": "目前模型未設定圖片輸入能力，且 Cherry Studio 無法從附件中辨識出可讀文字。請前往供應商設定，在該模型的輸入模態中啟用「視覺」，或選擇其他視覺模型、移除圖片後再試一次。",
   "error.lastError": "最後錯誤",
+  "error.linux_session_bus_unavailable": "Claude Code 在沒有桌面工作階段匯流排的情況下無法於 Linux 上啟動（未設定 DBUS_SESSION_BUS_ADDRESS）。請從桌面工作階段啟動 Cherry Studio 以繼承工作階段匯流排，然後重試。",
   "error.maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
   "error.message": "錯誤訊息",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> 未回傳結束原因便終止了回應。已保留收到的部分內容，請重試請求。",

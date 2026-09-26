@@ -1370,6 +1370,7 @@
   "error.http.504": "网关超时，请稍后再试",
   "error.image_unreadable_for_non_vision_model": "当前模型未配置图片输入能力，且 Cherry Studio 未能从附件中识别出有效文字。请前往提供商设置，在该模型的输入模态中启用“视觉”，或选择其他视觉模型、移除图片后重试。",
   "error.lastError": "最后错误",
+  "error.linux_session_bus_unavailable": "Claude Code 在没有桌面会话总线的情况下无法在 Linux 上启动（未设置 DBUS_SESSION_BUS_ADDRESS）。请从桌面会话中启动 Cherry Studio 以继承会话总线，然后重试。",
   "error.maxEmbeddingsPerCall": "每次调用的最大嵌入",
   "error.message": "错误信息",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> 未返回结束原因便终止了响应。已保留收到的部分内容，请重试请求。",

@@ -4,8 +4,11 @@
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
 
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+
+import { app } from 'electron'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -28,6 +31,29 @@ import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
+
+const LINUX_SESSION_BUS_UNAVAILABLE_MESSAGE =
+  'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is not set). Launch Cherry Studio from your desktop session so it inherits the session bus, then try again.'
+
+export class LinuxSessionBusUnavailableError extends Error {
+  readonly i18nKey = 'linux_session_bus_unavailable'
+
+  constructor() {
+    super(LINUX_SESSION_BUS_UNAVAILABLE_MESSAGE)
+    this.name = 'LinuxSessionBusUnavailableError'
+  }
+}
+
+// zypak-helper (Flatpak's Electron wrapper) asserts without a session bus, while native
+// packages spawn the CLI directly — so only a Flatpak sandbox fails fast here.
+function isFlatpakSandbox(): boolean {
+  if (process.env.FLATPAK_ID) return true
+  try {
+    return existsSync('/.flatpak-info')
+  } catch {
+    return false
+  }
+}
 
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
@@ -264,6 +290,12 @@ export async function buildEnvironment(
     } else {
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
+  }
+
+  // A missing bus kills Flatpak launches in zypak-helper startup, so fail fast instead of
+  // spawning a child that dies as a generic closed transport. Native packages need no bus.
+  if (isLinux && app.isPackaged && isFlatpakSandbox() && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
+    throw new LinuxSessionBusUnavailableError()
   }
 
   return mergeAgentLoopbackProxyBypass(env)

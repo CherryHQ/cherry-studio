@@ -1370,6 +1370,7 @@
   "error.http.504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde",
   "error.image_unreadable_for_non_vision_model": "El modelo seleccionado no está configurado para aceptar imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Active Imagen para este modelo en la configuración del proveedor, elija otro modelo con capacidad visual o quite la imagen e inténtelo de nuevo.",
   "error.lastError": "Último error",
+  "error.linux_session_bus_unavailable": "Claude Code no puede iniciarse en Linux sin un bus de sesión de escritorio (DBUS_SESSION_BUS_ADDRESS no está establecido). Inicie Cherry Studio desde su sesión de escritorio para que herede el bus de sesión e inténtelo de nuevo.",
   "error.maxEmbeddingsPerCall": "máximo de embeddings por llamada",
   "error.message": "Mensaje de error",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> finalizó la respuesta sin indicar un motivo. Se conservó la respuesta parcial; vuelve a intentar la solicitud.",
