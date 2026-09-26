@@ -21,7 +21,9 @@ export const CLI_CONFIG_TARGET_IDS = [
   'pi-settings',
   'hermes-config',
   'hermes-env',
-  'minimax-config'
+  'minimax-config',
+  'commandcode-providers',
+  'commandcode-config'
 ] as const
 
 export type CliConfigTarget = (typeof CLI_CONFIG_TARGET_IDS)[number]
@@ -49,6 +51,8 @@ export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
 export const HERMES_CONFIG_PATH = 'config.yaml'
 export const HERMES_ENV_PATH = '.env'
 export const MINIMAX_CONFIG_PATH = '~/.minimax/config.yaml'
+export const COMMANDCODE_PROVIDERS_PATH = '~/.commandcode/providers.json'
+export const COMMANDCODE_CONFIG_PATH = '~/.commandcode/config.json'
 
 export const CLI_CONFIG_FILE_SPECS: Record<
   CliConfigTarget,
@@ -71,7 +75,13 @@ export const CLI_CONFIG_FILE_SPECS: Record<
     language: 'yaml'
   },
   'hermes-env': { label: 'Hermes .env', pathBase: 'hermes-home', path: HERMES_ENV_PATH, language: 'dotenv' },
-  'minimax-config': { label: 'MiniMax Code config.yaml', path: MINIMAX_CONFIG_PATH, language: 'yaml' }
+  'minimax-config': { label: 'MiniMax Code config.yaml', path: MINIMAX_CONFIG_PATH, language: 'yaml' },
+  'commandcode-providers': {
+    label: 'Command Code providers.json',
+    path: COMMANDCODE_PROVIDERS_PATH,
+    language: 'json'
+  },
+  'commandcode-config': { label: 'Command Code config.json', path: COMMANDCODE_CONFIG_PATH, language: 'json' }
 }
 
 /** The file-based CLI tools, as a tuple so IPC schemas can `z.enum` it. */
@@ -84,7 +94,8 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   CodeCli.KIMI_CODE,
   CodeCli.PI,
   CodeCli.HERMES,
-  CodeCli.MINIMAX_CODE
+  CodeCli.MINIMAX_CODE,
+  CodeCli.COMMAND_CODE
 ] as const
 
 export type FileConfiguredCli = (typeof FILE_CONFIGURED_CLI_TOOL_IDS)[number]
@@ -104,7 +115,8 @@ const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> 
   [CodeCli.KIMI_CODE]: ['kimi-config'],
   [CodeCli.PI]: ['pi-models', 'pi-settings'],
   [CodeCli.HERMES]: ['hermes-config', 'hermes-env'],
-  [CodeCli.MINIMAX_CODE]: ['minimax-config']
+  [CodeCli.MINIMAX_CODE]: ['minimax-config'],
+  [CodeCli.COMMAND_CODE]: ['commandcode-providers', 'commandcode-config']
 }
 
 /** CLI tools that write on-disk config files (the ones with targets above). */

@@ -1019,6 +1019,7 @@
   "code.cli_config.unknown_provider": "Άγνωστος Πάροχος",
   "code.cli_tools.antigravity_cli": "Antigravity CLI",
   "code.cli_tools.claude_code": "Claude Code",
+  "code.cli_tools.command_code": "Command Code",
   "code.cli_tools.deepseek_harness": "DeepSeek Harness",
   "code.cli_tools.gemini_cli": "Gemini CLI",
   "code.cli_tools.github_copilot_cli": "GitHub Copilot CLI",
