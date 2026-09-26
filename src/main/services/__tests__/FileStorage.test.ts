@@ -3,6 +3,7 @@ import * as os from 'os'
 import * as path from 'path'
 
 import { dialog, shell } from 'electron'
+import ExcelJS from 'exceljs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -162,6 +163,22 @@ describe('FileStorage', () => {
 
     it('returns utf-8 file content verbatim (auto-encoding branch)', async () => {
       await expect(fileStorage.readExternalFile(event, tmpFile, true)).resolves.toBe('Hello 世界\nsecond line')
+    })
+
+    it('reads an xlsx with its rows and columns, not one cell per line', async () => {
+      const xlsxFile = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.xlsx`)
+      const workbook = new ExcelJS.Workbook()
+      workbook.addWorksheet('Orders').addRows([
+        ['item', 'qty'],
+        ['pen', 2]
+      ])
+      await workbook.xlsx.writeFile(xlsxFile)
+
+      try {
+        await expect(fileStorage.readExternalFile(event, xlsxFile)).resolves.toBe('Sheet: Orders\nitem\tqty\npen\t2')
+      } finally {
+        fs.rmSync(xlsxFile, { force: true })
+      }
     })
   })
 

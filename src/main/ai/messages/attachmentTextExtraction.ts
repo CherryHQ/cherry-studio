@@ -4,7 +4,8 @@
  * Single home for "turn a non-image, non-natively-consumable file into text":
  *   - `pdf`                          → `extractPdfText` (`@main/utils/pdf`)
  *   - `doc`                          → `word-extractor`
- *   - `docx/pptx/xlsx/xls/od*`       → `officeparser`
+ *   - `xlsx`                         → `extractXlsxText` (`@main/utils/xlsx`)
+ *   - `docx/pptx/xls/od*`            → `officeparser`
  *   - everything else (text / code)  → encoding-aware text detection for
  *                                       extensionless files, then decode
  *
@@ -15,6 +16,7 @@ import { loggerService } from '@logger'
 import { decodeTextBufferIfText } from '@main/utils/file'
 import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { extractPdfText } from '@main/utils/pdf'
+import { extractXlsxText } from '@main/utils/xlsx'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
 
@@ -38,6 +40,7 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
   const buffer = Buffer.from(content)
+  if (ext === 'xlsx') return (await extractXlsxText(buffer)).trim()
   if (ext === 'doc') {
     const { default: WordExtractor } = await import('word-extractor')
     const extracted = await new WordExtractor().extract(buffer)
