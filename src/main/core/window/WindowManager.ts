@@ -61,6 +61,7 @@ type WarmupOp =
   | 'pool-release'
   | 'pool-release-destroy-disabled'
   | 'pool-release-destroy-overcap'
+  | 'pool-release-destroy-fullscreen'
   | 'pool-decay'
   | 'pool-lazy-backfill'
   | 'pool-suspend'
@@ -979,6 +980,16 @@ export class WindowManager extends BaseService {
     // registry-declared defaults rather than the previous consumer's pin.
     this.behavior.clearForWindow(windowId)
 
+    // Never hide a fullscreen window: on macOS `orderOut:` orphans its fullscreen Space as an
+    // undismissable black screen (electron#20263). Drop the instance — standby replenishes it.
+    if (!managed.window.isDestroyed() && managed.window.isFullScreen()) {
+      this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
+      this.logWarmupEvent('pool-release-destroy-fullscreen', type, state, { windowId })
+      this.updateDockVisibility()
+      return
+    }
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
@@ -1618,6 +1629,9 @@ export class WindowManager extends BaseService {
         const metadata = getWindowTypeMetadata(type)
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) return // let native close proceed
+          // A fullscreen window is closed natively, never hidden — the same rule as
+          // releaseToPool()'s fullscreen guard; cancelling here would orphan its Space.
+          if (window.isFullScreen()) return
           event.preventDefault()
           if (state.idle.includes(windowId)) return // already idle
           const managed = this.windows.get(windowId)
