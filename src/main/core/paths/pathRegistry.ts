@@ -215,6 +215,9 @@ export function buildPathRegistry() {
     'feature.files.data': path.join(appUserDataData, 'Files'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
+    // This PC's Notes folder choice. Lives under CHERRY_HOME (never backed up
+    // or synced), so a synced `feature.notes.path` pref can never redirect it.
+    'feature.notes.device_file': path.join(CHERRY_HOME, 'notes-device.json'),
 
     // Mini apps
     // Installed mini app packages, one directory per appId
