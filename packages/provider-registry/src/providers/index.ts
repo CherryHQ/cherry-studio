@@ -1,4 +1,5 @@
 import p_302ai from './302ai'
+import p_acctoken from './acctoken'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
@@ -86,6 +87,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_acctoken,
   p_tokendance,
   p_new_api,
   p_lmstudio,

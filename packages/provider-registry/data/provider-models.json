@@ -1593,6 +1593,122 @@
       "providerId": "302ai"
     },
     {
+      "apiModelId": "deepseek-v4.1-flash",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "deepseek-v4-1-flash",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "deepseek-v4-flash",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "deepseek-v4-flash",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "deepseek-v4-pro",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "glm-5-2",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "glm-5-3",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "glm-5-3-flash",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "glm-5.3-flashx",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition", "structured-output"]
+      },
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "family": "glm",
+      "inputModalities": ["text", "image"],
+      "modelId": "glm-5-3-flashx",
+      "name": "GLM-5.3-FlashX",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "kimi-k2.6",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "kimi-k2-6",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "kimi-k2-7-code",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "kimi/kimi-k3",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "kimi-k3",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "MiniMax-M2.5",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "minimax-m2-5",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "MiniMax-M3",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "minimax-m3",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3.7-flash",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-7-flash",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3.7-max",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-7-max",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3.7-plus",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-7-plus",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3.8-flash",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-8-flash",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3.8-max",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-8-max",
+      "providerId": "acctoken"
+    },
+    {
+      "apiModelId": "qwen3-vl-plus",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "qwen3-vl-plus",
+      "providerId": "acctoken"
+    },
+    {
       "apiModelId": "doubao-seedream-4-0",
       "imageGeneration": {
         "modes": {
@@ -40789,5 +40905,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5948b27b1d472351"
+  "version": "d6816d6dda0383bf"
 }
