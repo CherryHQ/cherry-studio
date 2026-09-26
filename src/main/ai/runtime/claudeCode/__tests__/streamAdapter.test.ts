@@ -499,6 +499,153 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'text-end', id: (parts[0] as any).id })
   })
 
+  it('removes separator characters across text deltas only at tool boundaries', () => {
+    const { adapter, parts } = createAdapter()
+    const separators = '\u2050\u2051\u2052\u2053\u2054\u2055\u2056\u2057\u2063'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: `before${separators.slice(0, 3)}` }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: separators.slice(3) }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'tool_use', id: 'tool-1', name: 'Read', input: {} }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 1,
+        delta: { type: 'input_json_delta', partial_json: '{}' }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 2,
+        delta: { type: 'text_delta', text: separators.slice(0, 4) }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 2,
+        delta: { type: 'text_delta', text: `${separators.slice(4)}after` }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 2 }))
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('beforeafter')
+    expect(parts.map((part) => part.type)).toEqual([
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-start',
+      'tool-input-delta',
+      'tool-input-available',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'finish'
+    ])
+  })
+
+  it('removes separators across text blocks in a complete assistant message', () => {
+    const { adapter, parts } = createAdapter()
+    const separators = '\u2050\u2051\u2052\u2053\u2054\u2055\u2056\u2057\u2063'
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          { type: 'text', text: `before${separators.slice(0, 3)}` },
+          { type: 'tool_use', id: 'tool-1', name: 'Read', input: {} },
+          { type: 'text', text: `${separators.slice(3)}after` }
+        ]
+      }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('beforeafter')
+    expect(parts.map((part) => part.type)).toEqual([
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-start',
+      'tool-input-delta',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-available',
+      'finish'
+    ])
+  })
+
+  it('preserves separator characters in ordinary text without a tool boundary', () => {
+    const { adapter, parts } = createAdapter()
+    const separators = '\u2050\u2051\u2052\u2053\u2054\u2055\u2056\u2057\u2063'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: `inside${separators}text` }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: `tail${separators}` }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe(`inside${separators}texttail${separators}`)
+  })
+
   it('does not emit or persist tagged or synthetic-source reminders from the assistant stream', async () => {
     const { adapter, parts } = createAdapter()
     const reminder = 'The task tools have not been used recently.'

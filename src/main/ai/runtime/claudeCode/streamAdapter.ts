@@ -50,6 +50,59 @@ import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
+const TOOL_BOUNDARY_CHUNK_TYPES = new Set([
+  'tool-input-start',
+  'tool-input-delta',
+  'tool-input-available',
+  'tool-output-denied',
+  'tool-output-error',
+  'tool-output-available'
+])
+
+function isToolBoundarySeparator(char: string): boolean {
+  const codePoint = char.codePointAt(0)
+  return codePoint !== undefined && ((codePoint >= 0x2050 && codePoint <= 0x2057) || codePoint === 0x2063)
+}
+
+class ToolBoundaryTextFilter {
+  private pending = ''
+
+  constructor(private dropLeading = false) {}
+
+  get hasPendingSuffix(): boolean {
+    return this.pending.length > 0
+  }
+
+  write(text: string): string {
+    let value = this.pending + text
+    this.pending = ''
+
+    if (this.dropLeading) {
+      let leadingLength = 0
+      while (leadingLength < value.length && isToolBoundarySeparator(value[leadingLength])) leadingLength++
+      value = value.slice(leadingLength)
+      if (leadingLength > 0 && value.length === 0) return ''
+      this.dropLeading = false
+    }
+
+    let safeLength = value.length
+    while (safeLength > 0 && isToolBoundarySeparator(value[safeLength - 1])) safeLength--
+    this.pending = value.slice(safeLength)
+    return value.slice(0, safeLength)
+  }
+
+  markToolBoundary(): void {
+    this.pending = ''
+    this.dropLeading = true
+  }
+
+  flush(preserveSuffix: boolean): string {
+    const suffix = preserveSuffix ? this.pending : ''
+    this.pending = ''
+    return suffix
+  }
+}
+
 /**
  * A failed `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so consumers
  * narrow with `instanceof` and read structure — never by parsing the message prose (the SDK
@@ -529,7 +582,9 @@ export class ClaudeCodeStreamAdapter {
   private createTurnContext(sink = this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
     return {
-      sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
+      sink: this.createToolBoundaryFilteringSink(
+        this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies)
+      ),
       systemReminderBodies,
       options: this.streamOptions,
       toolStates: new Map(),
@@ -579,6 +634,74 @@ export class ClaudeCodeStreamAdapter {
             if (delta) destination.enqueue({ type: 'text-delta', id: chunk.id, delta })
             textFilters.delete(chunk.id)
           }
+        }
+        destination.enqueue(chunk)
+      }
+    }
+  }
+
+  /** Keep only tool-adjacent separator candidates out of visible text. */
+  private createToolBoundaryFilteringSink(sink: StreamContext['sink']): StreamContext['sink'] {
+    let destination: StreamSink = sink
+    let pendingLeadingBoundary = false
+    const textFilters = new Map<string, ToolBoundaryTextFilter>()
+    const pendingTextEnds = new Map<string, Extract<CherryUIMessageChunk, { type: 'text-end' }>>()
+
+    const flushPendingTextEnds = (preserveSuffix: boolean): void => {
+      for (const [id, endChunk] of pendingTextEnds) {
+        const filter = textFilters.get(id)
+        const delta = filter?.flush(preserveSuffix) ?? ''
+        if (delta) destination.enqueue({ type: 'text-delta', id, delta })
+        destination.enqueue(endChunk)
+        textFilters.delete(id)
+      }
+      pendingTextEnds.clear()
+    }
+
+    return {
+      redirect: (nextSink) => {
+        destination = nextSink
+      },
+      enqueue: (chunk) => {
+        if (chunk.type === 'text-start') {
+          flushPendingTextEnds(true)
+          textFilters.set(chunk.id, new ToolBoundaryTextFilter(pendingLeadingBoundary))
+          pendingLeadingBoundary = false
+          destination.enqueue(chunk)
+          return
+        }
+
+        if (chunk.type === 'text-delta') {
+          flushPendingTextEnds(true)
+          let filter = textFilters.get(chunk.id)
+          if (!filter) {
+            filter = new ToolBoundaryTextFilter(pendingLeadingBoundary)
+            textFilters.set(chunk.id, filter)
+            pendingLeadingBoundary = false
+          }
+          const delta = filter.write(chunk.delta)
+          if (delta) destination.enqueue({ ...chunk, delta })
+          return
+        }
+
+        if (chunk.type === 'text-end') {
+          const filter = textFilters.get(chunk.id)
+          if (filter?.hasPendingSuffix) {
+            pendingTextEnds.set(chunk.id, chunk)
+            return
+          }
+          textFilters.delete(chunk.id)
+          destination.enqueue(chunk)
+          return
+        }
+
+        const isToolBoundary = TOOL_BOUNDARY_CHUNK_TYPES.has(chunk.type)
+        if (isToolBoundary) {
+          for (const filter of textFilters.values()) filter.markToolBoundary()
+          flushPendingTextEnds(false)
+          pendingLeadingBoundary = true
+        } else {
+          flushPendingTextEnds(true)
         }
         destination.enqueue(chunk)
       }
@@ -1039,25 +1162,38 @@ export class ClaudeCodeStreamAdapter {
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
-    const tools = this.extractToolUses(content)
-    const results = this.extractToolResults(content)
 
-    if (ctx.textPartId && (tools.length > 0 || results.length > 0)) {
-      this.closeActiveTextPart(ctx)
+    const text = content
+      .filter((block): block is Extract<BetaContentBlock, { type: 'text' }> => block.type === 'text')
+      .map((block) => block.text)
+      .join('')
+    const streamedTextLength = ctx.hasReceivedStreamEvents ? ctx.streamedTextLength : 0
+    let textOffset = 0
+
+    for (const block of content) {
+      if (block.type === 'text') {
+        this.handleAssistantText(block.text, sdkParentToolUseId, ctx, textOffset, streamedTextLength)
+        textOffset += block.text.length
+        continue
+      }
+
+      const tool = this.extractToolUses([block])[0]
+      if (tool) {
+        this.closeActiveTextPart(ctx)
+        this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+        continue
+      }
+
+      const result = this.extractToolResults([block])[0]
+      if (result) {
+        this.closeActiveTextPart(ctx)
+        this.handleToolResult(result, sdkParentToolUseId, ctx)
+      }
     }
 
-    for (const tool of tools) {
-      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
-    }
-
-    for (const result of results) {
-      this.handleToolResult(result, sdkParentToolUseId, ctx)
-    }
-
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
-
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    if (text && ctx.hasReceivedStreamEvents) {
+      ctx.accumulatedText = text
+      ctx.streamedTextLength = text.length
     }
   }
 
@@ -1128,12 +1264,17 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(
+    text: string,
+    sdkParentToolUseId: SdkParentToolUseId,
+    ctx: StreamContext,
+    textOffset: number,
+    streamedTextLength: number
+  ): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     if (ctx.hasReceivedStreamEvents) {
-      const newTextStart = ctx.streamedTextLength
-      const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
-      ctx.accumulatedText = text
+      const streamedBlockLength = Math.max(0, streamedTextLength - textOffset)
+      const deltaText = text.length > streamedBlockLength ? text.slice(streamedBlockLength) : ''
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         if (!ctx.textPartId) {
@@ -1142,7 +1283,6 @@ export class ClaudeCodeStreamAdapter {
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
       }
-      ctx.streamedTextLength = text.length
     } else {
       ctx.accumulatedText += text
       if (ctx.options.responseFormat?.type !== 'json') {
