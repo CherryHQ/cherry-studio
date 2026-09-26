@@ -154,4 +154,76 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
       { type: 'reasoning-end', id: 'reasoning-item:0' }
     ])
   })
+
+  it('accepts provider reasoning summary deltas that use output_index', async () => {
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_provider', encrypted_content: null }
+      },
+      { type: 'response.reasoning_summary_text.delta', item_id: 'rs_provider', output_index: 0, delta: 'First step' },
+      { type: 'response.completed', response: { usage: { input_tokens: 1, output_tokens: 1 } } }
+    ]
+    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
+    const model = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    }).responses('provider-model')
+
+    const result = await model.doStream({ prompt })
+    const reader = result.stream.getReader()
+    const chunks: LanguageModelV3StreamPart[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'reasoning-delta', delta: 'First step' }))
+    expect(chunks.some((chunk) => chunk.type === 'error')).toBe(false)
+  })
+
+  it('surfaces a provider error payload instead of a type validation error', async () => {
+    const body =
+      `data: ${JSON.stringify({ code: 'InvalidParameter', message: "Invalid 'id': message id must start with 'msg_'" })}\n\n` +
+      'data: [DONE]\n\n'
+    const model = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    }).responses('provider-model')
+
+    await expect(model.doStream({ prompt })).rejects.toMatchObject({
+      name: 'AI_APICallError',
+      message: expect.stringContaining("Invalid 'id': message id must start with 'msg_'")
+    })
+  })
+
+  it('continues rejecting modeled events with missing required fields', async () => {
+    const body =
+      `data: ${JSON.stringify({
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'browser_open' }
+      })}\n\n` + 'data: [DONE]\n\n'
+    const model = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    }).responses('provider-model')
+
+    const result = await model.doStream({ prompt })
+    const reader = result.stream.getReader()
+    const chunks: LanguageModelV3StreamPart[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'error' }))
+    expect(chunks.some((chunk) => chunk.type === 'reasoning-delta')).toBe(false)
+  })
 })
