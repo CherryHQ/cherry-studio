@@ -15,11 +15,96 @@
 !ifndef BUILD_UNINSTALLER
   ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
+    Push $2
+    Push $3
+    Push $4
+    StrCpy $0 "0"
     ${If} $1 == "arm64"
-      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64" "Installed"
+      StrCpy $2 "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64"
     ${Else}
-      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+      StrCpy $2 "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
     ${EndIf}
+
+    ; Newer v14 runtimes may expose version metadata in either registry view.
+    ${If} ${RunningX64}
+    ${OrIf} ${IsNativeARM64}
+      SetRegView 64
+      StrCpy $3 "0"
+      ReadRegDWORD $3 HKLM "$2" "Installed"
+      ${If} $3 == 1
+        StrCpy $0 "1"
+        Goto vcRedistRestoreView
+      ${EndIf}
+      StrCpy $3 "0"
+      ReadRegDWORD $3 HKLM "$2" "Major"
+      ${If} $3 >= 14
+        StrCpy $0 "1"
+        Goto vcRedistRestoreView
+      ${EndIf}
+    ${EndIf}
+
+    SetRegView 32
+    StrCpy $3 "0"
+    ReadRegDWORD $3 HKLM "$2" "Installed"
+    ${If} $3 == 1
+      StrCpy $0 "1"
+      Goto vcRedistRestoreView
+    ${EndIf}
+    StrCpy $3 "0"
+    ReadRegDWORD $3 HKLM "$2" "Major"
+    ${If} $3 >= 14
+      StrCpy $0 "1"
+      Goto vcRedistRestoreView
+    ${EndIf}
+
+    ; A system DLL proves the target runtime only on a known x64 host and path.
+    ${If} $1 != "arm64"
+      ${IfNot} ${IsNativeARM64}
+        ReadEnvStr $4 "PROCESSOR_ARCHITEW6432"
+        ${If} $4 == "AMD64"
+          StrCpy $2 "$WINDIR\Sysnative\vcruntime140.dll"
+        ${ElseIf} $4 == ""
+          ReadEnvStr $4 "PROCESSOR_ARCHITECTURE"
+          ${If} $4 == "AMD64"
+          ${AndIf} ${RunningX64}
+            StrCpy $2 "$SYSDIR\vcruntime140.dll"
+          ${Else}
+            StrCpy $2 ""
+          ${EndIf}
+        ${Else}
+          StrCpy $2 ""
+        ${EndIf}
+        ${If} $2 != ""
+          ClearErrors
+          GetDLLVersion "$2" $3 $4
+          ${IfNot} ${Errors}
+            IntOp $3 $3 >> 16
+            ${If} $3 >= 14
+              StrCpy $0 "1"
+            ${EndIf}
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+
+  vcRedistRestoreView:
+    ; Match electron-builder's registry view before later installer code runs.
+    SetRegView 32
+    !ifdef APP_ARM64
+      ${If} ${RunningX64}
+      ${OrIf} ${IsNativeARM64}
+        SetRegView 64
+      ${EndIf}
+    !else
+      !ifdef APP_64
+        ${If} ${RunningX64}
+          SetRegView 64
+        ${EndIf}
+      !endif
+    !endif
+    Pop $4
+    Pop $3
+    Pop $2
   FunctionEnd
 
   Function checkArchitectureCompatibility
@@ -123,7 +208,20 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    ; VC++ is required - install automatically since declining would abort anyway
+    StrCpy $4 "0"
+    ; A recorded install or its executable identifies updates even when INSTDIR differs.
+    ; Silent mode alone cannot distinguish an update from a fresh install.
+    ReadRegStr $3 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "InstallLocation"
+    ${If} $3 != ""
+      StrCpy $4 "1"
+    ${EndIf}
+    ReadRegStr $3 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "InstallLocation"
+    ${If} $3 != ""
+      StrCpy $4 "1"
+    ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      StrCpy $4 "1"
+    ${EndIf}
     ; Select download URL based on system architecture (stored in $1)
     ${If} $1 == "arm64"
       StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
@@ -137,31 +235,35 @@
       $2 $3 /END
     Pop $0  ; Get download status from inetc::get
     ${If} $0 != "OK"
-      MessageBox MB_ICONSTOP|MB_YESNO "\
-        Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
-        Error: $0$\r$\n$\r$\n\
-        Would you like to open the download page in your browser?$\r$\n\
-        $2" IDYES openDownloadUrl IDNO skipDownloadUrl
-      openDownloadUrl:
-        ExecShell "open" $2
-      skipDownloadUrl:
-      Abort
-    ${EndIf}
+      ${If} $4 != "1"
+        MessageBox MB_ICONSTOP|MB_YESNO "\
+          Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
+          Error: $0$\r$\n$\r$\n\
+          Would you like to open the download page in your browser?$\r$\n\
+          $2" /SD IDNO IDYES openDownloadUrl IDNO skipDownloadUrl
+        openDownloadUrl:
+          ExecShell "open" $2
+        skipDownloadUrl:
+        Abort
+      ${EndIf}
+    ${Else}
+      ExecWait "$3 /install /quiet /norestart"
+      ; Note: vc_redist exit code is unreliable, verify via registry check instead
 
-    ExecWait "$3 /install /quiet /norestart"
-    ; Note: vc_redist exit code is unreliable, verify via registry check instead
-
-    Call checkVCRedist
-    ${If} $0 != "1"
-      MessageBox MB_ICONSTOP|MB_YESNO "\
-        Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
-        Would you like to open the download page in your browser?$\r$\n\
-        $2$\r$\n$\r$\n\
-        The installation of ${PRODUCT_NAME} cannot continue." IDYES openInstallUrl IDNO skipInstallUrl
-      openInstallUrl:
-        ExecShell "open" $2
-      skipInstallUrl:
-      Abort
+      Call checkVCRedist
+      ${If} $0 != "1"
+        ${If} $4 != "1"
+          MessageBox MB_ICONSTOP|MB_YESNO "\
+            Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
+            Would you like to open the download page in your browser?$\r$\n\
+            $2$\r$\n$\r$\n\
+            The installation of ${PRODUCT_NAME} cannot continue." /SD IDNO IDYES openInstallUrl IDNO skipInstallUrl
+          openInstallUrl:
+            ExecShell "open" $2
+          skipInstallUrl:
+          Abort
+        ${EndIf}
+      ${EndIf}
     ${EndIf}
   ${EndIf}
     Pop $4
