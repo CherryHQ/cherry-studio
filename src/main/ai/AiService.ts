@@ -43,7 +43,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
@@ -1220,7 +1220,7 @@ export class AiService extends BaseService {
   }
 
   // ── Model listing ──
-  async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
+  async listModels(request: ListModelsRequest): Promise<ListedModels> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
       let assistant: Assistant | undefined
@@ -1241,20 +1241,28 @@ export class AiService extends BaseService {
     // shipped catalog instead of calling the upstream API. The rest of the pull
     // flow (enrich → reconcile → enable) is unchanged.
     if (provider.modelListSource === 'registry') {
-      return providerRegistryService.listProviderRegistryModels({
-        providerId,
-        presetProviderId: provider.presetProviderId ?? null
-      })
+      return {
+        models: providerRegistryService.listProviderRegistryModels({
+          providerId,
+          presetProviderId: provider.presetProviderId ?? null
+        })
+      }
     }
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remote = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
     if (!provider.supplementModelsFromRegistry) {
-      return remoteModels
+      return remote
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null
     })
-    return mergeProviderModelsWithRegistry(remoteModels, registryModels)
+    // The merge returns a new array, so a skip notice has to be carried over to it:
+    // otherwise the entries the provider holds but cannot list become invisible in
+    // exactly the path that replaces them with catalog models.
+    return {
+      models: mergeProviderModelsWithRegistry(remote.models, registryModels),
+      ...(remote.skippedModels ? { skippedModels: remote.skippedModels } : {})
+    }
   }
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
@@ -1281,7 +1289,7 @@ export class AiService extends BaseService {
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
-        const models = await listModelsFromProvider(
+        const { models } = await listModelsFromProvider(
           { ...provider, defaultChatEndpoint: endpoint.endpointType },
           signal,
           { throwOnError: true }
@@ -1378,7 +1386,7 @@ export class AiService extends BaseService {
             if (!transport) {
               throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
             }
-            await transport.submit({
+            const { taskId } = await transport.submit({
               modelId: wireModelId,
               prompt: 'a red circle',
               n: 1,
@@ -1397,6 +1405,12 @@ export class AiService extends BaseService {
               providerParams: probeParams,
               signal
             })
+            // Accepting the request already proves the credential, the endpoint
+            // and the model; a job left queued would run a whole generation on
+            // the user's machine (ComfyUI submits a real workflow here).
+            if (taskId && transport.cancel) {
+              await transport.cancel(taskId).catch(() => undefined)
+            }
           })()
         } else {
           probe = this.generateImage({

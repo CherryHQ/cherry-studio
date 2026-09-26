@@ -22,6 +22,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
+import type { ComfyuiProvider, ComfyuiProviderSettings } from './custom/comfyui/comfyuiProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
@@ -203,6 +204,20 @@ export const OllamaExtension = ProviderExtension.create({
   create: async (options?: OllamaProviderSettings) =>
     (await import('./custom/ollama/ollamaProvider')).createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
+
+/**
+ * ComfyUI — a local node-graph image server. Its "models" are the user's saved
+ * workflows (listed by `listWorkflows` in the discovery client), and generation is a
+ * submit → poll `/history` → `/view` download loop, so the whole surface is served by
+ * the bespoke provider rather than any OpenAI adapter. Image-only: `languageModel`
+ * and `embeddingModel` throw by design.
+ */
+export const ComfyuiExtension = ProviderExtension.create({
+  name: 'comfyui',
+  supportsImageGeneration: true,
+  create: async (settings?: ComfyuiProviderSettings) =>
+    (await import('./custom/comfyui/comfyuiProvider')).createComfyuiProvider(settings)
+} as const satisfies ProviderExtensionConfig<ComfyuiProviderSettings, ComfyuiProvider, 'comfyui'>)
 
 export const MinimaxExtension = ProviderExtension.create({
   name: 'minimax',
@@ -407,6 +422,7 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  ComfyuiExtension,
   MinimaxExtension,
   MoonshotExtension,
   AiHubMixExtension,

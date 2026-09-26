@@ -7,7 +7,6 @@ import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import {
-  fetchProviderCatalogModels,
   fetchResolvedProviderModels,
   resolveCreateModelEndpointTypes,
   toCreateModelDto
@@ -73,7 +72,6 @@ async function deleteModelsSkippingDefaults(
 export function useProviderModelPullReconcile(providerId: string) {
   const { t } = useTranslation()
   const [pullReconcileDrawerOpen, setPullReconcileDrawerOpen] = useState(false)
-  const [catalogModels, setCatalogModels] = useState<Model[]>([])
   const [fetchedModels, setFetchedModels] = useState<Model[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
@@ -91,14 +89,8 @@ export function useProviderModelPullReconcile(providerId: string) {
     { refresh: ['/models'] }
   )
 
-  const allModels = useMemo(
-    () => uniqueById([...fetchedModels, ...catalogModels, ...models]),
-    [catalogModels, fetchedModels, models]
-  )
-  const remoteModelIds = useMemo(
-    () => new Set([...catalogModels, ...fetchedModels].map((model) => model.id)),
-    [catalogModels, fetchedModels]
-  )
+  const allModels = useMemo(() => uniqueById([...fetchedModels, ...models]), [fetchedModels, models])
+  const remoteModelIds = useMemo(() => new Set(fetchedModels.map((model) => model.id)), [fetchedModels])
   const defaultModelIds = useMemo(
     () =>
       new Set(
@@ -109,15 +101,8 @@ export function useProviderModelPullReconcile(providerId: string) {
     [defaultModelId, quickAssistantModelId, translateModelId]
   )
   const removableModelIds = useMemo(
-    () =>
-      models
-        .filter(
-          (model) =>
-            !defaultModelIds.has(model.id) &&
-            (remoteModelIds.has(model.id) || (model.presetModelId != null && model.presetModelId !== ''))
-        )
-        .map((model) => model.id),
-    [defaultModelIds, models, remoteModelIds]
+    () => models.filter((model) => !defaultModelIds.has(model.id)).map((model) => model.id),
+    [defaultModelIds, models]
   )
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
@@ -131,64 +116,41 @@ export function useProviderModelPullReconcile(providerId: string) {
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
-  const loadModels = useCallback(async () => {
+  const loadModels = useCallback(async (): Promise<ProviderModelLoadResult | null> => {
     const sequence = ++loadModelsSequenceRef.current
     const isLatestLoad = () => sequence === loadModelsSequenceRef.current
-
     setIsLoadingModels(true)
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const [catalogResult, fetchedResult] = await Promise.allSettled([
-        fetchProviderCatalogModels(providerId),
-        fetchResolvedProviderModels(providerId)
-      ])
-      if (!isLatestLoad()) {
-        return null
-      }
+      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+      if (!isLatestLoad()) return null
 
-      const catalog = (catalogResult.status === 'fulfilled' ? catalogResult.value : []).filter((model) =>
-        model.name?.trim()
-      )
-      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value : []).filter((model) =>
-        model.name?.trim()
-      )
-      const hasLoadedAllModels = catalogResult.status === 'fulfilled' && fetchedResult.status === 'fulfilled'
-      const loadError =
-        fetchedResult.status === 'rejected'
-          ? fetchedResult.reason
-          : catalogResult.status === 'rejected'
-            ? catalogResult.reason
-            : null
-
-      setCatalogModels(catalog)
-      setFetchedModels(fetched)
-      setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
-
-      if (!hasLoadedAllModels) {
-        // A bare "failed to pull models" hides the one failure the user can actually act on
-        // — a TLS/proxy interception (`error.diagnosis.proxy`) or an unreachable network —
-        // so show the classified diagnosis instead when there is one.
-        const classification = classifyError(serializeHealthCheckError(loadError), providerId)
-        logger.error('Failed to load provider models for manage drawer', {
-          providerId,
-          catalogFailed: catalogResult.status === 'rejected',
-          upstreamFailed: fetchedResult.status === 'rejected',
-          category: classification.category
+      const fetched = models.filter((model) => model.name?.trim())
+      if (skippedModels.length > 0) {
+        toast.warning({
+          title: t('settings.models.manage.models_not_listed', { count: skippedModels.length }),
+          description: skippedModels.join(', ')
         })
-        setLoadErrorMessage(
-          t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
-        )
       }
+      setFetchedModels(fetched)
+      setHasLoadedCompleteRemoteModels(true)
+      return { models: uniqueById(fetched), error: null }
+    } catch (error) {
+      if (!isLatestLoad()) return null
 
-      return {
-        models: uniqueById([...fetched, ...catalog]),
-        error: loadError
-      } satisfies ProviderModelLoadResult
+      const classification = classifyError(serializeHealthCheckError(error), providerId)
+      logger.error('Failed to load provider models for manage drawer', {
+        providerId,
+        category: classification.category
+      })
+      setFetchedModels([])
+      setLoadErrorMessage(
+        t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
+      )
+      return { models: [], error }
     } finally {
-      if (isLatestLoad()) {
-        setIsLoadingModels(false)
-      }
+      if (isLatestLoad()) setIsLoadingModels(false)
     }
   }, [providerId, t])
 
@@ -209,17 +171,39 @@ export function useProviderModelPullReconcile(providerId: string) {
         return
       }
 
-      try {
-        const chunks = chunkArray(
-          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
-          MODELS_BATCH_MAX_ITEMS
-        )
-        for (const chunk of chunks) {
+      const chunks = chunkArray(
+        toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
+        MODELS_BATCH_MAX_ITEMS
+      )
+      // A batch that lands commits and cannot be undone here, so the batches after
+      // it stay worth sending: add what can be added, then report what actually
+      // happened. A retry only fills the gaps — `toAdd` above drops existing rows.
+      let addedCount = 0
+      let failedCount = 0
+      for (const chunk of chunks) {
+        try {
           await createModels(chunk)
+          addedCount += chunk.length
+        } catch (error) {
+          failedCount += chunk.length
+          logger.error('Failed to add a batch of provider models from manage drawer', {
+            providerId,
+            batchSize: chunk.length,
+            addedCount,
+            failedCount,
+            error
+          })
         }
-      } catch (error) {
-        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
+      }
+
+      if (addedCount === 0) {
         toast.error(t('settings.models.manage.operation_failed'))
+        return
+      }
+      if (failedCount > 0) {
+        // The provider is turned on for the model set the user asked for, not for
+        // part of it: a half-added library stays off until a retry completes it.
+        toast.warning(t('settings.models.manage.add_partial_failure', { added: addedCount, failed: failedCount }))
         return
       }
 
@@ -227,13 +211,13 @@ export function useProviderModelPullReconcile(providerId: string) {
         await enableProviderWhenModelsAvailable(
           provider,
           enableProvider,
-          models.length + toAdd.length,
+          models.length + addedCount,
           'model_manage_add'
         )
       } catch (error) {
         logger.error('Models were added but provider enablement failed', {
           providerId,
-          count: toAdd.length,
+          count: addedCount,
           error
         })
         toast.warning(t('settings.models.manage.add_success_enable_failed'))
@@ -267,31 +251,27 @@ export function useProviderModelPullReconcile(providerId: string) {
   )
 
   const cleanStaleModels = useCallback(async () => {
-    const staleIds = staleModels.map((model) => model.id)
-    if (staleIds.length === 0) {
-      return
-    }
+    const uniqueIds = Array.from(new Set(staleModels.map((model) => model.id)))
+    if (uniqueIds.length === 0) return
 
     try {
-      const reconciledModels = await reconcileModels({
+      const reconciled = await reconcileModels({
         params: { providerId },
-        body: {
-          toAdd: [],
-          toRemove: staleIds
-        }
+        body: { toAdd: [], toRemove: uniqueIds }
       })
-      const reconciledIds = new Set(reconciledModels.map((model) => model.id))
-      const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
-
+      const survivors = new Set(reconciled.map((model) => model.id))
+      const removedCount = uniqueIds.filter((id) => !survivors.has(id)).length
+      const skippedCount = uniqueIds.length - removedCount
+      if (removedCount > 0) {
+        toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
+      }
       if (skippedCount > 0) {
         toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
-      } else {
-        toast.success(t('settings.models.manage.clean_stale_success', { count: staleIds.length }))
       }
     } catch (error) {
       logger.error('Failed to clean stale provider models from manage drawer', {
         providerId,
-        count: staleIds.length,
+        count: uniqueIds.length,
         error
       })
       toast.error(t('settings.models.manage.operation_failed'))

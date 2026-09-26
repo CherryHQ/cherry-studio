@@ -62,6 +62,18 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
     }
   },
+  // ComfyUI owns the whole generation lifecycle: `/prompt` returns a task id, the job
+  // polls `/history/{id}` until the graph reports outputs, and cancel is id-scoped.
+  // Declaring `poll` + `cancel` here is what lets a running generation be aborted.
+  comfyui: {
+    supports: () => true,
+    poll: true,
+    cancel: true,
+    load: async (settings) => {
+      const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+      return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
+    }
+  },
   tokenhub: {
     supports: () => true,
     poll: true,

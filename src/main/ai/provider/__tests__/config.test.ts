@@ -1272,6 +1272,81 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it('routes ComfyUI IMAGE models through ComfyUI config with no API version appended', async () => {
+      // ComfyUI's API is unversioned — `/prompt`, `/history` and `/view` sit at the host
+      // root — so the extension's transport has to receive the bare host. An appended
+      // `/v1` makes every call the transport makes a 404.
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'http://localhost:8188',
+            adapterFamily: 'comfyui'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('comfyui')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
+    })
+
+    it.each([
+      ['http://localhost:8188/', 'http://localhost:8188'],
+      [' http://localhost:8188/proxy/ ', 'http://localhost:8188/proxy'],
+      ['http://localhost:8188/proxy/comfy///#', 'http://localhost:8188/proxy/comfy'],
+      ['http://localhost:8188/v1/#fragment', 'http://localhost:8188/v1']
+    ])('preserves the copied ComfyUI server path %s', async (baseUrl, expected) => {
+      // A copied provider: the id carries no hint, the endpoint carries the family.
+      const provider = makeProvider({
+        id: '8f0a3d5e-9c1b-4a2f-8d3e-71c0b4a6e5d2',
+        presetProviderId: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl, adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: provider.id,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    it('routes ComfyUI without selecting or attributing a stored key', async () => {
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188', adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+      // The server takes no credential, so resolving one would attribute a key
+      // the transport never sends.
+      expect(resolved.config.providerId).toBe('comfyui')
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+    })
+
     it.each([
       ['minimax', undefined, 'https://api.minimaxi.com/v1'],
       ['minimax-global', 'minimax', 'https://api.minimax.io/v1']
