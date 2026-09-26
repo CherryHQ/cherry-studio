@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dc76d4c6-cc80-4f66-80a7-a37ddbfe2a1f",
+  "id": "740e89be-1eaf-4223-b1f3-49740b8c6c79",
   "prevId": "ba5e70d9-757c-413b-85b9-073af609895f",
   "tables": {
     "agent": {
@@ -2258,6 +2258,58 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "diagnostic_report": {
+      "name": "diagnostic_report",
+      "columns": {
+        "report_id": {
+          "name": "report_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processing_status": {
+          "name": "processing_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "diagnostic_report_submitted_at_idx": {
+          "name": "diagnostic_report_submitted_at_idx",
+          "columns": [
+            "submitted_at",
+            "report_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "diagnostic_report_processing_status_check": {
+          "name": "diagnostic_report_processing_status_check",
+          "value": "\"diagnostic_report\".\"processing_status\" IN ('pending', 'unprocessed', 'investigating', 'resolved', 'closed')"
+        }
+      }
     },
     "file_entry": {
       "name": "file_entry",
