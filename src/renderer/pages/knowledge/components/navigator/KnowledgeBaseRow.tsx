@@ -2,11 +2,12 @@ import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
+import { knowledgeDataSourceCheckboxClassName } from '@renderer/pages/knowledge/panels/dataSource/styles'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 
 import type { KnowledgeBaseRowProps } from './types'
@@ -15,7 +16,9 @@ const KnowledgeBaseRow = ({
   base,
   groups,
   selected,
+  checked,
   onSelectBase,
+  onToggleChecked,
   onMoveBase,
   onRenameBase,
   onCreateGroup,
@@ -146,8 +149,19 @@ const KnowledgeBaseRow = ({
         <div
           className={cn(
             'group/row flex h-8 w-full items-center gap-1 rounded-md px-2.5 transition-colors',
-            selected ? 'bg-muted text-foreground' : 'hover:bg-muted'
+            selected || checked ? 'bg-muted text-foreground' : 'hover:bg-muted'
           )}>
+          <label
+            className="flex h-full shrink-0 cursor-pointer items-center pr-1"
+            onClick={(event) => event.stopPropagation()}>
+            <Checkbox
+              size="sm"
+              className={knowledgeDataSourceCheckboxClassName}
+              aria-label={t('knowledge.navigator.select_row')}
+              checked={checked}
+              onCheckedChange={(next) => onToggleChecked(next === true)}
+            />
+          </label>
           <Button
             type="button"
             variant="ghost"

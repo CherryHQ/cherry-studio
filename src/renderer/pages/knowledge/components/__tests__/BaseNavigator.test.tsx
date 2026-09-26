@@ -129,6 +129,23 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      'aria-label': ariaLabel
+    }: {
+      checked?: boolean | 'indeterminate'
+      onCheckedChange?: (checked: boolean | 'indeterminate') => void
+      'aria-label'?: string
+    }) => (
+      <input
+        type="checkbox"
+        aria-label={ariaLabel}
+        aria-checked={checked === 'indeterminate' ? 'mixed' : Boolean(checked)}
+        checked={checked === true}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
+    ),
     ConfirmDialog: ({
       open,
       title,
@@ -190,6 +207,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Tooltip: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
+      <>
+        {children}
+        <span role="tooltip">{content}</span>
+      </>
+    ),
     PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
       <div>
         <h2>{title}</h2>
@@ -467,6 +490,12 @@ vi.mock('react-i18next', () => ({
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.delete_confirm_title': '确认删除知识库',
           'knowledge.context.delete_confirm_description': '删除后无法恢复',
+          'knowledge.navigator.bulk.delete': '删除',
+          'knowledge.navigator.bulk.delete_confirm_description': `确认删除选中的 ${options?.count} 个知识库`,
+          'knowledge.navigator.bulk.delete_confirm_title': '确认批量删除知识库',
+          'knowledge.navigator.bulk.selected_count': `已选 ${options?.count} 项`,
+          'knowledge.navigator.select_all': '全选',
+          'knowledge.navigator.select_row': '选择知识库',
           'knowledge.status.completed': '就绪',
           'knowledge.status.failed': '失败'
         }) as Record<string, string>
@@ -545,10 +574,12 @@ describe('BaseNavigator', () => {
     onCreateGroup: vi.fn(),
     onCreateBase: vi.fn(),
     onMoveBase: vi.fn(),
+    onMoveBases: vi.fn(),
     onRenameBase: vi.fn(),
     onRenameGroup: vi.fn(),
     onDeleteGroup: vi.fn(),
     onDeleteBase: vi.fn(),
+    onDeleteBases: vi.fn(),
     onResizeStart: vi.fn()
   }
 
@@ -595,6 +626,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -621,6 +654,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -647,6 +682,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -675,6 +712,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -692,10 +731,12 @@ describe('BaseNavigator', () => {
       onCreateGroup: vi.fn(),
       onCreateBase: vi.fn(),
       onMoveBase: vi.fn(),
+      onMoveBases: vi.fn(),
       onRenameBase: vi.fn(),
       onRenameGroup: vi.fn(),
       onDeleteGroup: vi.fn(),
       onDeleteBase: vi.fn(),
+      onDeleteBases: vi.fn(),
       onResizeStart: vi.fn()
     }
     const { rerender } = render(
@@ -743,6 +784,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -770,6 +813,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -804,6 +849,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -849,6 +896,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -881,6 +930,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -909,6 +960,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -934,6 +987,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -960,6 +1015,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -988,10 +1045,12 @@ describe('BaseNavigator', () => {
         onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
+        onMoveBases={vi.fn()}
         onRenameBase={vi.fn()}
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={onDeleteBase}
+        onDeleteBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1024,6 +1083,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1051,6 +1112,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={onRenameGroup}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1081,6 +1144,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1106,10 +1171,12 @@ describe('BaseNavigator', () => {
         onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
+        onMoveBases={vi.fn()}
         onRenameBase={vi.fn()}
         onRenameGroup={vi.fn()}
         onDeleteGroup={onDeleteGroup}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1144,6 +1211,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1169,6 +1238,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1200,6 +1271,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1232,6 +1305,8 @@ describe('BaseNavigator', () => {
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
+        onMoveBases={vi.fn()}
         onResizeStart={vi.fn()}
       />
     )
@@ -1262,10 +1337,12 @@ describe('BaseNavigator', () => {
         onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
+        onMoveBases={vi.fn()}
         onRenameBase={vi.fn()}
         onRenameGroup={vi.fn()}
         onDeleteGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onDeleteBases={vi.fn()}
         onResizeStart={onResizeStart}
       />
     )
@@ -1273,5 +1350,156 @@ describe('BaseNavigator', () => {
     fireEvent.mouseDown(screen.getByTestId('base-navigator-resize-handle'))
 
     expect(onResizeStart).toHaveBeenCalledTimes(1)
+  })
+
+  // Catches a navigator that only activates one base at a time and never exposes
+  // checkboxes / bulk delete — the user-visible gap reported in #20653.
+  it('selects multiple knowledge bases and deletes them through one bulk confirm', async () => {
+    const onDeleteBases = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma' })
+        ]}
+        onDeleteBases={onDeleteBases}
+      />
+    )
+
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: '选择知识库' })
+    fireEvent.click(rowCheckboxes[0])
+    fireEvent.click(rowCheckboxes[1])
+
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '新建知识库' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(screen.getByText('确认批量删除知识库')).toBeInTheDocument()
+    expect(screen.getByText('确认删除选中的 2 个知识库')).toBeInTheDocument()
+
+    const confirmDeleteButtons = screen.getAllByRole('button', { name: '删除' })
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+
+    await waitFor(() => {
+      expect(onDeleteBases).toHaveBeenCalledWith(['base-1', 'base-2'])
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: '新建知识库' })).toBeInTheDocument()
+  })
+
+  it('select-all checks every visible base and bulk-moves them to a group', async () => {
+    const onMoveBases = vi.fn().mockResolvedValue(undefined)
+    const groups = [createGroup({ id: 'group-1', name: 'Research' })]
+
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
+        ]}
+        groups={groups}
+        onMoveBases={onMoveBases}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+
+    const moveButton = screen.getByRole('button', { name: '移动到' })
+    const deleteButton = screen.getByRole('button', { name: '删除' })
+    expect(moveButton).toHaveTextContent('')
+    expect(deleteButton).toHaveTextContent('')
+    expect(screen.getByRole('tooltip', { name: '移动到' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '删除' })).toBeInTheDocument()
+
+    fireEvent.click(moveButton)
+    fireEvent.click(getMenuButton('Research'))
+
+    await waitFor(() => {
+      expect(onMoveBases).toHaveBeenCalledWith(['base-1', 'base-2'], 'group-1')
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
+  })
+
+  it('keeps the bulk selection when bulk delete rejects', async () => {
+    const onDeleteBases = vi.fn().mockRejectedValue(new Error('delete failed'))
+
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' })
+        ]}
+        onDeleteBases={onDeleteBases}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('checkbox', { name: '选择知识库' })[0])
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const confirmDeleteButtons = screen.getAllByRole('button', { name: '删除' })
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+
+    await waitFor(() => {
+      expect(onDeleteBases).toHaveBeenCalledWith(['base-1'])
+    })
+    expect(screen.getByText('已选 1 项')).toBeInTheDocument()
+  })
+
+  // Catches a second bulk move or delete fired before the first promise settles.
+  it('ignores a second bulk move or delete while the first is in flight', async () => {
+    let resolveMove: (() => void) | undefined
+    const onMoveBases = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveMove = resolve
+        })
+    )
+    const onDeleteBases = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
+        ]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        onMoveBases={onMoveBases}
+        onDeleteBases={onDeleteBases}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动到' }))
+    fireEvent.click(getMenuButton('Research'))
+
+    expect(onMoveBases).toHaveBeenCalledTimes(1)
+    expect(onMoveBases).toHaveBeenCalledWith(['base-1', 'base-2'], 'group-1')
+
+    fireEvent.click(screen.getByRole('button', { name: '移动到' }))
+    fireEvent.click(getMenuButton('Research'))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const confirmDeleteButtons = screen.getAllByRole('button', { name: '删除' })
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+    fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1])
+
+    expect(onMoveBases).toHaveBeenCalledTimes(1)
+    expect(onDeleteBases).not.toHaveBeenCalled()
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+
+    resolveMove?.()
+
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
   })
 })
