@@ -443,6 +443,8 @@ export interface PreferenceSchemas {
     // redux/settings/readClipboardAtStartup
     'feature.quick_assistant.read_clipboard_at_startup': boolean
     // target-key-definitions/complex/complex
+    'feature.reasoning.effort_mappings': PreferenceTypes.ReasoningEffortMappingOverrides
+    // target-key-definitions/complex/complex
     'feature.screenshot.auto_ocr': boolean
     // target-key-definitions/complex/complex
     'feature.screenshot.enabled': boolean
@@ -799,6 +801,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.model_id': null,
     'feature.quick_assistant.read_clipboard_at_startup': true,
+    'feature.reasoning.effort_mappings': {},
     'feature.screenshot.auto_ocr': true,
     'feature.screenshot.enabled': false,
     'feature.selection.action_items': [{ enabled: true, icon: 'languages', id: 'translate', isBuiltIn: true, name: 'selection.action.builtin.translate' }, { enabled: true, icon: 'file-question', id: 'explain', isBuiltIn: true, name: 'selection.action.builtin.explain' }, { enabled: true, icon: 'scan-text', id: 'summary', isBuiltIn: true, name: 'selection.action.builtin.summary' }, { enabled: true, icon: 'search', id: 'search', isBuiltIn: true, name: 'selection.action.builtin.search', searchEngine: 'Google|https://www.google.com/search?q={{queryString}}' }, { enabled: true, icon: 'clipboard-copy', id: 'copy', isBuiltIn: true, name: 'selection.action.builtin.copy' }, { enabled: false, icon: 'wand-sparkles', id: 'refine', isBuiltIn: true, name: 'selection.action.builtin.refine' }, { enabled: false, icon: 'quote', id: 'quote', isBuiltIn: true, name: 'selection.action.builtin.quote' }],

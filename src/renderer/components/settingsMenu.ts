@@ -8,6 +8,7 @@ import {
   Crop,
   FileBox,
   FileCode,
+  Gauge,
   Globe,
   HardDrive,
   Info,
@@ -60,6 +61,11 @@ export interface SettingsMenuEntry {
 export const settingsMenu: readonly SettingsMenuEntry[] = [
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
+  {
+    route: '/settings/reasoning-effort',
+    titleKey: 'settings.reasoning_effort_mappings.title',
+    icon: createElement(Gauge)
+  },
   {
     route: '/settings/local-models',
     titleKey: 'settings.dependencies.localModels.title',
