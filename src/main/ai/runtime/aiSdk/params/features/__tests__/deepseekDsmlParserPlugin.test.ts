@@ -24,16 +24,23 @@ async function getMiddleware(): Promise<LanguageModelMiddleware> {
   return ctx.middlewares[0]
 }
 
-function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+function buildSourceStream(
+  deltas: string[],
+  finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+  kind: 'text' | 'reasoning' = 'text'
+) {
   const parts: LanguageModelV3StreamPart[] = [
     { type: 'stream-start', warnings: [] },
-    { type: 'text-start', id: 'text-1' },
-    ...deltas.map<LanguageModelV3StreamPart>((delta) => ({
-      type: 'text-delta',
-      id: 'text-1',
-      delta
-    })),
-    { type: 'text-end', id: 'text-1' },
+    { type: `${kind}-start`, id: `${kind}-1` } as LanguageModelV3StreamPart,
+    ...deltas.map<LanguageModelV3StreamPart>(
+      (delta) =>
+        ({
+          type: `${kind}-delta`,
+          id: `${kind}-1`,
+          delta
+        }) as LanguageModelV3StreamPart
+    ),
+    { type: `${kind}-end`, id: `${kind}-1` } as LanguageModelV3StreamPart,
     {
       type: 'finish',
       finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
@@ -50,11 +57,18 @@ function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool
   })
 }
 
-async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+async function runStream(
+  deltas: string[],
+  finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+  kind: 'text' | 'reasoning' = 'text'
+) {
+  return runSourceStream(buildSourceStream(deltas, finishReasonUnified, kind))
+}
+
+async function runSourceStream(source: ReadableStream<LanguageModelV3StreamPart>) {
   const middleware = await getMiddleware()
   expect(middleware.wrapStream).toBeDefined()
 
-  const source = buildSourceStream(deltas, finishReasonUnified)
   const wrapped = await middleware.wrapStream!({
     doStream: async () => ({ stream: source, request: { body: {} }, response: { headers: {} } }),
 
@@ -379,15 +393,162 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(text).toBe('prefix  suffix')
   })
 
+  it('parses the single-bar DSML variant from the reasoning channel', async () => {
+    const deltas = [
+      'thinking ',
+      '<｜DSML｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜DSML｜tool_calls>',
+      ' after'
+    ]
+    const events = await runStream(deltas, 'stop', 'reasoning')
+
+    const toolCalls = events.filter((event) => event.type === 'tool-call')
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0]).toMatchObject({ toolName: 'read_file' })
+    expect(JSON.parse(toolCalls[0].input)).toEqual({ path: '/tmp/a.md' })
+
+    const reasoning = events
+      .filter((event) => event.type === 'reasoning-delta')
+      .map((event) => event.delta)
+      .join('')
+    expect(reasoning).toBe('thinking  after')
+    expect(reasoning).not.toContain('DSML')
+
+    const finish = events.find((event) => event.type === 'finish') as Extract<
+      LanguageModelV3StreamPart,
+      { type: 'finish' }
+    >
+    expect(finish.finishReason.unified).toBe('tool-calls')
+  })
+
+  it('closes a reasoning block before emitting its extracted tool calls', async () => {
+    const deltas = [
+      '<｜DSML｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜DSML｜tool_calls>'
+    ]
+    const events = await runStream(deltas, 'stop', 'reasoning')
+    const reasoningEndIndex = events.findIndex((event) => event.type === 'reasoning-end')
+    const firstToolEventIndex = events.findIndex((event) => event.type === 'tool-input-start')
+
+    expect(reasoningEndIndex).toBeGreaterThanOrEqual(0)
+    expect(firstToolEventIndex).toBeGreaterThan(reasoningEndIndex)
+    expect(events.filter((event) => event.type === 'tool-call')).toHaveLength(1)
+  })
+
+  it('preserves reasoning provider metadata, including metadata-only deltas', async () => {
+    const metadata = { anthropic: { signature: 'sig_1' } }
+    const source = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue({ type: 'stream-start', warnings: [] })
+        controller.enqueue({ type: 'reasoning-start', id: 'reasoning-1' })
+        controller.enqueue({
+          type: 'reasoning-delta',
+          id: 'reasoning-1',
+          delta: 'thinking',
+          providerMetadata: metadata
+        })
+        controller.enqueue({ type: 'reasoning-delta', id: 'reasoning-1', delta: '', providerMetadata: metadata })
+        controller.enqueue({ type: 'reasoning-end', id: 'reasoning-1' })
+        controller.enqueue({
+          type: 'finish',
+          finishReason: { unified: 'stop', raw: 'stop' },
+          usage: {} as any
+        })
+        controller.close()
+      }
+    })
+
+    const events = await runSourceStream(source)
+    expect(events).toContainEqual({
+      type: 'reasoning-delta',
+      id: 'reasoning-1',
+      delta: 'thinking',
+      providerMetadata: metadata
+    })
+    expect(events).toContainEqual({ type: 'reasoning-delta', id: 'reasoning-1', delta: '', providerMetadata: metadata })
+  })
+
+  it('does not parse mixed single- and double-bar delimiters as a tool call', async () => {
+    const deltas = [
+      '<｜｜DSML｜｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜｜DSML｜｜tool_calls>'
+    ]
+    const events = await runStream(deltas, 'stop')
+
+    expect(events.filter((event) => event.type === 'tool-call')).toHaveLength(0)
+    expect(
+      events
+        .filter((event) => event.type === 'text-delta')
+        .map((event) => event.delta)
+        .join('')
+    ).toContain('<｜｜DSML｜｜tool_calls>')
+  })
+
+  it('keeps interleaved text and reasoning parser state isolated by content block', async () => {
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'stream-start', warnings: [] },
+      { type: 'reasoning-start', id: 'reasoning-1' },
+      { type: 'reasoning-delta', id: 'reasoning-1', delta: '<｜DSML｜tool_' },
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: 'visible answer' },
+      { type: 'text-end', id: 'text-1' },
+      {
+        type: 'reasoning-delta',
+        id: 'reasoning-1',
+        delta:
+          'calls><｜DSML｜invoke name="read_file"><｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>'
+      },
+      { type: 'reasoning-end', id: 'reasoning-1' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop', raw: 'end_turn' },
+        usage: {} as any
+      }
+    ]
+    const source = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    const events = await runSourceStream(source)
+
+    expect(
+      events
+        .filter((event) => event.type === 'text-delta')
+        .map((event) => event.delta)
+        .join('')
+    ).toBe('visible answer')
+    expect(events.filter((event) => event.type === 'tool-call')).toEqual([
+      expect.objectContaining({ toolName: 'read_file' })
+    ])
+    expect(events.find((event) => event.type === 'finish')).toMatchObject({
+      finishReason: { unified: 'tool-calls' }
+    })
+  })
+
   describe('wrapGenerate (non-streaming)', () => {
-    async function runGenerate(text: string, finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+    async function runGenerate(
+      text: string,
+      finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+      kind: 'text' | 'reasoning' = 'text'
+    ) {
       const middleware = await getMiddleware()
       expect(middleware.wrapGenerate).toBeDefined()
 
       const result = await middleware.wrapGenerate!({
         doGenerate: async () =>
           ({
-            content: [{ type: 'text', text }],
+            content: [{ type: kind, text }],
             finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
             usage: {} as any,
             warnings: [],
@@ -437,6 +598,25 @@ describe('deepseekDsmlParserPlugin', () => {
       expect(reconstructed).toBe('lead-in  middle  tail')
       expect(reconstructed).not.toContain('｜｜DSML｜｜')
 
+      expect(result.finishReason.unified).toBe('tool-calls')
+    })
+
+    it('extracts the single-bar variant from a reasoning part', async () => {
+      const text =
+        'thinking ' +
+        '<｜DSML｜tool_calls>' +
+        '<｜DSML｜invoke name="read_file">' +
+        '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>' +
+        '</｜DSML｜invoke>' +
+        '</｜DSML｜tool_calls>'
+
+      const result = await runGenerate(text, 'stop', 'reasoning')
+
+      expect(result.content).toEqual([
+        { type: 'reasoning', text: 'thinking ' },
+        expect.objectContaining({ type: 'tool-call', toolName: 'read_file' })
+      ])
+      expect(JSON.parse(result.content[1].input)).toEqual({ path: '/tmp/a.md' })
       expect(result.finishReason.unified).toBe('tool-calls')
     })
 
