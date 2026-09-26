@@ -287,7 +287,10 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
+  /** Get, update, or soft-delete a specific agent. Data API DELETE only
+      performs the SQLite-backed state change and leaves sessions intact;
+      IpcApi `ai.agent.delete` owns runtime, schedule-timer, channel, and
+      full session/pin lifecycle effects. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -297,6 +300,10 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+    DELETE: {
+      params: { agentId: string }
+      response: undefined
     }
   }
 

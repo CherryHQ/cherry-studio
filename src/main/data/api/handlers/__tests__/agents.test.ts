@@ -6,8 +6,10 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
+  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
+  getLifecycleStateMock,
   listAllTasksMock,
   getTaskByIdMock,
   listTasksMock,
@@ -18,8 +20,10 @@ const {
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
+  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  getLifecycleStateMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
@@ -33,8 +37,10 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
+    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    getLifecycleState: getLifecycleStateMock
   }
 }))
 
@@ -70,6 +76,8 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getLifecycleStateMock.mockReturnValue('active')
+    deleteAgentMock.mockReturnValue({ deleted: true })
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
@@ -184,6 +192,39 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('delegates DELETE to agentService and returns undefined on success', async () => {
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(result).toBeUndefined()
+    })
+
+    it('returns undefined without deleting when the agent is already trashed', async () => {
+      getLifecycleStateMock.mockReturnValueOnce('trashed')
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
+
+      expect(deleteAgentMock).not.toHaveBeenCalled()
+      expect(result).toBeUndefined()
+    })
+
+    it('throws notFound when agent does not exist on DELETE', async () => {
+      getLifecycleStateMock.mockReturnValueOnce('missing')
+
+      await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(deleteAgentMock).not.toHaveBeenCalled()
+    })
+
+    it('throws notFound when agentService reports a missing agent', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+
+      await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
 
