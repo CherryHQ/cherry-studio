@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Ieri",
   "agent.session.list.title": "Sarcini",
   "agent.session.model_switch_confirm.confirm": "Schimbă modelul",
-  "agent.session.model_switch_confirm.description": "Modelele diferite pot înțelege și procesa contextul în mod diferit. Schimbarea poate afecta continuitatea sau calitatea răspunsurilor ulterioare. Vrei să continui?",
+  "agent.session.model_switch_confirm.description": "Modelele diferite pot înțelege și procesa contextul în mod diferit. Schimbarea poate afecta continuitatea sau calitatea răspunsurilor ulterioare. Această modificare se aplică numai acestei sesiuni și nu afectează alte sesiuni ale aceluiași agent. Vrei să continui?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Nu mai întreba până când închid aplicația",
   "agent.session.model_switch_confirm.title": "Treci la \"{{model}}\"?",
   "agent.session.new": "Sarcină nouă",

@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Hôm qua",
   "agent.session.list.title": "Nhiệm vụ",
   "agent.session.model_switch_confirm.confirm": "Chuyển đổi mô hình",
-  "agent.session.model_switch_confirm.description": "Các mô hình khác nhau có thể hiểu và xử lý ngữ cảnh theo cách khác nhau. Việc chuyển đổi có thể ảnh hưởng đến tính liên tục hoặc chất lượng của các phản hồi tiếp theo. Bạn có muốn tiếp tục không?",
+  "agent.session.model_switch_confirm.description": "Các mô hình khác nhau có thể hiểu và xử lý ngữ cảnh theo cách khác nhau. Việc chuyển đổi có thể ảnh hưởng đến tính liên tục hoặc chất lượng của các phản hồi tiếp theo. Thay đổi này chỉ áp dụng cho phiên hiện tại và không ảnh hưởng đến các phiên khác của cùng tác nhân. Bạn có muốn tiếp tục không?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Đừng hỏi lại cho đến khi tôi thoát ứng dụng",
   "agent.session.model_switch_confirm.title": "Chuyển sang \"{{model}}\"?",
   "agent.session.new": "Nhiệm vụ mới",

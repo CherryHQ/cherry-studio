@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "昨日",
   "agent.session.list.title": "タスク",
   "agent.session.model_switch_confirm.confirm": "モデル切り替え",
-  "agent.session.model_switch_confirm.description": "異なるモデルは、コンテキストの理解や処理方法が異なる場合があります。切り替えると、今後の回答の連続性や品質に影響を与える可能性があります。続行しますか？",
+  "agent.session.model_switch_confirm.description": "異なるモデルは、コンテキストの理解や処理方法が異なる場合があります。切り替えると、今後の回答の連続性や品質に影響を与える可能性があります。この変更はこのセッションにのみ適用され、同じエージェントの他のセッションには影響しません。続行しますか？",
   "agent.session.model_switch_confirm.skip_for_app_run": "アプリを終了するまで再度尋ねないでください",
   "agent.session.model_switch_confirm.title": "「{{model}}」に切り替えますか？",
   "agent.session.new": "新しいタスク",

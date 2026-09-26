@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Ontem",
   "agent.session.list.title": "Tarefas",
   "agent.session.model_switch_confirm.confirm": "Mudar modelo",
-  "agent.session.model_switch_confirm.description": "Diferentes modelos podem entender e processar o contexto de formas diferentes. Mudar de modelo pode afetar a continuidade ou a qualidade das respostas subsequentes. Deseja continuar?",
+  "agent.session.model_switch_confirm.description": "Diferentes modelos podem entender e processar o contexto de formas diferentes. Mudar de modelo pode afetar a continuidade ou a qualidade das respostas subsequentes. Esta alteração aplica-se apenas a esta sessão e não afeta outras sessões do mesmo agente. Deseja continuar?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Não pergunte novamente até eu sair da aplicação",
   "agent.session.model_switch_confirm.title": "Mudar para \"{{model}}\"?",
   "agent.session.new": "Nova tarefa",

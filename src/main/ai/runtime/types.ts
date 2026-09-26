@@ -247,8 +247,10 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
    * this before `connect()` instead of hard-coding driver-specific guards.
+   * Headless runs execute the agent default, so drivers must preflight that
+   * model when `opts.headless` is set instead of the session override.
    */
-  validateSession(session: AgentSessionEntity): void | Promise<void>
+  validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): void | Promise<void>
   /** Enumerate the tools this driver exposes for the given MCP server set. */
   listAvailableTools(mcpIds: string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>

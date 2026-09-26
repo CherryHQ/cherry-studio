@@ -869,6 +869,7 @@ describe('AgentComposer', () => {
       return { configuration: mocks.agentConfiguration }
     })
     mocks.updateSession.mockReset()
+    mocks.updateSession.mockResolvedValue({ id: 'session-1' })
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -1407,7 +1408,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('updates the agent model from the inline model selector when model changes are allowed', () => {
+  it('updates the session model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1423,13 +1424,11 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4'
-      },
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
       { showSuccessToast: false }
     )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
   it('carries a local reasoning edit into a model update only while that edit is pending', () => {
@@ -1449,18 +1448,19 @@ describe('AgentComposer', () => {
     act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4',
-        reasoningEffort: 'high'
-      },
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
       { showSuccessToast: false }
     )
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { reasoning_effort: 'high' } },
+      { showSuccessToast: false }
+    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
   it('does not mistake an in-flight model update for a pending reasoning edit', () => {
-    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+    mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
     render(
       <AgentComposer
@@ -1476,11 +1476,8 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
     fireEvent.click(screen.getByText('select reasoning model'))
 
-    expect(mocks.updateModel).toHaveBeenLastCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-reasoning'
-      },
+    expect(mocks.updateSession).toHaveBeenLastCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-reasoning' },
       { showSuccessToast: false }
     )
   })
@@ -1513,7 +1510,7 @@ describe('AgentComposer', () => {
         selectableEfforts: ['low', 'high']
       }
     }
-    mocks.updateModel.mockResolvedValueOnce(undefined)
+    mocks.updateSession.mockResolvedValueOnce(undefined)
 
     render(
       <AgentComposer
@@ -1545,7 +1542,7 @@ describe('AgentComposer', () => {
       }
     }
     let finishModelUpdate!: (value: object) => void
-    mocks.updateModel.mockImplementationOnce(
+    mocks.updateSession.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finishModelUpdate = resolve
@@ -1628,6 +1625,7 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 

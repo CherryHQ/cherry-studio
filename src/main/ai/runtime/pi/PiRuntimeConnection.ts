@@ -321,7 +321,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         agent,
         citationsGuidance,
-        effectiveLanguage: initialSnapshot.effectiveLanguage
+        effectiveLanguage: initialSnapshot.effectiveLanguage,
+        modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
       })
       const approvalContext = {
         sessionId: this.input.sessionId,
