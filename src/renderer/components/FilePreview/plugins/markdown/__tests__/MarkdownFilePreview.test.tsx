@@ -1,5 +1,6 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -149,6 +150,37 @@ describe('MarkdownFilePreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
+  })
+
+  it('keeps the source visible during refresh and replaces it with the new content', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderPreview()
+    await screen.findByTestId('markdown-preview')
+    await user.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    await screen.findByTestId('code-viewer')
+    let resolveRead!: (text: string) => void
+    mocks.readText.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    rerender(
+      <MarkdownFilePreview
+        filePath={filePath}
+        fileName="README.md"
+        metadata={{ size: 15, modifiedAt: 2 }}
+        refreshKey={1}
+      />
+    )
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# File preview')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    resolveRead('# Updated content')
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Updated content'))
+    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 
   it('hides frontmatter and the source switch when the artifact host owns editing', async () => {

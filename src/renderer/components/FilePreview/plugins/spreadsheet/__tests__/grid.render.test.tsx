@@ -59,6 +59,7 @@ const virtualizerImpl = (options: any) => {
     mocks.lastRowOptions = options
   }
   return {
+    measure: () => {},
     getVirtualItems: () => (isHorizontal ? mocks.colRange : mocks.rowRange),
     getTotalSize: () => {
       const range = isHorizontal ? mocks.colRange : mocks.rowRange

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   linkServiceSetViewer: vi.fn(),
   loadingTaskDestroy: vi.fn(),
   pdfDocument: {
+    loadingTask: { destroyed: false },
     destroy: vi.fn(),
     getOutline: vi.fn(),
     getPage: vi.fn(),
@@ -274,6 +276,66 @@ async function flushPdfEffects() {
 }
 
 describe('PdfFilePreview', () => {
+  it('recreates a disposed PDF after Activity resumes without reusing its transport', async () => {
+    mocks.getDocument.mockImplementation(() => {
+      const task = {
+        destroyed: false,
+        destroy: async () => {
+          task.destroyed = true
+        }
+      }
+      const document = {
+        ...mocks.pdfDocument,
+        loadingTask: task,
+        getOutline: () => {
+          if (task.destroyed) throw new Error('PDF transport was disposed')
+          return Promise.resolve([])
+        }
+      }
+      return { ...task, destroy: task.destroy, promise: Promise.resolve(document) }
+    })
+    const view = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <PdfFilePreview
+          filePath={filePath}
+          fileName="paper.pdf"
+          metadata={{ size: 1024, modifiedAt: 1 }}
+          refreshKey={0}
+        />
+      </Activity>
+    )
+    const { rerender } = render(view('visible'))
+    const user = userEvent.setup()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    Object.defineProperty(screen.getByRole('region', { name: 'paper.pdf' }), 'clientHeight', { value: 600 })
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    rerender(view('hidden'))
+    rerender(view('visible'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+  })
+
+  it('retains zoom, page and scroll position after reloading the document', async () => {
+    const user = userEvent.setup()
+    const props = {
+      filePath: '/tmp/refresh.pdf' as AbsoluteFilePath,
+      fileName: 'refresh.pdf',
+      metadata: { size: 1024, modifiedAt: 1 }
+    }
+    const { rerender } = render(<PdfFilePreview {...props} refreshKey={0} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    Object.defineProperty(screen.getByRole('region', { name: 'refresh.pdf' }), 'clientHeight', { value: 600 })
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    screen.getByRole('region', { name: 'refresh.pdf' }).scrollTop = 500
+    rerender(<PdfFilePreview {...props} refreshKey={1} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'refresh.pdf' }).scrollTop).toBe(500)
+  })
   it('reports the clicked page as a reference with the page text as excerpt, and marks it as picked', async () => {
     mocks.pdfDocument.getPage.mockResolvedValue({
       getTextContent: async () => ({

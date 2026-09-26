@@ -1,8 +1,10 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -27,6 +29,7 @@ const mocks = vi.hoisted(() => {
   return {
     createValidDocxBytes,
     fsRead: vi.fn(),
+    metadata: vi.fn(),
     loggerError: vi.fn(),
     renderAsync: vi.fn(),
     MockIntersectionObserver
@@ -36,6 +39,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('docx-preview', () => ({
   renderAsync: mocks.renderAsync
 }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.metadata } }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -65,12 +69,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+import { FilePreview } from '../../../FilePreview'
 import WordFilePreview from '../WordFilePreview'
 
 const filePath = '/tmp/documents/report.docx' as AbsoluteFilePath
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.metadata.mockResolvedValue({ kind: 'file', type: 'binary', size: 1024, modifiedAt: 7 })
   mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
@@ -89,6 +95,61 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
+  it('keeps reading state through the host refresh and Activity restoration but resets for another file', async () => {
+    const user = userEvent.setup()
+    const view = (path: AbsoluteFilePath, refreshKey: number, mode: 'visible' | 'hidden' = 'visible') => (
+      <Activity mode={mode}>
+        <FilePreview filePath={path} refreshKey={refreshKey} />
+      </Activity>
+    )
+    const { rerender } = render(view(filePath, 0))
+    await screen.findByText('Page 2')
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Fresh page 1</section><section>Fresh page 2</section>'
+    })
+    rerender(view(filePath, 1))
+    await screen.findByText('Fresh page 2')
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    rerender(view(filePath, 1, 'hidden'))
+    rerender(view(filePath, 1))
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    rerender(view('/tmp/other.docx' as AbsoluteFilePath, 1))
+    await screen.findByText('Fresh page 2')
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
+  })
+
+  it('retains zoom and reading position while refreshing content and clamps a shortened document', async () => {
+    const user = userEvent.setup()
+    const props = { filePath, fileName: 'report.docx', metadata: { size: 1024, modifiedAt: 7 } }
+    const { rerender } = render(<WordFilePreview {...props} refreshKey={0} />)
+    await screen.findByText('Page 2')
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    region.scrollTop = 450
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Updated page 1</section><section>Updated page 2</section>'
+    })
+    rerender(<WordFilePreview {...props} refreshKey={1} />)
+    await screen.findByText('Updated page 2')
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    expect(region.scrollTop).toBe(450)
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Shortened document</section>'
+    })
+    rerender(<WordFilePreview {...props} refreshKey={2} />)
+    await screen.findByText('Shortened document')
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    expect(screen.getByText('110%')).toBeInTheDocument()
+  })
+
   /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
   function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
     const bodyContainer = screen.getByTestId('docx-preview-content')

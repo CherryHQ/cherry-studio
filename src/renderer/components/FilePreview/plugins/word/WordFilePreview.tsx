@@ -64,10 +64,7 @@ function sanitizeHyperlinks(body: HTMLElement): void {
 
 /**
  * Word preview with paragraph-level selection picking. The anchor is a body paragraph ordinal, and a
- * click inside a link is a pick rather than a navigation, so it gets `preventDefault`. Unlike the pptx
- * and pdf plugins the marker can live on the DOM as its own truth: docx has no in-mount rebuild path —
- * the render effect re-runs only for `filePath` / `refreshKey` (and the metadata they carry), which
- * remount the plugin through FilePreview's ErrorBoundary key rather than replacing the body.
+ * click inside a link is a pick rather than a navigation. Replacing the rendered body clears its pick.
  */
 export default function WordFilePreview({
   filePath,
@@ -133,9 +130,6 @@ export default function WordFilePreview({
     const isCurrent = () => renderTokenRef.current === token
     setError(null)
     setLoading(true)
-    setCurrentPage(0)
-    setPageCount(0)
-    setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
 
     const stagingHost = document.createElement('div')
     const stagingBody = document.createElement('div')
@@ -176,12 +170,18 @@ export default function WordFilePreview({
           page.classList.add('docx-preview-page')
         })
         sanitizeHyperlinks(stagingBody)
+        const scrollTop = containerRef.current?.scrollTop ?? 0
+        const scrollLeft = containerRef.current?.scrollLeft ?? 0
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
+        if (containerRef.current) {
+          containerRef.current.scrollTop = scrollTop
+          containerRef.current.scrollLeft = scrollLeft
+        }
 
         const nextPageCount = Math.max(pages.length, 1)
         setPageCount(nextPageCount)
-        setCurrentPage(nextPageCount > 0 ? 1 : 0)
+        setCurrentPage((page) => clamp(page, 1, nextPageCount))
         focusContainer()
       } catch (loadError) {
         if (!isCurrent()) return
@@ -196,8 +196,6 @@ export default function WordFilePreview({
 
     return () => {
       renderTokenRef.current += 1
-      bodyContainer.innerHTML = ''
-      styleContainer.innerHTML = ''
       stagingHost.remove()
     }
   }, [filePath, focusContainer, metadata.size, refreshKey])
@@ -205,7 +203,7 @@ export default function WordFilePreview({
   useEffect(() => {
     const scrollRoot = containerRef.current
     const bodyContainer = bodyRef.current
-    if (!scrollRoot || !bodyContainer || pageCount <= 0) return
+    if (!scrollRoot || !bodyContainer || pageCount <= 0 || loading) return
 
     const pages = Array.from(bodyContainer.querySelectorAll<HTMLElement>('.docx-preview-page'))
     if (pages.length === 0) return
@@ -230,7 +228,7 @@ export default function WordFilePreview({
 
     pages.forEach((page) => observer.observe(page))
     return () => observer.disconnect()
-  }, [pageCount])
+  }, [pageCount, loading])
 
   // The marker goes on only after createSelectionReference confirms the host receives something: an empty
   // paragraph must not look picked while the host gets null.
@@ -302,13 +300,13 @@ export default function WordFilePreview({
               data-picker={onSelectionReference ? 'true' : undefined}
               onClick={handlePick}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10 [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
             />
           </div>
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>

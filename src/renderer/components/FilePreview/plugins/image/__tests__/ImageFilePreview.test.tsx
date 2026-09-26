@@ -1,5 +1,6 @@
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
@@ -145,16 +146,32 @@ describe('image file preview plugin', () => {
     })
   })
 
-  it('rebuilds the image preview when the refresh key changes', async () => {
+  it('reloads the image bytes while retaining transforms and can retry a failed load', async () => {
+    const user = userEvent.setup()
     const filePath = '/tmp/photos/refresh.jpg' as AbsoluteFilePath
     const { rerender } = render(<FilePreview filePath={filePath} refreshKey={0} />)
     const firstImage = await screen.findByAltText('refresh.jpg')
     fireEvent.load(firstImage)
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'preview.rotate_right' }))
+    await user.click(screen.getByRole('button', { name: 'preview.flip_horizontal' }))
 
     rerender(<FilePreview filePath={filePath} refreshKey={1} />)
 
-    const refreshedImage = await screen.findByAltText('refresh.jpg')
-    expect(refreshedImage).not.toBe(firstImage)
+    await waitFor(() =>
+      expect(screen.getByAltText('refresh.jpg')).toHaveAttribute('src', 'file:///tmp/photos/refresh.jpg?refresh=1')
+    )
+    const refreshedImage = screen.getByAltText('refresh.jpg')
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
+    fireEvent.load(refreshedImage)
+    expect(refreshedImage).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(270deg) scale(1.25) scaleX(-1) scaleY(1)'
+    })
+    fireEvent.error(refreshedImage)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    rerender(<FilePreview filePath={filePath} refreshKey={2} />)
+    const recoveredImage = await screen.findByAltText('refresh.jpg')
+    fireEvent.load(recoveredImage)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

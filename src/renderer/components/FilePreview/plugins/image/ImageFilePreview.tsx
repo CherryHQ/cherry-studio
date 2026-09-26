@@ -17,13 +17,20 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
   const { t } = useTranslation()
   const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
   const transformControls = useImagePreviewTransform()
+  const [loadedKey, setLoadedKey] = useState(refreshKey)
+  const [pendingTransform, setPendingTransform] = useState(transformControls.transform)
+  if (loadedKey !== refreshKey) {
+    setLoadedKey(refreshKey)
+    setPendingTransform(transformControls.transform)
+    setStatus('loading')
+  }
   const item = useMemo(
     () => ({
       id: `${filePath}:${refreshKey}`,
       // Raw file URL, not `toSafeFileUrl`: `.svg` is a DANGEROUS_EXT (its danger-wrap
       // would point at the parent directory), but `<img src>` never executes SVG
       // scripts, so serving registered image extensions directly is safe here.
-      src: toFileUrl(filePath),
+      src: `${toFileUrl(filePath)}${refreshKey === 0 ? '' : `?refresh=${refreshKey}`}`,
       alt: fileName,
       title: fileName
     }),
@@ -55,7 +62,7 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
           {status === 'loading' && (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>
@@ -65,7 +72,10 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
             imageClassName={status === 'loading' ? 'opacity-0' : undefined}
             item={item}
             transformControls={transformControls}
-            onLoad={() => setStatus('ready')}
+            onLoad={() => {
+              transformControls.update(pendingTransform)
+              setStatus('ready')
+            }}
             onError={() => {
               const error = new Error(`Failed to load image preview: ${filePath}`)
               logger.error(`Failed to load image preview: ${filePath}`, error)

@@ -1,6 +1,7 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +10,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 interface MockViewerOptions {
   onSlideChange?: (index: number) => void
+  zoomPercent?: number
 }
 
 const mocks = vi.hoisted(() => {
@@ -87,7 +89,9 @@ const mocks = vi.hoisted(() => {
     constructor(
       private container: HTMLElement,
       private options: MockViewerOptions
-    ) {}
+    ) {
+      this.zoomPercent = options.zoomPercent ?? 100
+    }
 
     load(presentation: unknown) {
       state.load(presentation)
@@ -175,6 +179,24 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('PowerPointFilePreview', () => {
+  it('retains zoom and slide position when refreshing the presentation', async () => {
+    const user = userEvent.setup()
+    const props = { filePath, fileName: 'roadmap.pptx', metadata: { size: 1024, modifiedAt: 9 } }
+    const { rerender } = render(<PowerPointFilePreview {...props} refreshKey={0} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    Object.defineProperty(screen.getByRole('region', { name: 'roadmap.pptx' }), 'clientHeight', { value: 600 })
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await screen.findByText('110%')
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    await screen.findByText('2 / 3')
+    screen.getByRole('region', { name: 'roadmap.pptx' }).scrollTop = 200
+    rerender(<PowerPointFilePreview {...props} refreshKey={1} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.next' })).toBeEnabled())
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'roadmap.pptx' }).scrollTop).toBe(200)
+  })
+
   /** Mounts a slide the way PptxViewer.renderList would, and returns it for clicking. */
   function renderSlide(text: string, slideIndex: string | null): HTMLDivElement {
     const container = screen.getByTestId('pptx-viewer-container')
