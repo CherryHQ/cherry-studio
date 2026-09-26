@@ -717,6 +717,9 @@ const Sessions = ({
     setOptimisticAgentOrderIds(null)
   }, [agentOrderSignature])
 
+  const hasAgentSection =
+    displayMode === 'agent' &&
+    (agentsForDisplay.length > 0 || filteredGroupedSessions.some((session) => !session.pinned))
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({
@@ -738,10 +741,10 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
-        pinnedAsSection: displayMode === 'workdir',
+        pinnedAsSection: displayMode !== 'time' && (displayMode !== 'agent' || hasAgentSection),
         workdirDisplay
       }),
-    [agentById, displayMode, groupNow, t, workdirDisplay]
+    [agentById, displayMode, groupNow, hasAgentSection, t, workdirDisplay]
   )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
   const sessionGroupByForDisplay = useMemo(
@@ -771,7 +774,7 @@ const Sessions = ({
     if (displayMode === 'time') return undefined
 
     return (session: SessionListItem): ResourceListSection => {
-      if (displayMode === 'workdir' && session.pinned) {
+      if (session.pinned) {
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
@@ -2294,7 +2297,7 @@ function SessionListBody({
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
         reserveLeadingIconSlot={
-          displayMode === 'agent' ||
+          (displayMode === 'agent' && !session.pinned) ||
           (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
