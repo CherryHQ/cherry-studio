@@ -366,6 +366,12 @@ type PendingInputDelivery = {
   reject: (error: unknown) => void
 }
 
+type InflightMaterialization = {
+  claimed: boolean
+  isRecoveryInput: boolean
+  recoveredSessionId?: string
+}
+
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private sdkInputQueue = new SdkInputQueue()
@@ -398,6 +404,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private reservedInputClaim?: { active: boolean }
   private initialResumedInputClaimed: boolean
   private pendingInputMaterialization = false
+  private readonly inflightMaterializations: InflightMaterialization[] = []
+  /** Replacement session id that still belongs to the input recovery is for. */
+  private withheldRecoveredSessionId?: string
+  /** Queued recovery input waiting for the replacement query to publish its session id. */
+  private recoveryInputMessage?: SDKUserMessage
   private pendingInputDelivery?: PendingInputDelivery
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -552,26 +563,45 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.pendingInputClaims += 1
       }
     }
-    // Recovery during materialization rebases this input onto a query whose first message is unscoped.
+    // The replacement session id stays on this input when recovery overlaps its materialization.
+    const materialization: InflightMaterialization = { claimed: requiresInputClaim, isRecoveryInput: false }
+    this.inflightMaterializations.push(materialization)
     const resumeRecoveryRetriedBeforeMaterialization = this.resumeRecoveryRetried
+    const resumeTokenBeforeMaterialization = this.resumeToken
     let sdkMessage: SDKUserMessage
     if (requiresInputClaim) this.pendingInputMaterialization = true
     try {
-      sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      sdkMessage = await toSdkUserMessage(input.message, resumeTokenBeforeMaterialization, input.systemReminder, {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
-      sdkMessage = {
-        ...sdkMessage,
-        session_id:
-          resumeRecoveryRetriedBeforeMaterialization === this.resumeRecoveryRetried ? (this.resumeToken ?? '') : ''
+      const sessionId = this.sessionIdAfterMaterialization(
+        materialization,
+        resumeRecoveryRetriedBeforeMaterialization,
+        resumeTokenBeforeMaterialization
+      )
+      sdkMessage = { ...sdkMessage, session_id: sessionId }
+      if (materialization.isRecoveryInput) {
+        if (materialization.recoveredSessionId) {
+          this.withheldRecoveredSessionId = undefined
+          this.recoveryInputMessage = undefined
+        } else {
+          this.recoveryInputMessage = sdkMessage
+        }
       }
     } catch (error) {
-      this.pendingInputMaterialization = false
+      // The recovered id was reserved for this input; drop it if the input never queues.
+      if (materialization.isRecoveryInput) {
+        this.withheldRecoveredSessionId = undefined
+        this.recoveryInputMessage = undefined
+      }
       if (requiresInputClaim) this.pendingInputClaims -= 1
       throw error
+    } finally {
+      const index = this.inflightMaterializations.indexOf(materialization)
+      if (index >= 0) this.inflightMaterializations.splice(index, 1)
+      this.pendingInputMaterialization = this.inflightMaterializations.some((slot) => slot.claimed)
     }
-    this.pendingInputMaterialization = false
     this.lastSdkUserMessage = sdkMessage
     if (!requiresInputClaim) {
       this.adapter?.beginTurn()
@@ -948,6 +978,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       reason
     })
     this.resumeToken = undefined
+    this.withheldRecoveredSessionId = undefined
+    this.recoveryInputMessage = undefined
     // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
     // recovered turn like any other data part.
     this.eventQueue.push({
@@ -956,16 +988,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     })
     this.sdkInputQueue.close()
     this.sdkInputQueue = new SdkInputQueue()
-    const replayMessage = this.pendingInputMaterialization
+    // A queued delivery already is the input recovery is for. A later materialization must not take
+    // its session id, and must not suppress replaying that delivery onto the replacement query.
+    const recoveryInput = this.pendingInputDelivery
       ? undefined
-      : (this.pendingInputDelivery?.message ?? this.lastSdkUserMessage)
+      : this.inflightMaterializations.find((slot) => slot.claimed)
+    if (recoveryInput) recoveryInput.isRecoveryInput = true
+    const replayMessage = recoveryInput ? undefined : (this.pendingInputDelivery?.message ?? this.lastSdkUserMessage)
     if (replayMessage) {
       const queue = this.sdkInputQueue
       const delivery = this.pendingInputDelivery
-      queue.push(
-        { ...replayMessage, session_id: '' },
-        delivery ? () => this.acknowledgeInputDelivery(delivery, queue) : undefined
-      )
+      const rebound = { ...replayMessage, session_id: '' }
+      this.recoveryInputMessage = rebound
+      queue.push(rebound, delivery ? () => this.acknowledgeInputDelivery(delivery, queue) : undefined)
     }
     this.query = createClaudeQuery({
       prompt: this.sdkInputQueue,
@@ -1058,9 +1093,40 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private updateResumeToken(resumeToken: string): void {
+    if (this.recoveryInputMessage) {
+      this.recoveryInputMessage.session_id = resumeToken
+      this.recoveryInputMessage = undefined
+      this.withheldRecoveredSessionId = undefined
+    } else {
+      const owner = this.inflightMaterializations.find((slot) => slot.isRecoveryInput)
+      if (owner) {
+        owner.recoveredSessionId = resumeToken
+        this.withheldRecoveredSessionId = resumeToken
+      }
+    }
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
     this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+  }
+
+  private sessionIdAfterMaterialization(
+    materialization: InflightMaterialization,
+    resumeRecoveryRetriedBeforeMaterialization: boolean,
+    resumeTokenBeforeMaterialization: string | undefined
+  ): string {
+    if (materialization.isRecoveryInput) return materialization.recoveredSessionId ?? ''
+    const recoveryOverlapped = resumeRecoveryRetriedBeforeMaterialization !== this.resumeRecoveryRetried
+    if (this.withheldRecoveredSessionId || recoveryOverlapped) {
+      if (
+        !recoveryOverlapped &&
+        resumeTokenBeforeMaterialization &&
+        resumeTokenBeforeMaterialization !== this.withheldRecoveredSessionId
+      ) {
+        return resumeTokenBeforeMaterialization
+      }
+      return ''
+    }
+    return this.resumeToken ?? ''
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {

@@ -2931,7 +2931,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('clears a discarded resume token when pending input finishes materializing after recovery', async () => {
+  it('binds the replacement session id to the input that was materializing during recovery', async () => {
     const staleQueue = createAsyncQueue<any>()
     const freshQueue = createAsyncQueue<any>()
     const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -2987,12 +2987,99 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(readWrittenSdkInput(retrySpawn.prompt)).resolves.toMatchObject({
       value: {
         type: 'user',
-        session_id: '',
+        session_id: 'fresh-before-materialization',
         message: { content: expect.stringContaining('inspect this image') }
       },
       done: false
     })
     await sending
+    void connection.close()
+  })
+
+  it('keeps the recovered session id on the input that triggered recovery', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const triggerPrepared = createDeferred<any[]>()
+    const otherPrepared = createDeferred<any[]>()
+    mocks.prepareChatMessages.mockReturnValueOnce(triggerPrepared.promise).mockReturnValueOnce(otherPrepared.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const imagePart = {
+      type: 'file',
+      url: 'file:///tmp/pixel.png',
+      mediaType: 'image/png',
+      filename: 'pixel.png'
+    }
+    const trigger = {
+      ...userMessage(),
+      id: 'trigger-input',
+      data: {
+        parts: [
+          { type: 'text', text: 'trigger input' },
+          { ...imagePart, providerMetadata: { cherry: { fileEntryId: 'entry-trigger' } } }
+        ]
+      }
+    }
+    const other = {
+      ...userMessage(),
+      id: 'other-input',
+      data: {
+        parts: [
+          { type: 'text', text: 'other input' },
+          { ...imagePart, providerMetadata: { cherry: { fileEntryId: 'entry-other' } } }
+        ]
+      }
+    }
+
+    const triggerSending = connection.send({ message: trigger })
+    void triggerSending.catch(() => undefined)
+    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'recovered-session' })
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'resume-token' && event.token === 'recovered-session')) {
+      seen.push((await events.next()).value)
+    }
+
+    const otherSending = connection.send({ message: other })
+    void otherSending.catch(() => undefined)
+    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledTimes(2))
+    const freshInput = mocks.createClaudeQuery.mock.calls[1][0].prompt[Symbol.asyncIterator]()
+    otherPrepared.resolve([{ id: other.id, role: 'user', parts: [{ type: 'text', text: 'other input' }] }])
+    await expect(freshInput.next()).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        session_id: '',
+        message: { content: expect.stringContaining('other input') }
+      },
+      done: false
+    })
+
+    const triggerMessage = freshInput.next()
+    triggerPrepared.resolve([{ id: trigger.id, role: 'user', parts: [{ type: 'text', text: 'trigger input' }] }])
+    await expect(triggerMessage).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        session_id: 'recovered-session',
+        message: { content: expect.stringContaining('trigger input') }
+      },
+      done: false
+    })
     void connection.close()
   })
 
