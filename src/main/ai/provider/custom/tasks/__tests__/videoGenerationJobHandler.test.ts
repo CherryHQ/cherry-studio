@@ -103,6 +103,32 @@ describe('videoGenerationJobHandler.execute', () => {
     )
   })
 
+  it('marks the row failed (not left pending) when the provider cannot be found', async () => {
+    getByProviderIdMock.mockReturnValue(undefined)
+
+    await expect(videoGenerationJobHandler.execute(createCtx())).rejects.toThrow(/provider 'kling' not found/)
+
+    expect(dbSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
+  it('marks the row failed (not left pending) when the model cannot be found', async () => {
+    getByKeyMock.mockReturnValue(undefined)
+
+    await expect(videoGenerationJobHandler.execute(createCtx())).rejects.toThrow(/model 'kling-v2' not found/)
+
+    expect(dbSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
+  })
+
+  it('marks the row failed (not left pending) when no transport is registered for the provider', async () => {
+    resolveVideoTransportMock.mockReturnValue(null)
+
+    await expect(videoGenerationJobHandler.execute(createCtx())).rejects.toThrow(/no transport for provider/)
+
+    expect(dbSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
   it('marks the row failed (not left pending) when submit itself throws', async () => {
     submitMock.mockRejectedValue(new Error('submit boom'))
 

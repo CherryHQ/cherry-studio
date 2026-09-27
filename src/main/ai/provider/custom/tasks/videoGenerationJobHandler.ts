@@ -30,21 +30,21 @@ export const videoGenerationJobHandler: JobHandler<VideoGenerationJobInput> = {
     const input = ctx.input
     const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
 
-    const provider = providerService.getByProviderId(providerId)
-    if (!provider) throw new Error(`Video generation job: provider '${providerId}' not found`)
-    const model = modelService.getByKey(providerId, modelId)
-    if (!model) throw new Error(`Video generation job: model '${modelId}' not found`)
-
-    const { value: apiKey } = providerService.resolveApiKey(providerId, undefined, input.uniqueModelId)
-
-    const transport = resolveVideoTransport(providerId, apiKey)
-    if (!transport) {
-      throw new Error(`Video generation job: no transport for provider '${providerId}'`)
-    }
-
     let providerTaskId: string
 
     try {
+      const provider = providerService.getByProviderId(providerId)
+      if (!provider) throw new Error(`Video generation job: provider '${providerId}' not found`)
+      const model = modelService.getByKey(providerId, modelId)
+      if (!model) throw new Error(`Video generation job: model '${modelId}' not found`)
+
+      const { value: apiKey } = providerService.resolveApiKey(providerId, undefined, input.uniqueModelId)
+
+      const transport = resolveVideoTransport(providerId, apiKey)
+      if (!transport) {
+        throw new Error(`Video generation job: no transport for provider '${providerId}'`)
+      }
+
       const persisted = ctx.metadata.providerTaskId as string | undefined
       if (persisted) {
         providerTaskId = persisted
