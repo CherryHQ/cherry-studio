@@ -17,13 +17,12 @@ export interface CodeEditorHandles {
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
   getContent?: () => string
   getSelection?: () => { from: number; to: number; text: string } | null
-  replaceRange?: (range: { from: number; to: number }, text: string) => boolean
   insertText?: (text: string) => boolean
   focus?: () => void
 }
 
 export interface CodeEditorProps {
-  ref?: React.Ref<CodeEditorHandles>
+  ref?: React.RefObject<CodeEditorHandles | null>
   /** Value used in controlled mode, e.g., code blocks. */
   value: string
   /** Placeholder when the editor content is empty. */

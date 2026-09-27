@@ -25,7 +25,7 @@ describe('RichEditor accessibility', () => {
     expect(container.querySelector('[contenteditable="true"]')).not.toHaveAttribute('aria-label')
   })
 
-  it('reads and replaces the current TipTap selection, then moves the caret after inserted text', async () => {
+  it('reads the live selection and exposes the current draft immediately after edits', async () => {
     const editorRef: { current: RichEditorRef | null } = { current: null }
     render(<RichEditor ref={editorRef} initialContent="alpha beta" autoFocus={false} />)
     await waitFor(() => expect(editorRef.current?.getMarkdown()).toBe('alpha beta'))
@@ -33,17 +33,10 @@ describe('RichEditor accessibility', () => {
     act(() => editorRef.current?.executeCommand('setTextSelection', { from: 7, to: 11 }))
     expect(editorRef.current?.getSelection()).toEqual({ from: 7, to: 11, text: 'beta' })
 
-    act(() => expect(editorRef.current?.replaceRange({ from: 7, to: 11 }, 'spoken')).toBe(true))
-    expect(editorRef.current?.getMarkdown()).toBe('alpha spoken')
-    expect(editorRef.current?.getSelection()).toEqual({ from: 13, to: 13, text: '' })
-  })
-
-  it('rejects an out of bounds TipTap range without touching the draft', async () => {
-    const editorRef: { current: RichEditorRef | null } = { current: null }
-    render(<RichEditor ref={editorRef} initialContent="draft" autoFocus={false} />)
-    await waitFor(() => expect(editorRef.current?.getMarkdown()).toBe('draft'))
-
-    expect(editorRef.current?.replaceRange({ from: 1, to: 999 }, 'spoken')).toBe(false)
-    expect(editorRef.current?.getMarkdown()).toBe('draft')
+    act(() => {
+      editorRef.current?.insertText('fresh')
+      expect(editorRef.current?.getMarkdown()).toBe('alpha fresh')
+    })
+    expect(editorRef.current?.getSelection()).toEqual({ from: 12, to: 12, text: '' })
   })
 })

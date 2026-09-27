@@ -98,30 +98,6 @@ const CodeEditor = ({
     return { from, to, text: editorView.state.sliceDoc(from, to) }
   }, [])
 
-  const replaceRange = useCallback(
-    (range: { from: number; to: number }, text: string) => {
-      const editorView = editorViewRef.current
-      if (
-        !editorView ||
-        !editable ||
-        readOnly ||
-        !Number.isInteger(range.from) ||
-        !Number.isInteger(range.to) ||
-        range.from < 0 ||
-        range.to < range.from ||
-        range.to > editorView.state.doc.length
-      )
-        return false
-      editorView.dispatch({
-        changes: { from: range.from, to: range.to, insert: text },
-        selection: { anchor: range.from + text.length }
-      })
-      editorView.focus()
-      return true
-    },
-    [editable, readOnly]
-  )
-
   const focus = useCallback(() => {
     editorViewRef.current?.focus()
   }, [])
@@ -210,7 +186,6 @@ const CodeEditor = ({
     save: handleSave,
     getContent: () => editorViewRef.current?.state.doc.toString() ?? '',
     getSelection,
-    replaceRange,
     scrollToLine,
     insertText,
     focus

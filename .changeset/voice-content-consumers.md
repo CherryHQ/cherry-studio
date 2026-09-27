@@ -2,4 +2,4 @@
 '@cherrystudio/ui': patch
 ---
 
-Expose CodeEditor selection and range replacement for Notes dictation, and add manual voice controls to Translate, Notes, and Selection Assistant.
+Expose CodeEditor selection reading for Notes read-aloud. Add dictation and manual read-aloud to Translate, and manual read-aloud to Notes and Selection Assistant.

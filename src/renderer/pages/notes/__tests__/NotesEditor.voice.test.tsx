@@ -1,22 +1,19 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
-import { type MutableRefObject, useState } from 'react'
+import type { MutableRefObject } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 
 const mocks = vi.hoisted(() => ({
-  selection: { from: 1, to: 4, text: 'old' },
+  selection: { from: 1, to: 4, text: 'selected text' },
   richText: 'unsaved rich draft',
   sourceText: 'unsaved source draft',
-  richReady: true,
-  replaceRich: vi.fn(() => true),
-  replaceSource: vi.fn(() => true),
-  read: vi.fn(async () => undefined),
+  read: vi.fn<
+    (input: { text: string; mode: string; sourceEntityId: string; isCurrent: () => boolean }) => Promise<void>
+  >(async () => undefined),
   log: vi.fn(),
-  startScoped: vi.fn(),
-  startedNoteId: undefined as string | undefined,
   snapshot: { phase: 'idle', elapsedMs: 0 },
   targetManager: undefined as VoiceTargetManager | undefined
 }))
@@ -32,20 +29,16 @@ vi.mock('@renderer/services/voice', () => ({
   readTextAloud: mocks.read,
   dictationService: {
     subscribe: () => () => undefined,
-    getSnapshot: () => mocks.snapshot,
-    startScoped: mocks.startScoped
+    getSnapshot: () => mocks.snapshot
   }
 }))
 vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
   default: ({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) => {
-    const value = mocks.richReady
-      ? {
-          getSelection: () => mocks.selection,
-          replaceRange: mocks.replaceRich,
-          getMarkdown: () => mocks.richText,
-          focus: () => undefined
-        }
-      : null
+    const value = {
+      getSelection: () => mocks.selection,
+      getMarkdown: () => mocks.richText,
+      focus: () => undefined
+    }
     if (typeof ref === 'function') ref(value)
     else ref.current = value
     return <div role="textbox" aria-label="rich draft" tabIndex={0} />
@@ -55,7 +48,6 @@ vi.mock('@cherrystudio/ui/components/composites/code-editor', () => ({
   default: ({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) => {
     const value = {
       getSelection: () => mocks.selection,
-      replaceRange: mocks.replaceSource,
       getContent: () => mocks.sourceText,
       focus: () => undefined
     }
@@ -101,24 +93,7 @@ const props = {
   onMarkdownChange: vi.fn()
 }
 
-function EditorWithSidebar({ showSidebar = true, noteId = 'opaque-note-1' }) {
-  const [container, setContainer] = useState<HTMLDivElement | null>(null)
-  return (
-    <>
-      {showSidebar && (
-        <aside aria-label="Note navigation">
-          <div ref={setContainer} />
-          <button type="button">Upload files</button>
-        </aside>
-      )}
-      <main aria-label="Note editor">
-        <NotesEditor {...props} activeNodeId={`/${noteId}.md`} voiceNoteId={noteId} dictationContainer={container} />
-      </main>
-    </>
-  )
-}
-
-describe('Notes voice integration', () => {
+describe('Notes manual read-aloud', () => {
   beforeAll(async () => {
     await i18n.changeLanguage('en-US')
   })
@@ -128,126 +103,58 @@ describe('Notes voice integration', () => {
     mocks.targetManager = new VoiceTargetManager()
     editorRef.current = null
     codeEditorRef.current = null
-    mocks.selection = { from: 1, to: 4, text: 'old' }
-    mocks.richReady = true
+    mocks.selection = { from: 1, to: 4, text: 'selected text' }
     mocks.richText = 'unsaved rich draft'
-    mocks.log.mockClear()
+    mocks.sourceText = 'unsaved source draft'
     mocks.snapshot = { phase: 'idle', elapsedMs: 0 }
-    mocks.startedNoteId = undefined
-    mocks.startScoped.mockImplementation(() => {
-      mocks.startedNoteId = mocks.targetManager!.captureCurrent()?.sourceEntityId
-      return { result: Promise.resolve() }
-    })
   })
 
-  it('starts dictation for the selected note from the sidebar without requiring editor focus', async () => {
-    const user = userEvent.setup()
-    const view = render(<EditorWithSidebar />)
-    await screen.findByRole('textbox', { name: 'rich draft' })
-    const sidebar = screen.getByRole('complementary', { name: 'Note navigation' })
-    const microphone = within(sidebar).getByRole('button', { name: 'Dictate locally' })
-    await waitFor(() => expect(microphone).toBeEnabled())
-    expect(screen.getAllByRole('button', { name: 'Dictate locally' })).toHaveLength(1)
-    expect(within(screen.getByRole('main')).queryByRole('button', { name: 'Dictate locally' })).not.toBeInTheDocument()
-    await user.click(microphone)
-    expect(mocks.targetManager!.captureCurrent()?.sourceEntityId).toBe('opaque-note-1')
-    expect(mocks.startScoped).toHaveBeenCalledOnce()
-    expect(mocks.startedNoteId).toBe('opaque-note-1')
+  it.each([
+    { mode: 'preview', editor: 'rich draft', draft: 'unsaved rich draft' },
+    { mode: 'source', editor: 'source draft', draft: 'unsaved source draft' },
+    { mode: 'read', editor: 'rich draft', draft: 'unsaved rich draft' }
+  ])(
+    'reads the selection or current draft in $mode mode without offering dictation',
+    async ({ mode, editor, draft }) => {
+      render(<NotesEditor {...props} />)
+      const user = userEvent.setup()
+      await screen.findByRole('textbox', { name: 'rich draft' })
+      await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), mode)
+      fireEvent.focus(await screen.findByRole('textbox', { name: editor }))
 
-    view.rerender(<EditorWithSidebar noteId="opaque-note-2" />)
-    await user.click(within(sidebar).getByRole('button', { name: 'Dictate locally' }))
-    expect(mocks.startedNoteId).toBe('opaque-note-2')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), 'read')
-    expect(within(sidebar).getByRole('button', { name: 'Dictate locally' })).toBeDisabled()
-  })
+      expect(screen.queryByRole('button', { name: 'Dictate locally' })).not.toBeInTheDocument()
+      expect(mocks.targetManager!.captureCurrent()).toBeNull()
+      await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+      expect(mocks.read).toHaveBeenLastCalledWith(
+        expect.objectContaining({ text: 'selected text', mode: 'selection', sourceEntityId: 'opaque-note-1' })
+      )
 
-  it('keeps dictation accessible when the sidebar closes and moves it back when reopened', async () => {
-    const view = render(<EditorWithSidebar />)
-    await screen.findByRole('textbox', { name: 'rich draft' })
+      mocks.selection = { from: 4, to: 4, text: '' }
+      await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+      expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ text: draft, mode: 'document' }))
+    }
+  )
 
-    view.rerender(<EditorWithSidebar showSidebar={false} />)
-    expect(within(screen.getByRole('main')).getByRole('button', { name: 'Dictate locally' })).toBeEnabled()
-    view.rerender(<EditorWithSidebar />)
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: 'Dictate locally' })).toBeEnabled()
-    expect(screen.getAllByRole('button', { name: 'Dictate locally' })).toHaveLength(1)
-  })
-
-  it('replaces the live rich selection and reads that selection before the unsaved draft', async () => {
-    render(<NotesEditor {...props} />)
-    fireEvent.focus(await screen.findByRole('textbox', { name: 'rich draft' }))
-    const binding = mocks.targetManager!.captureCurrent()
-    expect(binding?.sourceEntityId).toBe('opaque-note-1')
-    expect(binding?.targetId).not.toContain('/private')
-
-    mocks.selection = { from: 5, to: 8, text: 'new' }
-    expect(mocks.targetManager!.insert(binding!, 'spoken')).toBe('inserted')
-    expect(mocks.replaceRich).toHaveBeenCalledWith({ from: 5, to: 8 }, 'spoken')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
-    expect(mocks.read).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: 'new',
-        mode: 'selection',
-        sourceLabel: 'selection',
-        sourceEntityId: 'opaque-note-1'
-      })
-    )
-
-    mocks.selection = { from: 8, to: 8, text: '' }
-    fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
-    expect(mocks.read).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        text: 'unsaved rich draft',
-        mode: 'document',
-        sourceLabel: 'document'
-      })
-    )
-  })
-
-  it('invalidates the rich binding on source mode and a note switch', async () => {
+  it('invalidates a pending read-aloud confirmation when the selected note changes', async () => {
     const view = render(<NotesEditor {...props} />)
-    fireEvent.focus(await screen.findByRole('textbox', { name: 'rich draft' }))
-    const old = mocks.targetManager!.captureCurrent()!
-    fireEvent.change(screen.getByRole('combobox', { name: 'view mode' }), { target: { value: 'source' } })
-    expect(mocks.targetManager!.insert(old, 'stale')).toBe('unavailable')
-    fireEvent.focus(await screen.findByRole('textbox', { name: 'source draft' }))
-    const source = mocks.targetManager!.captureCurrent()!
-    mocks.selection = { from: 2, to: 6, text: 'live' }
-    expect(mocks.targetManager!.insert(source, 'spoken')).toBe('inserted')
-    expect(mocks.replaceSource).toHaveBeenCalledWith({ from: 2, to: 6 }, 'spoken')
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const oldRequest = mocks.read.mock.calls[0][0]
+    expect(oldRequest.isCurrent()).toBe(true)
 
     view.rerender(<NotesEditor {...props} activeNodeId="/private/other.md" voiceNoteId="opaque-note-2" />)
-    await waitFor(() => expect(mocks.targetManager!.insert(source, 'stale')).toBe('unavailable'))
-    fireEvent.focus(screen.getByRole('textbox', { name: 'rich draft' }))
-    expect(mocks.targetManager!.insertIntoCurrent('recovered', 'user_recovery')).toBe('inserted')
-    expect(mocks.replaceRich).toHaveBeenLastCalledWith({ from: 2, to: 6 }, 'recovered')
-  })
-
-  it('disables dictation in read mode while preserving manual playback', async () => {
-    render(<NotesEditor {...props} />)
-    await screen.findByRole('textbox', { name: 'rich draft' })
-    fireEvent.change(screen.getByRole('combobox', { name: 'view mode' }), { target: { value: 'read' } })
-    expect(screen.getByRole('button', { name: 'Dictate locally' })).toBeDisabled()
-    expect(mocks.targetManager!.captureCurrent()).toBeNull()
+    await waitFor(() => expect(oldRequest.isCurrent()).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
-    expect(mocks.read).toHaveBeenCalledWith(expect.objectContaining({ mode: 'selection' }))
+    expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ sourceEntityId: 'opaque-note-2' }))
   })
 
-  it('does not insert a recovered transcript while read mode is active', async () => {
+  it('does not offer to insert a recovered transcript into the note', async () => {
     mocks.snapshot = { phase: 'recovery', elapsedMs: 0 }
     render(<NotesEditor {...props} />)
-    await screen.findByRole('textbox', { name: 'rich draft' })
-    fireEvent.change(screen.getByRole('combobox', { name: 'view mode' }), { target: { value: 'read' } })
-    expect(screen.getByRole('button', { name: 'Insert transcript' })).toBeDisabled()
-  })
-
-  it('keeps dictation disabled until the lazy editor exposes its selection adapter', async () => {
-    mocks.richReady = false
-    const view = render(<NotesEditor {...props} />)
-    expect(screen.getByRole('button', { name: 'Dictate locally' })).toBeDisabled()
-    mocks.richReady = true
-    view.rerender(<NotesEditor {...props} currentContent="new draft" />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Dictate locally' })).toBeEnabled())
+    fireEvent.focus(await screen.findByRole('textbox', { name: 'rich draft' }))
+    expect(screen.queryByRole('button', { name: 'Insert transcript' })).not.toBeInTheDocument()
+    expect(mocks.targetManager!.captureCurrent()).toBeNull()
+    expect(screen.getByRole('button', { name: 'Read aloud' })).toBeEnabled()
   })
 
   it('keeps note text, selection, and physical path out of public metadata and ambient sinks', async () => {
@@ -259,11 +166,9 @@ describe('Notes voice integration', () => {
     mocks.selection = { from: 1, to: 4, text: secrets[1] }
 
     const view = render(<NotesEditor {...props} activeNodeId={`${secrets[2]}note.md`} />)
-    fireEvent.focus(await screen.findByRole('textbox', { name: 'rich draft' }))
-    const binding = mocks.targetManager!.captureCurrent()!
+    await screen.findByRole('textbox', { name: 'rich draft' })
     fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
-
-    const metadata = JSON.stringify({ targetId: binding.targetId, sourceEntityId: binding.sourceEntityId })
+    const request = mocks.read.mock.calls[0][0]
     const ambientWrites = JSON.stringify([
       mocks.log.mock.calls,
       storageWrite.mock.calls,
@@ -271,10 +176,10 @@ describe('Notes voice integration', () => {
       replaceState.mock.calls
     ])
     for (const secret of secrets) {
-      expect(metadata).not.toContain(secret)
+      expect(request.sourceEntityId).not.toContain(secret)
       expect(ambientWrites).not.toContain(secret)
     }
-    expect(mocks.read).toHaveBeenCalledWith(expect.objectContaining({ text: secrets[1] }))
+    expect(request.text).toBe(secrets[1])
     view.unmount()
     storageWrite.mockRestore()
     pushState.mockRestore()
