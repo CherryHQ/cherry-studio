@@ -56,6 +56,22 @@ describe('modelVisibleDenial', () => {
     )
   })
 
+  it.each([
+    ['bash', 'Please stop.', '<<<USER_WORDS>>>'],
+    ['<<<USER_WORDS>>>', 'Please stop.', '<<<<USER_WORDS>>>>'],
+    ['<<<<USER_WORDS>>>>', 'Please stop.', '<<<<<USER_WORDS>>>>>'],
+    [`${'<'.repeat(40)}USER_WORDS${'>'.repeat(40)}`, 'Please stop.', `${'<'.repeat(41)}USER_WORDS${'>'.repeat(41)}`],
+    ['bash', '  Keep <<<USER_WORDS>>> literal.  ', '<<<<USER_WORDS>>>>'],
+    ['<<<USER_WORDS>>>', '  Keep <<<USER_WORDS>>> literal.  ', '<<<<USER_WORDS>>>>']
+  ])('uses exactly two unambiguous markers for tool %s and reason %s', (toolName, reason, marker) => {
+    const text = modelVisibleDenial({ approved: false, source: 'user', reason }, toolName)
+    const prefix = `The user denied permission to use ${toolName}. The tool did not execute. The user's exact words are between these markers:`
+
+    expect(text).toBe(`${prefix}\n${marker}\n${reason}\n${marker}`)
+    expect(text.startsWith(`The user denied permission to use ${toolName}.`)).toBe(true)
+    expect(text.split(marker)).toHaveLength(3)
+  })
+
   it('does not attribute host status to the user', () => {
     expect(modelVisibleDenial({ approved: false, source: 'host', hostReason: 'service-shutdown' }, 'bash')).toBe(
       'service-shutdown'

@@ -36,6 +36,6 @@ export function modelVisibleDenial(
 
   const prefix = `The user denied permission to use ${toolName ?? 'this tool'}. The tool did not execute.`
   let marker = '<<<USER_WORDS>>>'
-  while (decision.reason.includes(marker)) marker = `<${marker}>`
+  while (prefix.includes(marker) || decision.reason.includes(marker)) marker = `<${marker}>`
   return `${prefix} The user's exact words are between these markers:\n${marker}\n${decision.reason}\n${marker}`
 }

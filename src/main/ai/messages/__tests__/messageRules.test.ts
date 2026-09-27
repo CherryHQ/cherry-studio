@@ -103,6 +103,33 @@ describe('toModelMessages', () => {
       expect(stored).toEqual(original)
     }
   )
+  it('keeps a denied dynamic tool name literal without adding markers outside the reason', async () => {
+    const toolName = '<<<USER_WORDS>>>'
+    const reason = '  Please do not run this tool.  '
+    const stored = ui('assistant', [
+      {
+        type: 'dynamic-tool',
+        toolName,
+        toolCallId: 'call-1',
+        state: 'approval-responded',
+        input: {},
+        approval: { id: 'ap-1', approved: false, reason }
+      }
+    ])
+    const model = await toModelMessages([stored], undefined, {
+      [toolName]: tool({ inputSchema: z.object({}), needsApproval: true, execute: async () => ({}) })
+    })
+    const response = model[1]
+    expect(response?.role).toBe('tool')
+    if (response?.role !== 'tool') throw new Error('Expected a tool response')
+    const approval = response.content.find((part) => part.type === 'tool-approval-response')
+    const marker = '<<<<USER_WORDS>>>>'
+    const expected = `The user denied permission to use ${toolName}. The tool did not execute. The user's exact words are between these markers:\n${marker}\n${reason}\n${marker}`
+
+    expect(approval?.reason).toBe(expected)
+    expect(approval?.reason?.split(marker)).toHaveLength(3)
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [
