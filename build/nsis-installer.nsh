@@ -11,8 +11,31 @@
 !include x64.nsh
 !include FileFunc.nsh
 
+; Microsoft requires a redist at least as new as the MSVC toolset that built the app.
+!define VC_RUNTIME_MIN_MAJOR 14
+!define VC_RUNTIME_MIN_MINOR 40
+!define /math VC_RUNTIME_MIN_MAJOR_BITS ${VC_RUNTIME_MIN_MAJOR} << 16
+!define /math VC_RUNTIME_MIN_VERSION ${VC_RUNTIME_MIN_MAJOR_BITS} | ${VC_RUNTIME_MIN_MINOR}
+
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
+  !macro checkVCRedistRegistryView
+    ClearErrors
+    ReadRegDWORD $3 HKLM "$2" "Major"
+    ${IfNot} ${Errors}
+      ClearErrors
+      ReadRegDWORD $4 HKLM "$2" "Minor"
+      ${IfNot} ${Errors}
+        IntOp $3 $3 << 16
+        IntOp $3 $3 | $4
+        ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
+          StrCpy $0 "1"
+          Goto vcRedistRestoreView
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  !macroend
+
   ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
     Push $2
@@ -25,41 +48,15 @@
       StrCpy $2 "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
     ${EndIf}
 
-    ; Newer v14 runtimes may expose version metadata in either registry view.
     ${If} ${RunningX64}
     ${OrIf} ${IsNativeARM64}
       SetRegView 64
-      StrCpy $3 "0"
-      ReadRegDWORD $3 HKLM "$2" "Installed"
-      ${If} $3 == 1
-        StrCpy $0 "1"
-        Goto vcRedistRestoreView
-      ${EndIf}
-      StrCpy $3 "0"
-      ReadRegDWORD $3 HKLM "$2" "Major"
-      ; Major detects v14 runtime presence, not a minimum build requirement.
-      ; Installed == 1 already accepted every v14 build.
-      ${If} $3 >= 14
-        StrCpy $0 "1"
-        Goto vcRedistRestoreView
-      ${EndIf}
+      !insertmacro checkVCRedistRegistryView
     ${EndIf}
 
     SetRegView 32
-    StrCpy $3 "0"
-    ReadRegDWORD $3 HKLM "$2" "Installed"
-    ${If} $3 == 1
-      StrCpy $0 "1"
-      Goto vcRedistRestoreView
-    ${EndIf}
-    StrCpy $3 "0"
-    ReadRegDWORD $3 HKLM "$2" "Major"
-    ${If} $3 >= 14
-      StrCpy $0 "1"
-      Goto vcRedistRestoreView
-    ${EndIf}
+    !insertmacro checkVCRedistRegistryView
 
-    ; Both Electron runtime DLLs need v14+ versions in the same system directory.
     ${If} $1 != "arm64"
       ${IfNot} ${IsNativeARM64}
         ReadEnvStr $4 "PROCESSOR_ARCHITEW6432"
@@ -80,13 +77,11 @@
           ClearErrors
           GetDLLVersion "$2\vcruntime140.dll" $3 $4
           ${IfNot} ${Errors}
-            IntOp $3 $3 >> 16
-            ${If} $3 >= 14
+            ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
               ClearErrors
               GetDLLVersion "$2\msvcp140.dll" $3 $4
               ${IfNot} ${Errors}
-                IntOp $3 $3 >> 16
-                ${If} $3 >= 14
+                ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
                   StrCpy $0 "1"
                 ${EndIf}
               ${EndIf}
