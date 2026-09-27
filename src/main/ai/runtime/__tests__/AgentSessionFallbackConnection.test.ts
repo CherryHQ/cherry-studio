@@ -53,6 +53,45 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('reconnects the fallback with trace metadata naming the fallback model', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      {
+        sessionId: 's1',
+        agentId: 'a1',
+        modelId: 'primary::model',
+        trace: {
+          topicId: 'agent-session:s1',
+          traceId: 'trace-1',
+          rootSpanId: 'root-1',
+          sessionId: 's1',
+          turnId: 'turn-1',
+          modelName: 'primary-model'
+        }
+      } as never,
+      primary as unknown as AgentRuntimeConnection
+    )
+    const userInput = { message: { id: 'u1' } } as never
+    await wrapper.send(userInput)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The fallback's spans must attribute to the model that will actually run, not the primary
+    // whose trace container it inherits; the container ids stay stable within the turn.
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'backup::model',
+        trace: expect.objectContaining({ modelName: 'model', traceId: 'trace-1', turnId: 'turn-1' })
+      })
+    )
+    await wrapper.close()
+  })
+
   it('does not announce a fallback whose replay is rejected', async () => {
     const primary = fakeConnection()
     const fallback = fakeConnection()

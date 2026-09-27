@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { readRetryPolicy } from './aiSdk'
 import { AsyncEventQueue } from './AsyncEventQueue'
@@ -161,7 +162,12 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       const connection = await this.driver.connect({
         ...this.input,
         modelId: fallbackModelId,
-        resumeToken: this.resumeToken
+        resumeToken: this.resumeToken,
+        // The fallback connection's spans must name the model that will actually run, not the
+        // primary whose trace container it inherits.
+        ...(this.input.trace
+          ? { trace: { ...this.input.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } }
+          : {})
       })
       if (this.closed) {
         await connection.close()
