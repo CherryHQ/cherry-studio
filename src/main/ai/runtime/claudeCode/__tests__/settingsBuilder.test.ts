@@ -390,9 +390,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.toAsarUnpackedPath.mockImplementation((input: string) => input.replace('app.asar', 'app.asar.unpacked'))
     mocks.existsSync.mockReturnValue(false)
 
-    expect(() => resolveClaudeExecutablePath()).toThrow(
-      /Bundled Claude Code executable is missing.*Reinstall Cherry Studio from the official installer/
-    )
+    const missingPath =
+      'C:\\app\\resources\\app.asar.unpacked\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+    expect(() => resolveClaudeExecutablePath()).toThrow(`agent.claude_code.executable.missing:${missingPath}`)
   })
 
   it('returns an existing unpacked Claude executable', () => {

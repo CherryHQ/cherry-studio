@@ -47,6 +47,17 @@ describe('main i18n', () => {
       expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
     })
 
+    it('localizes a missing packaged Claude Code executable and keeps the path', () => {
+      const executablePath = 'C:\\Cherry Studio\\resources\\app.asar.unpacked\\claude.exe'
+      const english = `Bundled Claude Code executable is missing at ${executablePath}. Reinstall Cherry Studio from the official installer to restore it.`
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+      expect(t('agent.claude_code.executable.missing', { path: executablePath })).toBe(english)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      const localized = t('agent.claude_code.executable.missing', { path: executablePath })
+      expect(localized).toContain(executablePath)
+      expect(localized).not.toBe(english)
+    })
+
     it('interpolates {{var}} placeholders', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('agent.session.workspace_status.inaccessible', { path: '/tmp/x' })).toBe(

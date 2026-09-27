@@ -12,6 +12,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
@@ -128,9 +129,7 @@ export function resolveClaudeExecutablePath(): string {
   }
 
   if (missingUnpackedPath) {
-    throw new Error(
-      `Bundled Claude Code executable is missing at ${missingUnpackedPath}. Reinstall Cherry Studio from the official installer to restore it.`
-    )
+    throw new Error(t('agent.claude_code.executable.missing', { path: missingUnpackedPath }))
   }
 
   throw new Error(
