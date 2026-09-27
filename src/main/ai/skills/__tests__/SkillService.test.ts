@@ -2949,6 +2949,21 @@ describe('SkillService', () => {
       )
     })
 
+    it('installs a punctuation-only folder name from a non-GitHub directory', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(
+        skillMeta('!!!', { name: 'Punctuation Skill', declaredName: '!!!' })
+      )
+      const sourceDir = await createTempDir('punctuation-local-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# punctuation')
+
+      const installed = await skillService.installFromDirectory({ directoryPath: sourceDir })
+
+      expect(installed).toMatchObject({ folderName: '___', source: 'local', name: 'Punctuation Skill' })
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, '___', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# punctuation'
+      )
+    })
+
     it('reconcileSkills removes an unknown real directory from the app-owned mirror', async () => {
       vi.mocked(parseSkillMetadata).mockReset()
       // Windows mirrors are real directory copies, so unknown real directories must be removed just
