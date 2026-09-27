@@ -76,13 +76,15 @@ function sanitizeJson(value: unknown): JSONValue {
 
 /** An Anthropic image block as a `file` UI part (undefined for unusable sources). */
 function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
+  if (!source || typeof source !== 'object') return undefined
   if (source.type === 'base64') {
-    if (!source.data.trim()) return undefined
+    if (typeof source.data !== 'string' || !source.data.trim()) return undefined
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
   if (source.type === 'url') {
+    if (typeof source.url !== 'string' || !source.url.trim()) return undefined
     const prefix = /^(https?:\/\/|file:\/\/|data:)/i.exec(source.url)?.[0]
-    if (!source.url.trim() || !prefix) return undefined
+    if (!prefix) return undefined
     const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
     if (url.startsWith('data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim())) return undefined
     return { type: 'file', mediaType: 'image/png', url }
