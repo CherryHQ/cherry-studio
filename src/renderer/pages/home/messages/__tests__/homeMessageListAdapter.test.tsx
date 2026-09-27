@@ -637,6 +637,33 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(chatWriteMock.regenerate).toHaveBeenCalledWith('assistant-1', { modelId: 'provider-b::model-x' })
   })
 
+  it('does not pass a composer model override when regenerating a successful assistant', async () => {
+    chatWriteMock.regenerate.mockResolvedValueOnce(undefined)
+    let value: MessageListProviderValue | undefined
+    const successfulAssistant = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'answer' }],
+      metadata: {
+        modelId: 'provider-a::model-x',
+        status: 'success'
+      }
+    } as CherryUIMessage
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[successfulAssistant]}
+        composerActiveModelId={'provider-b::model-x'}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await value?.actions.regenerateMessage?.('assistant-1')
+
+    expect(chatWriteMock.regenerate).toHaveBeenCalledWith('assistant-1', undefined)
+  })
+
   it('routes the clear-context divider action through ChatWrite and restores composer focus', async () => {
     chatWriteMock.startNewContext.mockResolvedValueOnce(undefined)
     let value: MessageListProviderValue | undefined

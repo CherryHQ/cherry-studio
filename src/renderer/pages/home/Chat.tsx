@@ -112,8 +112,11 @@ const Chat: FC<Props> = (props) => {
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
   const composerActiveModelId = useMemo(() => {
-    const fromSelector = activeConversationControlsSnapshot?.mentionedModelSelectorValue[0]?.id
-    if (fromSelector && isUniqueModelId(fromSelector)) return fromSelector
+    const selectorModels = activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? []
+    if (selectorModels.length === 1) {
+      const fromSelector = selectorModels[0]?.id
+      if (fromSelector && isUniqueModelId(fromSelector)) return fromSelector
+    }
 
     const fromAssistant = assistantContext.model?.id
     if (fromAssistant && isUniqueModelId(fromAssistant)) return fromAssistant
