@@ -41,6 +41,11 @@ describe('reasoningEffortMappings', () => {
     })
   })
 
+  it('returns an empty map when the model declares no supported efforts', () => {
+    expect(sanitizeUserReasoningEffortMap({ high: 'medium' }, undefined)).toEqual({})
+    expect(sanitizeUserReasoningEffortMap({ high: 'medium' }, [])).toEqual({})
+  })
+
   it('mergeUserReasoningEffortMaps shallow-merges keys', () => {
     expect(mergeUserReasoningEffortMaps({ low: 'minimal' }, { high: 'max' }, { low: 'medium' })).toEqual({
       low: 'medium',
