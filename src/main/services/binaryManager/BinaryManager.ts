@@ -224,7 +224,12 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  requestedVersion?: string
+  npmAllowBuilds?: readonly string[]
+}
 type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
@@ -239,8 +244,8 @@ type IsolatedEnvSnapshot = {
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
 // Derived from the two preset sources so their names and recipes stay the single
-// source of truth. Fixed definitions carry no requestedVersion — a version pin is
-// a per-install / runtime fact, never part of the canonical identity.
+// source of truth. Code CLI presets may supply a default requestedVersion for
+// fresh installs; per-install overrides remain a runtime fact, not identity.
 // `mise ls --json` reports a backend's canonical key without bracketed tool
 // options (for example `pipx:hermes-agent` instead of
 // `pipx:hermes-agent[extras=web]`). Options affect installation but not the
@@ -272,6 +277,7 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.executable,
       tool: preset.miseTool,
+      ...(preset.requestedVersion ? { requestedVersion: preset.requestedVersion } : {}),
       ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
     }
   ])
