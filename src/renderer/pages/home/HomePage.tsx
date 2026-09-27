@@ -201,6 +201,11 @@ const HomePage: FC = () => {
     setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
+    // The bound topic is gone. Drop the remembered id too: `ui.chat.last_used_topic_id`
+    // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
+    // `resolveChatEntryTopicId`, 404s, and the NOT_FOUND recovery fires again — a navigate
+    // loop that jumps away from a just-restored topic.
+    cacheService.setPersist('ui.chat.last_used_topic_id', null)
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [clearActiveTopic, navigate])
