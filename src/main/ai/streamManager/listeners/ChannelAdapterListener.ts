@@ -15,6 +15,8 @@ export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
   private settled = false
+  /** A listener can see more than one topic settle (chain hold + close); deliver the reply once. */
+  private delivered = false
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -60,7 +62,33 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    await this.finish(result.status)
+    if (this.settled) return
+    if (this.delivered) return
+    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
+    if (!text) {
+      logger.warn('ChannelAdapterListener.onDone with empty text', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        status: result.status
+      })
+      return
+    }
+
+    this.settled = true
+    this.delivered = true
+    try {
+      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
+      const handled = await this.completeStream(text, result.status)
+      if (!handled) {
+        await this.deliver(text)
+      }
+    } catch (err) {
+      logger.error('Failed to deliver message to channel', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        err
+      })
+    }
   }
 
   // oxlint-disable-next-line no-unused-vars

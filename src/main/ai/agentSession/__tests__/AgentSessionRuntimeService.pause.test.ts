@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
-  finalizeHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(async () => undefined),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getAgent: vi.fn(),
