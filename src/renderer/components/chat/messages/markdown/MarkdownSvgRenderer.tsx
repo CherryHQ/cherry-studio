@@ -21,25 +21,30 @@ interface SvgProps extends React.SVGProps<SVGSVGElement>, ExtraProps {
  *     `rehypeScalableSvg` plugin. These are rendered directly.
  *
  * 2.  **SVGs needing measurement**: Complex SVGs are flagged with
- *     `data-needs-measurement`. This component performs a one-time DOM
- *     mutation upon mounting to make them scalable. To prevent React from
- *     reverting these changes during subsequent renders, it stops passing
- *     the original `width` and `height` props after the mutation is complete.
+ *     `data-needs-measurement`. This component mutates the mounted element to
+ *     make it scalable, and re-runs that measurement whenever the rendered
+ *     source changes. The same source key also remounts the `<svg>`, so the
+ *     attributes written by a previous measurement cannot leak into the next
+ *     SVG. To prevent React from reverting these changes during subsequent
+ *     renders, it stops passing the original `width` and `height` props after
+ *     the mutation is complete.
  */
 const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   const { 'data-needs-measurement': needsMeasurement, node, ...restProps } = props
   const svgRef = useRef<SVGSVGElement>(null)
-  const isMeasuredRef = useRef(false)
+  const measuredSourceRef = useRef<string | null>(null)
   const { t } = useTranslation()
+  const sourceKey = useMemo(() => `${needsMeasurement ?? ''}:${JSON.stringify(node) ?? ''}`, [needsMeasurement, node])
+  const isMeasured = measuredSourceRef.current === sourceKey
 
   useEffect(() => {
-    if (needsMeasurement && svgRef.current && !isMeasuredRef.current) {
+    if (needsMeasurement && svgRef.current && measuredSourceRef.current !== sourceKey) {
       // Directly mutate the DOM element to make it adaptive.
       makeSvgSizeAdaptive(svgRef.current)
-      // Set flag to prevent re-measuring. This does not trigger a re-render.
-      isMeasuredRef.current = true
+      // Remember which source was measured. This does not trigger a re-render.
+      measuredSourceRef.current = sourceKey
     }
-  }, [needsMeasurement])
+  }, [needsMeasurement, sourceKey])
 
   const onPreview = useCallback(() => {
     if (!svgRef.current) return
@@ -52,7 +57,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   // If the SVG has been measured and mutated, we prevent React from
   // re-applying the original width and height attributes on subsequent renders.
   // This preserves the changes made by `makeSvgSizeAdaptive`.
-  if (isMeasuredRef.current) {
+  if (isMeasured) {
     delete finalProps.width
     delete finalProps.height
   }
@@ -64,7 +69,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
     [t, onPreview]
   )
 
-  const svg = <svg ref={svgRef} {...finalProps} />
+  const svg = <svg key={sourceKey} ref={svgRef} {...finalProps} />
   if (isKatexGeneratedSvg(node)) return svg
 
   return (
