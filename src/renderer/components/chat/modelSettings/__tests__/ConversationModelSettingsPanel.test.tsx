@@ -28,9 +28,11 @@ const baseModel: Model = {
   isEnabled: true,
   isHidden: false,
   parameterSupport: {
-    temperature: { supported: true, range: { min: 0, max: 2 } },
-    topP: { supported: false },
-    maxTokens: true
+    temperature: { supported: true, min: 0, max: 2 },
+    topP: { supported: false, min: 0, max: 1 },
+    maxTokens: true,
+    stopSequences: false,
+    systemMessage: true
   }
 }
 

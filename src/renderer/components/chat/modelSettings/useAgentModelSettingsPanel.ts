@@ -11,7 +11,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 export function useAgentModelSettingsPanel(agentId: string | undefined, sessionId?: string) {
   const { t } = useTranslation()
-  const { agent, isLoading: isAgentLoading } = useAgent(agentId)
+  const { agent, isLoading: isAgentLoading } = useAgent(agentId ?? null)
   const { model, isLoading: isModelLoading } = useModelById(agent?.model)
   const { updateAgent } = useUpdateAgent()
 
@@ -22,7 +22,10 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
     version: number
   } | null>(null)
   const reasoningMutationVersionRef = useRef(0)
-  const reasoningEffort = reasoningOverride?.agentId === agent?.id ? reasoningOverride.value : canonicalReasoningEffort
+  const reasoningEffort =
+    reasoningOverride !== null && reasoningOverride.agentId === agent?.id
+      ? reasoningOverride.value
+      : canonicalReasoningEffort
 
   const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
   const [serviceTierOverride, setServiceTierOverride] = useState<{
@@ -31,7 +34,10 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
     version: number
   } | null>(null)
   const serviceTierMutationVersionRef = useRef(0)
-  const serviceTier = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride.value : canonicalServiceTier
+  const serviceTier =
+    serviceTierOverride !== null && serviceTierOverride.agentId === agent?.id
+      ? serviceTierOverride.value
+      : canonicalServiceTier
 
   const [fastMode, setFastMode] = useAgentTurnFastMode(sessionId)
 

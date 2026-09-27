@@ -167,12 +167,17 @@ export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelec
 
 export type ModelSpeedControlFieldsProps = Omit<ModelSpeedControlProps, 'side'>
 
+type ModelSpeedControlVisibilityProps = Pick<
+  ModelSpeedControlProps,
+  'model' | 'onFastModeChange' | 'onServiceTierChange' | 'onReasoningSummaryChange'
+>
+
 export function modelSpeedControlHasVisibleControls({
   model,
   onFastModeChange,
   onServiceTierChange,
   onReasoningSummaryChange
-}: ModelSpeedControlFieldsProps): boolean {
+}: ModelSpeedControlVisibilityProps): boolean {
   const reasoningOptions = deriveThinkingOptions(model) ?? []
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true

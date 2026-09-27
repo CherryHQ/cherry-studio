@@ -86,11 +86,6 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
   const providerName = getProviderDisplayNameById(model.providerId)
   const showSpeedFields = modelSpeedControlHasVisibleControls({
     model,
-    reasoningEffort,
-    reasoningSummary,
-    serviceTier,
-    fastMode,
-    onReasoningEffortChange,
     onReasoningSummaryChange,
     onServiceTierChange,
     onFastModeChange
@@ -105,7 +100,7 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
     <Scrollbar className="h-full min-h-0 flex-1">
       <div className="flex flex-col gap-6 px-4 py-4 text-xs">
         <div className="flex items-center gap-3">
-          <ModelAvatar model={model} className="size-9 shrink-0" />
+          <ModelAvatar model={model} size={36} className="size-9 shrink-0" />
           <div className="min-w-0">
             <div className="truncate font-medium text-foreground text-sm">{model.name}</div>
             <div className="truncate text-muted-foreground">{providerName}</div>
