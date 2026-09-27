@@ -16,6 +16,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import {
@@ -65,7 +66,7 @@ import {
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import { getUserReasoningEffortMap } from '../../../utils/reasoningEffortPreferences'
-import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -229,13 +230,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
   const userEffortMap = getUserReasoningEffortMap(provider, invocationModel)
+  const userAdjustedSelection = applyUserReasoningEffortTranslation(requestedReasoningSelection, userEffortMap)
+  const reasoningSelection =
+    userAdjustedSelection !== requestedReasoningSelection
+      ? userAdjustedSelection
+      : normalizeRequestedSelection(userAdjustedSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
-    selection: requestedReasoningSelection,
+    selection: reasoningSelection,
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: assistant?.settings.reasoning_summary,
-    userEffortMap
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,

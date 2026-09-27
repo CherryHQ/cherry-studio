@@ -386,6 +386,9 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
+    reasoningEffortMapping: Object.entries(getUserReasoningEffortMap(provider, model)).sort(([a], [b]) =>
+      a.localeCompare(b)
+    ),
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
