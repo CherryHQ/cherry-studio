@@ -21,6 +21,7 @@ import { tool, zodSchema } from 'ai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import { isGemini3ModelId } from '@shared/utils/model'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -30,8 +31,6 @@ import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
-// Match fileProcessor's provider-dispatch check before creating a data URL.
-const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
 
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
@@ -76,20 +75,39 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
+// Accept only declared image types with a non-empty payload in the advertised encoding.
+function imageDataUrlMediaType(url: string): string | undefined {
+  const parsed = parseDataUrl(url)
+  const mediaType = parsed?.mediaType
+  if (!mediaType || !/^image\/[a-z0-9+.-]+$/i.test(mediaType)) return undefined
+  const data = parsed.data
+  if (parsed.isBase64) {
+    if (!/^[a-z0-9+/]+={0,2}$/i.test(data.replace(/\s/g, ''))) return undefined
+  } else if (!data.trim()) {
+    return undefined
+  }
+  return mediaType
+}
+
 /** An Anthropic image block as a `file` UI part (undefined for unusable sources). */
 function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
   if (!source || typeof source !== 'object') return undefined
   if (source.type === 'base64') {
     if (typeof source.data !== 'string' || !source.data.trim()) return undefined
-    if (typeof source.media_type !== 'string' || !PROPER_MEDIA_TYPE_RE.test(source.media_type)) return undefined
-    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+    if (typeof source.media_type !== 'string') return undefined
+    const url = `data:${source.media_type};base64,${source.data}`
+    const mediaType = imageDataUrlMediaType(url)
+    return mediaType ? { type: 'file', mediaType, url } : undefined
   }
   if (source.type === 'url') {
     if (typeof source.url !== 'string' || !source.url.trim()) return undefined
     const prefix = /^(https?:\/\/|file:\/\/|data:)/i.exec(source.url)?.[0]
     if (!prefix) return undefined
     const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
-    if (url.startsWith('data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim())) return undefined
+    if (url.startsWith('data:')) {
+      const mediaType = imageDataUrlMediaType(url)
+      return mediaType ? { type: 'file', mediaType, url } : undefined
+    }
     return { type: 'file', mediaType: 'image/png', url }
   }
   return undefined

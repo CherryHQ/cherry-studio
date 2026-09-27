@@ -40,6 +40,20 @@ const malformedMediaTypes = [
   { name: 'bare media_type', field: { media_type: 'png' } }
 ]
 
+const unusableImageSources = [
+  { name: 'non-image data URL', source: { type: 'url' as const, url: 'data:text/plain,hello' } },
+  { name: 'data URL without a media type', source: { type: 'url' as const, url: 'data:,hello' } },
+  { name: 'invalid base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,not-valid-base64' } },
+  {
+    name: 'non-image base64 source',
+    source: { type: 'base64' as const, media_type: 'text/plain', data: 'AAAA' } as unknown as ImageBlockParam['source']
+  },
+  {
+    name: 'invalid base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'not-valid-base64' }
+  }
+]
+
 describe('AnthropicMessageConverter.toUIMessages', () => {
   it('emits a leading system message from a string system prompt', () => {
     const msgs = converter.toUIMessages(params({ system: 'Be terse.', messages: [{ role: 'user', content: 'hi' }] }))
@@ -157,29 +171,26 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
-  it('preserves a well-formed non-image base64 media type', () => {
+  it('accepts base64 image data with whitespace without changing the URL payload', () => {
+    const data = ' AQ==\n'
     const msgs = converter.toUIMessages(
       params({
         messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'application/octet-stream',
-                  data: 'AAAA'
-                } as unknown as ImageBlockParam['source']
-              }
-            ]
-          }
+          { role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }] }
         ]
       })
     )
-    expect(msgs[0].parts).toEqual([
-      { type: 'file', mediaType: 'application/octet-stream', url: 'data:application/octet-stream;base64,AAAA' }
-    ])
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${data}` }])
+  })
+
+  it.each([
+    ['data:image/jpeg;base64,/9j/4AAQ', 'image/jpeg'],
+    ['data:image/png,%89PNG', 'image/png']
+  ])('keeps a usable image data URL and its declared media type: %s', (url, mediaType) => {
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType, url }])
   })
 
   it('preserves a valid https image source', () => {
@@ -250,6 +261,13 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         ]
       })
     )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
+  it.each(unusableImageSources)('omits a top-level image with $name', ({ source }) => {
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
     expect(msgs[0].parts).toEqual([
       { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
     ])
@@ -428,6 +446,24 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
                 ]
               }
             ]
+          }
+        ]
+      })
+    )
+    const note =
+      '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+    expect((msgs[0].parts[0] as { output: string }).output).toBe(note)
+    expect(msgs[1].parts).toEqual([{ type: 'text', text: note }])
+  })
+
+  it.each(unusableImageSources)('omits a tool_result image with $name', ({ source }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [{ type: 'image', source }] }]
           }
         ]
       })
