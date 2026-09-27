@@ -259,6 +259,23 @@ describe('PermissionRequestComposer', () => {
     expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
   })
 
+  it('hides the execution-model selector from an MCP tool that merely shares the plan-exit name', () => {
+    const collidingRequest = makeRequest({
+      title: 'exit_plan_mode',
+      toolResponse: {
+        id: 'mcp-plan-call-1',
+        toolCallId: 'mcp-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'exit_plan_mode', name: 'exit_plan_mode', type: 'mcp', serverName: 'plans' }
+      } as NormalToolResponse
+    })
+    render(<PermissionRequestComposer request={collidingRequest} onRespond={vi.fn()} />)
+
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
+  })
+
   it('approves a plan without a model choice exactly as before', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const planRequest = makeRequest({

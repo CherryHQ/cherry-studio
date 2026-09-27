@@ -170,7 +170,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   // Plan approval only: a model chosen for execution restarts the turn on that model; undefined
   // keeps the "current model" option, which approves and continues the running turn as before.
   const [executionModel, setExecutionModel] = useState<Model | undefined>(undefined)
-  const isPlanExitApproval = PLAN_EXIT_TOOL_NAMES.has(request.toolResponse.tool.name.trim())
+  // Main's handoff gate is name-based too, but an MCP tool that merely shares the plan-exit name
+  // carries no plan semantics — hide the picker so its approval can never send an executionModelId.
+  const isPlanExitApproval =
+    !isMcpToolResponse(request.toolResponse) && PLAN_EXIT_TOOL_NAMES.has(request.toolResponse.tool.name.trim())
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
