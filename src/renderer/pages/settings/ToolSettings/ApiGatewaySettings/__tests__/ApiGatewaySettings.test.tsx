@@ -1,6 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,6 +90,7 @@ const gatewayState = () => ({
   },
   apiGatewayRunning: false,
   apiGatewayLoading: false,
+  getApiGatewayRuntimeAddress: vi.fn().mockResolvedValue(null),
   startApiGateway: vi.fn(),
   stopApiGateway: vi.fn(),
   restartApiGateway: vi.fn(),
@@ -187,6 +189,32 @@ describe('ApiGatewaySettings', () => {
 
     expect(screen.queryByRole('textbox', { name: 'apiGateway.fields.url.label' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'apiGateway.actions.regenerate' })).not.toBeInTheDocument()
+  })
+
+  it('displays and opens the port the fallback listener bound', async () => {
+    const user = userEvent.setup()
+    useApiGatewayMock.mockReturnValue({
+      ...gatewayState(),
+      apiGatewayConfig: {
+        host: '127.0.0.1',
+        port: 23333,
+        apiKey: 'cs-sk-test-key',
+        enabled: true
+      },
+      apiGatewayRunning: true,
+      getApiGatewayRuntimeAddress: vi.fn().mockResolvedValue({ host: '127.0.0.1', port: 24444 })
+    })
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    render(<ApiGatewaySettings />)
+
+    expect(await screen.findByText('http://127.0.0.1:24444')).toBeInTheDocument()
+    expect(screen.queryByText('http://127.0.0.1:23333')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'apiGateway.documentation.title' }))
+
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledWith('http://127.0.0.1:24444/openapi', '_blank')
+    open.mockRestore()
   })
 
   it('hides action icons while gateway actions are loading', () => {

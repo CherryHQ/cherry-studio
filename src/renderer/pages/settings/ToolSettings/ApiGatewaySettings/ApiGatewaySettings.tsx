@@ -8,6 +8,7 @@ import {
   InputNumber,
   Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import {
@@ -20,13 +21,16 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('ApiGatewaySettings')
 
 const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
@@ -46,15 +50,42 @@ const ApiGatewaySettings: FC = () => {
     apiGatewayConfig,
     apiGatewayRunning,
     apiGatewayLoading,
+    getApiGatewayRuntimeAddress,
     startApiGateway,
     stopApiGateway,
     restartApiGateway,
     setApiGatewayConfig
   } = useApiGateway()
 
+  // The saved port is the port we asked for. A fallback listener can be bound
+  // somewhere else until that preference catches up.
+  const [runtimeAddress, setRuntimeAddress] = useState<ApiGatewayRuntimeAddress | null>(null)
+
+  useEffect(() => {
+    if (!apiGatewayRunning) {
+      setRuntimeAddress(null)
+      return
+    }
+
+    let cancelled = false
+    getApiGatewayRuntimeAddress()
+      .then((address) => {
+        if (!cancelled) setRuntimeAddress(address)
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setRuntimeAddress(null)
+        logger.warn('Failed to read the API gateway listener address', { error })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [apiGatewayRunning, getApiGatewayRuntimeAddress])
+
   const serverHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
   const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
-  const serverUrl = gatewayClientOrigin(serverHost, serverPort)
+  const configuredUrl = gatewayClientOrigin(serverHost, serverPort)
+  const listeningUrl = runtimeAddress ? gatewayClientOrigin(runtimeAddress.host, runtimeAddress.port) : null
   const apiKey = apiGatewayConfig.apiKey || ''
   const authorizationHeader = `Authorization: Bearer ${apiKey || 'your-api-key'}`
 
@@ -71,6 +102,12 @@ const ApiGatewaySettings: FC = () => {
 
   const handleApiGatewayRestart = async () => {
     await restartApiGateway()
+    try {
+      setRuntimeAddress(await getApiGatewayRuntimeAddress())
+    } catch (error: unknown) {
+      setRuntimeAddress(null)
+      logger.warn('Failed to read the API gateway listener address', { error })
+    }
   }
 
   const generateApiKey = () => {
@@ -95,12 +132,25 @@ const ApiGatewaySettings: FC = () => {
     void setApiGatewayConfig({ port: value })
   }
 
+  const openListeningUrl = (address: ApiGatewayRuntimeAddress) => {
+    // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
+    // (the Express `/api-docs` path was removed in the gateway migration).
+    window.open(`${gatewayClientOrigin(address.host, address.port)}/openapi`, '_blank')
+  }
+
   const openApiDocs = () => {
-    if (apiGatewayRunning) {
-      // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
-      // (the Express `/api-docs` path was removed in the gateway migration).
-      window.open(`${serverUrl}/openapi`, '_blank')
+    if (!apiGatewayRunning) return
+    if (runtimeAddress) {
+      openListeningUrl(runtimeAddress)
+      return
     }
+    void getApiGatewayRuntimeAddress()
+      .then((address) => {
+        if (address) openListeningUrl(address)
+      })
+      .catch((error: unknown) => {
+        logger.warn('Failed to read the API gateway listener address', { error })
+      })
   }
 
   return (
@@ -132,13 +182,15 @@ const ApiGatewaySettings: FC = () => {
                 {apiGatewayRunning ? t('apiGateway.status.running') : t('apiGateway.status.stopped')}
               </StatusText>
             </StatusLabel>
-            <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.messages.notEnabled')}</StatusSubtext>
+            <StatusSubtext>
+              {apiGatewayRunning ? (listeningUrl ?? '') : t('apiGateway.messages.notEnabled')}
+            </StatusSubtext>
           </StatusContent>
         </StatusSection>
 
         <StatusActions>
           {apiGatewayRunning && (
-            <Button variant="outline" onClick={openApiDocs}>
+            <Button variant="outline" onClick={() => void openApiDocs()}>
               <ExternalLink size={13} />
               {t('apiGateway.documentation.title')}
             </Button>
@@ -175,14 +227,14 @@ const ApiGatewaySettings: FC = () => {
                   <InputGroupInput
                     className="font-mono text-xs"
                     aria-label={t('apiGateway.fields.url.label')}
-                    value={serverUrl}
+                    value={configuredUrl}
                     readOnly
                   />
                   <InputGroupAddon align="inline-end">
                     <Tooltip content={t('apiGateway.fields.url.copyTooltip')}>
                       <InputGroupButton size="icon-xs" asChild>
                         <CopyButton
-                          textToCopy={serverUrl}
+                          textToCopy={configuredUrl}
                           size={16}
                           aria-label={t('apiGateway.fields.url.copyTooltip')}
                           successFeedback="icon"
