@@ -668,7 +668,7 @@ class ProviderService {
    * actually serves the request. An explicit override is never rotated, but is
    * matched back to a stored key when possible.
    */
-  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
+  resolveApiKey(providerId: string, override?: string, preferredKeyId?: string | null): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
@@ -678,6 +678,13 @@ class ProviderService {
     if (override !== undefined) {
       const matched = allKeys.find((entry) => entry.key === override)
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
+    }
+
+    if (preferredKeyId) {
+      const preferred = allKeys.find((entry) => entry.id === preferredKeyId)
+      if (preferred?.isEnabled) {
+        return toResolvedProviderApiKey(preferred.key, 'explicit', preferred)
+      }
     }
 
     const enabledKeys = allKeys.filter((k) => k.isEnabled)

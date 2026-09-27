@@ -301,7 +301,8 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
-  'notes'
+  'notes',
+  'apiKeyId'
 ]
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
@@ -456,7 +457,8 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    apiKeyId: row.apiKeyId ?? undefined
   }
 }
 
@@ -470,7 +472,8 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    apiKeyId: row.apiKeyId ?? undefined
   }
 }
 
@@ -997,6 +1000,16 @@ class ModelService {
     providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
+    if (dto.apiKeyId != null && dto.apiKeyId !== '') {
+      const keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
+      if (!keyIds.has(dto.apiKeyId)) {
+        throw DataApiErrorFactory.invalidOperation(
+          `update model ${providerId}/${modelId}`,
+          'api key does not belong to this provider'
+        )
+      }
+    }
+
     const db = application.get('DbService').getDb()
 
     // Fetch existing row (also verifies existence)
@@ -1048,6 +1061,15 @@ class ModelService {
 
     for (const { providerId, modelId, patch } of items) {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
+      if (patch.apiKeyId != null && patch.apiKeyId !== '') {
+        const keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
+        if (!keyIds.has(patch.apiKeyId)) {
+          throw DataApiErrorFactory.invalidOperation(
+            `update model ${providerId}/${modelId}`,
+            'api key does not belong to this provider'
+          )
+        }
+      }
     }
 
     const rows = db.transaction((tx) => {

@@ -23,6 +23,7 @@ import {
   getInitialModelClassification,
   getModelApiId
 } from './helpers'
+import { ModelApiKeyField } from './ModelApiKeyField'
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
@@ -59,6 +60,7 @@ interface BuildPatchOverrides {
   classification?: ModelClassificationState
   supportsStreaming?: boolean
   pricing?: Model['pricing']
+  apiKeyId?: string | null
   contextWindow?: number | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
@@ -91,6 +93,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState<number | null>(null)
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
+  const [apiKeyId, setApiKeyId] = useState<string | null>(null)
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
@@ -101,6 +104,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
+  const showApiKeyRouting = (provider?.apiKeys.length ?? 0) > 1
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
@@ -124,6 +128,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow ?? null)
     setMaxInputTokens(model.maxInputTokens ?? null)
     setMaxOutputTokens(model.maxOutputTokens ?? null)
+    setApiKeyId(model.apiKeyId ?? null)
     setInitializedModel(model)
   }, [model, open])
 
@@ -145,6 +150,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
       const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
+      const hasApiKeyIdOverride = overrides != null && Object.hasOwn(overrides, 'apiKeyId')
       const hasContextWindowOverride = overrides != null && Object.hasOwn(overrides, 'contextWindow')
       const hasMaxInputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxInputTokens')
       const hasMaxOutputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxOutputTokens')
@@ -211,7 +217,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
           ? { maxOutputTokens: nextMaxOutputTokens }
           : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
+        ...(hasPricingOverride ? { pricing: overrides.pricing } : {}),
+        ...(hasApiKeyIdOverride ? { apiKeyId: overrides.apiKeyId ?? null } : {})
       }
     },
     [
@@ -388,6 +395,16 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            {showApiKeyRouting ? (
+              <ModelApiKeyField
+                apiKeys={provider.apiKeys}
+                value={apiKeyId}
+                onChange={(nextApiKeyId) => {
+                  setApiKeyId(nextApiKeyId)
+                  autoSave({ apiKeyId: nextApiKeyId })
+                }}
+              />
+            ) : null}
             {mode === 'purpose' && (
               <ModelPurposeFieldsControl
                 purpose={modelPurpose}
