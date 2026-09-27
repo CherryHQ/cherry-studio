@@ -53,6 +53,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | Issue | Detection | Handling |
 |-------|-----------|----------|
 | Missing/invalid id | `!id` or `typeof id !== 'string'` | Skip source, log warning |
+| Null or non-object entry in `assistants[]` or `presets[]` | Entry is `null` or not an object | Skip entry, log warning. It is not a source, so an export of only null entries does not fail prepare |
 | Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
 | Legacy id `'default'` | `rawId === 'default'` | Remap to a fresh UUID before merge / insert (see "Legacy default-assistant remap" below) |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |

@@ -173,6 +173,25 @@ describe('AssistantMigrator', () => {
       expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
+    it('skips null assistant entries and still prepares the valid ones', async () => {
+      const ctx = createMockContext({
+        assistants: {
+          assistants: [null, { id: 'ast-valid', name: 'Valid' }],
+          presets: [null]
+        }
+      })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+    })
+
+    it('does not fail preparation when every assistant entry is null', async () => {
+      const ctx = createMockContext({ assistants: { assistants: [null], presets: [] } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(0)
+    })
+
     it('should warn when invalid or additional legacy tags are discarded', async () => {
       const ctx = createMockContext({
         assistants: { assistants: [{ id: 'ast-1', name: 'Grouped', tags: ['', 'work'] }], presets: [] }

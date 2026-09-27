@@ -150,12 +150,18 @@ export class AssistantMigrator extends BaseMigrator {
       // on same-id collision. See README-AssistantMigrator.md.
       const sourceById = new Map<string, OldAssistant>()
       let totalRawSources = 0
-      const recordSource = (source: OldAssistant): void => {
+      const recordSource = (source: unknown): void => {
+        // `.id` on null throws out of prepare, and MigrationEngine aborts before ChatMigrator.
+        if (!source || typeof source !== 'object') {
+          warnings.push('Skipped malformed assistant entry')
+          return
+        }
+        let assistant = source as OldAssistant
         totalRawSources++
-        const rawId = source.id
+        const rawId = assistant.id
         if (!rawId || typeof rawId !== 'string') {
           this.skippedCount++
-          warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
+          warnings.push(`Skipped assistant without valid id: ${assistant.name ?? 'unknown'}`)
           return
         }
         // v1 'default' is a sentinel, not an entity id — remap to a UUID so it
@@ -168,15 +174,15 @@ export class AssistantMigrator extends BaseMigrator {
             this.legacyAssistantIdRemap.set(rawId, mapped)
           }
           id = mapped
-          source = { ...source, id }
+          assistant = { ...assistant, id }
         }
         const existing = sourceById.get(id)
         if (existing) {
           // Silent: legacy 'default' duplicate fires on every real-user migration.
-          sourceById.set(id, mergeOldAssistants(existing, source))
+          sourceById.set(id, mergeOldAssistants(existing, assistant))
           logger.info('Merged duplicate assistant id from secondary slot', { id })
         } else {
-          sourceById.set(id, source)
+          sourceById.set(id, assistant)
         }
       }
 
