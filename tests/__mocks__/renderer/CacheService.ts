@@ -278,6 +278,19 @@ export const createMockCacheService = (
       }
     ),
 
+    setPersistIfEqual: vi.fn(
+      <K extends RendererPersistCacheKey>(
+        key: K,
+        expectedValue: RendererPersistCacheSchema[K],
+        nextValue: RendererPersistCacheSchema[K]
+      ): void => {
+        if (!isEqual(mockCacheService.getPersist(key), expectedValue)) {
+          return
+        }
+        mockCacheService.setPersist(key, nextValue)
+      }
+    ),
+
     hasPersist: vi.fn((key: RendererPersistCacheKey): boolean => {
       return persistCache.has(key)
     }),
@@ -485,6 +498,14 @@ export const MockCacheService = {
       value: CacheSetStateAction<RendererPersistCacheSchema[K]>
     ): void {
       return mockCacheService.setPersist(key, value)
+    }
+
+    setPersistIfEqual<K extends RendererPersistCacheKey>(
+      key: K,
+      expectedValue: RendererPersistCacheSchema[K],
+      nextValue: RendererPersistCacheSchema[K]
+    ): void {
+      return mockCacheService.setPersistIfEqual(key, expectedValue, nextValue)
     }
 
     hasPersist(key: RendererPersistCacheKey): boolean {

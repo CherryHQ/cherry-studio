@@ -40,13 +40,15 @@ afterEach(() => {
 
 async function createService() {
   const { CacheService } = await import('../CacheService')
-  return new CacheService()
+  const service = new CacheService()
+  const inbound = onSync.mock.calls.at(-1)![0] as (message: import('@shared/data/cache/cacheTypes').CacheSyncMessage) => void
+  return { service, inbound }
 }
 
 describe('renderer CacheService equality semantics', () => {
   describe('setInternal (memory cache)', () => {
     it('skips subscriber notification when object value has same content (new reference)', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const sub = vi.fn()
       const key = 'agent.session.waiting_id_map'
 
@@ -59,7 +61,7 @@ describe('renderer CacheService equality semantics', () => {
     })
 
     it('notifies subscribers when content actually changes', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const sub = vi.fn()
       const key = 'agent.session.waiting_id_map'
 
@@ -74,7 +76,7 @@ describe('renderer CacheService equality semantics', () => {
 
   describe('setSharedInternal (shared cache)', () => {
     it('skips cross-window broadcast when Record value has same content (new reference)', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const key = 'chat.web_search.active_searches'
       // `chat.web_search.active_searches` is `Record<string, ...>` — exactly the
       // case the Object.is → isEqual upgrade is meant to fix.
@@ -86,7 +88,7 @@ describe('renderer CacheService equality semantics', () => {
     })
 
     it('broadcasts when Record value content actually changes', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const key = 'chat.web_search.active_searches'
       service.setShared(key, { topic1: { status: 'running' } } as any)
       broadcastSync.mockClear()
@@ -98,7 +100,7 @@ describe('renderer CacheService equality semantics', () => {
 
   describe('setPersist', () => {
     it('skips persist save when array value has same content (new reference)', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const key = 'ui.tab.pinned_tabs'
 
       service.setPersist(key, [{ id: 't1' }] as any)
@@ -109,7 +111,7 @@ describe('renderer CacheService equality semantics', () => {
     })
 
     it('broadcasts when array content actually changes', async () => {
-      const service = await createService()
+      const { service } = await createService()
       const key = 'ui.tab.pinned_tabs'
 
       service.setPersist(key, [{ id: 't1' }] as any)
@@ -126,18 +128,18 @@ describe('renderer CacheService equality semantics', () => {
   // true and would carry no information.
   describe('hasPersist (differs-from-default)', () => {
     it('is false when the value equals the schema default (never set)', async () => {
-      const service = await createService()
+      const { service } = await createService()
       expect(service.hasPersist('ui.sidebar.width')).toBe(false)
     })
 
     it('is true once an overriding (non-default) value is set', async () => {
-      const service = await createService()
+      const { service } = await createService()
       service.setPersist('ui.sidebar.width', 999)
       expect(service.hasPersist('ui.sidebar.width')).toBe(true)
     })
 
     it('is false when the set value happens to equal the default', async () => {
-      const service = await createService()
+      const { service } = await createService()
       service.setPersist('ui.sidebar.width', 50) // 50 is the schema default
       expect(service.hasPersist('ui.sidebar.width')).toBe(false)
     })
@@ -145,7 +147,7 @@ describe('renderer CacheService equality semantics', () => {
 
   describe('deletePersist (reset-to-default)', () => {
     it('resets an overridden value back to the schema default', async () => {
-      const service = await createService()
+      const { service } = await createService()
       service.setPersist('ui.sidebar.width', 999)
       service.deletePersist('ui.sidebar.width')
       expect(service.getPersist('ui.sidebar.width')).toBe(50)
@@ -153,7 +155,7 @@ describe('renderer CacheService equality semantics', () => {
     })
 
     it('broadcasts the reset to other windows', async () => {
-      const service = await createService()
+      const { service } = await createService()
       service.setPersist('ui.sidebar.width', 999)
       broadcastSync.mockClear()
 
@@ -162,10 +164,47 @@ describe('renderer CacheService equality semantics', () => {
     })
 
     it('is a no-op when the value is already the default', async () => {
-      const service = await createService()
+      const { service } = await createService()
       broadcastSync.mockClear()
       service.deletePersist('ui.sidebar.width') // already default
       expect(broadcastSync).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setPersistIfEqual (conditional cross-window persist)', () => {
+    it('skips the write when the local value no longer matches', async () => {
+      const { service } = await createService()
+      service.setPersist('ui.chat.last_used_topic_id', 'topic-still-valid')
+      broadcastSync.mockClear()
+
+      service.setPersistIfEqual('ui.chat.last_used_topic_id', 'topic-deleted', null)
+
+      expect(service.getPersist('ui.chat.last_used_topic_id')).toBe('topic-still-valid')
+      expect(broadcastSync).not.toHaveBeenCalled()
+    })
+
+    it('broadcasts ifValue so receivers ignore stale recovery clears', async () => {
+      const { service, inbound } = await createService()
+      service.setPersist('ui.chat.last_used_topic_id', 'topic-deleted')
+      broadcastSync.mockClear()
+
+      service.setPersistIfEqual('ui.chat.last_used_topic_id', 'topic-deleted', null)
+
+      expect(broadcastSync).toHaveBeenCalledWith({
+        type: 'persist',
+        key: 'ui.chat.last_used_topic_id',
+        value: null,
+        ifValue: 'topic-deleted'
+      })
+
+      service.setPersist('ui.chat.last_used_topic_id', 'topic-new')
+      inbound({
+        type: 'persist',
+        key: 'ui.chat.last_used_topic_id',
+        value: null,
+        ifValue: 'topic-deleted'
+      })
+      expect(service.getPersist('ui.chat.last_used_topic_id')).toBe('topic-new')
     })
   })
 })

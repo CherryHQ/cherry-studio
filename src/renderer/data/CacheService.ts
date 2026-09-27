@@ -651,6 +651,36 @@ export class CacheService {
    * @param key - Persist cache key to store
    * @param value - New value, or an updater computing it from the latest value
    */
+  setPersistIfEqual<K extends RendererPersistCacheKey>(
+    key: K,
+    expectedValue: RendererPersistCacheSchema[K],
+    nextValue: RendererPersistCacheSchema[K]
+  ): void {
+    if (!isEqual(this.getPersist(key), expectedValue)) {
+      return
+    }
+
+    const existingValue = this.persistCache.get(key)
+
+    if (isEqual(existingValue, nextValue)) {
+      logger.verbose(`Skipped persist cache update for key "${key}" - value unchanged`)
+      return
+    }
+
+    this.persistCache.set(key, nextValue)
+    this.notifySubscribers(key)
+
+    this.broadcastSync({
+      type: 'persist',
+      key,
+      value: nextValue,
+      ifValue: expectedValue
+    })
+
+    this.schedulePersistSave()
+    logger.verbose(`Updated persist cache for key "${key}" (conditional)`)
+  }
+
   setPersist<K extends RendererPersistCacheKey>(
     key: K,
     value: CacheSetStateAction<RendererPersistCacheSchema[K]>
@@ -1180,8 +1210,12 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
+        const persistKey = message.key as RendererPersistCacheKey
+        if (message.ifValue !== undefined && !isEqual(this.getPersist(persistKey), message.ifValue)) {
+          return
+        }
         // Update persist cache (other windows only update memory, not localStorage)
-        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+        this.persistCache.set(persistKey, message.value)
         this.notifySubscribers(message.key)
       }
     })

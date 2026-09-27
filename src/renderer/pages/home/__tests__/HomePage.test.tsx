@@ -2075,8 +2075,20 @@ describe('HomePage', () => {
     homeMocks.activeTopicLoading = false
     homeMocks.activeTopicSource = 'none'
     homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', 'topic-deleted')
+    homeMocks.navigate.mockImplementation(async (opts) => {
+      if (
+        opts.to === '/app/chat' &&
+        opts.search &&
+        Object.keys(opts.search as Record<string, unknown>).length === 0
+      ) {
+        homeMocks.routeSearch = {}
+        homeMocks.forceActiveTopicUndefined = false
+        homeMocks.activeTopicError = undefined
+        homeMocks.activeTopicOverride = historyTopic
+      }
+    })
 
-    render(<HomePage />)
+    const { rerender } = render(<HomePage />)
 
     await waitFor(() =>
       expect(homeMocks.navigate).toHaveBeenCalledWith({
@@ -2085,12 +2097,20 @@ describe('HomePage', () => {
         replace: true
       })
     )
-    expect(cacheService.setPersist).toHaveBeenCalledWith('ui.chat.last_used_topic_id', null)
+    await act(async () => {
+      rerender(<HomePage />)
+    })
+    expect(cacheService.setPersistIfEqual).toHaveBeenCalledWith(
+      'ui.chat.last_used_topic_id',
+      'topic-deleted',
+      null
+    )
     expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBeNull()
     const recoveryNavigations = homeMocks.navigate.mock.calls.filter(
       (call) => call[0]?.to === '/app/chat' && call[0]?.search && Object.keys(call[0].search).length === 0
     )
     expect(recoveryNavigations).toHaveLength(1)
+    expect(screen.getByTestId('active-topic')).toHaveTextContent(historyTopic.id)
   })
 
   it('does not clear a different remembered topic id when NOT_FOUND recovery re-enters bare chat', async () => {
@@ -2112,7 +2132,11 @@ describe('HomePage', () => {
         replace: true
       })
     )
-    expect(cacheService.setPersist).not.toHaveBeenCalledWith('ui.chat.last_used_topic_id', null)
+    expect(cacheService.setPersistIfEqual).toHaveBeenCalledWith(
+      'ui.chat.last_used_topic_id',
+      'topic-deleted',
+      null
+    )
     expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBe('topic-still-valid')
   })
 })
