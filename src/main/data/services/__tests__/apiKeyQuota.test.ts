@@ -4,12 +4,16 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 const preferenceGet = vi.fn()
 const stats = vi.fn()
+const getByKey = vi.fn()
 
 vi.mock('@application', () => ({
   application: { get: () => ({ get: preferenceGet }) }
 }))
 vi.mock('../AiUsageRecordService', () => ({
   aiUsageRecordService: { stats: (...args: unknown[]) => stats(...args) }
+}))
+vi.mock('../ModelService', () => ({
+  modelService: { getByKey: (...args: unknown[]) => getByKey(...args) }
 }))
 
 const { apiKeyLimitId, apiKeyModelLimitId, filterKeysWithinQuota } = await import('../apiKeyQuota')
@@ -23,13 +27,19 @@ function withLimits(limits: Record<string, { limit: number; period: 'daily' | 'w
 
 const MODEL_A = 'groq::llama-70b' as const
 const MODEL_B = 'groq::whisper' as const
+/** The bare model id part, which is what `aiUsageRecord` actually stores (the SDK wire id). */
+const rawOf = (uniqueModelId: string) => uniqueModelId.split('::')[1]
 
 /** Spend on a key across every model, the way a response with a single model per key folds. */
 function withRequestCounts(counts: Record<string, number>) {
-  withModelRequestCounts(Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, { [MODEL_A]: n }])))
+  withModelRequestCounts(Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, { [rawOf(MODEL_A)]: n }])))
 }
 
-/** Spend per (key, model) — what the endpoint actually returns for `groupBy: 'apiKeyModel'`. */
+/**
+ * Spend per (key, model) — what the endpoint actually returns for `groupBy: 'apiKeyModel'`. Keys
+ * of the inner record are the bare wire model id (`aiUsageRecord`'s own identity), never the app's
+ * `providerId::modelId` UniqueModelId — passing a UniqueModelId here would silently never match.
+ */
 function withModelRequestCounts(counts: Record<string, Record<string, number>>, dropped = 0) {
   stats.mockReturnValue({
     buckets: Object.entries(counts).flatMap(([apiKeyId, byModel]) =>
@@ -48,6 +58,10 @@ describe('filterKeysWithinQuota', () => {
   beforeEach(() => {
     preferenceGet.mockReset()
     stats.mockReset()
+    getByKey.mockReset()
+    // No declared apiModelId override: the recorded identity is the bare model id, same as most
+    // real models. Tests exercising the override set their own `getByKey` return value.
+    getByKey.mockImplementation((_providerId: string, modelId: string) => ({ apiModelId: undefined, id: modelId }))
   })
 
   it('drops a key that reached its declared ceiling', () => {
@@ -95,9 +109,23 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyLimitId('deepseek', 'a')]: { limit: 100, period: 'daily' },
       [apiKeyModelLimitId('deepseek', 'a', 'deepseek::deepseek-v4-flash')]: { limit: 5, period: 'daily' }
     })
-    withModelRequestCounts({ a: { 'deepseek::deepseek-v4-flash': 5 } })
+    withModelRequestCounts({ a: { 'deepseek-v4-flash': 5 } })
 
     expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')).toEqual([key('b')])
+  })
+
+  // The recorded usage row holds the wire model id sent to the provider's SDK (`Model.apiModelId`),
+  // which can differ from both the bare catalog model id and always differs from the full
+  // `providerId::modelId` UniqueModelId. Matching a model-scoped ceiling against the wrong one of
+  // these silently never finds the usage, so the ceiling is never enforced against real traffic.
+  it('matches a model-scoped ceiling against the actual API model id, not the catalog id', () => {
+    getByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'gpt-4-turbo-preview' ? { apiModelId: 'gpt-4-0125-preview' } : { apiModelId: undefined }
+    )
+    withLimits({ [apiKeyModelLimitId('openai', 'a', 'openai::gpt-4-turbo-preview')]: { limit: 5, period: 'daily' } })
+    withModelRequestCounts({ a: { 'gpt-4-0125-preview': 5 } })
+
+    expect(filterKeysWithinQuota('openai', [key('a'), key('b')], 'openai::gpt-4-turbo-preview')).toEqual([key('b')])
   })
 
   it('falls back to key-level limit when no model-scoped limit exists', () => {
@@ -115,27 +143,31 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyModelLimitId('deepseek', 'b', 'deepseek::deepseek-v4-flash')]: { limit: 15, period: 'daily' }
     })
     withModelRequestCounts({
-      a: { 'deepseek::deepseek-v4-flash': 20 },
-      b: { 'deepseek::deepseek-v4-flash': 10 }
+      a: { 'deepseek-v4-flash': 20 },
+      b: { 'deepseek-v4-flash': 10 }
     })
 
     const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')
     expect(result).toEqual([key('b')])
   })
 
-  it('total period counts from epoch and never resets', () => {
+  // `periodStartOf('total')` clamps to the stats endpoint's widest accepted range instead of true
+  // epoch 0 — epoch 0 exceeds it and the endpoint rejects the query outright (see apiKeyLimit.ts).
+  it('total period counts from a clamped lookback, not epoch 0, and never resets', () => {
     withLimits({ [apiKeyLimitId('openrouter', 'a')]: { limit: 10, period: 'total' } })
     withRequestCounts({ a: 10 })
 
     expect(filterKeysWithinQuota('openrouter', [key('a'), key('b')])).toEqual([key('b')])
-    expect(stats).toHaveBeenCalledWith(expect.objectContaining({ from: 0 }))
+    expect(stats).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(Number) }))
+    const from = stats.mock.calls.at(-1)?.[0]?.from as number
+    expect(from).toBeGreaterThan(0)
   })
   // A free tier meters each model separately, which is the only reason a model-scoped ceiling
   // exists. Measuring it against the key's whole traffic let a busy model exhaust every other
   // model that shares the key, and the router then skipped credentials that had room.
   it('does not let another model on the same key spend a model-scoped ceiling', () => {
     withLimits({ [apiKeyModelLimitId('groq', 'a', MODEL_A)]: { limit: 10, period: 'daily' } })
-    withModelRequestCounts({ a: { [MODEL_B]: 50 } })
+    withModelRequestCounts({ a: { [rawOf(MODEL_B)]: 50 } })
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('a'), key('b')])
   })
@@ -145,14 +177,14 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyLimitId('groq', 'a')]: { limit: 100, period: 'daily' },
       [apiKeyModelLimitId('groq', 'a', MODEL_A)]: { limit: 10, period: 'daily' }
     })
-    withModelRequestCounts({ a: { [MODEL_A]: 10, [MODEL_B]: 1 } })
+    withModelRequestCounts({ a: { [rawOf(MODEL_A)]: 10, [rawOf(MODEL_B)]: 1 } })
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('b')])
   })
 
   it('spends a key-scoped ceiling with every model on that key', () => {
     withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'daily' } })
-    withModelRequestCounts({ a: { [MODEL_A]: 6, [MODEL_B]: 4 } })
+    withModelRequestCounts({ a: { [rawOf(MODEL_A)]: 6, [rawOf(MODEL_B)]: 4 } })
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('b')])
   })
@@ -162,7 +194,7 @@ describe('filterKeysWithinQuota', () => {
   // provider rejecting the call is the honest failure.
   it('keeps a key whose spend the truncated response never reported', () => {
     withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'daily' } })
-    withModelRequestCounts({ c: { [MODEL_A]: 99 } }, 5000)
+    withModelRequestCounts({ c: { [rawOf(MODEL_A)]: 99 } }, 5000)
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('a'), key('b')])
   })
@@ -171,7 +203,7 @@ describe('filterKeysWithinQuota', () => {
   // the 15th kept resetting on the 1st — the same data answered two different ways.
   it('counts a monthly ceiling from the key own renewal day, not the first of the month', () => {
     withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'monthly' } })
-    withModelRequestCounts({ a: { [MODEL_A]: 1 } })
+    withModelRequestCounts({ a: { [rawOf(MODEL_A)]: 1 } })
 
     filterKeysWithinQuota(
       'groq',
@@ -188,7 +220,7 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'monthly' },
       [apiKeyLimitId('groq', 'b')]: { limit: 10, period: 'monthly' }
     })
-    withModelRequestCounts({ a: { [MODEL_A]: 1 } })
+    withModelRequestCounts({ a: { [rawOf(MODEL_A)]: 1 } })
 
     filterKeysWithinQuota(
       'groq',

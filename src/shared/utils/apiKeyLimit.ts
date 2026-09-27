@@ -97,11 +97,15 @@ export function collectKeyUsage(
  * Requests spent against one ceiling, or `undefined` when the answer is genuinely unknown because
  * the response was truncated. `undefined` must stay permissive everywhere it lands — routing is an
  * optimization, never a gate.
+ *
+ * `modelId` is whatever identity the caller's usage bucket is actually keyed by — a `UniqueModelId`
+ * for callers whose bucket was built that way, or a bare wire model id for callers matching
+ * `aiUsageRecord`'s own identity. This function only joins strings; it does not care which.
  */
 export function usageAgainstLimit(
   counts: KeyUsageCounts,
   keyId: string,
-  modelId: UniqueModelId | undefined
+  modelId: string | undefined
 ): number | undefined {
   const spent = modelId ? counts.perKeyModel.get(keyModelUsageId(keyId, modelId)) : counts.perKey.get(keyId)
   if (spent !== undefined) return spent

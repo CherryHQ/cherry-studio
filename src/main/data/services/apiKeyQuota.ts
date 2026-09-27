@@ -5,7 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import {
   apiKeyLimitId,
@@ -17,10 +17,28 @@ import {
 } from '@shared/utils/apiKeyLimit'
 
 import { aiUsageRecordService } from './AiUsageRecordService'
+import { modelService } from './ModelService'
 
 const logger = loggerService.withContext('ApiKeyQuota')
 
 export { apiKeyLimitId, apiKeyModelLimitId }
+
+/**
+ * The identity a chat request actually records in `aiUsageRecord` — the wire model id sent to the
+ * provider's SDK (`Model.apiModelId`, falling back to the bare model id when unset), never the
+ * app's `providerId::modelId` UniqueModelId, which the usage row never contains. Looking up a
+ * model-scoped ceiling by the UniqueModelId directly matched nothing, so the ceiling was never
+ * enforced against real chat traffic. A deleted/unavailable model falls back to the bare id, the
+ * same conservative "keep the key" behaviour as elsewhere in this file.
+ */
+function recordedModelIdentity(providerId: string, uniqueModelId: UniqueModelId): string {
+  const { modelId } = parseUniqueModelId(uniqueModelId)
+  try {
+    return modelService.getByKey(providerId, modelId).apiModelId ?? modelId
+  } catch {
+    return modelId
+  }
+}
 
 // Grouped per (key, model) even though most ceilings are key-scoped: the per-key total is the sum
 // over its models, so one query answers both scopes, while an `apiKey` query cannot answer the
@@ -92,7 +110,7 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id' | 'renewalAnchor' | 'r
       countsByStart.set(from, counts)
     }
     // Unknown spend keeps the key: the provider rejecting a call beats withholding one.
-    const spent = usageAgainstLimit(counts, key.id, scopedModelId)
+    const spent = usageAgainstLimit(counts, key.id, scopedModelId && recordedModelIdentity(providerId, scopedModelId))
     return spent === undefined || spent < limit.limit
   })
 }
