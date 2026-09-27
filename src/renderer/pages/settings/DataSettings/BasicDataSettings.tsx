@@ -24,8 +24,11 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { startNotesDirectoryMigration } from '@renderer/pages/notes/notesDirectoryMigration'
+import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -62,6 +65,8 @@ const BasicDataSettings: React.FC = () => {
   const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
     () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
   )
+  const { notesPath, updateNotesPath } = useNotesSettings()
+  const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
 
   useEffect(() => {
     if (hasV1MigrationSource) return
@@ -97,6 +102,10 @@ const BasicDataSettings: React.FC = () => {
     void ipcApi.request('app.get_info').then(setAppInfo)
     void refreshCacheSize()
   }, [refreshCacheSize])
+
+  useEffect(() => {
+    void resolveNotesPath(notesPath || '').then((resolved) => setResolvedNotesPath(resolved.path))
+  }, [notesPath])
 
   const handleSelectAppDataPath = async () => {
     if (!appInfo || !appInfo.appDataPath) {
@@ -331,6 +340,39 @@ const BasicDataSettings: React.FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-data-data-notes-data" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.notes_data.label')}</SettingRowTitle>
+          <PathRow>
+            <PathText
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
+              onClick={() => handleOpenPath(resolvedNotesPath)}>
+              {resolvedNotesPath ?? notesPath}
+            </PathText>
+            <RowFlex className="ml-2 gap-1.25">
+              <Button onClick={() => handleOpenPath(resolvedNotesPath)} variant="outline">
+                {t('settings.data.notes_data.open')}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!resolvedNotesPath) {
+                    return
+                  }
+                  void startNotesDirectoryMigration({
+                    t,
+                    sourcePath: resolvedNotesPath,
+                    onSuccess: (path) => updateNotesPath(path)
+                  })
+                }}
+                variant="outline">
+                {t('settings.data.notes_relocation.migrate')}
+              </Button>
+            </RowFlex>
+          </PathRow>
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.notes_data.help')}</SettingHelpText>
+        </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>

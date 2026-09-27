@@ -319,7 +319,11 @@ const NotesPage: FC = () => {
           defaultPath
         })
 
-        // 重置为默认路径
+        toast.warning({
+          title: t('notes.directory_unavailable_fallback', { path: defaultPath }),
+          timeout: 10000
+        })
+
         updateNotesPath(defaultPath)
 
         // 检查默认路径下是否有笔记文件
