@@ -11,4 +11,4 @@ Note 位于 `{lifecycle}/{class}/yyyy-mm-dd-topic.md`:
 
 每条 note 以 `# Agent Note: <title>` 和 `Status:` 行开头,先陈述 `## Problem`,并强制携带 `## Alternatives considered`。每条 note 都有结构镜像的 `.zh.md` 对照。
 
-本系统正依照[文档治理方案](proposed/process/2026-08-18-docs-governance-and-spec-workflow.zh.md)引入,该方案定义了格式、什么决策值得记录的门槛以及推进计划。完整规则集与格式门禁随该方案的 Phase 1 落地。
+本系统正依照[文档治理方案](proposed/process/2026-08-18-docs-governance-and-spec-workflow.zh.md)引入,该方案定义了格式、什么决策值得记录的门槛以及推进计划。格式现已强制校验:`pnpm docs:check-notes`(`scripts/verify-agent-note-format.ts`,`pnpm docs:check` 的一部分)检查存放位置、头部信息块以及各生命周期应包含的章节;双语配对门禁随该方案的 Phase 2 落地。
