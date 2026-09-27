@@ -1,9 +1,18 @@
 import type { ApiKeyLimitMap, ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId, type KeyUsageCounts, usageAgainstLimit } from '@shared/utils/apiKeyLimit'
 import { freshModelHealth } from '@shared/utils/modelHealth'
 import { hasUsableCredential, isCherryAIProvider } from '@shared/utils/provider'
+
+/**
+ * The identity `aiUsageRecord` actually stores for a request — the wire model id sent to the
+ * provider's SDK (`Model.apiModelId`, falling back to the bare model id), never the app's
+ * `providerId::modelId` UniqueModelId, which the usage row never contains.
+ */
+function recordedModelIdentity(model: Pick<Model, 'id' | 'apiModelId'>): string {
+  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+}
 
 /**
  * Why a model is shown but demoted. Ordered by how actionable it is: `unavailable` cannot be fixed
@@ -28,7 +37,7 @@ const PASSIVE_REASON_RANK: Record<ModelPassiveReason, number> = {
  */
 function remainingPerKey(
   provider: Provider,
-  modelId: UniqueModelId,
+  model: Pick<Model, 'id' | 'apiModelId'>,
   limits: ApiKeyLimitMap | null | undefined,
   usageCounts: KeyUsageCounts | undefined
 ): Array<number | undefined> {
@@ -36,11 +45,11 @@ function remainingPerKey(
   return provider.apiKeys
     .filter((key) => key.isEnabled)
     .map((key) => {
-      const modelLimit = limits[apiKeyModelLimitId(provider.id, key.id, modelId)]
+      const modelLimit = limits[apiKeyModelLimitId(provider.id, key.id, model.id)]
       const limit = modelLimit ?? limits[apiKeyLimitId(provider.id, key.id)]
       if (!limit) return undefined
       // A model-scoped ceiling is spent only by that model; a key-scoped one by all of them.
-      const spent = usageAgainstLimit(usageCounts, key.id, modelLimit ? modelId : undefined)
+      const spent = usageAgainstLimit(usageCounts, key.id, modelLimit ? recordedModelIdentity(model) : undefined)
       return spent === undefined ? undefined : Math.max(0, limit.limit - spent)
     })
 }
@@ -51,11 +60,11 @@ function remainingPerKey(
  */
 export function isQuotaExhausted(
   provider: Provider,
-  modelId: UniqueModelId,
+  model: Pick<Model, 'id' | 'apiModelId'>,
   limits: ApiKeyLimitMap | null | undefined,
   usageCounts: KeyUsageCounts | undefined
 ): boolean {
-  const remaining = remainingPerKey(provider, modelId, limits, usageCounts)
+  const remaining = remainingPerKey(provider, model, limits, usageCounts)
   if (remaining.length === 0) return false
   // A key whose ceiling is unknown might well answer, so it keeps the model out of "exhausted".
   return remaining.every((left) => left === 0)
@@ -71,11 +80,11 @@ export function isQuotaExhausted(
  */
 export function getRemainingQuota(
   provider: Provider,
-  modelId: UniqueModelId,
+  model: Pick<Model, 'id' | 'apiModelId'>,
   limits: ApiKeyLimitMap | null | undefined,
   usageCounts: KeyUsageCounts | undefined
 ): number | undefined {
-  const known = remainingPerKey(provider, modelId, limits, usageCounts).filter(
+  const known = remainingPerKey(provider, model, limits, usageCounts).filter(
     (left): left is number => left !== undefined
   )
   if (known.length === 0) return undefined

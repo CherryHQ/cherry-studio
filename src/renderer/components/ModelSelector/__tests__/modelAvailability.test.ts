@@ -10,6 +10,13 @@ import { getModelPassiveReason, getRemainingQuota, isQuotaExhausted } from '../m
 
 const MODEL_ID = createUniqueModelId('deepseek', 'deepseek-chat')
 const OTHER_MODEL_ID = createUniqueModelId('deepseek', 'deepseek-reasoner')
+// No declared apiModelId — the recorded identity falls back to the bare catalog id, the common
+// case. A model with a real apiModelId override is covered by its own test below.
+const MODEL = { id: MODEL_ID, apiModelId: undefined } as Pick<Model, 'id' | 'apiModelId'>
+const OTHER_MODEL = { id: OTHER_MODEL_ID, apiModelId: undefined } as Pick<Model, 'id' | 'apiModelId'>
+// The bare wire model id, which is what `aiUsageRecord` actually stores.
+const RAW_MODEL_ID = 'deepseek-chat'
+const OTHER_RAW_MODEL_ID = 'deepseek-reasoner'
 
 function provider(keys: Array<{ id: string; isEnabled: boolean }>): Provider {
   return { id: 'deepseek', apiKeys: keys } as unknown as Provider
@@ -39,12 +46,12 @@ describe('getRemainingQuota', () => {
       [apiKeyLimitId('deepseek', 'k2')]: { limit: 15, period: 'daily' }
     }
     const used = usage([
-      ['k1', MODEL_ID, 5],
-      ['k2', MODEL_ID, 15]
+      ['k1', RAW_MODEL_ID, 5],
+      ['k2', RAW_MODEL_ID, 15]
     ])
 
     // k1 has 15 left, k2 is spent.
-    expect(getRemainingQuota(twoKeys, MODEL_ID, limits, used)).toBe(15)
+    expect(getRemainingQuota(twoKeys, MODEL, limits, used)).toBe(15)
   })
 
   it('ignores a key the user switched off', () => {
@@ -57,7 +64,7 @@ describe('getRemainingQuota', () => {
       { id: 'k2', isEnabled: false }
     ])
 
-    expect(getRemainingQuota(disabled, MODEL_ID, limits, usage([]))).toBe(20)
+    expect(getRemainingQuota(disabled, MODEL, limits, usage([]))).toBe(20)
   })
 
   it('prefers a ceiling set for this model over the key-wide one', () => {
@@ -67,11 +74,11 @@ describe('getRemainingQuota', () => {
     }
     const single = provider([{ id: 'k1', isEnabled: true }])
 
-    const spent = usage([['k1', MODEL_ID, 4]])
-    expect(getRemainingQuota(single, MODEL_ID, limits, spent)).toBe(6)
+    const spent = usage([['k1', RAW_MODEL_ID, 4]])
+    expect(getRemainingQuota(single, MODEL, limits, spent)).toBe(6)
     // The model-scoped ceiling applies to that model only — and the key-scoped one the other
     // model falls back to is spent by every model on the key, this one included.
-    expect(getRemainingQuota(single, OTHER_MODEL_ID, limits, spent)).toBe(96)
+    expect(getRemainingQuota(single, OTHER_MODEL, limits, spent)).toBe(96)
   })
 
   // The whole point of a model-scoped ceiling: a free tier meters each model separately, so
@@ -82,24 +89,37 @@ describe('getRemainingQuota', () => {
       [apiKeyModelLimitId('deepseek', 'k1', MODEL_ID)]: { limit: 10, period: 'daily' }
     }
     const single = provider([{ id: 'k1', isEnabled: true }])
-    const spentElsewhere = usage([['k1', OTHER_MODEL_ID, 50]])
+    const spentElsewhere = usage([['k1', OTHER_RAW_MODEL_ID, 50]])
 
-    expect(getRemainingQuota(single, MODEL_ID, limits, spentElsewhere)).toBe(10)
-    expect(isQuotaExhausted(single, MODEL_ID, limits, spentElsewhere)).toBe(false)
+    expect(getRemainingQuota(single, MODEL, limits, spentElsewhere)).toBe(10)
+    expect(isQuotaExhausted(single, MODEL, limits, spentElsewhere)).toBe(false)
   })
 
   it('never reports a negative number when a key ran past its ceiling', () => {
     const limits: ApiKeyLimitMap = { [apiKeyLimitId('deepseek', 'k1')]: { limit: 10, period: 'daily' } }
     const single = provider([{ id: 'k1', isEnabled: true }])
 
-    expect(getRemainingQuota(single, MODEL_ID, limits, usage([['k1', MODEL_ID, 25]]))).toBe(0)
+    expect(getRemainingQuota(single, MODEL, limits, usage([['k1', RAW_MODEL_ID, 25]]))).toBe(0)
   })
 
   it('says nothing rather than zero when no key declares a ceiling', () => {
     // Most providers have no ceiling set. Reading that as "0 left" would badge every model as
     // spent and, through isQuotaExhausted, demote the entire picker.
-    expect(getRemainingQuota(twoKeys, MODEL_ID, {}, usage([]))).toBeUndefined()
-    expect(getRemainingQuota(twoKeys, MODEL_ID, undefined, undefined)).toBeUndefined()
+    expect(getRemainingQuota(twoKeys, MODEL, {}, usage([]))).toBeUndefined()
+    expect(getRemainingQuota(twoKeys, MODEL, undefined, undefined)).toBeUndefined()
+  })
+
+  // The recorded usage row holds the wire model id sent to the provider's SDK (`apiModelId`),
+  // which can differ from the bare catalog id. Matching against the catalog id (or, worse, the
+  // full UniqueModelId) silently never finds the usage, understating spend as unlimited.
+  it('matches usage against the actual API model id, not the catalog id', () => {
+    const modelWithApiId = { id: MODEL_ID, apiModelId: 'deepseek-chat-v3.1' }
+    const limits: ApiKeyLimitMap = {
+      [apiKeyModelLimitId('deepseek', 'k1', MODEL_ID)]: { limit: 10, period: 'daily' }
+    }
+    const spent = usage([['k1', 'deepseek-chat-v3.1', 4]])
+
+    expect(getRemainingQuota(twoKeys, modelWithApiId, limits, spent)).toBe(6)
   })
 })
 
@@ -110,15 +130,15 @@ describe('isQuotaExhausted', () => {
       [apiKeyLimitId('deepseek', 'k2')]: { limit: 10, period: 'daily' }
     }
 
-    expect(isQuotaExhausted(twoKeys, MODEL_ID, limits, usage([['k1', MODEL_ID, 10]]))).toBe(false)
+    expect(isQuotaExhausted(twoKeys, MODEL, limits, usage([['k1', RAW_MODEL_ID, 10]]))).toBe(false)
     expect(
       isQuotaExhausted(
         twoKeys,
-        MODEL_ID,
+        MODEL,
         limits,
         usage([
-          ['k1', MODEL_ID, 10],
-          ['k2', MODEL_ID, 10]
+          ['k1', RAW_MODEL_ID, 10],
+          ['k2', RAW_MODEL_ID, 10]
         ])
       )
     ).toBe(true)
@@ -128,7 +148,7 @@ describe('isQuotaExhausted', () => {
     // An unknown ceiling might well still answer; calling it spent would hide a working key.
     const limits: ApiKeyLimitMap = { [apiKeyLimitId('deepseek', 'k1')]: { limit: 10, period: 'daily' } }
 
-    expect(isQuotaExhausted(twoKeys, MODEL_ID, limits, usage([['k1', MODEL_ID, 10]]))).toBe(false)
+    expect(isQuotaExhausted(twoKeys, MODEL, limits, usage([['k1', RAW_MODEL_ID, 10]]))).toBe(false)
   })
 
   // Past its limit the endpoint returns the top buckets plus an "other" remainder, so a key with
@@ -139,11 +159,11 @@ describe('isQuotaExhausted', () => {
       [apiKeyLimitId('deepseek', 'k1')]: { limit: 10, period: 'daily' },
       [apiKeyLimitId('deepseek', 'k2')]: { limit: 10, period: 'daily' }
     }
-    const truncated = usage([['k1', MODEL_ID, 10]], 400)
+    const truncated = usage([['k1', RAW_MODEL_ID, 10]], 400)
 
-    expect(isQuotaExhausted(twoKeys, MODEL_ID, limits, truncated)).toBe(false)
+    expect(isQuotaExhausted(twoKeys, MODEL, limits, truncated)).toBe(false)
     // k1 is measured at its ceiling; k2 is unmeasured and contributes nothing knowable.
-    expect(getRemainingQuota(twoKeys, MODEL_ID, limits, truncated)).toBe(0)
+    expect(getRemainingQuota(twoKeys, MODEL, limits, truncated)).toBe(0)
   })
 })
 

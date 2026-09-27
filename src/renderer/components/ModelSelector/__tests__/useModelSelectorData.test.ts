@@ -487,7 +487,7 @@ describe('useModelSelectorData', () => {
           providerId: 'openai',
           providerName: 'openai',
           apiKeyId: 'k1',
-          modelId: imageModel.id,
+          modelId: 'gpt-image-1',
           apiKeyLabel: null,
           ...metrics({ requestCount: 5 })
         }
@@ -519,7 +519,7 @@ describe('useModelSelectorData', () => {
           providerId: 'openai',
           providerName: 'openai',
           apiKeyId: 'k1',
-          modelId: imageModel.id,
+          modelId: 'gpt-image-1',
           apiKeyLabel: null,
           ...metrics({ requestCount: 2 })
         }

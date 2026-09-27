@@ -173,7 +173,7 @@ export function useModelSelectorData({
     for (const model of models) {
       const provider = providerById.get(model.providerId)
       if (!provider) continue
-      if (isQuotaExhausted(provider, model.id, apiKeyLimits, quotaUsageCounts)) {
+      if (isQuotaExhausted(provider, model, apiKeyLimits, quotaUsageCounts)) {
         exhausted.add(model.id)
       }
     }
@@ -190,7 +190,7 @@ export function useModelSelectorData({
     for (const model of models) {
       const provider = providerById.get(model.providerId)
       if (!provider) continue
-      const left = getRemainingQuota(provider, model.id, apiKeyLimits, quotaUsageCounts)
+      const left = getRemainingQuota(provider, model, apiKeyLimits, quotaUsageCounts)
       if (left !== undefined) remaining.set(model.id, left)
     }
     return remaining

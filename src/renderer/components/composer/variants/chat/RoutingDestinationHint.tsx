@@ -105,7 +105,7 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
 
   const remainingQuota =
     destinationModel && destinationProvider
-      ? getRemainingQuota(destinationProvider, destinationModel.id, apiKeyLimits, quotaUsageCounts)
+      ? getRemainingQuota(destinationProvider, destinationModel, apiKeyLimits, quotaUsageCounts)
       : undefined
 
   if (!preview || !destinationModel) return null
