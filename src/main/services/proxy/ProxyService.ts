@@ -33,8 +33,10 @@ const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypas
  * The list covers the documented hostname forms (the Windows-only `loopback` and the legacy
  * `localhost6` aliases included) and full-form CIDRs — `169.254/16` shorthand parses to a
  * different range in ipaddr.js, which the Node stack uses. The IPv4-mapped entry restates
- * net::IsIPv4MappedLoopback (`[::ffff:127.0.0.1]/104`), and the Node matcher strips a trailing
- * dot from URL hosts like net::IsLocalHostname does, so `localhost.` resolves to the same entries.
+ * net::IsIPv4MappedLoopback (`::ffff:127.0.0.0/104`) and is stored unbracketed because the
+ * string is shared with Chromium, whose bypass syntax has no brackets around IPv6 CIDRs; the
+ * Node matcher strips brackets from user-typed rules on its own. It also strips a trailing dot
+ * from URL hosts like net::IsLocalHostname does, so `localhost.` resolves to the same entries.
  */
 const LOOPBACK_BYPASS_RULES = [
   'localhost',
@@ -45,7 +47,7 @@ const LOOPBACK_BYPASS_RULES = [
   '127.0.0.0/8',
   '0.0.0.0',
   '[::1]',
-  '[::ffff:127.0.0.0]/104',
+  '::ffff:127.0.0.0/104',
   '169.254.0.0/16',
   'fe80::/10'
 ]

@@ -99,7 +99,7 @@ describe('resolveProxyConfig', () => {
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
       proxyBypassRules:
-        '*.local,localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        '*.local,localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     })
   })
 
@@ -108,7 +108,7 @@ describe('resolveProxyConfig', () => {
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
       proxyBypassRules:
-        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     })
   })
 
@@ -120,7 +120,7 @@ describe('resolveProxyConfig', () => {
         bypassRules: 'LOCALHOST, corp.local ; 127.0.0.1, [::1]'
       })?.proxyBypassRules
     ).toBe(
-      'LOCALHOST,corp.local,127.0.0.1,[::1],*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+      'LOCALHOST,corp.local,127.0.0.1,[::1],*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     )
   })
 
@@ -171,6 +171,9 @@ describe('resolveProxyConfig', () => {
     }
     expect(matcher.isByPass('http://example.com:8001/')).toBe(false)
     expect(matcher.isByPass('http://[::ffff:8.8.8.8]:8001/')).toBe(false)
+    // the merged string is shared with Chromium, whose bypass syntax has no brackets
+    // around IPv6 CIDRs — keep every entry parseable on both stacks
+    expect(merged!.split(',').every((entry) => !/^\[.*\]\/\d+$/.test(entry))).toBe(true)
   })
 
   it('falls back custom without url → direct', () => {
@@ -213,13 +216,13 @@ describe('ProxyService — preference wiring', () => {
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://127.0.0.1:7890',
       proxyBypassRules:
-        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     })
     const expected = {
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
       proxyBypassRules:
-        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
@@ -261,14 +264,14 @@ describe('ProxyService — preference wiring', () => {
       mode: 'fixed_servers',
       proxyRules: 'http://proxy.lan:7890',
       proxyBypassRules:
-        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://proxy.lan:7890',
       proxyBypassRules:
-        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],[::ffff:127.0.0.0]/104,169.254.0.0/16,fe80::/10'
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10'
     })
   })
 

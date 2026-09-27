@@ -44,14 +44,9 @@ export class NodeProxyController {
         if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
-    // EnvHttpProxyAgent consults NO_PROXY on its own, ahead of the matcher's evaluation —
-    // with the escape hatch armed, loopback entries must stay out of the env or undici would
-    // bypass what the negation sends through the proxy.
-    const envBypassRules = loopbackEscape
-      ? normalizedBypassRules.filter(
-          (hostname) => hostname !== '<-loopback>' && !['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
-        )
-      : normalizedBypassRules
+    // NO_PROXY goes out verbatim for child processes; the in-process undici path ignores it (the
+    // backend arms EnvHttpProxyAgent without NO_PROXY), so the shared matcher is the single
+    // bypass decision and the ordered semantics hold end to end.
     const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
     if (this.currentConfigKey === configKey) return
 
@@ -59,15 +54,17 @@ export class NodeProxyController {
     if (proxyEndpoint) {
       await this.getBackend().then((backend) =>
         backend.configure(proxyUrl, proxyEndpoint, normalizedBypassRules, () =>
-          this.setEnvironment(proxyUrl, envBypassRules)
+          this.setEnvironment(proxyUrl, normalizedBypassRules)
         )
       )
     } else if (this.backendPromise) {
       await this.backendPromise.then((backend) =>
-        backend.configure(undefined, null, normalizedBypassRules, () => this.setEnvironment(undefined, envBypassRules))
+        backend.configure(undefined, null, normalizedBypassRules, () =>
+          this.setEnvironment(undefined, normalizedBypassRules)
+        )
       )
     } else {
-      this.setEnvironment(undefined, envBypassRules)
+      this.setEnvironment(undefined, normalizedBypassRules)
     }
 
     this.currentConfigKey = configKey

@@ -174,6 +174,21 @@ describe('ProxyBypassRuleMatcher — <-loopback> ordering', () => {
     withRules(['<-loopback>'])
     expect(matcher.isByPass('http://example.com:8001/')).toBe(false)
   })
+
+  it('covers the whole .localhost TLD like Chromium implicit rules do', () => {
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://foo.localhost:8001/')).toBe(false)
+  })
+
+  it('a preceding *.localhost rule loses to the negation for its subdomains', () => {
+    withRules(['localhost', '*.localhost', '<-loopback>'])
+    expect(matcher.isByPass('http://foo.localhost:8001/')).toBe(false)
+  })
+
+  it('a later *.localhost rule overrides the negation', () => {
+    withRules(['<-loopback>', '*.localhost'])
+    expect(matcher.isByPass('http://foo.localhost:8001/')).toBe(true)
+  })
 })
 
 describe('ProxyBypassRuleMatcher — implicit loopback scope parity (Chromium MatchesImplicitRules)', () => {
@@ -188,7 +203,7 @@ describe('ProxyBypassRuleMatcher — implicit loopback scope parity (Chromium Ma
     '127.0.0.0/8',
     '0.0.0.0',
     '[::1]',
-    '[::ffff:127.0.0.0]/104',
+    '::ffff:127.0.0.0/104',
     '169.254.0.0/16',
     'fe80::/10'
   ]

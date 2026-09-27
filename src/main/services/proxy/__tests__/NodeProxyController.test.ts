@@ -121,6 +121,22 @@ describe('NodeProxyController', () => {
     })
     const [localPort, proxyPort] = await Promise.all([listen(localServer), listen(proxyServer)])
     const controller = new NodeProxyController()
+    const proxyEnvKeys = [
+      CHERRY_NODE_PROXY_RULES_ENV,
+      CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
+      'HTTP_PROXY',
+      'HTTPS_PROXY',
+      'grpc_proxy',
+      'http_proxy',
+      'https_proxy',
+      'NO_PROXY',
+      'no_proxy',
+      'SOCKS_PROXY',
+      'socks_proxy',
+      'ALL_PROXY',
+      'all_proxy'
+    ] as const
+    const originalEnv = Object.fromEntries(proxyEnvKeys.map((key) => [key, process.env[key]]))
     try {
       // Later rules override earlier ones — the arrangement verified against a real Chromium
       // session, where `<-loopback>,localhost` keeps localhost direct while the negation
@@ -138,6 +154,70 @@ describe('NodeProxyController', () => {
       expect(proxyRequests.every((url) => !url.includes('localhost'))).toBe(true)
     } finally {
       await controller.configure({})
+      for (const key of proxyEnvKeys) {
+        const value = originalEnv[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      await Promise.all([close(localServer), close(proxyServer)])
+    }
+  })
+
+  it('proxies a positive loopback entry that precedes <-loopback> despite NO_PROXY', async () => {
+    const localServer = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'local' }))
+    })
+    const tunnels: string[] = []
+    const proxyServer = createServer((_request, response) => {
+      response.writeHead(404).end()
+    })
+    proxyServer.on('connect', (request, clientSocket, head) => {
+      tunnels.push(request.url ?? '')
+      const [host, port] = (request.url ?? '').split(':')
+      const target = net.connect(Number(port), host, () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+        if (head?.length) target.write(head)
+        target.pipe(clientSocket)
+        clientSocket.pipe(target)
+      })
+      target.on('error', () => clientSocket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n'))
+    })
+    const [localPort, proxyPort] = await Promise.all([listen(localServer), listen(proxyServer)])
+    const controller = new NodeProxyController()
+    const proxyEnvKeys = [
+      CHERRY_NODE_PROXY_RULES_ENV,
+      CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
+      'HTTP_PROXY',
+      'HTTPS_PROXY',
+      'grpc_proxy',
+      'http_proxy',
+      'https_proxy',
+      'NO_PROXY',
+      'no_proxy',
+      'SOCKS_PROXY',
+      'socks_proxy',
+      'ALL_PROXY',
+      'all_proxy'
+    ] as const
+    const originalEnv = Object.fromEntries(proxyEnvKeys.map((key) => [key, process.env[key]]))
+    try {
+      // `*.localhost` rides into NO_PROXY as a user-typed positive entry; the in-process stack
+      // must not let undici's flat NO_PROXY check outvote the later `<-loopback>` negation.
+      await controller.configure({
+        proxyRules: `http://127.0.0.1:${proxyPort}`,
+        proxyBypassRules: '*.localhost,<-loopback>'
+      })
+      const response = await fetch(`http://foo.localhost:${localPort}/models`, { signal: AbortSignal.timeout(5000) })
+      expect(await response.json()).toEqual({ source: 'local' })
+      expect(tunnels).toContain(`foo.localhost:${localPort}`)
+    } finally {
+      await controller.configure({})
+      for (const key of proxyEnvKeys) {
+        const value = originalEnv[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
       await Promise.all([close(localServer), close(proxyServer)])
     }
   })
@@ -250,7 +330,7 @@ describe('NodeProxyController', () => {
           '127.0.0.0/8',
           '0.0.0.0',
           '[::1]',
-          '[::ffff:127.0.0.0]/104',
+          '::ffff:127.0.0.0/104',
           '169.254.0.0/16',
           'fe80::/10'
         ].join(',')

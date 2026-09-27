@@ -237,8 +237,9 @@ export function createProxyBypassMatcher(
   }
 
   // The implicit scope that `<-loopback>` negates: loopback hostnames (including the Windows-only
-  // `loopback` and the legacy `localhost6` aliases), the loopback and unspecified IPv4 ranges,
-  // link-local addresses, and IPv4-mapped loopback (net::IsIPv4MappedLoopback).
+  // `loopback` and the legacy `localhost6` aliases), the whole .localhost TLD, the loopback and
+  // unspecified IPv4 ranges, link-local addresses, and IPv4-mapped loopback
+  // (net::IsIPv4MappedLoopback).
   const isImplicitLoopbackScope = (hostname: string): boolean => {
     if (isLocalHostname(hostname)) {
       return true
@@ -260,6 +261,12 @@ export function createProxyBypassMatcher(
       ) {
         return true
       }
+    }
+
+    // net::IsNormalizedLocalhostTLD: the whole .localhost TLD is implicit loopback scope, so the
+    // negation covers subdomains even when a `*.localhost` rule precedes it.
+    if (cleaned.toLowerCase().endsWith('.localhost')) {
+      return true
     }
 
     return ['loopback', 'localhost6', 'localhost6.localdomain6'].includes(cleaned.toLowerCase())

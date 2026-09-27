@@ -173,8 +173,11 @@ export class NodeProxyBackend {
 
     axios.defaults.adapter = 'fetch'
     if (endpoint.kind === 'http') {
+      // NO_PROXY is disabled for the in-process agent: undici's NO_PROXY matching is flat, so it
+      // would outvote the ordered `<-loopback>` semantics. SelectiveDispatcher's matcher is the
+      // single bypass decision here; child processes still get NO_PROXY through the environment.
       this.proxyDispatcher = new SelectiveDispatcher(
-        new EnvHttpProxyAgent(),
+        new EnvHttpProxyAgent({ noProxy: '' }),
         this.originalGlobalDispatcher,
         (origin) => this.proxyBypassRuleMatcher.isByPass(origin, this.logger),
         this.logger
