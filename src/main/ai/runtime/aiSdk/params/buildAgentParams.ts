@@ -16,8 +16,8 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import {
   type Assistant,
