@@ -429,6 +429,9 @@ function AgentRightPaneActionsProvider({
   const pagedForRef = useRef<string | null>(null)
   const showFlowTab = useCallback(
     (input: AgentToolFlowOpenInput, nested: boolean) => {
+      // Any flow opening supersedes a chase that is still paging — the user has moved on to it.
+      setPendingFlowOpen(null)
+      pagedForRef.current = null
       replaceFlowTab(input, nested)
       panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
