@@ -486,6 +486,55 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
+vi.mock('@renderer/hooks/chat/useAssistantPendingModelSettings', () => {
+  const React = require('react') as typeof import('react')
+
+  function usePendingAssistantSetting<T>(assistantId: string | null | undefined, canonical: T) {
+    const [override, setOverride] = React.useState<{
+      assistantId: string
+      value: T
+      version: number
+    } | null>(null)
+    const versionRef = React.useRef(0)
+
+    React.useEffect(() => {
+      setOverride((current) => {
+        if (!current) return current
+        return current.assistantId === assistantId ? current : null
+      })
+    }, [assistantId])
+
+    const effective = override && assistantId && override.assistantId === assistantId ? override.value : canonical
+
+    const startPending = React.useCallback(
+      (value: T) => {
+        if (!assistantId) return 0
+        const version = ++versionRef.current
+        setOverride({ assistantId, value, version })
+        return version
+      },
+      [assistantId]
+    )
+
+    const finishPending = React.useCallback((version: number) => {
+      setOverride((current) => (current?.version === version ? null : current))
+    }, [])
+
+    return { effective, startPending, finishPending }
+  }
+
+  return {
+    useAssistantPendingReasoningEffort: (
+      assistantId: string | null | undefined,
+      canonical: import('@shared/types/aiSdk').ReasoningEffortOption
+    ) => usePendingAssistantSetting(assistantId, canonical),
+    useAssistantPendingServiceTier: (
+      assistantId: string | null | undefined,
+      canonical: import('@shared/data/types/model').ServiceTierSelection
+    ) => usePendingAssistantSetting(assistantId, canonical)
+  }
+})
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     const values: Record<string, unknown> = {

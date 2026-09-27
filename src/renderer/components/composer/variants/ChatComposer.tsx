@@ -38,6 +38,10 @@ import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalo
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
+import {
+  useAssistantPendingReasoningEffort,
+  useAssistantPendingServiceTier
+} from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatTurnFastMode } from '@renderer/hooks/chat/useChatTurnFastMode'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -669,74 +673,45 @@ const ChatComposerInner = ({
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
   const canonicalReasoningEffort = assistant?.settings.reasoning_effort ?? 'default'
-  const [reasoningOverride, setReasoningOverride] = useState<{
-    assistantId: string
-    value: ReasoningEffortOption
-    version: number
-  } | null>(null)
-  const reasoningMutationVersionRef = useRef(0)
-  const reasoningEffort =
-    reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+  const {
+    effective: reasoningEffort,
+    startPending: startReasoningPending,
+    finishPending: finishReasoningPending
+  } = useAssistantPendingReasoningEffort(selectedAssistantId, canonicalReasoningEffort)
   const canonicalServiceTier = assistant?.settings.service_tier ?? 'standard'
-  const [serviceTierOverride, setServiceTierOverride] = useState<{
-    assistantId: string
-    value: ServiceTierSelection
-    version: number
-  } | null>(null)
-  const serviceTierMutationVersionRef = useRef(0)
-  const serviceTier =
-    serviceTierOverride?.assistantId === selectedAssistantId ? serviceTierOverride.value : canonicalServiceTier
+  const {
+    effective: serviceTier,
+    startPending: startServiceTierPending,
+    finishPending: finishServiceTierPending
+  } = useAssistantPendingServiceTier(selectedAssistantId, canonicalServiceTier)
   const [fastMode, setFastMode] = useChatTurnFastMode(topicId ?? scopeKey)
-
-  // A local override only bridges the latest PATCH/revalidation window. Do
-  // not retire it on an intermediate refresh from an older mutation.
-  useEffect(() => {
-    setReasoningOverride((current) => {
-      if (!current) return current
-      if (current.assistantId !== selectedAssistantId) return null
-      return current
-    })
-  }, [selectedAssistantId])
-
-  useEffect(() => {
-    setServiceTierOverride((current) => {
-      if (!current) return current
-      return current.assistantId === selectedAssistantId ? current : null
-    })
-  }, [selectedAssistantId])
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
       if (!nextModel) return
       if (!assistant) return
 
+      const hadPendingReasoning = reasoningEffort !== canonicalReasoningEffort
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({
-        assistantId: assistant.id,
-        value: nextReasoningEffort ?? 'default',
-        version
-      })
+      const version = startReasoningPending(nextReasoningEffort ?? 'default')
       // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel`
       // with the provider data owned by that operation. Repeating it here would duplicate the
       // state transition against the composer's presentation-oriented provider list.
       const extraSettings: {
         reasoning_effort?: ReasoningEffortOption
       } = {}
-      if (reasoningOverride?.assistantId === assistant.id) {
+      if (hadPendingReasoning) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }
       const update = setModel(nextModel, extraSettings)
       return update
-        ?.then(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-        })
+        ?.then(() => finishReasoningPending(version))
         .catch((error) => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
+          finishReasoningPending(version)
           throw error
         })
     },
-    [assistant, reasoningEffort, reasoningOverride, setModel]
+    [assistant, canonicalReasoningEffort, finishReasoningPending, reasoningEffort, setModel, startReasoningPending]
   )
 
   const {
@@ -895,22 +870,23 @@ const ChatComposerInner = ({
         toast.warning(t('chat.web_search.warning.openai'))
         return
       }
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({
-        assistantId: selectedAssistantId,
-        value: option,
-        version
-      })
+      const version = startReasoningPending(option)
       void updateAssistantSettings({ reasoning_effort: option })
-        .then(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-        })
+        .then(() => finishReasoningPending(version))
         .catch((error) => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
+          finishReasoningPending(version)
           logger.warn('Failed to persist reasoning effort', { error })
         })
     },
-    [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
+    [
+      assistant?.settings.enableWebSearch,
+      effectiveSubmittedModel,
+      finishReasoningPending,
+      selectedAssistantId,
+      startReasoningPending,
+      t,
+      updateAssistantSettings
+    ]
   )
   const handleReasoningSummaryChange = useCallback(
     (summary: ReasoningSummary) => {
@@ -923,18 +899,15 @@ const ChatComposerInner = ({
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
       if (!selectedAssistantId) return
-      const version = ++serviceTierMutationVersionRef.current
-      setServiceTierOverride({ assistantId: selectedAssistantId, value: tier, version })
+      const version = startServiceTierPending(tier)
       void updateAssistantSettings({ service_tier: tier })
-        .then(() => {
-          setServiceTierOverride((current) => (current?.version === version ? null : current))
-        })
+        .then(() => finishServiceTierPending(version))
         .catch((error) => {
-          setServiceTierOverride((current) => (current?.version === version ? null : current))
+          finishServiceTierPending(version)
           logger.warn('Failed to persist service tier', { error })
         })
     },
-    [selectedAssistantId, updateAssistantSettings]
+    [finishServiceTierPending, selectedAssistantId, startServiceTierPending, updateAssistantSettings]
   )
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({

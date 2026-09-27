@@ -133,6 +133,10 @@ export type UseCacheSchema = {
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   /** Per-topic fast transport toggle; shared between composer and model settings panel. */
   'chat.turn.fast_mode.${topicId}': boolean
+  /** Per-assistant reasoning effort pending PATCH; shared between composer and model settings panel. */
+  'chat.assistant.reasoning_effort_pending.${assistantId}': CacheValueTypes.CacheAssistantReasoningEffortPending | null
+  /** Per-assistant service tier pending PATCH; shared between composer and model settings panel. */
+  'chat.assistant.service_tier_pending.${assistantId}': CacheValueTypes.CacheAssistantServiceTierPending | null
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -241,6 +245,8 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.turn.fast_mode.${topicId}': false,
+  'chat.assistant.reasoning_effort_pending.${assistantId}': null,
+  'chat.assistant.service_tier_pending.${assistantId}': null,
   'chat.scroll_anchor.${topicId}': null,
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,

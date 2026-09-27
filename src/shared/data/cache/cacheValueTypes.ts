@@ -11,9 +11,10 @@ import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
+import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
-import type { UniqueModelId } from '../types/model'
+import type { ServiceTierSelection, UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -169,6 +170,15 @@ export interface CacheChatComposerDraft extends CacheComposerDraftBase {
   /** Selection behavior cannot be inferred when zero or one models remain selected. */
   modelMultiSelectMode: boolean
 }
+
+/** Bridges assistant settings PATCH latency between composer and model settings panel. */
+export interface CacheAssistantModelSettingPending<T> {
+  value: T
+  version: number
+}
+
+export type CacheAssistantReasoningEffortPending = CacheAssistantModelSettingPending<ReasoningEffortOption>
+export type CacheAssistantServiceTierPending = CacheAssistantModelSettingPending<ServiceTierSelection>
 
 export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   workspaceKey: string
