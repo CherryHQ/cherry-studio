@@ -7,12 +7,15 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   Input,
   Label,
-  PageSidePanel
+  NormalTooltip,
+  PageSidePanel,
+  SegmentedControl
 } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { useJob, useJobProgress } from '@renderer/hooks/useJob'
@@ -57,7 +60,7 @@ const SourceJobStatus = ({ jobId }: { jobId: string }) => {
   })()
 
   return (
-    <span role="status" className="text-xs text-muted-foreground">
+    <span role="status" className="text-muted-foreground text-xs">
       {statusLabel}
       {stageLabel ? ` · ${t('knowledge.external.sources.job_phase', { phase: stageLabel })}` : null}
     </span>
@@ -69,7 +72,7 @@ const formatTime = (value: string | null, locale: string, fallback: string) =>
 
 const SourceIssues = ({ sourceId }: { sourceId: string }) => {
   const { t } = useTranslation()
-  const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
     '/external-knowledge-sources/:id/documents',
     {
       params: { id: sourceId },
@@ -84,20 +87,23 @@ const SourceIssues = ({ sourceId }: { sourceId: string }) => {
     .filter((item) => item.availability === 'unavailable' || item.currentWarning)
 
   return (
-    <section className="space-y-2 border-border border-t pt-4">
-      <h3 className="font-medium text-sm">{t('knowledge.external.sources.issues')}</h3>
+    <section className="space-y-2 border-t border-border pt-4">
+      <h3 className="text-sm font-medium">{t('knowledge.external.sources.issues')}</h3>
       {isLoading ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
       {error ? (
-        <Button variant="outline" size="sm" onClick={() => void refresh()}>
-          {t('common.retry')}
-        </Button>
+        <div role="alert" className="space-y-2">
+          <p className="text-error text-sm">{t('knowledge.external.sources.issues_error')}</p>
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            {t('common.retry')}
+          </Button>
+        </div>
       ) : null}
-      {!isLoading && !error && issues.length === 0 ? (
+      {!isLoading && !error && !hasNext && issues.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t('knowledge.external.sources.no_issues')}</p>
       ) : null}
       {issues.map((item) => (
         <div key={item.id} className="rounded-md border border-border p-2 text-sm">
-          <p className="font-medium">{item.title}</p>
+          <p className="font-medium wrap-anywhere">{item.title}</p>
           <p className="text-muted-foreground text-xs">
             {item.availability === 'unavailable'
               ? t('knowledge.external.sources.issue_unavailable')
@@ -106,7 +112,7 @@ const SourceIssues = ({ sourceId }: { sourceId: string }) => {
         </div>
       ))}
       {hasNext ? (
-        <Button variant="outline" size="sm" onClick={loadNext}>
+        <Button variant="outline" size="sm" loading={isRefreshing} onClick={loadNext}>
           {t('knowledge.external.sources.load_more_issues')}
         </Button>
       ) : null}
@@ -133,6 +139,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [disconnectId, setDisconnectId] = useState<string | null>(null)
+  const [disconnectMode, setDisconnectMode] = useState<'keep-local' | 'remove-local' | null>(null)
   const [removeConnectionId, setRemoveConnectionId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -150,10 +157,13 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
     }
   }, [])
 
+  const isBusy = Boolean(busyId)
+  const dailyTimeMissing = policy === 'daily' && !dailyTime
   const selected = sources?.find((source) => source.id === selectedId)
   const disconnecting = sources?.find((source) => source.id === disconnectId)
   const connectionById = new Map(connections?.map((connection) => [connection.id, connection]) ?? [])
   const openSource = (source: ExternalKnowledgeSourceListItem) => {
+    if (isBusy) return
     setSelectedId(source.id)
     setName(source.name)
     setPolicy(source.schedule.policy.kind)
@@ -168,6 +178,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
     action: () => Promise<unknown>,
     errorKey: string
   ): Promise<boolean> => {
+    if (isBusy) return false
     setBusyId(sourceId)
     try {
       await action()
@@ -181,7 +192,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
     }
   }
   const saveSettings = async () => {
-    if (!selected) return
+    if (!selected || isBusy || dailyTimeMissing) return
     if (!name.trim()) {
       toast.warning(t('knowledge.external.sources.name_required'))
       return
@@ -206,6 +217,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
         await ipcApi.request('knowledge.external_source.schedule.update', { sourceId: selected.id, policy: nextPolicy })
       }
       void refetch()
+      toast.success(t('common.saved'))
     } catch (cause) {
       toast.error(formatErrorMessageWithPrefix(cause, t('knowledge.external.sources.save_error')))
     } finally {
@@ -213,19 +225,22 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
     }
   }
   const disconnect = async (mode: 'keep-local' | 'remove-local') => {
-    if (!disconnectId) return
+    if (!disconnectId || isBusy) return
     const sourceId = disconnectId
+    setDisconnectMode(mode)
     const didDisconnect = await runSourceAction(
       sourceId,
       () => ipcApi.request('knowledge.external_source.disconnect', { sourceId, mode }),
       'knowledge.external.sources.disconnect_error'
     )
+    setDisconnectMode(null)
     if (didDisconnect) {
-      setDisconnectId(null)
-      setSelectedId(null)
+      setDisconnectId((current) => (current === sourceId ? null : current))
+      setSelectedId((current) => (current === sourceId ? null : current))
     }
   }
   const reconnect = async (connection: ExternalKnowledgeConnectionListItem) => {
+    if (isBusy) return
     setBusyId(connection.id)
     let startedId: string | null = null
     try {
@@ -258,16 +273,18 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
   }
 
   return (
-    <section aria-label={t('knowledge.external.sources.title')} className="shrink-0 border-border border-b px-5 py-4">
+    <section aria-label={t('knowledge.external.sources.title')} className="shrink-0 border-b border-border px-5 py-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-semibold text-sm">{t('knowledge.external.sources.title')}</h2>
+        <h2 className="text-sm font-semibold">{t('knowledge.external.sources.title')}</h2>
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setConnectionsOpen(true)}>
+          <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => setConnectionsOpen(true)}>
             {t('knowledge.external.sources.connections')}
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label={t('common.refresh')} onClick={refresh}>
-            <RefreshCw className="size-3.5" />
-          </Button>
+          <NormalTooltip content={t('common.refresh')}>
+            <Button variant="ghost" size="icon-sm" aria-label={t('common.refresh')} onClick={refresh}>
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </NormalTooltip>
         </div>
       </div>
       {isLoading ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
@@ -292,11 +309,12 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-auto min-w-0 p-0 text-left font-medium hover:underline"
+                    className="h-auto max-w-full min-w-0 justify-start p-0 text-left font-medium hover:underline"
+                    disabled={isBusy}
                     onClick={() => openSource(source)}>
-                    {source.name}
+                    <span className="wrap-anywhere whitespace-normal">{source.name}</span>
                   </Button>
-                  <p className="truncate text-muted-foreground text-xs">
+                  <p className="text-muted-foreground truncate text-xs">
                     {connection?.displayName ??
                       connection?.applicationName ??
                       t('knowledge.external.sources.account_unknown')}
@@ -314,34 +332,42 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('common.refresh')}
-                    disabled={busyId === source.id}
-                    onClick={() =>
-                      void runSourceAction(
-                        source.id,
-                        () => ipcApi.request('knowledge.external_source.sync', { sourceId: source.id }),
-                        'knowledge.external.sources.sync_error'
-                      )
-                    }>
-                    <RefreshCw className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('common.settings')}
-                    onClick={() => openSource(source)}>
-                    <Settings2 className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('knowledge.external.sources.disconnect')}
-                    onClick={() => setDisconnectId(source.id)}>
-                    <Link2Off className="size-3.5" />
-                  </Button>
+                  <NormalTooltip content={t('knowledge.external.sources.sync_now')}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('knowledge.external.sources.sync_now')}
+                      disabled={isBusy}
+                      onClick={() =>
+                        void runSourceAction(
+                          source.id,
+                          () => ipcApi.request('knowledge.external_source.sync', { sourceId: source.id }),
+                          'knowledge.external.sources.sync_error'
+                        )
+                      }>
+                      <RefreshCw className="size-3.5" />
+                    </Button>
+                  </NormalTooltip>
+                  <NormalTooltip content={t('common.settings')}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('common.settings')}
+                      disabled={isBusy}
+                      onClick={() => openSource(source)}>
+                      <Settings2 className="size-3.5" />
+                    </Button>
+                  </NormalTooltip>
+                  <NormalTooltip content={t('knowledge.external.sources.disconnect')}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('knowledge.external.sources.disconnect')}
+                      disabled={isBusy}
+                      onClick={() => setDisconnectId(source.id)}>
+                      <Link2Off className="size-3.5" />
+                    </Button>
+                  </NormalTooltip>
                 </div>
               </div>
               {source.activeJobId ? <SourceJobStatus jobId={source.activeJobId} /> : null}
@@ -370,11 +396,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                 {formatTime(source.schedule.nextRunAt, i18n.language, t('knowledge.external.sources.never'))}
               </p>
               {connection?.authorizationStatus === 'reauthorization-required' ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busyId === connection.id}
-                  onClick={() => void reconnect(connection)}>
+                <Button variant="outline" size="sm" disabled={isBusy} onClick={() => void reconnect(connection)}>
                   {t('knowledge.external.sources.reconnect')}
                 </Button>
               ) : null}
@@ -384,26 +406,32 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
       </div>
       <PageSidePanel
         open={Boolean(selected)}
-        onClose={() => setSelectedId(null)}
-        title={selected?.name ?? ''}
+        onClose={() => !isBusy && setSelectedId(null)}
+        showCloseButton={!isBusy}
+        title={<span className="wrap-anywhere">{selected?.name ?? ''}</span>}
         closeLabel={t('common.close')}>
         {selected ? (
-          <div className="space-y-5 p-4 text-sm">
+          <div className="space-y-5 text-sm">
             <div className="space-y-1">
               <p className="font-medium">{t('knowledge.external.sources.scope')}</p>
-              <p className="text-muted-foreground">
-                {selected.scope.kind} · {selected.spaceId}
+              <p className="text-muted-foreground wrap-anywhere">
+                {selected.scope.kind === 'space'
+                  ? t('knowledge.external.sources.scope_space')
+                  : selected.scope.kind === 'node'
+                    ? t('knowledge.external.sources.scope_node')
+                    : t('knowledge.external.sources.scope_document')}{' '}
+                · {selected.spaceId}
                 {selected.scope.kind !== 'space' ? ` · ${selected.scope.nodeId}` : ''}
               </p>
             </div>
             <div className="space-y-1">
               <p className="font-medium">{t('knowledge.external.sources.account')}</p>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground wrap-anywhere">
                 {connectionById.get(selected.connectionId)?.displayName ??
                   t('knowledge.external.sources.account_unknown')}
               </p>
             </div>
-            <div className="space-y-2 border-border border-t pt-4">
+            <div className="space-y-2 border-t border-border pt-4">
               <h3 className="font-medium">{t('common.settings')}</h3>
               <Label htmlFor="external-source-name">{t('knowledge.external.wizard.name')}</Label>
               <Input
@@ -411,20 +439,21 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={256}
+                disabled={isBusy}
               />
-              <div className="flex gap-2">
-                <Button
-                  variant={policy === 'manual' ? 'default' : 'outline'}
+              <div className="space-y-1.5">
+                <p className="font-medium">{t('knowledge.external.wizard.sync_frequency')}</p>
+                <SegmentedControl<'manual' | 'daily'>
+                  aria-label={t('knowledge.external.wizard.sync_frequency')}
+                  options={[
+                    { value: 'manual', label: t('knowledge.external.wizard.manual') },
+                    { value: 'daily', label: t('knowledge.external.wizard.daily') }
+                  ]}
+                  value={policy}
+                  onValueChange={setPolicy}
+                  disabled={isBusy}
                   size="sm"
-                  onClick={() => setPolicy('manual')}>
-                  {t('knowledge.external.wizard.manual')}
-                </Button>
-                <Button
-                  variant={policy === 'daily' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setPolicy('daily')}>
-                  {t('knowledge.external.wizard.daily')}
-                </Button>
+                />
               </div>
               {policy === 'daily' ? (
                 <>
@@ -432,9 +461,18 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                   <Input
                     id="external-source-time"
                     type="time"
+                    required
+                    disabled={isBusy}
+                    aria-invalid={dailyTimeMissing || undefined}
+                    aria-describedby={dailyTimeMissing ? 'external-source-time-error' : undefined}
                     value={dailyTime}
                     onChange={(event) => setDailyTime(event.target.value)}
                   />
+                  {dailyTimeMissing ? (
+                    <p id="external-source-time-error" role="alert" className="text-error text-xs">
+                      {t('common.required_field')}
+                    </p>
+                  ) : null}
                   <p className="text-muted-foreground text-xs">
                     {t('knowledge.external.wizard.timezone', {
                       timezone:
@@ -445,12 +483,16 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
                   </p>
                 </>
               ) : null}
-              <Button size="sm" disabled={busyId === selected.id} onClick={() => void saveSettings()}>
+              <Button
+                size="sm"
+                loading={busyId === selected.id}
+                disabled={isBusy || !name.trim() || dailyTimeMissing}
+                onClick={() => void saveSettings()}>
                 {t('common.save')}
               </Button>
             </div>
             <SourceIssues sourceId={selected.id} />
-            <Button variant="outline" size="sm" onClick={() => setDisconnectId(selected.id)}>
+            <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setDisconnectId(selected.id)}>
               {t('knowledge.external.sources.disconnect')}
             </Button>
           </div>
@@ -458,22 +500,28 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
       </PageSidePanel>
       <PageSidePanel
         open={connectionsOpen}
-        onClose={() => setConnectionsOpen(false)}
+        onClose={() => !isBusy && setConnectionsOpen(false)}
+        showCloseButton={!isBusy}
         title={t('knowledge.external.sources.connections')}
         closeLabel={t('common.close')}>
-        <div className="space-y-2 p-4">
+        <div className="space-y-2">
           {connectionsLoading ? <p className="text-muted-foreground text-sm">{t('common.loading')}</p> : null}
           {connectionsError ? (
-            <Button variant="outline" size="sm" onClick={() => void refetchConnections()}>
-              {t('common.retry')}
-            </Button>
+            <div role="alert" className="space-y-2">
+              <p className="text-error text-sm">{t('knowledge.external.wizard.connection_error')}</p>
+              <Button variant="outline" size="sm" onClick={() => void refetchConnections()}>
+                {t('common.retry')}
+              </Button>
+            </div>
           ) : null}
           {!connectionsLoading && !connectionsError && connections?.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.no_connections')}</p>
           ) : null}
           {connections?.map((connection) => (
             <div key={connection.id} className="rounded-lg border border-border p-3 text-sm">
-              <p className="font-medium">{connection.displayName ?? connection.applicationName ?? connection.appId}</p>
+              <p className="font-medium wrap-anywhere">
+                {connection.displayName ?? connection.applicationName ?? connection.appId}
+              </p>
               <p className="text-muted-foreground text-xs">
                 {t('knowledge.external.sources.connection_count', { count: connection.sourceCount })} ·{' '}
                 {connection.authorizationStatus === 'connected'
@@ -484,24 +532,20 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
               </p>
               <div className="mt-2 flex gap-2">
                 {connection.authorizationStatus === 'reauthorization-required' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busyId === connection.id}
-                    onClick={() => void reconnect(connection)}>
+                  <Button variant="outline" size="sm" disabled={isBusy} onClick={() => void reconnect(connection)}>
                     {t('knowledge.external.sources.reconnect')}
                   </Button>
                 ) : null}
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={connection.sourceCount > 0 || busyId === connection.id}
+                  disabled={connection.sourceCount > 0 || isBusy}
                   onClick={() => setRemoveConnectionId(connection.id)}>
                   {t('common.delete')}
                 </Button>
               </div>
               {connection.sourceCount > 0 ? (
-                <p className="mt-1 text-muted-foreground text-xs">
+                <p className="text-muted-foreground mt-1 text-xs">
                   {t('knowledge.external.sources.connection_in_use')}
                 </p>
               ) : null}
@@ -509,16 +553,17 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
           ))}
         </div>
       </PageSidePanel>
-      <Dialog open={Boolean(disconnecting)} onOpenChange={(open) => !open && setDisconnectId(null)}>
-        <DialogContent>
+      <Dialog open={Boolean(disconnecting)} onOpenChange={(open) => !open && !isBusy && setDisconnectId(null)}>
+        <DialogContent showCloseButton={!isBusy} closeOnOverlayClick={!isBusy} closeLabel={t('common.close')}>
           <DialogHeader>
             <DialogTitle>{t('knowledge.external.sources.disconnect_title')}</DialogTitle>
+            <DialogDescription>{t('knowledge.external.sources.disconnect_description')}</DialogDescription>
           </DialogHeader>
-          <p className="text-muted-foreground text-sm">{t('knowledge.external.sources.disconnect_description')}</p>
           <div className="space-y-1">
             <Button
               variant="outline"
               className="w-full"
+              loading={disconnectMode === 'keep-local'}
               disabled={Boolean(busyId)}
               onClick={() => void disconnect('keep-local')}>
               {t('knowledge.external.sources.keep_local')}
@@ -529,6 +574,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
             <Button
               variant="destructive"
               className="w-full"
+              loading={disconnectMode === 'remove-local'}
               disabled={Boolean(busyId)}
               onClick={() => void disconnect('remove-local')}>
               {t('knowledge.external.sources.remove_local')}
@@ -536,7 +582,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
             <p className="text-muted-foreground text-xs">{t('knowledge.external.sources.remove_local_hint')}</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDisconnectId(null)}>
+            <Button variant="ghost" disabled={isBusy} onClick={() => setDisconnectId(null)}>
               {t('common.cancel')}
             </Button>
           </DialogFooter>
@@ -544,14 +590,16 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
       </Dialog>
       <ConfirmDialog
         open={Boolean(removeConnectionId)}
-        onOpenChange={(open) => !open && setRemoveConnectionId(null)}
+        onOpenChange={(open) => !open && !isBusy && setRemoveConnectionId(null)}
+        confirmLoading={Boolean(removeConnectionId && busyId === removeConnectionId)}
+        cancelDisabled={isBusy}
         title={t('knowledge.external.sources.remove_connection_title')}
         description={t('knowledge.external.sources.remove_connection_description')}
         confirmText={t('common.delete')}
         cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {
-          if (!removeConnectionId) return
+          if (!removeConnectionId || isBusy) return false
           const id = removeConnectionId
           const didRemove = await runSourceAction(
             id,
@@ -559,6 +607,7 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
             'knowledge.external.sources.remove_connection_error'
           )
           if (didRemove) setRemoveConnectionId(null)
+          return didRemove
         }}
       />
       <Dialog
@@ -572,9 +621,10 @@ const ExternalSourcesSection = ({ baseId }: { baseId: string }) => {
             setAuthSession(null)
           }
         }}>
-        <DialogContent>
+        <DialogContent closeLabel={t('common.close')}>
           <DialogHeader>
             <DialogTitle>{t('knowledge.external.sources.reconnect')}</DialogTitle>
+            <DialogDescription>{t('knowledge.external.wizard.authorization_help')}</DialogDescription>
           </DialogHeader>
           <p className="text-sm">{t('knowledge.external.wizard.verification_code', { code: authSession?.code })}</p>
           <Button variant="outline" onClick={() => authSession && void window.api.shell.openExternal(authSession.uri)}>

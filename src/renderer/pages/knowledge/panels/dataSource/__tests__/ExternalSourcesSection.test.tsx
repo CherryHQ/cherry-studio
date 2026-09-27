@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { ExternalKnowledgeSourceListItem } from '@shared/data/api/schemas/externalKnowledge'
 import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
 
@@ -24,59 +24,15 @@ vi.mock('@renderer/hooks/useJob', () => ({
   useJobProgress: () => ({ progress: 50, detail: { stage: 'reading', currentFile: 1, totalFiles: 3 } })
 }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mockRequest(...args) } }))
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    ...props
-  }: {
-    children: ReactNode
-    variant?: string
-    size?: string
-    [key: string]: unknown
-  }) => {
-    delete props.variant
-    delete props.size
-    return (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    )
-  },
-  Input: (props: Record<string, unknown>) => <input {...props} />,
-  Label: ({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) => (
-    <label htmlFor={htmlFor}>{children}</label>
-  ),
-  PageSidePanel: ({ open, title, children }: { open: boolean; title: string; children: ReactNode }) =>
-    open ? (
-      <aside role="dialog" aria-label={title}>
-        {children}
-      </aside>
-    ) : null,
-  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  ConfirmDialog: ({
-    open,
-    title,
-    confirmText,
-    onConfirm
-  }: {
-    open: boolean
-    title: string
-    confirmText: string
-    onConfirm: () => void
-  }) =>
-    open ? (
-      <div role="dialog">
-        <h2>{title}</h2>
-        <button type="button" onClick={onConfirm}>
-          {confirmText}
-        </button>
-      </div>
-    ) : null
+vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/input')),
+  ...(await import('@cherrystudio/ui/components/primitives/label')),
+  ...(await import('@cherrystudio/ui/components/primitives/tooltip')),
+  ...(await import('@cherrystudio/ui/components/primitives/segmented-control')),
+  ...(await import('@cherrystudio/ui/components/primitives/dialog')),
+  ...(await import('@cherrystudio/ui/components/composites/page-side-panel')),
+  ...(await import('@cherrystudio/ui/components/composites/confirm-dialog'))
 }))
 
 const source = {
@@ -137,9 +93,12 @@ describe('ExternalSourcesSection', () => {
     render(<ExternalSourcesSection baseId="base-1" />)
     await user.click(screen.getByRole('button', { name: 'Team handbook' }))
     const details = screen.getByRole('dialog', { name: 'Team handbook' })
+    await waitFor(() => expect(details).toHaveFocus())
     await user.clear(within(details).getByLabelText('Source name'))
     await user.type(within(details).getByLabelText('Source name'), 'New title')
-    await user.click(within(details).getByRole('button', { name: 'Daily' }))
+    expect(within(details).getByRole('radio', { name: 'Manual' })).toBeChecked()
+    await user.click(within(details).getByRole('radio', { name: 'Daily' }))
+    expect(within(details).getByRole('radio', { name: 'Daily' })).toBeChecked()
     fireEvent.change(within(details).getByLabelText('Daily sync time'), { target: { value: '10:30' } })
     await user.click(within(details).getByRole('button', { name: 'Save' }))
     await waitFor(() =>
@@ -148,6 +107,7 @@ describe('ExternalSourcesSection', () => {
         name: 'New title'
       })
     )
+    expect(toast.success).toHaveBeenCalledWith('Saved')
     expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
       sourceId: 'source-1',
       policy: expect.objectContaining({ kind: 'daily', time: '10:30' })
@@ -232,5 +192,145 @@ describe('ExternalSourcesSection', () => {
       })
     )
     expect(mockOpenExternal).toHaveBeenCalledWith('https://feishu.example/verify')
+  })
+
+  it('blocks all settings writes when the daily time is empty', async () => {
+    const user = userEvent.setup()
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Team handbook' }))
+    const details = screen.getByRole('dialog', { name: 'Team handbook' })
+    await waitFor(() => expect(details).toHaveFocus())
+    expect(details).toHaveTextContent('Node · space-1 · wiki-node')
+    await user.type(within(details).getByLabelText('Source name'), ' edited')
+    await user.click(within(details).getByRole('radio', { name: 'Daily' }))
+    await user.clear(within(details).getByLabelText('Daily sync time'))
+    expect(within(details).getByLabelText('Daily sync time')).toBeInvalid()
+    expect(within(details).getByText('Required field')).toBeInTheDocument()
+    const save = within(details).getByRole('button', { name: 'Save' })
+    expect(save).toBeDisabled()
+    await user.click(save)
+    expect(mockRequest).not.toHaveBeenCalled()
+    await user.click(within(details).getByRole('radio', { name: 'Manual' }))
+    expect(within(details).queryByLabelText('Daily sync time')).not.toBeInTheDocument()
+    expect(save).toBeEnabled()
+  })
+
+  it('keeps settings fixed while saving and confirms completion', async () => {
+    const user = userEvent.setup()
+    let finishSave!: () => void
+    mockRequest.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishSave = resolve
+      })
+    )
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Team handbook' }))
+    const details = screen.getByRole('dialog', { name: 'Team handbook' })
+    await waitFor(() => expect(details).toHaveFocus())
+    await user.clear(within(details).getByLabelText('Source name'))
+    await user.type(within(details).getByLabelText('Source name'), 'Edited title')
+    expect(within(details).getByLabelText('Source name')).toHaveValue('Edited title')
+    await user.click(within(details).getByRole('button', { name: 'Save' }))
+    expect(within(details).getByRole('button', { name: 'Save' })).toHaveAttribute('aria-busy', 'true')
+    expect(within(details).getByLabelText('Source name')).toBeDisabled()
+    expect(within(details).getByRole('radio', { name: 'Daily' })).toBeDisabled()
+    expect(within(details).getByRole('button', { name: 'Disconnect' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(details).toBeInTheDocument()
+    await act(async () => finishSave())
+    expect(toast.success).toHaveBeenCalledWith('Saved')
+    expect(within(details).getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it.each([
+    ['Keep local content', 'Remove local content'],
+    ['Remove local content', 'Keep local content']
+  ])('shows progress only for %s until disconnect finishes', async (choice, otherChoice) => {
+    const user = userEvent.setup()
+    let finishDisconnect!: () => void
+    mockRequest.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishDisconnect = resolve
+      })
+    )
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }))
+    const dialog = screen.getByRole('dialog', { name: 'Disconnect external source?' })
+    const activeButton = within(dialog).getByRole('button', { name: choice })
+    const otherButton = within(dialog).getByRole('button', { name: otherChoice })
+    await user.click(activeButton)
+    expect(activeButton).toHaveAttribute('aria-busy', 'true')
+    expect(activeButton).toBeDisabled()
+    expect(otherButton).not.toHaveAttribute('aria-busy', 'true')
+    expect(otherButton).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeInTheDocument()
+    await act(async () => finishDisconnect())
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('clears disconnect progress after failure and allows retrying the other choice', async () => {
+    const user = userEvent.setup()
+    let failDisconnect!: (reason: Error) => void
+    mockRequest.mockReturnValueOnce(
+      new Promise<void>((_resolve, reject) => {
+        failDisconnect = reject
+      })
+    )
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }))
+    const dialog = screen.getByRole('dialog', { name: 'Disconnect external source?' })
+    const keep = within(dialog).getByRole('button', { name: 'Keep local content' })
+    const remove = within(dialog).getByRole('button', { name: 'Remove local content' })
+    await user.click(keep)
+    expect(keep).toHaveAttribute('aria-busy', 'true')
+    await act(async () => failDisconnect(new Error('Service unavailable')))
+    expect(dialog).toBeInTheDocument()
+    expect(keep).not.toHaveAttribute('aria-busy', 'true')
+    expect(keep).toBeEnabled()
+    expect(remove).toBeEnabled()
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Could not disconnect this source.'))
+    await user.click(remove)
+    expect(mockRequest).toHaveBeenLastCalledWith('knowledge.external_source.disconnect', {
+      sourceId: 'source-1',
+      mode: 'remove-local'
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('keeps pagination busy without claiming unseen document pages have no notices', async () => {
+    const user = userEvent.setup()
+    mockDocuments.mockReturnValue({
+      pages: [{ items: [] }],
+      isLoading: false,
+      isRefreshing: true,
+      hasNext: true,
+      loadNext: vi.fn()
+    })
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Team handbook' }))
+    expect(screen.queryByText('No source notices.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more notices' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Load more notices' })).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('keeps connection removal open after failure so the user can retry', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data: path === '/external-knowledge-connections' ? [{ ...connection, sourceCount: 0 }] : [source],
+      refetch: vi.fn()
+    }))
+    mockRequest.mockRejectedValue(new Error('Connection is unavailable'))
+    render(<ExternalSourcesSection baseId="base-1" />)
+    await user.click(screen.getByRole('button', { name: 'Connections' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Connections' })).getByRole('button', { name: 'Delete' })
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Remove connection?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeEnabled()
   })
 })

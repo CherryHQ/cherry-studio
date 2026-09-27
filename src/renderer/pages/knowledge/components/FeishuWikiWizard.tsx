@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label
+  Label,
+  SegmentedControl
 } from '@cherrystudio/ui'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -75,6 +77,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const closed = useRef(false)
   const spacesRequestVersion = useRef(0)
   const loadedSpacesConnectionId = useRef<string | null>(null)
+  const isCreating = busy && step === 3
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
   const selectConnection = (connectionId: string) => {
@@ -87,6 +90,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     setSpacesLoading(false)
     setSpacesError(null)
     setPreview(null)
+    setError(null)
   }
 
   const loadSpaces = useCallback(async (connectionId: string, pageToken?: string) => {
@@ -306,7 +310,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   }
 
   const createSource = async () => {
-    if (!selectedConnectionId || !preview || !name.trim()) return
+    if (busy || !selectedConnectionId || !preview || !name.trim() || (policy === 'daily' && !dailyTime)) return
     setBusy(true)
     setError(null)
     try {
@@ -317,8 +321,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         name: name.trim()
       })
       if (closed.current) return
-      close()
-      void invalidate('/knowledge-bases/:id/external-knowledge-sources')
       if (policy === 'daily') {
         try {
           await ipcApi.request('knowledge.external_source.schedule.update', {
@@ -329,6 +331,8 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           toast.error(t('knowledge.external.wizard.daily_warning'))
         }
       }
+      void invalidate('/knowledge-bases/:id/external-knowledge-sources')
+      close()
     } catch (cause) {
       if (!closed.current) {
         setError(formatErrorMessageWithPrefix(cause, t('knowledge.external.wizard.create_error')))
@@ -338,320 +342,360 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && close()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !isCreating && close()}>
+      <DialogContent
+        closeLabel={t('common.close')}
+        closeOnOverlayClick={false}
+        showCloseButton={!isCreating}
+        aria-describedby={undefined}
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{t('knowledge.external.wizard.title')}</DialogTitle>
         </DialogHeader>
-        <div className="flex gap-3 text-xs text-muted-foreground" aria-label={t('knowledge.external.wizard.title')}>
-          <span aria-current={step === 1 ? 'step' : undefined}>{t('knowledge.external.wizard.step_account')}</span>
-          <span aria-current={step === 2 ? 'step' : undefined}>{t('knowledge.external.wizard.step_scope')}</span>
-          <span aria-current={step === 3 ? 'step' : undefined}>{t('knowledge.external.wizard.step_preview')}</span>
+        <div
+          className="text-muted-foreground flex shrink-0 flex-wrap gap-3 text-xs"
+          aria-label={t('knowledge.external.wizard.title')}>
+          <span
+            className="aria-[current=step]:font-medium aria-[current=step]:text-foreground"
+            aria-current={step === 1 ? 'step' : undefined}>
+            {t('knowledge.external.wizard.step_account')}
+          </span>
+          <span
+            className="aria-[current=step]:font-medium aria-[current=step]:text-foreground"
+            aria-current={step === 2 ? 'step' : undefined}>
+            {t('knowledge.external.wizard.step_scope')}
+          </span>
+          <span
+            className="aria-[current=step]:font-medium aria-[current=step]:text-foreground"
+            aria-current={step === 3 ? 'step' : undefined}>
+            {t('knowledge.external.wizard.step_preview')}
+          </span>
         </div>
 
-        {step === 1 ? (
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">{t('knowledge.external.wizard.choose_connection')}</p>
-            {isLoadingConnections ? <p role="status">{t('common.loading')}</p> : null}
-            {connectionsError ? (
-              <div role="alert" className="space-y-2 text-sm text-error-subtle-foreground">
-                <p>{t('knowledge.external.wizard.connection_error')}</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-                  {t('knowledge.external.wizard.retry_connections')}
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+          {step === 1 ? (
+            <div className="space-y-4 py-2">
+              <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.choose_connection')}</p>
+              {isLoadingConnections ? <p role="status">{t('common.loading')}</p> : null}
+              {connectionsError ? (
+                <div role="alert" className="text-error-subtle-foreground space-y-2 text-sm">
+                  <p>{t('knowledge.external.wizard.connection_error')}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                    {t('knowledge.external.wizard.retry_connections')}
+                  </Button>
+                </div>
+              ) : null}
+              {!isLoadingConnections && !connectionsError && connections?.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.no_connections')}</p>
+              ) : null}
+              {!connectionsError &&
+                connections?.map((connection) => {
+                  const label = connection.displayName || connection.applicationName || connection.appId
+                  return connection.authorizationStatus === 'connected' ? (
+                    <Button
+                      key={connection.id}
+                      type="button"
+                      variant="outline"
+                      aria-pressed={selectedConnectionId === connection.id}
+                      disabled={busy}
+                      className="aria-pressed:border-selected h-auto w-full justify-start gap-2 py-2 text-left whitespace-normal aria-pressed:bg-accent"
+                      onClick={() => selectConnection(connection.id)}>
+                      <span className="min-w-0 flex-1 break-words">{label}</span>
+                      {selectedConnectionId === connection.id ? <Check className="size-4" aria-hidden="true" /> : null}
+                    </Button>
+                  ) : connection.authorizationStatus === 'reauthorization-required' ? (
+                    <Button
+                      key={connection.id}
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      className="h-auto w-full justify-start py-2 text-left break-words whitespace-normal"
+                      onClick={() => void reconnect(connection.id)}>
+                      {t('knowledge.external.wizard.reauthorize', { name: label })}
+                    </Button>
+                  ) : null
+                })}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" disabled={busy} onClick={() => void connectPersonalApp()}>
+                  {t('knowledge.external.wizard.connect_personal')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  aria-expanded={customApp}
+                  aria-controls="feishu-custom-app"
+                  onClick={() => setCustomApp(!customApp)}>
+                  {t('knowledge.external.wizard.connect_custom')}
                 </Button>
               </div>
-            ) : null}
-            {!isLoadingConnections && !connectionsError && connections?.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('knowledge.external.wizard.no_connections')}</p>
-            ) : null}
-            {!connectionsError &&
-              connections?.map((connection) => {
-                const label = connection.displayName || connection.applicationName || connection.appId
-                return connection.authorizationStatus === 'connected' ? (
-                  <Button
-                    key={connection.id}
-                    type="button"
-                    variant="outline"
-                    aria-pressed={selectedConnectionId === connection.id}
-                    disabled={busy}
-                    className="w-full justify-start"
-                    onClick={() => selectConnection(connection.id)}>
-                    {label}
-                  </Button>
-                ) : connection.authorizationStatus === 'reauthorization-required' ? (
-                  <Button
-                    key={connection.id}
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    className="w-full justify-start"
-                    onClick={() => void reconnect(connection.id)}>
-                    {t('knowledge.external.wizard.reauthorize', { name: label })}
-                  </Button>
-                ) : null
-              })}
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void connectPersonalApp()}>
-                {t('knowledge.external.wizard.connect_personal')}
-              </Button>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setCustomApp(true)}>
-                {t('knowledge.external.wizard.connect_custom')}
-              </Button>
-            </div>
-            {customApp ? (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor="feishu-app-id">{t('knowledge.external.wizard.custom_app_id')}</Label>
-                  <Input id="feishu-app-id" value={appId} onChange={(event) => setAppId(event.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="feishu-app-secret">{t('knowledge.external.wizard.custom_app_secret')}</Label>
-                  <Input
-                    id="feishu-app-secret"
-                    type="password"
-                    value={appSecret}
-                    onChange={(event) => setAppSecret(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="feishu-space-discovery"
-                      checked={includeSpaceDiscovery}
-                      onCheckedChange={(checked) => setIncludeSpaceDiscovery(checked === true)}
+              {customApp ? (
+                <div id="feishu-custom-app" className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="feishu-app-id">{t('knowledge.external.wizard.custom_app_id')}</Label>
+                    <Input
+                      id="feishu-app-id"
+                      disabled={busy}
+                      value={appId}
+                      onChange={(event) => setAppId(event.target.value)}
                     />
-                    <Label htmlFor="feishu-space-discovery">{t('knowledge.external.wizard.space_discovery')}</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground">{t('knowledge.external.wizard.space_discovery_help')}</p>
+                  <div className="space-y-1">
+                    <Label htmlFor="feishu-app-secret">{t('knowledge.external.wizard.custom_app_secret')}</Label>
+                    <Input
+                      id="feishu-app-secret"
+                      disabled={busy}
+                      type="password"
+                      value={appSecret}
+                      onChange={(event) => setAppSecret(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="feishu-space-discovery"
+                        disabled={busy}
+                        checked={includeSpaceDiscovery}
+                        onCheckedChange={(checked) => setIncludeSpaceDiscovery(checked === true)}
+                      />
+                      <Label htmlFor="feishu-space-discovery">{t('knowledge.external.wizard.space_discovery')}</Label>
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      {t('knowledge.external.wizard.space_discovery_help')}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={busy || !appId.trim() || !appSecret}
+                    onClick={() => void connectCustomApp()}>
+                    {t('knowledge.external.wizard.connect')}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  disabled={busy || !appId.trim() || !appSecret}
-                  onClick={() => void connectCustomApp()}>
-                  {t('knowledge.external.wizard.connect')}
-                </Button>
-              </div>
-            ) : null}
-            {registrationUri ? (
-              <div role="status" className="space-y-2 text-sm">
-                <p>{t('knowledge.external.wizard.registration_wait')}</p>
-                <p>{t('knowledge.external.wizard.registration_help')}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void window.api.shell.openExternal(registrationUri)}>
-                  {t('knowledge.external.wizard.open_feishu')}
-                </Button>
-              </div>
-            ) : null}
-            {authorization ? (
-              <div role="status" className="space-y-2 text-sm">
-                <p>{t('knowledge.external.wizard.authorizing')}</p>
-                <p>{t('knowledge.external.wizard.verification_code', { code: authorization.userCode })}</p>
-                <p>{t('knowledge.external.wizard.authorization_help')}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void window.api.shell.openExternal(authorization.verificationUri)}>
-                  {t('knowledge.external.wizard.open_feishu')}
-                </Button>
-              </div>
-            ) : null}
-            {busy && !registrationUri && !authorization ? (
-              <p role="status">{t('knowledge.external.wizard.connecting')}</p>
-            ) : null}
-          </div>
-        ) : step === 2 ? (
-          <div className="space-y-3 py-2">
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={scopeMode === 'space'}
+              ) : null}
+            </div>
+          ) : step === 2 ? (
+            <div className="space-y-3 py-2">
+              <SegmentedControl<'space' | 'url'>
+                aria-label={t('knowledge.external.wizard.scope')}
+                value={scopeMode}
                 disabled={busy}
-                onClick={() => {
-                  setScopeMode('space')
-                  setPreview(null)
-                  setError(null)
-                }}>
-                {t('knowledge.external.wizard.choose_space')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={scopeMode === 'url'}
-                disabled={busy}
-                onClick={() => {
-                  setScopeMode('url')
+                options={[
+                  { value: 'space', label: t('knowledge.external.wizard.choose_space') },
+                  { value: 'url', label: t('knowledge.external.wizard.paste_link') }
+                ]}
+                onValueChange={(value) => {
+                  setScopeMode(value)
                   setSpacesLoading(false)
                   setPreview(null)
                   setError(null)
-                }}>
-                {t('knowledge.external.wizard.paste_link')}
-              </Button>
-            </div>
-            {scopeMode === 'space' ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">{t('knowledge.external.wizard.available_spaces')}</p>
-                {spacesLoading && spaces.length === 0 ? <p role="status">{t('common.loading')}</p> : null}
-                {spacesError ? (
-                  <div role="alert" className="space-y-2 text-sm text-error-subtle-foreground">
-                    <p>
-                      {t(
-                        spacesError === 'permission'
-                          ? 'knowledge.external.wizard.spaces_permission_error'
-                          : 'knowledge.external.wizard.spaces_error'
-                      )}
-                    </p>
+                }}
+              />
+              {scopeMode === 'space' ? (
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.available_spaces')}</p>
+                  {spacesLoading && spaces.length === 0 ? <p role="status">{t('common.loading')}</p> : null}
+                  {spacesError ? (
+                    <div role="alert" className="text-error-subtle-foreground space-y-2 text-sm">
+                      <p>
+                        {t(
+                          spacesError === 'permission'
+                            ? 'knowledge.external.wizard.spaces_permission_error'
+                            : 'knowledge.external.wizard.spaces_error'
+                        )}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || spacesLoading}
+                        onClick={() => selectedConnectionId && void loadSpaces(selectedConnectionId, nextPageToken)}>
+                        {t('knowledge.external.wizard.retry_spaces')}
+                      </Button>
+                      {spacesError === 'permission' && selectedConnectionId ? (
+                        <div className="space-y-2">
+                          <p>{t('knowledge.external.wizard.spaces_reconnect_help')}</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void reconnect(selectedConnectionId, true)}>
+                            {t('knowledge.external.wizard.authorize_spaces')}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {!spacesLoading && !spacesError && spaces.length === 0 && !nextPageToken ? (
+                    <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.no_spaces')}</p>
+                  ) : null}
+                  <div
+                    role="group"
+                    aria-label={t('knowledge.external.wizard.available_spaces')}
+                    className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {spaces.map((space) => (
+                      <Button
+                        key={space.spaceId}
+                        type="button"
+                        variant="outline"
+                        aria-pressed={selectedSpaceId === space.spaceId}
+                        disabled={busy}
+                        className="aria-pressed:border-selected h-auto w-full items-start gap-2 py-2 text-left whitespace-normal aria-pressed:bg-accent"
+                        onClick={() => {
+                          setSelectedSpaceId(space.spaceId)
+                          setPreview(null)
+                          setError(null)
+                        }}>
+                        <span className="min-w-0 flex-1 space-y-1 break-words">
+                          <span className="block">{space.name}</span>
+                          {space.description ? (
+                            <span className="text-muted-foreground block text-xs">{space.description}</span>
+                          ) : null}
+                        </span>
+                        {selectedSpaceId === space.spaceId ? <Check className="size-4" aria-hidden="true" /> : null}
+                      </Button>
+                    ))}
+                  </div>
+                  {nextPageToken && !spacesError ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={spacesLoading}
+                      disabled={busy || spacesLoading}
                       onClick={() => selectedConnectionId && void loadSpaces(selectedConnectionId, nextPageToken)}>
-                      {t('knowledge.external.wizard.retry_spaces')}
+                      {spacesLoading ? t('common.loading') : t('knowledge.external.wizard.load_more_spaces')}
                     </Button>
-                    {spacesError === 'permission' && selectedConnectionId ? (
-                      <div className="space-y-2">
-                        <p>{t('knowledge.external.wizard.spaces_reconnect_help')}</p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void reconnect(selectedConnectionId, true)}>
-                          {t('knowledge.external.wizard.authorize_spaces')}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {!spacesLoading && !spacesError && spaces.length === 0 && !nextPageToken ? (
-                  <p className="text-sm text-muted-foreground">{t('knowledge.external.wizard.no_spaces')}</p>
-                ) : null}
-                <div
-                  role="group"
-                  aria-label={t('knowledge.external.wizard.available_spaces')}
-                  className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                  {spaces.map((space) => (
-                    <Button
-                      key={space.spaceId}
-                      type="button"
-                      variant="outline"
-                      aria-pressed={selectedSpaceId === space.spaceId}
-                      disabled={busy}
-                      className="h-auto w-full flex-col items-start whitespace-normal text-left"
-                      onClick={() => {
-                        setSelectedSpaceId(space.spaceId)
-                        setPreview(null)
-                        setError(null)
-                      }}>
-                      <span>{space.name}</span>
-                      {space.description ? (
-                        <span className="text-xs text-muted-foreground">{space.description}</span>
-                      ) : null}
-                    </Button>
-                  ))}
+                  ) : null}
                 </div>
-                {nextPageToken && !spacesError ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={spacesLoading}
-                    onClick={() => selectedConnectionId && void loadSpaces(selectedConnectionId, nextPageToken)}>
-                    {spacesLoading ? t('common.loading') : t('knowledge.external.wizard.load_more_spaces')}
-                  </Button>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="feishu-wiki-url">{t('knowledge.external.wizard.url')}</Label>
+                  <Input
+                    id="feishu-wiki-url"
+                    type="url"
+                    value={url}
+                    placeholder={t('knowledge.external.wizard.url_placeholder')}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setUrl(event.target.value)
+                      setPreview(null)
+                      setError(null)
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1 text-sm break-words">
+                <p className="font-medium">{t('knowledge.external.wizard.scope')}</p>
+                <p>{preview?.kind === 'space' ? preview.data.space.name : preview?.data.resolution.selected.title}</p>
+                {preview?.kind === 'url' ? (
+                  <>
+                    <p className="text-muted-foreground">{preview.data.resolution.account.displayName}</p>
+                    <p className="text-muted-foreground">{url}</p>
+                  </>
                 ) : null}
               </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="feishu-wiki-url">{t('knowledge.external.wizard.url')}</Label>
-                <Input
-                  id="feishu-wiki-url"
-                  type="url"
-                  value={url}
-                  placeholder={t('knowledge.external.wizard.url_placeholder')}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setUrl(event.target.value)
-                    setPreview(null)
-                    setError(null)
-                  }}
-                />
+              <div className="text-muted-foreground space-y-1 text-sm">
+                <p>{t('knowledge.external.wizard.preview_visible', { count: preview?.data.visibleNodeCount })}</p>
+                <p>{t('knowledge.external.wizard.preview_supported', { count: preview?.data.supportedDocxCount })}</p>
+                <p>
+                  {t('knowledge.external.wizard.preview_unsupported', {
+                    count: preview?.data.unsupportedOrSkippedCount
+                  })}
+                </p>
+                <p>{t('knowledge.external.wizard.preview_exact_cost')}</p>
+                {preview?.data.warnings.includes('no-supported-documents') ? (
+                  <p role="status">{t('knowledge.external.wizard.preview_no_supported')}</p>
+                ) : null}
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4 py-2">
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">{t('knowledge.external.wizard.scope')}</p>
-              <p>{preview?.kind === 'space' ? preview.data.space.name : preview?.data.resolution.selected.title}</p>
-              {preview?.kind === 'url' ? (
-                <>
-                  <p className="text-muted-foreground">{preview.data.resolution.account.displayName}</p>
-                  <p className="text-muted-foreground">{url}</p>
-                </>
-              ) : null}
-            </div>
-            <div className="space-y-1 text-sm text-muted-foreground">
-              <p>{t('knowledge.external.wizard.preview_visible', { count: preview?.data.visibleNodeCount })}</p>
-              <p>{t('knowledge.external.wizard.preview_supported', { count: preview?.data.supportedDocxCount })}</p>
-              <p>
-                {t('knowledge.external.wizard.preview_unsupported', { count: preview?.data.unsupportedOrSkippedCount })}
-              </p>
-              <p>{t('knowledge.external.wizard.preview_exact_cost')}</p>
-              {preview?.data.warnings.includes('no-supported-documents') ? (
-                <p role="status">{t('knowledge.external.wizard.preview_no_supported')}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="feishu-source-name">{t('knowledge.external.wizard.name')}</Label>
-              <Input
-                id="feishu-source-name"
-                value={name}
-                maxLength={256}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={policy === 'manual'}
-                onClick={() => setPolicy('manual')}>
-                {t('knowledge.external.wizard.manual')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={policy === 'daily'}
-                onClick={() => setPolicy('daily')}>
-                {t('knowledge.external.wizard.daily')}
-              </Button>
-            </div>
-            {policy === 'daily' ? (
               <div className="space-y-1">
-                <Label htmlFor="feishu-daily-time">{t('knowledge.external.wizard.daily_time')}</Label>
+                <Label htmlFor="feishu-source-name">{t('knowledge.external.wizard.name')}</Label>
                 <Input
-                  id="feishu-daily-time"
-                  type="time"
-                  value={dailyTime}
-                  onChange={(event) => setDailyTime(event.target.value)}
+                  id="feishu-source-name"
+                  disabled={busy}
+                  value={name}
+                  maxLength={256}
+                  onChange={(event) => setName(event.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">{t('knowledge.external.wizard.timezone', { timezone })}</p>
               </div>
-            ) : null}
-          </div>
-        )}
+              <div className="space-y-1.5">
+                <Label id="feishu-sync-frequency">{t('knowledge.external.wizard.sync_frequency')}</Label>
+                <SegmentedControl<'manual' | 'daily'>
+                  aria-labelledby="feishu-sync-frequency"
+                  value={policy}
+                  disabled={busy}
+                  options={[
+                    { value: 'manual', label: t('knowledge.external.wizard.manual') },
+                    { value: 'daily', label: t('knowledge.external.wizard.daily') }
+                  ]}
+                  onValueChange={setPolicy}
+                />
+              </div>
+              {policy === 'daily' ? (
+                <div className="space-y-1">
+                  <Label htmlFor="feishu-daily-time">{t('knowledge.external.wizard.daily_time')}</Label>
+                  <Input
+                    id="feishu-daily-time"
+                    disabled={busy}
+                    required
+                    aria-invalid={!dailyTime}
+                    aria-describedby={!dailyTime ? 'feishu-daily-time-error' : undefined}
+                    type="time"
+                    value={dailyTime}
+                    onChange={(event) => setDailyTime(event.target.value)}
+                  />
+                  {!dailyTime ? (
+                    <p id="feishu-daily-time-error" role="alert" className="text-error-subtle-foreground text-xs">
+                      {t('common.required_field')}
+                    </p>
+                  ) : null}
+                  <p className="text-muted-foreground text-xs">
+                    {t('knowledge.external.wizard.timezone', { timezone })}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          )}
 
-        {error ? (
-          <p role="alert" className="text-sm text-error-subtle-foreground">
-            {error}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={close}>
+          {registrationUri ? (
+            <div role="status" className="space-y-2 text-sm">
+              <p>{t('knowledge.external.wizard.registration_wait')}</p>
+              <p>{t('knowledge.external.wizard.registration_help')}</p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void window.api.shell.openExternal(registrationUri)}>
+                {t('knowledge.external.wizard.open_feishu')}
+              </Button>
+            </div>
+          ) : null}
+          {authorization ? (
+            <div role="status" className="space-y-2 text-sm">
+              <p>{t('knowledge.external.wizard.authorizing')}</p>
+              <p>{t('knowledge.external.wizard.verification_code', { code: authorization.userCode })}</p>
+              <p>{t('knowledge.external.wizard.authorization_help')}</p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void window.api.shell.openExternal(authorization.verificationUri)}>
+                {t('knowledge.external.wizard.open_feishu')}
+              </Button>
+            </div>
+          ) : null}
+          {busy && step === 1 && !registrationUri && !authorization ? (
+            <p role="status">{t('knowledge.external.wizard.connecting')}</p>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="text-error-subtle-foreground text-sm">
+              {error}
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter className="shrink-0">
+          <Button type="button" variant="outline" disabled={isCreating} onClick={close}>
             {t('common.cancel')}
           </Button>
           {step > 1 ? (
@@ -674,6 +718,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           ) : step === 2 ? (
             <Button
               type="button"
+              loading={busy}
               disabled={busy || (scopeMode === 'space' ? spacesLoading || !selectedSpaceId : !url.trim())}
               onClick={() => void previewScope()}>
               {t('common.next')}
@@ -681,6 +726,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           ) : (
             <Button
               type="button"
+              loading={busy}
               disabled={busy || !name.trim() || (policy === 'daily' && !dailyTime)}
               onClick={() => void createSource()}>
               {t('knowledge.external.wizard.create')}

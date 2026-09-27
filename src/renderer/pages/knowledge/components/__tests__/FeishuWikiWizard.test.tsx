@@ -14,6 +14,15 @@ const mockInvalidate = vi.fn(async () => undefined)
 const mockQuery = vi.fn()
 const mockOpenExternal = vi.fn(async () => undefined)
 
+vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/checkbox')),
+  ...(await import('@cherrystudio/ui/components/primitives/dialog')),
+  ...(await import('@cherrystudio/ui/components/primitives/input')),
+  ...(await import('@cherrystudio/ui/components/primitives/label')),
+  ...(await import('@cherrystudio/ui/components/primitives/segmented-control'))
+}))
+
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mockRequest(...args) } }))
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: () => mockQuery(),
@@ -52,7 +61,7 @@ const spacePreview = {
 async function reachReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Alice' }))
   await user.click(screen.getByRole('button', { name: 'Next' }))
-  await user.click(screen.getByRole('button', { name: 'Paste a link' }))
+  await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
   await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
   await user.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByRole('heading', { name: 'Add Feishu Wiki' })
@@ -116,7 +125,7 @@ describe('FeishuWikiWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Alice' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('button', { name: 'Paste a link' }))
+    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
     await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
@@ -139,7 +148,7 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
 
     await reachReview(user)
-    await user.click(screen.getByRole('button', { name: 'Daily' }))
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
     await user.clear(screen.getByLabelText('Daily sync time'))
     await user.type(screen.getByLabelText('Daily sync time'), '10:30')
     await user.click(screen.getByRole('button', { name: 'Create source' }))
@@ -151,6 +160,68 @@ describe('FeishuWikiWizard', () => {
       policy: expect.objectContaining({ kind: 'daily', time: '10:30' })
     })
     expect(mockRequest.mock.calls.filter(([route]) => route === 'knowledge.external_source.create')).toHaveLength(1)
+  })
+
+  it('shows the selected frequency, validates daily time, and preserves it when toggling', async () => {
+    const user = userEvent.setup()
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+    const time = screen.getByLabelText('Daily sync time')
+    await user.clear(time)
+    expect(screen.getByRole('button', { name: 'Create source' })).toBeDisabled()
+    expect(time).toBeInvalid()
+    await user.type(time, '10:30')
+    await user.click(screen.getByRole('radio', { name: 'Manual' }))
+    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    expect(screen.getByLabelText('Daily sync time')).toHaveValue('10:30')
+    expect(screen.getByRole('button', { name: 'Create source' })).toBeEnabled()
+  })
+
+  it('keeps submitted settings and the wizard stable until creation and scheduling finish', async () => {
+    const user = userEvent.setup()
+    let finishCreate!: (source: typeof createdSource) => void
+    let finishSchedule!: () => void
+    const onOpenChange = vi.fn()
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.scope.preview') return preview
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'knowledge.external_source.create')
+        return new Promise((resolve) => {
+          finishCreate = resolve
+        })
+      if (route === 'knowledge.external_source.schedule.update')
+        return new Promise<void>((resolve) => {
+          finishSchedule = resolve
+        })
+      return undefined
+    })
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
+    await reachReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    await user.click(screen.getByRole('button', { name: 'Create source' }))
+
+    expect(screen.getByRole('textbox', { name: 'Source name' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
+    expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Create source' })).toHaveAttribute('aria-busy', 'true')
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await act(async () => finishCreate(createdSource))
+    await waitFor(() =>
+      expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
+        sourceId: createdSource.id,
+        policy: expect.objectContaining({ kind: 'daily', time: '09:00' })
+      })
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await act(async () => finishSchedule())
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it('shows connection loading and recovery before account selection', async () => {
@@ -331,7 +402,7 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Alice' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('wiki:space:retrieve')
-    await user.click(screen.getByRole('button', { name: 'Paste a link' }))
+    await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
     await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
@@ -341,6 +412,7 @@ describe('FeishuWikiWizard', () => {
   it('reauthorizes space discovery only after the user requests it and reloads spaces', async () => {
     const user = userEvent.setup()
     let listAttempts = 0
+    let finishAuthorization!: (value: typeof connection) => void
     mockRequest.mockImplementation(async (route: string) => {
       if (route === 'knowledge.feishu.spaces.list' && listAttempts++ === 0) {
         throw new IpcError(knowledgeErrorCodes.FEISHU_SCOPE_MISSING, 'Permission missing')
@@ -353,7 +425,11 @@ describe('FeishuWikiWizard', () => {
           verificationUri: 'https://accounts.feishu.cn/verify'
         }
       }
-      if (route === 'knowledge.feishu.authorization.complete') return connection
+      if (route === 'knowledge.feishu.authorization.complete') {
+        return new Promise((resolve) => {
+          finishAuthorization = resolve
+        })
+      }
       return undefined
     })
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
@@ -365,6 +441,10 @@ describe('FeishuWikiWizard', () => {
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.connection.reconnect', expect.anything())
     await user.click(screen.getByRole('button', { name: 'Authorize space listing' }))
 
+    expect(await screen.findByText('Verification code: ABCD-EFGH')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open Feishu' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for Feishu authorization')
+    await act(async () => finishAuthorization(connection))
     expect(await screen.findByRole('button', { name: /Project Wiki/ })).toBeInTheDocument()
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.connection.reconnect', {
       connectionId: connection.id,
