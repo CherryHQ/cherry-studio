@@ -528,9 +528,7 @@ describe('Browser preferences', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
     )
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeEnabled()
-    )
+    await waitFor(() => expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeEnabled())
     view.unmount()
     renderSettings()
     expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeChecked()
