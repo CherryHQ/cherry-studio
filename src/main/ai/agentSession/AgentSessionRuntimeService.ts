@@ -1077,7 +1077,13 @@ export class AgentSessionRuntimeService extends BaseService {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     } else {
       this.refreshIdleTimer(entry)
-      if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
+      if (!this.isSessionBusy(entry.sessionId)) {
+        // The drain edge can land while this very turn is still settling and get swallowed by the
+        // busy guard; that turn is then the last event, so the held-stream release retries here
+        // (a no-op once the wake has already settled the stream).
+        this.releaseDrainedTopicStream(entry)
+        this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
+      }
     }
   }
 

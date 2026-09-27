@@ -877,6 +877,25 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('releases the held topic stream once the settling turn that swallowed the drain edge terminates', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      // The drain edge landed inside the settling turn and was swallowed by the busy guard.
+      expect(mocks.finalizeHeldTopicStream).not.toHaveBeenCalled()
+
+      service.markTurnTerminal('session-1', 'success')
+      // A stopped/killed task leaves no wake, so this settle is the last event the hold can wait
+      // for; skipping the retry here would strand the held stream forever.
+      expect(mocks.finalizeHeldTopicStream).toHaveBeenCalledWith('agent-session:session-1', baseTurnInput.modelId)
+      void service.closeSession('session-1')
+    })
+
     // A follow-up that lands after the spawning turn settled is not queued — it reuses the entry
     // directly, skipping `startNextTurn`. It still owes the model the same "work is already running"
     // reminder, or the model re-launches what the previous turn started.
