@@ -30,6 +30,8 @@ import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
+// Match fileProcessor's provider-dispatch check before creating a data URL.
+const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
 
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
@@ -79,6 +81,7 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   if (!source || typeof source !== 'object') return undefined
   if (source.type === 'base64') {
     if (typeof source.data !== 'string' || !source.data.trim()) return undefined
+    if (typeof source.media_type !== 'string' || !PROPER_MEDIA_TYPE_RE.test(source.media_type)) return undefined
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
   if (source.type === 'url') {

@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { ImageBlockParam, MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +30,14 @@ const malformedImageBlocks = [
   { name: 'missing url', block: { type: 'image', source: { type: 'url' } } },
   { name: 'null url', block: { type: 'image', source: { type: 'url', url: null } } },
   { name: 'numeric url', block: { type: 'image', source: { type: 'url', url: 42 } } }
+]
+
+const malformedMediaTypes = [
+  { name: 'missing media_type', field: {} },
+  { name: 'null media_type', field: { media_type: null } },
+  { name: 'numeric media_type', field: { media_type: 42 } },
+  { name: 'blank media_type', field: { media_type: '  ' } },
+  { name: 'bare media_type', field: { media_type: 'png' } }
 ]
 
 describe('AnthropicMessageConverter.toUIMessages', () => {
@@ -149,6 +157,31 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
+  it('preserves a well-formed non-image base64 media type', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/octet-stream',
+                  data: 'AAAA'
+                } as unknown as ImageBlockParam['source']
+              }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'file', mediaType: 'application/octet-stream', url: 'data:application/octet-stream;base64,AAAA' }
+    ])
+  })
+
   it('preserves a valid https image source', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -198,6 +231,24 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   it.each(malformedImageBlocks)('omits a top-level image with $name', ({ block }) => {
     const msgs = converter.toUIMessages(
       params({ messages: [{ role: 'user', content: [block] }] as MessageCreateParams['messages'] })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
+  it.each(malformedMediaTypes)('omits a top-level base64 image with $name', ({ field }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', data: 'AAAA', ...field } as ImageBlockParam['source'] }
+            ]
+          }
+        ]
+      })
     )
     expect(msgs[0].parts).toEqual([
       { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
@@ -353,6 +404,32 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
           { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
           { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [block] }] }
         ] as MessageCreateParams['messages']
+      })
+    )
+    const note =
+      '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+    expect((msgs[0].parts[0] as { output: string }).output).toBe(note)
+    expect(msgs[1].parts).toEqual([{ type: 'text', text: note }])
+  })
+
+  it.each(malformedMediaTypes)('omits a tool_result base64 image with $name', ({ field }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'image', source: { type: 'base64', data: 'AAAA', ...field } as ImageBlockParam['source'] }
+                ]
+              }
+            ]
+          }
+        ]
       })
     )
     const note =
