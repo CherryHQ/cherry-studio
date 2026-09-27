@@ -10,6 +10,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import type { TaskCategory } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { type DerivedRoutingTable, EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
+import { hasUsableCredential } from '@shared/utils/provider'
 
 import { deriveRoutingTable, type RoutableModel } from './deriveRoutingTable'
 
@@ -64,9 +65,12 @@ export class ModelRoutingService extends BaseService {
     this.rebuildTimer.unref()
   }
 
-  /** Enabled models whose provider is also switched on, with that provider's quota standing. */
+  /** Enabled models whose provider is both switched on and actually usable, with quota standing. */
   private collectSources(): { models: RoutableModel[]; exhaustedProviderIds: Set<string> } {
-    const enabledProviders = providerService.list({ enabled: true })
+    // The `enabled` toggle only says the user wants this provider considered — a provider flipped
+    // on with every key disabled (or none added yet) still passes it, so it needs its own filter
+    // or the table ranks a provider that cannot actually serve a request.
+    const enabledProviders = providerService.list({ enabled: true }).filter(hasUsableCredential)
     const exhaustedProviderIds = new Set(
       // Provider-wide on purpose: the table ranks providers, and a model-scoped ceiling only
       // describes one of their models. The per-request paths apply that finer check themselves.

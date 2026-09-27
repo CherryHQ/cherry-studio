@@ -3,7 +3,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId, type KeyUsageCounts, usageAgainstLimit } from '@shared/utils/apiKeyLimit'
 import { freshModelHealth } from '@shared/utils/modelHealth'
-import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
+import { hasUsableCredential, isCherryAIProvider } from '@shared/utils/provider'
 
 /**
  * Why a model is shown but demoted. Ordered by how actionable it is: `unavailable` cannot be fixed
@@ -17,13 +17,6 @@ const PASSIVE_REASON_RANK: Record<ModelPassiveReason, number> = {
   no_credential: 3,
   disabled: 4,
   unavailable: 5
-}
-
-function hasUsableCredential(provider: Provider): boolean {
-  if (provider.authOptional === true) return true
-  // OAuth / external-CLI providers carry no app-side key, so an empty key list says nothing.
-  if (isLoginBasedProvider(provider)) return true
-  return provider.apiKeys.some((key) => key.isEnabled)
 }
 
 /**
