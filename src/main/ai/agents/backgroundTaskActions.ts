@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { loggerService } from '@logger'
 
 import {
   listDetachedBackgroundTasks,
@@ -11,6 +12,8 @@ import {
   type StartDetachedBackgroundTaskInput
 } from './backgroundTasks'
 import { listBackgroundTaskRecords, saveBackgroundTaskRecord } from './backgroundTaskStore'
+
+const logger = loggerService.withContext('backgroundTaskActions')
 
 function storageDirFor(agentId: string): string {
   return path.join(application.getPath('feature.agents.data'), agentId, 'background-tasks')
@@ -59,8 +62,15 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
 export async function listAgentBackgroundTasks(agentId: string): Promise<BackgroundTaskRecord[]> {
   if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
-  // Reconcile tasks completed while Cherry was closed and backfill pre-migration JSON records.
-  for (const record of records) saveBackgroundTaskRecord(agentId, record)
+  // Indexing is best-effort (same seam as the MCP layer): the disk reconciliation has already
+  // happened, so a DB failure must not turn the completed listing into an error response.
+  for (const record of records) {
+    try {
+      saveBackgroundTaskRecord(agentId, record)
+    } catch (error) {
+      logger.error('Failed to index background task after reconcile', { agentId, taskId: record.id, error })
+    }
+  }
   return listBackgroundTaskRecords(agentId)
 }
 
@@ -71,7 +81,13 @@ export async function stopAgentBackgroundTask(
 ): Promise<BackgroundTaskRecord | undefined> {
   if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const record = await stopDetachedBackgroundTask(storageDirFor(agentId), taskId, force)
-  if (record) saveBackgroundTaskRecord(agentId, record)
+  if (record) {
+    try {
+      saveBackgroundTaskRecord(agentId, record)
+    } catch (error) {
+      logger.error('Failed to index background task after stop', { agentId, taskId, error })
+    }
+  }
   return record
 }
 
