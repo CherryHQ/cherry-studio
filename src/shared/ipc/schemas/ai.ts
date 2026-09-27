@@ -34,6 +34,7 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { AssistantModelSettingsPatchSchema } from '@shared/data/types/assistant'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { FileVersionSchema } from '@shared/types/file'
 
@@ -255,7 +256,8 @@ export const aiRequestSchemas = {
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          fastMode: z.boolean().optional(),
+          assistantSettingsPatch: AssistantModelSettingsPatchSchema.optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,

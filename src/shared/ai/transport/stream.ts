@@ -206,6 +206,8 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
+      /** Assistant settings overlay captured while model-settings PATCHes are in flight. */
+      assistantSettingsPatch?: import('@shared/data/types/assistant').AssistantModelSettingsPatch
     }
   | ({
       /** Re-run the assistant under an existing user msg. */

@@ -100,6 +100,18 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
+/** Per-turn assistant settings overlay captured while model-settings PATCHes are in flight. */
+export const AssistantModelSettingsPatchSchema = AssistantSettingsSchema.pick({
+  reasoning_summary: true,
+  temperature: true,
+  enableTemperature: true,
+  topP: true,
+  enableTopP: true,
+  maxTokens: true,
+  enableMaxTokens: true
+}).partial()
+export type AssistantModelSettingsPatch = z.infer<typeof AssistantModelSettingsPatchSchema>
+
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,

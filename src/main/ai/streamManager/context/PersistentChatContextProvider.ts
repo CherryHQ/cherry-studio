@@ -319,6 +319,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
+    const assistantSettingsPatch = req.trigger === 'submit-message' ? req.assistantSettingsPatch : undefined
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
@@ -487,7 +488,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
-          retainedContext
+          retainedContext,
+          assistantSettingsPatch
         ),
         rootSpan
       }))
@@ -830,7 +832,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
-              retainedContext
+              retainedContext,
+              req.assistantSettingsPatch
             ),
             rootSpan
           }
@@ -1089,7 +1092,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
-    retainedContext?: RetainedContext
+    retainedContext?: RetainedContext,
+    assistantSettingsPatch?: AiStreamRequest['assistantSettingsPatch']
   ): AiStreamRequest {
     return {
       conversation: { id: topicId, topicId },
@@ -1102,6 +1106,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       reasoningEffort,
       serviceTier,
       fastMode,
+      ...(assistantSettingsPatch && Object.keys(assistantSettingsPatch).length > 0 ? { assistantSettingsPatch } : {}),
       ...(retainedContext ? { retainedContext } : {})
     }
   }

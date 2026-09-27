@@ -40,7 +40,8 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import {
   useAssistantPendingReasoningEffort,
-  useAssistantPendingServiceTier
+  useAssistantPendingServiceTier,
+  useAssistantPendingSettingsPatch
 } from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatTurnFastMode } from '@renderer/hooks/chat/useChatTurnFastMode'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -684,6 +685,11 @@ const ChatComposerInner = ({
     startPending: startServiceTierPending,
     finishPending: finishServiceTierPending
   } = useAssistantPendingServiceTier(selectedAssistantId, canonicalServiceTier)
+  const {
+    effectiveSettings: pendingAssistantSettings,
+    startPending: startSettingsPatchPending,
+    finishPending: finishSettingsPatchPending
+  } = useAssistantPendingSettingsPatch(selectedAssistantId, assistant?.settings)
   const [fastMode, setFastMode] = useChatTurnFastMode(topicId ?? scopeKey)
 
   const handleModelSelect = useCallback(
@@ -890,11 +896,15 @@ const ChatComposerInner = ({
   )
   const handleReasoningSummaryChange = useCallback(
     (summary: ReasoningSummary) => {
-      void updateAssistantSettings({ reasoning_summary: summary }).catch((error) => {
-        logger.warn('Failed to persist reasoning summary', { error })
-      })
+      const version = startSettingsPatchPending({ reasoning_summary: summary })
+      void updateAssistantSettings({ reasoning_summary: summary })
+        .then(() => finishSettingsPatchPending(version))
+        .catch((error) => {
+          finishSettingsPatchPending(version)
+          logger.warn('Failed to persist reasoning summary', { error })
+        })
     },
-    [updateAssistantSettings]
+    [finishSettingsPatchPending, startSettingsPatchPending, updateAssistantSettings]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
@@ -1810,7 +1820,7 @@ const ChatComposerInner = ({
         <ModelSpeedControl
           model={speedControlModel}
           reasoningEffort={reasoningEffort}
-          reasoningSummary={assistant?.settings.reasoning_summary}
+          reasoningSummary={pendingAssistantSettings?.reasoning_summary}
           serviceTier={serviceTier}
           fastMode={fastMode}
           onReasoningEffortChange={handleReasoningEffortChange}

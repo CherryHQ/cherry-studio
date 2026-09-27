@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback } from 'react'
 
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import {
+  useAgentPendingReasoningEffort,
+  useAgentPendingServiceTier
+} from '@renderer/hooks/chat/useAgentPendingModelSettings'
 import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
 import { useModelById } from '@renderer/hooks/useModel'
 import type { ServiceTierSelection } from '@shared/data/types/model'
@@ -12,84 +16,45 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
   const { updateAgent } = useUpdateAgent()
 
   const canonicalReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
-  const [reasoningOverride, setReasoningOverride] = useState<{
-    agentId: string
-    value: ReasoningEffortOption
-    version: number
-  } | null>(null)
-  const reasoningMutationVersionRef = useRef(0)
-  const reasoningEffort =
-    reasoningOverride !== null && reasoningOverride.agentId === agent?.id
-      ? reasoningOverride.value
-      : canonicalReasoningEffort
+  const {
+    effective: reasoningEffort,
+    startPending: startReasoningPending,
+    finishPending: finishReasoningPending
+  } = useAgentPendingReasoningEffort(agent?.id ?? null, canonicalReasoningEffort)
 
   const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
-  const [serviceTierOverride, setServiceTierOverride] = useState<{
-    agentId: string
-    value: ServiceTierSelection
-    version: number
-  } | null>(null)
-  const serviceTierMutationVersionRef = useRef(0)
-  const serviceTier =
-    serviceTierOverride !== null && serviceTierOverride.agentId === agent?.id
-      ? serviceTierOverride.value
-      : canonicalServiceTier
+  const {
+    effective: serviceTier,
+    startPending: startServiceTierPending,
+    finishPending: finishServiceTierPending
+  } = useAgentPendingServiceTier(agent?.id ?? null, canonicalServiceTier)
 
   const [fastMode, setFastMode] = useAgentTurnFastMode(sessionId)
-
-  useEffect(() => {
-    setReasoningOverride((current) => {
-      if (!current) return current
-      return current.agentId === agent?.id ? current : null
-    })
-  }, [agent?.id])
-
-  useEffect(() => {
-    setServiceTierOverride((current) => {
-      if (!current) return current
-      return current.agentId === agent?.id ? current : null
-    })
-  }, [agent?.id])
-
-  const patchConfiguration = useCallback(
-    async (configuration: { reasoning_effort?: ReasoningEffortOption; service_tier?: ServiceTierSelection }) => {
-      if (!agent?.id) return
-      const updated = await updateAgent({ id: agent.id, configuration }, { showSuccessToast: false })
-      if (!updated) throw new Error('update failed')
-    },
-    [agent?.id, updateAgent]
-  )
 
   const handleReasoningEffortChange = useCallback(
     (option: ReasoningEffortOption) => {
       if (!agent?.id) return
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({ agentId: agent.id, value: option, version })
-      void patchConfiguration({ reasoning_effort: option })
-        .then(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
+      const version = startReasoningPending(option)
+      void updateAgent({ id: agent.id, configuration: { reasoning_effort: option } }, { showSuccessToast: false })
+        .then((updated) => {
+          if (updated) finishReasoningPending(version)
         })
-        .catch(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-        })
+        .catch(() => finishReasoningPending(version))
     },
-    [agent?.id, patchConfiguration]
+    [agent?.id, finishReasoningPending, startReasoningPending, updateAgent]
   )
 
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
       if (!agent?.id) return
-      const version = ++serviceTierMutationVersionRef.current
-      setServiceTierOverride({ agentId: agent.id, value: tier, version })
-      void patchConfiguration({ service_tier: tier })
-        .then(() => {
-          setServiceTierOverride((current) => (current?.version === version ? null : current))
+      const version = startServiceTierPending(tier)
+      void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
+        .then((updated) => {
+          if (updated) finishServiceTierPending(version)
         })
-        .catch(() => {
-          setServiceTierOverride((current) => (current?.version === version ? null : current))
-        })
+        .catch(() => finishServiceTierPending(version))
     },
-    [agent?.id, patchConfiguration]
+    [agent?.id, finishServiceTierPending, startServiceTierPending, updateAgent]
   )
 
   const pending = isAgentLoading || isModelLoading

@@ -38,8 +38,8 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { useAssistantPendingSettingsPatch } from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
 
@@ -114,6 +114,10 @@ export function useChatRuntimeState({
   assistant,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const { pendingPatch: assistantSettingsPatch } = useAssistantPendingSettingsPatch(
+    assistant?.id,
+    assistant?.settings
+  )
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
@@ -311,10 +315,13 @@ export function useChatRuntimeState({
         trigger: 'submit-message' as const,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
-        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {}),
+        ...(assistantSettingsPatch && Object.keys(assistantSettingsPatch).length > 0
+          ? { assistantSettingsPatch }
+          : {})
       }
     },
-    []
+    [assistantSettingsPatch]
   )
   const refreshMetadata = useCallback(
     ({ topicId }: { topicId: string }) => invalidateCache(['/topics', `/topics/${topicId}`]),

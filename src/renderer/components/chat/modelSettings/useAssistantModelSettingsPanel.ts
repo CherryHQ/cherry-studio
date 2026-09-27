@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import {
   useAssistantPendingReasoningEffort,
-  useAssistantPendingServiceTier
+  useAssistantPendingServiceTier,
+  useAssistantPendingSettingsPatch
 } from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatTurnFastMode } from '@renderer/hooks/chat/useChatTurnFastMode'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -37,9 +38,15 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
     finishPending: finishServiceTierPending
   } = useAssistantPendingServiceTier(selectedAssistantId, canonicalServiceTier)
 
+  const {
+    effectiveSettings,
+    startPending: startSettingsPatchPending,
+    finishPending: finishSettingsPatchPending
+  } = useAssistantPendingSettingsPatch(selectedAssistantId, assistant?.settings)
+
   const [fastMode, setFastMode] = useChatTurnFastMode(topicId)
 
-  const patchSettings = useCallback(
+  const persistSettings = useCallback(
     (patch: Partial<AssistantSettings>) => {
       if (!selectedAssistantId) return Promise.resolve(undefined)
       return updateAssistantSettings(patch)?.catch((error) => {
@@ -48,6 +55,16 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
       })
     },
     [selectedAssistantId, t, updateAssistantSettings]
+  )
+
+  const patchSettings = useCallback(
+    (patch: Partial<AssistantSettings>) => {
+      const version = startSettingsPatchPending(patch)
+      return persistSettings(patch)
+        ?.then(() => finishSettingsPatchPending(version))
+        .catch(() => finishSettingsPatchPending(version))
+    },
+    [finishSettingsPatchPending, persistSettings, startSettingsPatchPending]
   )
 
   const handleReasoningEffortChange = useCallback(
@@ -63,7 +80,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
         return
       }
       const version = startReasoningPending(option)
-      void patchSettings({ reasoning_effort: option })
+      void persistSettings({ reasoning_effort: option })
         ?.then(() => finishReasoningPending(version))
         .catch(() => finishReasoningPending(version))
     },
@@ -71,7 +88,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
       assistant?.settings.enableWebSearch,
       finishReasoningPending,
       model,
-      patchSettings,
+      persistSettings,
       selectedAssistantId,
       startReasoningPending,
       t
@@ -89,11 +106,11 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
     (tier: ServiceTierSelection) => {
       if (!selectedAssistantId) return
       const version = startServiceTierPending(tier)
-      void patchSettings({ service_tier: tier })
+      void persistSettings({ service_tier: tier })
         ?.then(() => finishServiceTierPending(version))
         .catch(() => finishServiceTierPending(version))
     },
-    [finishServiceTierPending, patchSettings, selectedAssistantId, startServiceTierPending]
+    [finishServiceTierPending, persistSettings, selectedAssistantId, startServiceTierPending]
   )
 
   const speedControlModel = model && selectedAssistantId ? model : undefined
@@ -106,10 +123,10 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
     pending,
     ready,
     reasoningEffort,
-    reasoningSummary: assistant?.settings.reasoning_summary,
+    reasoningSummary: effectiveSettings?.reasoning_summary,
     serviceTier,
     fastMode,
-    settings: assistant?.settings,
+    settings: effectiveSettings,
     patchSettings,
     handleReasoningEffortChange,
     handleReasoningSummaryChange,

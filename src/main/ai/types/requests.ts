@@ -6,6 +6,8 @@ import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
+
 /**
  * IPC-safe per-request transport config. Every field here survives
  * Electron's structured-clone — used on preload-bridge / IPC-handler
@@ -84,6 +86,8 @@ export interface AiChatRequest extends AiRequest {
   serviceTier?: ServiceTierSelection
   /** Whether the turn requests the provider-model pair's Fast transport. */
   fastMode?: boolean
+  /** Sampling / reasoning-summary overlay captured while assistant settings PATCHes are in flight. */
+  assistantSettingsPatch?: AssistantModelSettingsPatch
   /**
    * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseScope`: when
    * the assistant has its own bound bases they are a ceiling — these ids may narrow that binding but

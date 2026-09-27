@@ -57,6 +57,10 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
+import {
+  useAgentPendingReasoningEffort,
+  useAgentPendingServiceTier
+} from '@renderer/hooks/chat/useAgentPendingModelSettings'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -806,6 +810,11 @@ const AgentComposerInner = ({
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
     : configuredReasoningEffort
+  const {
+    effective: pendingReasoningEffort,
+    startPending: startReasoningPending,
+    finishPending: finishReasoningPending
+  } = useAgentPendingReasoningEffort(agent?.id ?? null, canonicalReasoningEffort)
   const [reasoningOverride, setReasoningOverride] = useState<{
     agentId: string
     value: ThinkingOption
@@ -813,11 +822,6 @@ const AgentComposerInner = ({
     canonicalAtMutationStart?: ThinkingOption
   } | null>(null)
   const reasoningMutationVersionRef = useRef(0)
-  const pendingReasoningEditRef = useRef<{
-    agentId: string
-    version: number
-    effort: ThinkingOption
-  } | null>(null)
   const activeReasoningOverride =
     reasoningOverride &&
     reasoningOverride.agentId === agent?.id &&
@@ -836,8 +840,13 @@ const AgentComposerInner = ({
     }
     setReasoningOverride((current) => (current === reasoningOverride ? null : current))
   }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
-  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const reasoningEffort = activeReasoningOverride?.value ?? pendingReasoningEffort
   const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
+  const {
+    effective: pendingServiceTier,
+    startPending: startServiceTierPending,
+    finishPending: finishServiceTierPending
+  } = useAgentPendingServiceTier(agent?.id ?? null, canonicalServiceTier)
   const [serviceTierOverride, setServiceTierOverride] = useState<{
     agentId: string
     value: ServiceTierSelection
@@ -845,7 +854,7 @@ const AgentComposerInner = ({
   } | null>(null)
   const serviceTierMutationVersionRef = useRef(0)
   const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
-  const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
+  const serviceTier = activeServiceTierOverride?.value ?? pendingServiceTier
   const [fastMode, setFastMode] = useAgentTurnFastMode(sessionId)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
@@ -1266,9 +1275,8 @@ const AgentComposerInner = ({
       if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
 
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
-      const pendingReasoningEdit =
-        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
+      const pendingReasoningEffortPayload =
+        reasoningEffort !== canonicalReasoningEffort ? { reasoningEffort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1278,7 +1286,7 @@ const AgentComposerInner = ({
       })
 
       const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffortPayload },
         { showSuccessToast: false }
       )
       if (!updatedAgent) {
@@ -1286,21 +1294,11 @@ const AgentComposerInner = ({
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride) return null
 
-          const previousEditStillPending =
-            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
-            pendingReasoningEditRef.current.version === previousReasoningOverride.version
-          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
+          return previousReasoningOverride.canonicalAtMutationStart !== undefined
             ? previousReasoningOverride
             : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
         })
         return
-      }
-      if (
-        pendingReasoningEdit &&
-        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-      ) {
-        pendingReasoningEditRef.current = null
       }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
@@ -1337,8 +1335,8 @@ const AgentComposerInner = ({
       if (!agent) return
 
       const canonicalAtMutationStart = canonicalReasoningEffort
+      const pendingVersion = startReasoningPending(option)
       const version = ++reasoningMutationVersionRef.current
-      pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
       setReasoningOverride({
         agentId: agent.id,
         value: option,
@@ -1352,14 +1350,9 @@ const AgentComposerInner = ({
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
+        finishReasoningPending(pendingVersion)
         if (!updatedAgent) return
 
-        if (
-          pendingReasoningEditRef.current?.agentId === agent.id &&
-          pendingReasoningEditRef.current.version === version
-        ) {
-          pendingReasoningEditRef.current = null
-        }
         setReasoningOverride((current) =>
           current?.agentId === agent.id && current.version === version
             ? {
@@ -1371,22 +1364,24 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, finishReasoningPending, startReasoningPending, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
       if (!agent) return
+      const pendingVersion = startServiceTierPending(tier)
       const version = ++serviceTierMutationVersionRef.current
       setServiceTierOverride({ agentId: agent.id, value: tier, version })
       void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false }).then(
-        () => {
+        (updated) => {
+          finishServiceTierPending(pendingVersion)
           setServiceTierOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )
         }
       )
     },
-    [agent, updateAgent]
+    [agent, finishServiceTierPending, startServiceTierPending, updateAgent]
   )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill

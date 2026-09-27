@@ -122,7 +122,14 @@ export interface BuiltAgentParams {
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
-  const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
+  const { request, signal, provider, model, assistant: sourceAssistant, extraFeatures, compactionSink } = input
+  const assistant =
+    sourceAssistant && request.assistantSettingsPatch && Object.keys(request.assistantSettingsPatch).length > 0
+      ? {
+          ...sourceAssistant,
+          settings: { ...sourceAssistant.settings, ...request.assistantSettingsPatch }
+        }
+      : sourceAssistant
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(

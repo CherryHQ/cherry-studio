@@ -137,6 +137,12 @@ export type UseCacheSchema = {
   'chat.assistant.reasoning_effort_pending.${assistantId}': CacheValueTypes.CacheAssistantReasoningEffortPending | null
   /** Per-assistant service tier pending PATCH; shared between composer and model settings panel. */
   'chat.assistant.service_tier_pending.${assistantId}': CacheValueTypes.CacheAssistantServiceTierPending | null
+  /** Per-assistant sampling/reasoning-summary PATCH overlay; shared between composer and model settings panel. */
+  'chat.assistant.settings_patch_pending.${assistantId}': CacheValueTypes.CacheAssistantSettingsPatchPending | null
+  /** Per-agent reasoning effort pending PATCH; shared between composer and model settings panel. */
+  'chat.agent.reasoning_effort_pending.${agentId}': CacheValueTypes.CacheAgentReasoningEffortPending | null
+  /** Per-agent service tier pending PATCH; shared between composer and model settings panel. */
+  'chat.agent.service_tier_pending.${agentId}': CacheValueTypes.CacheAgentServiceTierPending | null
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -247,6 +253,9 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.turn.fast_mode.${topicId}': false,
   'chat.assistant.reasoning_effort_pending.${assistantId}': null,
   'chat.assistant.service_tier_pending.${assistantId}': null,
+  'chat.assistant.settings_patch_pending.${assistantId}': null,
+  'chat.agent.reasoning_effort_pending.${agentId}': null,
+  'chat.agent.service_tier_pending.${agentId}': null,
   'chat.scroll_anchor.${topicId}': null,
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
