@@ -15,6 +15,7 @@ import type { MessageListRuntime } from '@renderer/components/chat/messages/type
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import { useAssistantPendingSettingsPatch } from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
@@ -38,8 +39,8 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { useAssistantPendingSettingsPatch } from '@renderer/hooks/chat/useAssistantPendingModelSettings'
 import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
 
@@ -114,10 +115,7 @@ export function useChatRuntimeState({
   assistant,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
-  const { pendingPatch: assistantSettingsPatch } = useAssistantPendingSettingsPatch(
-    assistant?.id,
-    assistant?.settings
-  )
+  const { pendingPatch: assistantSettingsPatch } = useAssistantPendingSettingsPatch(assistant?.id, assistant?.settings)
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
@@ -316,9 +314,7 @@ export function useChatRuntimeState({
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {}),
-        ...(assistantSettingsPatch && Object.keys(assistantSettingsPatch).length > 0
-          ? { assistantSettingsPatch }
-          : {})
+        ...(assistantSettingsPatch && Object.keys(assistantSettingsPatch).length > 0 ? { assistantSettingsPatch } : {})
       }
     },
     [assistantSettingsPatch]

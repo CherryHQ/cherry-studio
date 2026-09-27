@@ -486,8 +486,8 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/chat/useAssistantPendingModelSettings', () => {
-  const React = require('react') as typeof import('react')
+vi.mock('@renderer/hooks/chat/useAssistantPendingModelSettings', async () => {
+  const React = await import('react')
 
   function usePendingAssistantSetting<T>(assistantId: string | null | undefined, canonical: T) {
     const [override, setOverride] = React.useState<{
@@ -523,15 +523,19 @@ vi.mock('@renderer/hooks/chat/useAssistantPendingModelSettings', () => {
     return { effective, startPending, finishPending }
   }
 
+  function usePendingSettingsPatch(assistantId: string | null | undefined, canonicalSettings: unknown) {
+    return {
+      effectiveSettings: canonicalSettings,
+      pendingPatch: undefined,
+      startPending: () => 0,
+      finishPending: () => {}
+    }
+  }
+
   return {
-    useAssistantPendingReasoningEffort: (
-      assistantId: string | null | undefined,
-      canonical: import('@shared/types/aiSdk').ReasoningEffortOption
-    ) => usePendingAssistantSetting(assistantId, canonical),
-    useAssistantPendingServiceTier: (
-      assistantId: string | null | undefined,
-      canonical: import('@shared/data/types/model').ServiceTierSelection
-    ) => usePendingAssistantSetting(assistantId, canonical)
+    useAssistantPendingReasoningEffort: usePendingAssistantSetting,
+    useAssistantPendingServiceTier: usePendingAssistantSetting,
+    useAssistantPendingSettingsPatch: usePendingSettingsPatch
   }
 })
 

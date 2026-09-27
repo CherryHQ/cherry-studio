@@ -9,6 +9,7 @@ import { topicService } from '@main/data/services/TopicService'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -49,6 +50,8 @@ export interface MainSteerContinuationRequest {
   serviceTier?: ServiceTierSelection
   /** Fast selection captured with the original busy submit. */
   fastMode: boolean
+  /** Assistant settings overlay captured with the original busy submit. */
+  assistantSettingsPatch?: AssistantModelSettingsPatch
 }
 
 export type MainDispatchRequest = (

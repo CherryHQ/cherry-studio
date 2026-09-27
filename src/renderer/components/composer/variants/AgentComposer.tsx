@@ -57,11 +57,11 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import {
   useAgentPendingReasoningEffort,
   useAgentPendingServiceTier
 } from '@renderer/hooks/chat/useAgentPendingModelSettings'
-import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
@@ -1275,8 +1275,7 @@ const AgentComposerInner = ({
       if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
 
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
-      const pendingReasoningEffortPayload =
-        reasoningEffort !== canonicalReasoningEffort ? { reasoningEffort } : {}
+      const pendingReasoningEffortPayload = reasoningEffort !== canonicalReasoningEffort ? { reasoningEffort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1349,20 +1348,27 @@ const AgentComposerInner = ({
           configuration: { reasoning_effort: option }
         },
         { showSuccessToast: false }
-      ).then((updatedAgent) => {
-        finishReasoningPending(pendingVersion)
-        if (!updatedAgent) return
+      )
+        .then((updatedAgent) => {
+          finishReasoningPending(pendingVersion)
+          if (!updatedAgent) return
 
-        setReasoningOverride((current) =>
-          current?.agentId === agent.id && current.version === version
-            ? {
-                ...current,
-                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
-                canonicalAtMutationStart
-              }
-            : current
-        )
-      })
+          setReasoningOverride((current) =>
+            current?.agentId === agent.id && current.version === version
+              ? {
+                  ...current,
+                  value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+                  canonicalAtMutationStart
+                }
+              : current
+          )
+        })
+        .catch(() => {
+          finishReasoningPending(pendingVersion)
+          setReasoningOverride((current) =>
+            current?.agentId === agent.id && current.version === version ? null : current
+          )
+        })
     },
     [agent, canonicalReasoningEffort, finishReasoningPending, startReasoningPending, updateAgent]
   )
@@ -1372,14 +1378,19 @@ const AgentComposerInner = ({
       const pendingVersion = startServiceTierPending(tier)
       const version = ++serviceTierMutationVersionRef.current
       setServiceTierOverride({ agentId: agent.id, value: tier, version })
-      void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false }).then(
-        (updated) => {
+      void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
+        .then(() => {
           finishServiceTierPending(pendingVersion)
           setServiceTierOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )
-        }
-      )
+        })
+        .catch(() => {
+          finishServiceTierPending(pendingVersion)
+          setServiceTierOverride((current) =>
+            current?.agentId === agent.id && current.version === version ? null : current
+          )
+        })
     },
     [agent, finishServiceTierPending, startServiceTierPending, updateAgent]
   )

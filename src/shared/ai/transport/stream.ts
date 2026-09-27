@@ -1,5 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
+import type { AssistantModelSettingsPatch } from '../../data/types/assistant'
 import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
@@ -207,7 +208,7 @@ export type AiStreamOpenRequest = {
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
       /** Assistant settings overlay captured while model-settings PATCHes are in flight. */
-      assistantSettingsPatch?: import('@shared/data/types/assistant').AssistantModelSettingsPatch
+      assistantSettingsPatch?: AssistantModelSettingsPatch
     }
   | ({
       /** Re-run the assistant under an existing user msg. */

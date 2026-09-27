@@ -1,11 +1,11 @@
 import { useCallback } from 'react'
 
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
 import {
   useAgentPendingReasoningEffort,
   useAgentPendingServiceTier
 } from '@renderer/hooks/chat/useAgentPendingModelSettings'
-import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
 import { useModelById } from '@renderer/hooks/useModel'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -36,9 +36,7 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
       if (!agent?.id) return
       const version = startReasoningPending(option)
       void updateAgent({ id: agent.id, configuration: { reasoning_effort: option } }, { showSuccessToast: false })
-        .then((updated) => {
-          if (updated) finishReasoningPending(version)
-        })
+        .then(() => finishReasoningPending(version))
         .catch(() => finishReasoningPending(version))
     },
     [agent?.id, finishReasoningPending, startReasoningPending, updateAgent]
@@ -49,9 +47,7 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
       if (!agent?.id) return
       const version = startServiceTierPending(tier)
       void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
-        .then((updated) => {
-          if (updated) finishServiceTierPending(version)
-        })
+        .then(() => finishServiceTierPending(version))
         .catch(() => finishServiceTierPending(version))
     },
     [agent?.id, finishServiceTierPending, startServiceTierPending, updateAgent]
