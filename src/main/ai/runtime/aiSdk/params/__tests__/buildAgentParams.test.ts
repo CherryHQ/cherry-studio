@@ -520,13 +520,22 @@ describe('buildAgentParams provider resolution', () => {
       fetch: result.sdkConfig.providerSettings.fetch
     }).languageModel(model.apiModelId!)
 
-    await expect(
-      sdkModel.doGenerate({
-        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }],
-        providerOptions: result.options.providerOptions
+    // Translate streams. doGenerate and doStream both go through the Anthropic
+    // schema, which drops unknown fields such as translation_options.
+    for (const call of ['doGenerate', 'doStream'] as const) {
+      requestBody = undefined
+      await expect(
+        sdkModel[call]({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }],
+          providerOptions: result.options.providerOptions
+        })
+      ).rejects.toThrow('request captured')
+      expect(requestBody).toMatchObject(rawBodyParameters)
+      expect(requestBody?.translation_options).toEqual({
+        source_lang: 'auto',
+        target_lang: 'English'
       })
-    ).rejects.toThrow('request captured')
-    expect(requestBody).toMatchObject(rawBodyParameters)
+    }
   })
 })
 

@@ -364,8 +364,21 @@ describe('translateService.open', () => {
     expect(streamPromptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         callOverrides: expect.objectContaining({
+          // Anthropic's schema drops unknown providerOptions, so the target
+          // language has to ride the raw body that is merged after serialization.
+          rawBodyParameters: {
+            translation_options: {
+              source_lang: 'auto',
+              target_lang: 'English'
+            }
+          },
           providerOptions: {
-            anthropic: expect.objectContaining({ translation_options: expect.any(Object) })
+            anthropic: {
+              translation_options: {
+                source_lang: 'auto',
+                target_lang: 'English'
+              }
+            }
           }
         })
       })
