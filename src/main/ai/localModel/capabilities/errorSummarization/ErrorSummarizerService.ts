@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isOllamaProvider } from '@shared/utils/provider'
 
@@ -67,9 +67,9 @@ export class ErrorSummarizerService extends BaseService {
 
         const models = modelService.list({ providerId: provider.id })
         if (models && models.length > 0) {
-          const model = models[0]
-          const uniqueModelId = createUniqueModelId(provider.id, model.id)
-          return uniqueModelId
+          // model.id is already the full UniqueModelId (providerId::modelId) — re-prefixing it
+          // produced a garbled id that always failed to resolve, silently disabling this feature.
+          return models[0].id
         }
       }
 

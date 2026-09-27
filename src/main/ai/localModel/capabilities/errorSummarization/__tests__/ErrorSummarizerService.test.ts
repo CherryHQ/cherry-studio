@@ -53,7 +53,9 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'model-1', name: 'Local Model' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([
+        { id: 'lmstudio::model-1', name: 'Local Model' }
+      ] as any)
 
       const longError = 'a'.repeat(10000)
       await service.summarizeError(longError, 5000)
@@ -75,7 +77,9 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'model-1', name: 'Local Model' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([
+        { id: 'lmstudio::model-1', name: 'Local Model' }
+      ] as any)
 
       const result = await service.summarizeError('Error: something failed')
       expect(result).toBeNull()
@@ -93,7 +97,9 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'llama2', name: 'Llama 2' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([
+        { id: 'ollama::llama2', name: 'Llama 2' }
+      ] as any)
 
       const result = await service.summarizeError('Error: something failed')
       expect(result).toBeNull()
@@ -111,7 +117,9 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'llama2', name: 'Llama 2' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([
+        { id: 'ollama::llama2', name: 'Llama 2' }
+      ] as any)
 
       const result = await service.summarizeError('Error: API rate limit exceeded')
       expect(result).toBe('Summarized: API rate limit exceeded')
@@ -132,7 +140,9 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'mistral-7b', name: 'Mistral 7B' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([
+        { id: 'lmstudio::mistral-7b', name: 'Mistral 7B' }
+      ] as any)
 
       const result = await service.summarizeError('Error: Build failed')
       expect(result).toBe('Summarized: Build failed')
@@ -153,7 +163,7 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'model-1', name: 'Model' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'ollama::model-1', name: 'Model' }] as any)
 
       const errorOutput = 'TypeError: Cannot read property of undefined'
       await service.summarizeError(errorOutput)
@@ -179,7 +189,7 @@ describe('ErrorSummarizerService', () => {
           defaultChatEndpoint: 'openai-chat-completions'
         }
       ] as any)
-      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'model-1', name: 'Model' }] as any)
+      vi.mocked(modelServiceModule.modelService.list).mockReturnValue([{ id: 'ollama::model-1', name: 'Model' }] as any)
 
       const result = await service.summarizeError('Error')
       expect(result).toBe('Summarized')
