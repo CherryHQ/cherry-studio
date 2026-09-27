@@ -59,17 +59,17 @@
       Goto vcRedistRestoreView
     ${EndIf}
 
-    ; A system DLL proves the target runtime only on a known x64 host and path.
+    ; Both Electron runtime DLLs need v14+ versions in the same system directory.
     ${If} $1 != "arm64"
       ${IfNot} ${IsNativeARM64}
         ReadEnvStr $4 "PROCESSOR_ARCHITEW6432"
         ${If} $4 == "AMD64"
-          StrCpy $2 "$WINDIR\Sysnative\vcruntime140.dll"
+          StrCpy $2 "$WINDIR\Sysnative"
         ${ElseIf} $4 == ""
           ReadEnvStr $4 "PROCESSOR_ARCHITECTURE"
           ${If} $4 == "AMD64"
           ${AndIf} ${RunningX64}
-            StrCpy $2 "$SYSDIR\vcruntime140.dll"
+            StrCpy $2 "$SYSDIR"
           ${Else}
             StrCpy $2 ""
           ${EndIf}
@@ -78,11 +78,18 @@
         ${EndIf}
         ${If} $2 != ""
           ClearErrors
-          GetDLLVersion "$2" $3 $4
+          GetDLLVersion "$2\vcruntime140.dll" $3 $4
           ${IfNot} ${Errors}
             IntOp $3 $3 >> 16
             ${If} $3 >= 14
-              StrCpy $0 "1"
+              ClearErrors
+              GetDLLVersion "$2\msvcp140.dll" $3 $4
+              ${IfNot} ${Errors}
+                IntOp $3 $3 >> 16
+                ${If} $3 >= 14
+                  StrCpy $0 "1"
+                ${EndIf}
+              ${EndIf}
             ${EndIf}
           ${EndIf}
         ${EndIf}
@@ -210,23 +217,6 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    StrCpy $4 "0"
-    ; The updater signals updates; builder stores install paths under its install key.
-    ${If} ${isUpdated}
-      StrCpy $4 "1"
-    ${Else}
-      ReadRegStr $3 HKLM "${INSTALL_REGISTRY_KEY}" "InstallLocation"
-      ${If} $3 != ""
-        StrCpy $4 "1"
-      ${EndIf}
-      ReadRegStr $3 HKCU "${INSTALL_REGISTRY_KEY}" "InstallLocation"
-      ${If} $3 != ""
-        StrCpy $4 "1"
-      ${EndIf}
-      ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-        StrCpy $4 "1"
-      ${EndIf}
-    ${EndIf}
     ; Select download URL based on system architecture (stored in $1)
     ${If} $1 == "arm64"
       StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
@@ -240,24 +230,30 @@
       $2 $3 /END
     Pop $0  ; Get download status from inetc::get
     ${If} $0 != "OK"
-      ${If} $4 != "1"
-        MessageBox MB_ICONSTOP|MB_YESNO "\
-          Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
-          Error: $0$\r$\n$\r$\n\
-          Would you like to open the download page in your browser?$\r$\n\
-          $2" /SD IDNO IDYES openDownloadUrl IDNO skipDownloadUrl
-        openDownloadUrl:
-          ExecShell "open" $2
-        skipDownloadUrl:
-        Abort
-      ${EndIf}
+      MessageBox MB_ICONSTOP|MB_YESNO "\
+        Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
+        Error: $0$\r$\n$\r$\n\
+        Would you like to open the download page in your browser?$\r$\n\
+        $2" /SD IDNO IDYES openDownloadUrl IDNO skipDownloadUrl
+      openDownloadUrl:
+        ExecShell "open" $2
+      skipDownloadUrl:
+      Abort
     ${Else}
-      ExecWait "$3 /install /quiet /norestart"
-      ; Note: vc_redist exit code is unreliable, verify via registry check instead
+      StrCpy $4 "0"
+      ClearErrors
+      ExecWait "$3 /install /quiet /norestart" $4
+      ${If} ${Errors}
+        StrCpy $4 "0"
+      ${EndIf}
+      ; The exit code only identifies another installed version; success still needs the runtime recheck.
+      ; 0x80070666 can appear as signed -2147023258 or unsigned 2147944038.
 
       Call checkVCRedist
       ${If} $0 != "1"
-        ${If} $4 != "1"
+        ${If} $4 != "1638"
+        ${AndIf} $4 != "-2147023258"
+        ${AndIf} $4 != "2147944038"
           MessageBox MB_ICONSTOP|MB_YESNO "\
             Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
             Would you like to open the download page in your browser?$\r$\n\
