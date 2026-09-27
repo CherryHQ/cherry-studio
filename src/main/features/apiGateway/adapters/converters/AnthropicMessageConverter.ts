@@ -82,7 +82,8 @@ function imageDataUrlMediaType(url: string): string | undefined {
   if (!mediaType || !/^image\/[a-z0-9+.-]+$/i.test(mediaType)) return undefined
   const data = parsed.data
   if (parsed.isBase64) {
-    if (!/^[a-z0-9+/]+={0,2}$/i.test(data.replace(/\s/g, ''))) return undefined
+    const payload = data.replace(/\s/g, '')
+    if (!/^[a-z0-9+/]+={0,2}$/i.test(payload) || payload.length % 4 !== 0) return undefined
   } else if (!data.trim()) {
     return undefined
   }
@@ -94,8 +95,10 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   if (!source || typeof source !== 'object') return undefined
   if (source.type === 'base64') {
     if (typeof source.data !== 'string' || !source.data.trim()) return undefined
-    if (typeof source.media_type !== 'string') return undefined
+    // Guard the raw media type before it can shift delimiters in the URL we build.
+    if (typeof source.media_type !== 'string' || !/^image\/[a-z0-9+.-]+$/i.test(source.media_type)) return undefined
     const url = `data:${source.media_type};base64,${source.data}`
+    // Validate the effective URL and payload before forwarding it.
     const mediaType = imageDataUrlMediaType(url)
     return mediaType ? { type: 'file', mediaType, url } : undefined
   }
@@ -105,6 +108,7 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
     if (!prefix) return undefined
     const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
     if (url.startsWith('data:')) {
+      // Validate the effective URL and payload before forwarding it.
       const mediaType = imageDataUrlMediaType(url)
       return mediaType ? { type: 'file', mediaType, url } : undefined
     }

@@ -37,13 +37,31 @@ const malformedMediaTypes = [
   { name: 'null media_type', field: { media_type: null } },
   { name: 'numeric media_type', field: { media_type: 42 } },
   { name: 'blank media_type', field: { media_type: '  ' } },
-  { name: 'bare media_type', field: { media_type: 'png' } }
+  { name: 'bare media_type', field: { media_type: 'png' } },
+  { name: 'comma in media_type', field: { media_type: 'image/png,a' } },
+  { name: 'semicolon in media_type', field: { media_type: 'image/png;base64,x' } },
+  { name: 'trailing space in media_type', field: { media_type: 'image/png ' } },
+  { name: 'newline in media_type', field: { media_type: 'image/png\n' } }
 ]
 
 const unusableImageSources = [
   { name: 'non-image data URL', source: { type: 'url' as const, url: 'data:text/plain,hello' } },
   { name: 'data URL without a media type', source: { type: 'url' as const, url: 'data:,hello' } },
   { name: 'invalid base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,not-valid-base64' } },
+  {
+    name: 'short padded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'A=' }
+  },
+  {
+    name: 'short unpadded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'A' }
+  },
+  {
+    name: 'long unpadded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'QUJDRQ' }
+  },
+  { name: 'short padded base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,A=' } },
+  { name: 'long unpadded base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,QUJDRQ' } },
   {
     name: 'non-image base64 source',
     source: { type: 'base64' as const, media_type: 'text/plain', data: 'AAAA' } as unknown as ImageBlockParam['source']
@@ -213,9 +231,37 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   })
 
   it.each([
+    ['data:image/png;base64,QUJD', 'image/png'],
+    ['data:image/jpeg;base64,/9j/4AAQ', 'image/jpeg'],
+    ['https://example.com/a.png', 'image/png'],
+    ['file:///tmp/a.png', 'image/png']
+  ])('keeps a valid image URL in top-level and tool_result content: %s', (url, mediaType) => {
+    const source = { type: 'url' as const, url }
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: [{ type: 'image', source }] },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [{ type: 'image', source }] }]
+          }
+        ]
+      })
+    )
+    const file = { type: 'file', mediaType, url }
+    const anchor = '[tool-result attachment call_id="call_img" image=1]'
+    expect(msgs[0].parts).toEqual([file])
+    expect((msgs[1].parts[0] as { output: string }).output).toBe(
+      `${anchor} (${mediaType}): attached in the following user message`
+    )
+    expect(msgs[2].parts).toEqual([{ type: 'text', text: anchor }, file])
+  })
+
+  it.each([
     ['HTTPS://img.example/CaseSensitive.PNG?token=AbC', 'https://img.example/CaseSensitive.PNG?token=AbC'],
     ['FILE:///tmp/CaseSensitive.PNG', 'file:///tmp/CaseSensitive.PNG'],
-    ['DATA:image/png;base64,AAA', 'data:image/png;base64,AAA']
+    ['DATA:image/png;base64,AAAA', 'data:image/png;base64,AAAA']
   ])('accepts %s and lowercases only its scheme', (url, expectedUrl) => {
     const msgs = converter.toUIMessages(
       params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
