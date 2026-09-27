@@ -188,6 +188,9 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   if (typeof input === 'string') return input.trim() || undefined
   if (!isRecord(input)) return undefined
 
+  // A flow rooted at a resume receipt has no launch prompt: the round it opens was requested by
+  // the message that receipt delivered.
+  if (getCanonicalToolName(part) === AgentToolsType.SendMessage) return getResumeReceiptPromptText(part)
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
@@ -479,7 +482,12 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
   // Single launch-receipt grammar everywhere: the shared parser handles text markers and the
   // structured spellings, so round splitting and entry redirection can never disagree.
-  return extractLaunchReceiptId(output)
+  const launchedAgentId = extractLaunchReceiptId(output)
+  if (launchedAgentId) return launchedAgentId
+  // A cold-resumed child streams under its own resume receipt, so that receipt — not a launch —
+  // is the flow's root and names the agent the flow belongs to.
+  if (part && getCanonicalToolName(part) === AgentToolsType.SendMessage) return getResumedAgentId(output)
+  return undefined
 }
 
 /** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
@@ -616,7 +624,9 @@ export function buildAgentToolFlowProjection(
       for (const { parts } of messageEntries) {
         for (const part of parts) {
           const toolCallId = getToolCallId(part)
-          if (!toolCallId || receiptPrompts.has(toolCallId)) continue
+          // The flow's own root never opens a round of its own flow: a receipt root already reads
+          // as the flow prompt, so registering it here would repeat that prompt between rounds.
+          if (!toolCallId || toolCallId === selectedToolCallId || receiptPrompts.has(toolCallId)) continue
           if (!isToolUIPart(part) || getCanonicalToolName(part) !== AgentToolsType.SendMessage) continue
           if (!isResumeReceiptFor(part, launchedAgentId)) continue
           ownReceiptCallIds.add(toolCallId)
@@ -646,9 +656,13 @@ export function buildAgentToolFlowProjection(
         isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput
           ? undefined
           : textFromContent(selectedOutput)
-      const foregroundResultText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
-        ? undefined
-        : selectedOutputText
+      // A receipt root's text is delivery metadata, never the child's own answer.
+      const selectedIsResumeReceipt =
+        selectedToolPart !== undefined && getCanonicalToolName(selectedToolPart) === AgentToolsType.SendMessage
+      const foregroundResultText =
+        selectedIsResumeReceipt || isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+          ? undefined
+          : selectedOutputText
       if (foregroundResultText) {
         segments[0].parts.push({ type: 'text', text: foregroundResultText })
       }
@@ -695,11 +709,13 @@ export function buildAgentToolFlowProjection(
         const isResumeReceipt =
           launchedAgentId &&
           isToolUIPart(part) &&
+          toolCallId !== selectedToolCallId &&
           isResumeReceiptFor(part, launchedAgentId) &&
           !(toolCallId && consumedMarkers.has(toolCallId))
 
         const markerOwnsThisFlow =
           marker !== undefined &&
+          marker !== selectedToolCallId &&
           !consumedMarkers.has(marker) &&
           (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
 

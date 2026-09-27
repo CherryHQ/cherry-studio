@@ -654,3 +654,59 @@ describe('isResumeReceiptCall', () => {
   })
 })
 
+// A dsh child resumed after a cold reconnect streams under its own send_message receipt, so that
+// receipt is the flow's root: it owns the resume prompt, and the later sends that keep the child
+// working open further rounds. Losing either one empties the flow's resume story.
+describe('cold-resumed dsh flows', () => {
+  const dshResume = (toolCallId: string, message: string) =>
+    dshToolPart(
+      toolCallId,
+      'send_message',
+      'output-available',
+      { agent_id: 'dsh-child-1', message },
+      'message delivered to agent dsh-child-1'
+    )
+
+  it('shows the resume message as the prompt of the flow', () => {
+    const parts = [dshResume('call-send', 'Please continue the audit'), textPart('first round findings', 'call-send')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call-send')
+    const prompt = (projection.partsByMessageId['call-send:agent-flow-prompt'][0] as { text?: string }).text
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call-send:agent-flow-prompt',
+      'call-send:agent-flow-assistant'
+    ])
+    expect(prompt).toBe('Please continue the audit')
+  })
+
+  it('opens a round for a later resume of the same child', () => {
+    const parts = [
+      dshResume('call-send', 'Please continue the audit'),
+      textPart('first round findings', 'call-send'),
+      dshResume('call-send-2', 'Now summarize'),
+      textPart('second round findings', 'call-send')
+    ]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call-send')
+    const promptOf = (id: string) => (projection.partsByMessageId[id][0] as { text?: string }).text
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call-send:agent-flow-prompt',
+      'call-send:agent-flow-assistant',
+      'call-send:agent-flow-resume-1',
+      'call-send:agent-flow-assistant-1'
+    ])
+    expect(promptOf('call-send:agent-flow-prompt')).toBe('Please continue the audit')
+    expect(promptOf('call-send:agent-flow-resume-1')).toBe('Now summarize')
+  })
+
+  it('never surfaces the delivery acknowledgement as the answer of the child', () => {
+    const parts = [dshResume('call-send', 'Please continue the audit')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'call-send')
+
+    expect(projection.messages.map((item) => item.id)).toEqual(['call-send:agent-flow-prompt'])
+    expect(JSON.stringify(projection)).not.toContain('message delivered to agent')
+  })
+})
