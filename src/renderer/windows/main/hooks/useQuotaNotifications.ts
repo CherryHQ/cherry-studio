@@ -3,10 +3,18 @@ import { useTranslation } from 'react-i18next'
 
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
-import { dueQuotaNotices, type QuotaNoticeInput, usageStatsFrom } from '@shared/utils/apiKeyLimit'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  collectKeyUsage,
+  dueQuotaNotices,
+  type QuotaNoticeInput,
+  usageAgainstLimit,
+  usageStatsFrom
+} from '@shared/utils/apiKeyLimit'
 
 /** The smallest declared period is daily, so this only needs to catch a midnight rollover while
  *  the app sits open — reopening the app after being closed is covered by the immediate check below. */
@@ -28,15 +36,31 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
 export function useQuotaNotifications(): void {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models } = useModels()
   const [limits] = usePreference('chat.routing.api_key_limits')
   const [noticeState, setNoticeState] = usePreference('chat.routing.quota_notice_state')
   const safeLimits = limits ?? {}
   const safeState = noticeState ?? {}
+  const modelById = new Map(models.map((model) => [model.id, model]))
 
   const findKey = (limitKey: string) => {
-    const [providerId, keyId] = limitKey.split('::')
+    const parts = limitKey.split('::')
+    const [providerId, keyId] = parts
+    // `apiKeyModelLimitId` appends a full UniqueModelId (`providerId::modelId`), so a model-scoped
+    // key has 4 parts; anything beyond 2 is the model id, rejoined verbatim.
+    const modelId = parts.length > 2 ? (parts.slice(2).join('::') as UniqueModelId) : undefined
     const provider = providers.find((p) => p.id === providerId)
-    return { provider, providerId, keyId, key: provider?.apiKeys.find((k) => k.id === keyId) }
+    return { provider, providerId, keyId, modelId, key: provider?.apiKeys.find((k) => k.id === keyId) }
+  }
+
+  /**
+   * The identity `aiUsageRecord` actually stores for a request — the wire model id sent to the
+   * provider's SDK (`Model.apiModelId`, falling back to the bare model id), never the app's
+   * `providerId::modelId` UniqueModelId, which the usage row never contains.
+   */
+  const recordedModelId = (modelId: UniqueModelId): string => {
+    const { modelId: rawModelId } = parseUniqueModelId(modelId)
+    return modelById.get(modelId)?.apiModelId ?? rawModelId
   }
 
   const hasTrialTotalEntry = Object.entries(safeLimits).some(
@@ -48,7 +72,9 @@ export function useQuotaNotifications(): void {
     hasTrialTotalEntry
       ? {
           query: {
-            groupBy: 'apiKey' as const,
+            // (key, model) pairs so a model-scoped trial reads that model's own traffic, not the
+            // key's traffic across every model it's used for.
+            groupBy: 'apiKeyModel' as const,
             metric: 'requests' as const,
             from: usageStatsFrom([]),
             to: Date.now(),
@@ -57,11 +83,12 @@ export function useQuotaNotifications(): void {
         }
       : { enabled: false }
   )
+  const usageCounts = collectKeyUsage(usageData?.buckets, usageData?.other)
 
   const check = useEffectEvent(() => {
     const keys: QuotaNoticeInput[] = Object.entries(safeLimits).map(([limitKey, entry]) => {
-      const { keyId, key } = findKey(limitKey)
-      const used = usageData?.buckets.find((b) => b.groupBy === 'apiKey' && b.apiKeyId === keyId)?.requestCount ?? 0
+      const { keyId, key, modelId } = findKey(limitKey)
+      const used = usageAgainstLimit(usageCounts, keyId, modelId && recordedModelId(modelId)) ?? 0
       return {
         limitKey,
         period: entry.period,

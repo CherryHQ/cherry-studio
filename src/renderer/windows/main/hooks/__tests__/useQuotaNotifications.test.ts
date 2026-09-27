@@ -4,7 +4,9 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
 
 import { useQuotaNotifications } from '../useQuotaNotifications'
 
@@ -27,14 +29,19 @@ function makeProvider(id: string, overrides: Partial<Provider> = {}): Provider {
   } as Provider
 }
 
-/** Combined dispatcher for the two paths this hook queries — `mockQueryData` only supports one
+/** Combined dispatcher for the paths this hook queries — `mockQueryData` only supports one
  *  path at a time since each call replaces the whole implementation. */
-function seedQueries(providers: Provider[], usageBuckets: Array<{ apiKeyId: string; requestCount: number }> = []) {
+function seedQueries(
+  providers: Provider[],
+  usageBuckets: Array<{ apiKeyId: string; modelId?: string; requestCount: number }> = [],
+  models: Model[] = []
+) {
   mockUseQuery.mockImplementation((path: string) => {
     const base = { isLoading: false, isRefreshing: false, error: undefined, refetch: vi.fn(), mutate: vi.fn() }
     if (path === '/providers') return { ...base, data: providers }
+    if (path === '/models') return { ...base, data: models }
     if (path === '/ai-usage-records/stats') {
-      return { ...base, data: { buckets: usageBuckets.map((b) => ({ groupBy: 'apiKey', ...b })) } }
+      return { ...base, data: { buckets: usageBuckets.map((b) => ({ groupBy: 'apiKeyModel', ...b })) } }
     }
     return { ...base, data: undefined }
   })
@@ -136,6 +143,51 @@ describe('useQuotaNotifications', () => {
 
     // Simulate the app restarting: a fresh mount reading the persisted notice state.
     seedQueries(providers, [{ apiKeyId: 'trialkey', requestCount: 10 }])
+    renderHook(() => useQuotaNotifications())
+
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+  })
+
+  // A model-scoped trial limit must be measured against that model's own traffic — reading the
+  // key's traffic across every model let a busy unrelated model on the same key falsely trigger
+  // the one-shot "trial exhausted" warning for a model that was never actually used.
+  it('does not falsely report a model-scoped trial exhausted from another model on the same key', () => {
+    const trialModel = { id: 'siliconflow::trial-model', providerId: 'siliconflow' } as unknown as Model
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('siliconflow', 'trialkey', trialModel.id)]: { limit: 10, period: 'total' }
+    })
+    seedQueries(
+      [
+        makeProvider('siliconflow', {
+          apiKeys: [{ id: 'trialkey', isEnabled: true, tier: 'trial' }]
+        })
+      ],
+      // All the traffic on this key is a different model — the trial model itself was never used.
+      [{ apiKeyId: 'trialkey', modelId: 'some-other-model', requestCount: 500 }],
+      [trialModel]
+    )
+
+    renderHook(() => useQuotaNotifications())
+
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('fires a model-scoped trial_exhausted once that specific model reaches its limit', () => {
+    const trialModel = {
+      id: 'siliconflow::trial-model',
+      providerId: 'siliconflow',
+      apiModelId: 'wire-id'
+    } as unknown as Model
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('siliconflow', 'trialkey', trialModel.id)]: { limit: 10, period: 'total' }
+    })
+    seedQueries(
+      [makeProvider('siliconflow', { apiKeys: [{ id: 'trialkey', isEnabled: true, tier: 'trial' }] })],
+      // Recorded under the model's actual wire id (apiModelId), not its bare catalog id.
+      [{ apiKeyId: 'trialkey', modelId: 'wire-id', requestCount: 10 }],
+      [trialModel]
+    )
+
     renderHook(() => useQuotaNotifications())
 
     expect(toast.warning).toHaveBeenCalledTimes(1)
