@@ -14,6 +14,8 @@ export interface CodeCliToolPreset {
   miseNpmShellOut?: boolean
   /** Exact npm packages whose lifecycle scripts mise may run during installation. */
   npmAllowBuilds?: readonly string[]
+  /** Default mise install version when CodeMate installs this CLI without an explicit pin. */
+  requestedVersion?: string
   /**
    * A peer this tool needs at runtime but whose absence an install still reports
    * as success, named as `peer` resolved from `host`'s own entry point.
@@ -81,7 +83,8 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     id: CodeCli.DEEPSEEK_HARNESS,
     executable: 'dsh',
     skillFolderName: 'code-mate-deepseek-harness',
-    packageName: '@deepseek-ai/dsh@0.1.7-rc.2',
+    packageName: '@deepseek-ai/dsh',
+    requestedVersion: '0.1.7-rc.2',
     install: 'npm',
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.

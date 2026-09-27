@@ -17,7 +17,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
   ['antigravity-cli', 'agy', 'google-antigravity/antigravity-cli', 'aqua', 'aqua:google-antigravity/antigravity-cli'],
   ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
-  ['deepseek-harness', 'dsh', '@deepseek-ai/dsh@0.1.7-rc.2', 'npm', 'npm:@deepseek-ai/dsh@0.1.7-rc.2'],
+  ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
   ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],
   ['qwen-code', 'qwen', '@qwen-code/qwen-code', 'npm', 'npm:@qwen-code/qwen-code'],
   ['kimi-code', 'kimi', '@moonshot-ai/kimi-code', 'npm', 'npm:@moonshot-ai/kimi-code'],
