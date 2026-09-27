@@ -1973,7 +1973,9 @@ describe('ClaudeCodeStreamAdapter', () => {
         tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
       })
 
-      // The next task event re-runs the lookup and finally registers the launch root.
+      // The next task event re-runs the lookup and finally registers the launch root, once the
+      // edge-lookup throttle window has passed.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
       adapter.handleMessage({
         type: 'system',
         subtype: 'task_started',
@@ -1984,6 +1986,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Resumed review again',
         task_type: 'subagent'
       } as any)
+      nowSpy.mockRestore()
       const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
       expect(last).toEqual({
         type: 'background-tasks',
@@ -2026,6 +2029,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
       })
 
+      // The retry lands the authoritative root once the edge-lookup throttle window has passed.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
       adapter.handleMessage({
         type: 'system',
         subtype: 'task_started',
@@ -2036,6 +2041,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Resumed review again',
         task_type: 'subagent'
       } as any)
+      nowSpy.mockRestore()
       const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
       expect(last).toEqual({
         type: 'background-tasks',

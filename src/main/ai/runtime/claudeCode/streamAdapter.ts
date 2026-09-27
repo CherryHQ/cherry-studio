@@ -85,6 +85,8 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
 }
 
 const MIN_TRUNCATION_LENGTH = 512
+/** Repeated task edges must not re-scan persisted message JSON for the same launch root. */
+const LAUNCH_ROOT_LOOKUP_RETRY_MS = 5_000
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
@@ -506,6 +508,8 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** Task id → when its persisted launch root was last looked up, so repeated edges cannot re-scan. */
+  private readonly launchRootLookupAt = new Map<string, number>()
   /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
    *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
    *  turn's result, so clearing would strip markers from the bulk of a continued round. */
@@ -1468,7 +1472,17 @@ export class ClaudeCodeStreamAdapter {
     if (this.backgroundTaskToolCallIds.has(taskId)) return
     // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
     // authoritative and must win over a resume edge that arrives before the launch receipt context.
-    const launchToolCallId = this.resolveLaunchToolCallId?.(taskId)
+    // Native edges repeat per task message, so only they are throttled — a launch receipt is the
+    // last chance to stamp the root and runs once per receipt. A throttled attempt reads as a miss.
+    const now = Date.now()
+    const throttled =
+      !allowToolCallIdFallback &&
+      now - (this.launchRootLookupAt.get(taskId) ?? Number.NEGATIVE_INFINITY) < LAUNCH_ROOT_LOOKUP_RETRY_MS
+    let launchToolCallId: string | undefined
+    if (!throttled) {
+      this.launchRootLookupAt.set(taskId, now)
+      launchToolCallId = this.resolveLaunchToolCallId?.(taskId)
+    }
     if (launchToolCallId) {
       this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
     } else if (allowToolCallIdFallback) {
