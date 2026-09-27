@@ -200,6 +200,25 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('does not replay the original prompt once a steer has moved the turn into a continuation', async () => {
+    const primary = fakeConnection()
+    primary.redirect = vi.fn(() => true)
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    wrapper.redirect({ message: { id: 'u2' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(driver.connect).not.toHaveBeenCalled()
+    await wrapper.close()
+  })
+
   it('suppresses fallback when user-visible content already streamed', async () => {
     const primary = fakeConnection()
     const driver = { connect: vi.fn() }
