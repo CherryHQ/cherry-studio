@@ -17,7 +17,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import type { Model } from '@shared/data/types/model'
+import { isUniqueModelId, type Model } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -199,11 +199,13 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const approve = useCallback(async () => {
     if (isSubmitting) return
+    // A malformed id would stop the approved turn without a usable handoff — only send real ones.
+    const handoffModelId = executionModel && isUniqueModelId(executionModel.id) ? executionModel.id : undefined
     await respond(
       {
         match: request.match,
         approved: true,
-        ...(executionModel ? { executionModelId: executionModel.id } : {})
+        ...(handoffModelId ? { executionModelId: handoffModelId } : {})
       },
       'approve'
     )

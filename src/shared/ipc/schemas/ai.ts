@@ -311,7 +311,7 @@ export const aiRequestSchemas = {
       updatedInput: z.record(z.string(), z.unknown()).optional(),
       topicId: z.string().optional(),
       anchorId: z.string().optional(),
-      executionModelId: z.string().optional()
+      executionModelId: UniqueModelIdSchema.optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.object({ ok: z.boolean(), executionModelId: z.string().optional() })
   }),

@@ -291,13 +291,17 @@ const AgentChat = ({
     }
     let cancelled = false
     void (async () => {
-      try {
-        await updateModel({ agentId: activeAgent.id, modelId: handoff.modelId }, { showSuccessToast: false })
-      } catch {
+      // `updateModel` never throws — it toasts and resolves `undefined` on failure. Dropping the
+      // handoff is the only honest path: executing on the old model is not the approved plan.
+      const updated = await updateModel(
+        { agentId: activeAgent.id, modelId: handoff.modelId },
+        { showSuccessToast: false }
+      )
+      if (!updated || cancelled) {
         setPlanExecutionHandoff(undefined)
         return
       }
-      if (!cancelled) setPlanExecutionHandoff({ ...handoff, modelApplied: true })
+      setPlanExecutionHandoff({ ...handoff, modelApplied: true })
     })()
     return () => {
       cancelled = true

@@ -62,6 +62,12 @@ vi.mock('@renderer/components/ModelSelector', () => ({
         onClick={() => onSelect({ id: 'anthropic::claude-sonnet-5', name: 'Claude Sonnet 5' })}>
         pick
       </button>
+      <button
+        type="button"
+        data-testid="model-selector-pick-malformed"
+        onClick={() => onSelect({ id: 'not-a-model-id', name: 'Broken' })}>
+        pick-malformed
+      </button>
       <button type="button" data-testid="model-selector-none" onClick={() => onSelect(undefined)}>
         {noneOptionLabel}
       </button>
@@ -296,6 +302,28 @@ describe('PermissionRequestComposer', () => {
       approved: true,
       executionModelId: 'anthropic::claude-sonnet-5'
     })
+  })
+
+  // A malformed handoff id would stop the approved turn without a usable execution follow-up —
+  // the approval must go through without it rather than sending an id Main cannot resolve.
+  it('approves a plan without the handoff when the picked model id is malformed', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByTestId('model-selector-pick-malformed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
   })
 
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {
