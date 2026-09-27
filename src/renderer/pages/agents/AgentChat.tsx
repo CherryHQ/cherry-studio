@@ -200,9 +200,12 @@ const AgentChat = ({
   // then (once the stopped turn has settled) send the execution follow-up on a fresh turn.
   const [planExecutionHandoff, setPlanExecutionHandoff] = useState<{
     sessionId: string
+    agentId: string | null
     modelId: UniqueModelId
     modelApplied?: boolean
   }>()
+  // Latest (session, agent) pair, readable from stale respond callbacks that survive navigation.
+  const latestSessionKeyRef = useRef<{ id: string | null; agentId: string | null }>({ id: null, agentId: null })
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -233,10 +236,13 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
-    // A pending handoff belongs to the session it was approved on; switching away drops it so
-    // returning later cannot fire a stale execution follow-up.
-    setPlanExecutionHandoff(undefined)
   }, [currentSessionId])
+  useEffect(() => {
+    latestSessionKeyRef.current = { id: sessionSnapshot?.id ?? null, agentId: sessionSnapshot?.agentId ?? null }
+    // A pending handoff belongs to the (session, agent) pair it was approved on; navigating away
+    // or rebinding the session's agent drops it so a stale follow-up cannot fire.
+    setPlanExecutionHandoff(undefined)
+  }, [currentSessionId, sessionSnapshot?.agentId])
 
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
@@ -266,10 +272,16 @@ const AgentChat = ({
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES,
     onPlanModelHandoff: (modelId) => {
-      // Can arrive before the agent query resolves (the composer stays usable); the completion
-      // effect below waits for `activeAgent` and finishes the handoff once it loads.
-      if (!isUniqueModelId(modelId)) return
-      setPlanExecutionHandoff({ sessionId: sessionSnapshot?.id ?? '', modelId })
+      // The respond callback can outlive navigation and hold a stale session: only arm while the
+      // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.
+      const latest = latestSessionKeyRef.current
+      if (!isUniqueModelId(modelId) || sessionSnapshot?.id !== latest.id || sessionSnapshot?.agentId !== latest.agentId)
+        return
+      setPlanExecutionHandoff({
+        sessionId: sessionSnapshot?.id ?? '',
+        agentId: sessionSnapshot?.agentId ?? null,
+        modelId
+      })
     }
   })
   const {
@@ -284,7 +296,15 @@ const AgentChat = ({
   // settle, then send the execution follow-up — a fresh turn captures the new model.
   useEffect(() => {
     const handoff = planExecutionHandoff
-    if (!handoff || handoff.sessionId !== sessionSnapshot?.id || !activeAgent) return
+    // A rebound agent changes the session's owner without changing its id — the approved plan
+    // must not execute against it.
+    if (
+      !handoff ||
+      handoff.sessionId !== sessionSnapshot?.id ||
+      handoff.agentId !== (sessionSnapshot?.agentId ?? null) ||
+      !activeAgent
+    )
+      return
     if (handoff.modelApplied) {
       if (runtime.isPending) return
       setPlanExecutionHandoff(undefined)
