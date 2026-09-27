@@ -201,14 +201,13 @@ const HomePage: FC = () => {
     setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
-    // The bound topic is gone. Drop the remembered id too: `ui.chat.last_used_topic_id`
-    // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
-    // `resolveChatEntryTopicId`, 404s, and the NOT_FOUND recovery fires again — a navigate
-    // loop that jumps away from a just-restored topic.
-    cacheService.setPersist('ui.chat.last_used_topic_id', null)
+    const staleTopicId = activeTopicId ?? routeTopicId
+    if (staleTopicId && cacheService.getPersist('ui.chat.last_used_topic_id') === staleTopicId) {
+      cacheService.setPersist('ui.chat.last_used_topic_id', null)
+    }
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
-  }, [clearActiveTopic, navigate])
+  }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
