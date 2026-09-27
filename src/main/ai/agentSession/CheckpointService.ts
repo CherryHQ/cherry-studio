@@ -92,9 +92,18 @@ export class CheckpointService extends BaseService {
     // changes later), then re-apply immediately so the working tree is left
     // exactly as it was — the turn sees no side effect from taking this snapshot.
     await this.runGit(cwd, ['stash', 'push', '--include-untracked', '-m', 'cherry-checkpoint', '--', '.'])
-    const stashSha = (await this.runGit(cwd, ['rev-parse', 'stash@{0}'])).trim()
-    await this.runGit(cwd, ['stash', 'apply', stashSha])
-    return { mode: 'git', cwd, stashSha, createdAt: Date.now() }
+    try {
+      const stashSha = (await this.runGit(cwd, ['rev-parse', 'stash@{0}'])).trim()
+      await this.runGit(cwd, ['stash', 'apply', stashSha])
+      return { mode: 'git', cwd, stashSha, createdAt: Date.now() }
+    } catch (error) {
+      // The push above already succeeded, so the working tree currently sits emptied of the
+      // user's pre-turn changes. Reapply the most recent stash entry (best effort) before
+      // giving up, so a failure here never silently strips the user's own work out of their
+      // workspace with no checkpoint on record to undo back to.
+      await this.runGit(cwd, ['stash', 'apply']).catch(() => {})
+      throw error
+    }
   }
 
   private async createFileCheckpoint(sessionId: string, cwd: string): Promise<FileCheckpoint> {

@@ -136,6 +136,39 @@ describe('CheckpointService', () => {
     expect(service.status('session-4')).toEqual({ available: false })
   })
 
+  // Blocker-severity gap: `stash push` succeeds (the tree is now emptied of the user's pre-turn
+  // work) but the very next git call throws — without a recovery attempt, the user's own
+  // uncommitted work would sit stashed and invisible from their working directory, with no
+  // checkpoint on record to undo back to either.
+  it('reapplies the stash instead of leaving the workspace emptied when a later git step fails', async () => {
+    const cwd = await makeTempDir('cs-git-partial-fail-')
+    await initGitRepo(cwd)
+    await fs.writeFile(path.join(cwd, 'tracked.txt'), 'committed content\n')
+    await git(cwd, ['add', '.'])
+    await git(cwd, ['commit', '--quiet', '-m', 'initial'])
+    await fs.writeFile(path.join(cwd, 'tracked.txt'), 'pre-turn uncommitted edit\n')
+
+    const service = new CheckpointService() as unknown as {
+      runGit: (cwd: string, args: string[]) => Promise<string>
+      createCheckpoint: typeof CheckpointService.prototype.createCheckpoint
+      status: typeof CheckpointService.prototype.status
+    }
+    const originalRunGit = service.runGit.bind(service)
+    vi.spyOn(service, 'runGit').mockImplementation(async (cwd2: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === 'stash@{0}') {
+        throw new Error('simulated git failure between push and apply')
+      }
+      return originalRunGit(cwd2, args)
+    })
+
+    await service.createCheckpoint('session-partial-fail', cwd)
+
+    // The stash was pushed then best-effort reapplied — the pre-turn edit must still be there.
+    expect(await fs.readFile(path.join(cwd, 'tracked.txt'), 'utf8')).toBe('pre-turn uncommitted edit\n')
+    // The checkpoint itself was never registered, since creation threw past the push.
+    expect(service.status('session-partial-fail')).toEqual({ available: false })
+  })
+
   it('broadcasts availability to the renderer on create and on restore', async () => {
     const cwd = await makeTempDir('cs-broadcast-')
     await initGitRepo(cwd)
