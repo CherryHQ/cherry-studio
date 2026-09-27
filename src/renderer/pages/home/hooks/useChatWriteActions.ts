@@ -28,11 +28,12 @@ import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type {
-  AssistantTurnOptions,
-  BranchMessagesResponse,
-  CherryUIMessage,
-  Message as DbMessage
+import {
+  type AssistantTurnOptions,
+  type BranchMessagesResponse,
+  type CherryUIMessage,
+  isFailedAssistantMessage,
+  type Message as DbMessage
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
@@ -308,11 +309,7 @@ export function useChatWriteActions(params: Params): Result {
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
-      const targetStatus = target?.metadata?.status
-      const isFailedAssistant =
-        target?.role === 'assistant' &&
-        targetStatus !== 'pending' &&
-        (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+      const isFailedAssistant = target ? isFailedAssistantMessage(target) : false
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&

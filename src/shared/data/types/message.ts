@@ -224,6 +224,16 @@ export interface CherryUIMessageMetadata {
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
 export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
 
+/** Assistant rows eligible for in-place retry / composer model override on regenerate. */
+export function isFailedAssistantMessage(message: Pick<CherryUIMessage, 'role' | 'parts' | 'metadata'>): boolean {
+  const status = message.metadata?.status
+  return (
+    message.role === 'assistant' &&
+    status !== 'pending' &&
+    (status === 'error' || status === 'paused' || (message.parts?.length ?? 0) === 0)
+  )
+}
+
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
 

@@ -33,7 +33,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { isUniqueModelId } from '@shared/data/types/model'
+import { resolveComposerActiveModelId } from './messages/resolveComposerActiveModelId'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
@@ -111,18 +111,14 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  const composerActiveModelId = useMemo(() => {
-    const selectorModels = activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? []
-    if (selectorModels.length === 1) {
-      const fromSelector = selectorModels[0]?.id
-      if (fromSelector && isUniqueModelId(fromSelector)) return fromSelector
-    }
-
-    const fromAssistant = assistantContext.model?.id
-    if (fromAssistant && isUniqueModelId(fromAssistant)) return fromAssistant
-
-    return undefined
-  }, [activeConversationControlsSnapshot, assistantContext.model?.id])
+  const composerActiveModelId = useMemo(
+    () =>
+      resolveComposerActiveModelId(
+        activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? [],
+        assistantContext.model?.id
+      ),
+    [activeConversationControlsSnapshot, assistantContext.model?.id]
+  )
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
