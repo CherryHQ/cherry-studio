@@ -1,10 +1,12 @@
 import { memo, useEffect, useMemo } from 'react'
 
 import { loggerService } from '@logger'
-import { AgentLaunchIndexProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import {
+  AgentLaunchIndexProvider,
+  AskUserQuestionOptimisticInputProvider
+} from '@renderer/components/chat/messages/tools/agent'
 import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
   MessageListActions,

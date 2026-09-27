@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { AgentLaunchIndexProvider, PartsProvider } from '../../blocks/MessagePartsContext'
+import { PartsProvider } from '../../blocks/MessagePartsContext'
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
+import { AgentLaunchIndexProvider } from '../agent'
 import { buildAgentLaunchIndex } from '../shared/agentToolTypes'
 
 const mockUseTranslation = vi.fn()

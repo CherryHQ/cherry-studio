@@ -1,5 +1,6 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
 export { AgentExecutionTimeline, AgentToolRenderer, buildResumeToolHeader } from './AgentExecutionTimeline'
+export { AgentLaunchIndexProvider, useAgentLaunchIndex } from './AgentLaunchIndexContext'
 export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'

@@ -8,7 +8,10 @@ const cardProps = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => new Map(),
+  usePartsMap: () => new Map()
+}))
+
+vi.mock('../AgentLaunchIndexContext', () => ({
   useAgentLaunchIndex: () => null
 }))
 
