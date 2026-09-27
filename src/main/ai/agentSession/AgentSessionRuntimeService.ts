@@ -125,6 +125,8 @@ const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
 /** A host-row look-up for an unresolved root is retried after this long, never once per chunk. */
 const FLOW_HOST_RECOVERY_RETRY_MS = 5_000
+/** Per-root cap for chunks buffered while their host row is unresolved. */
+const MAX_RECOVERY_FLOW_CHUNKS = 1_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -303,6 +305,8 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Detached chunks buffered while their host row is still unresolvable (root tool-call id keyed). */
   pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
+  /** Roots whose recovery buffer overflowed; they wait for a fresh stream start before buffering again. */
+  recoveryFlowOverflowRoots?: Set<string>
   /** Last look-up attempt per root, so a retry does not re-scan the DB on every chunk. */
   recoveryLookupAt?: Map<string, number>
   /** Single-flight finalization of the current detached flow batch. */
@@ -2290,9 +2294,26 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   /** Buffer a detached chunk whose root is not resolvable yet, so a later look-up can deliver it. */
   private bufferRecoveryChunk(entry: AgentSessionRuntimeEntry, rootToolCallId: string, chunk: UIMessageChunk): void {
+    // A chunk stream cannot drop its oldest chunk: the accumulator aborts on a delta whose start is
+    // gone. An overflowing root therefore gives up its whole buffer and waits for a fresh start.
+    if (chunk.type === 'text-start' || chunk.type === 'tool-input-start') {
+      entry.recoveryFlowOverflowRoots?.delete(rootToolCallId)
+    } else if (entry.recoveryFlowOverflowRoots?.has(rootToolCallId)) {
+      return
+    }
     const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
     entry.pendingRecoveryFlowChunks = buffered
     const chunks = buffered.get(rootToolCallId) ?? []
+    if (chunks.length >= MAX_RECOVERY_FLOW_CHUNKS) {
+      buffered.delete(rootToolCallId)
+      ;(entry.recoveryFlowOverflowRoots ??= new Set()).add(rootToolCallId)
+      logger.warn('Detached flow recovery buffer overflowed; dropped its buffered prefix', {
+        sessionId: entry.sessionId,
+        rootToolCallId,
+        chunkCount: chunks.length
+      })
+      return
+    }
     chunks.push(chunk)
     buffered.set(rootToolCallId, chunks)
   }

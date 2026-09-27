@@ -2844,6 +2844,34 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingBackgroundFlowChunks).toBeUndefined()
     })
 
+    it('gives up a whole recovery buffer instead of dropping its oldest chunks', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+
+      send({ type: 'text-start', id: 'overflow' })
+      for (let index = 0; index < 1_001; index += 1) send({ type: 'text-delta', id: 'overflow', delta: 'x' })
+
+      // The prefix goes as a whole: a truncated stream would abort the accumulator on a lost start.
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toBeUndefined()
+
+      // Deltas stay refused until a fresh stream starts, so a broken prefix cannot re-enter.
+      send({ type: 'text-delta', id: 'overflow', delta: 'y' })
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toBeUndefined()
+      send({ type: 'text-start', id: 'overflow-2' })
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(1)
+    })
+
     it('retries a throwing teardown lookup before writing the root off', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
