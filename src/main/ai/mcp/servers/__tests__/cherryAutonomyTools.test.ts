@@ -1948,8 +1948,20 @@ describe('CherryAutonomyTools', () => {
     })
 
     afterEach(async () => {
-      await rm(agentsDataDir, { recursive: true, force: true })
-      await rm(workspaceDir, { recursive: true, force: true })
+      // A killed detached child releases its log fd and cwd handle a beat after the kill lands
+      // (pid liveness is not handle liveness), so removal retries through that window.
+      for (const dir of [agentsDataDir, workspaceDir]) {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await rm(dir, { recursive: true, force: true })
+            break
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code
+            if (attempt >= 20 || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+            await new Promise((resolve) => setTimeout(resolve, 50))
+          }
+        }
+      }
     })
 
     const nodeBin = `"${process.execPath}"`
@@ -2111,6 +2123,63 @@ describe('CherryAutonomyTools', () => {
         await callTool(server, { action: 'start', command: `${nodeBin} -e "process.exit(0)"` }, 'background_task')
 
         await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    // IPC-boundary seam (the twin of the MCP layer's best-effort indexing): the disk and process
+    // work has already succeeded by the time the panel index write runs, so a DB failure must not
+    // turn the completed operation into an error response.
+    it('lists detached tasks even when indexing them into the panel store fails', async () => {
+      // Dynamic: a static import would hoist @application's mock factory above the const mocks.
+      const { listAgentBackgroundTasks, startAgentBackgroundTask } =
+        await import('@main/ai/agents/backgroundTaskActions')
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: {} })
+      await startAgentBackgroundTask({
+        agentId: 'agent_test',
+        storageDir: path.join(agentsDataDir, 'agent_test', 'background-tasks'),
+        command: `${nodeBin} -e "setTimeout(() => process.exit(0), 800)"`,
+        cwd: workspaceDir
+      })
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        // The contract under test is "does not error": the disk listing and reconciliation already
+        // succeeded, and the DB-backed result may legitimately be stale while writes fail.
+        const tasks = await listAgentBackgroundTasks('agent_test')
+        expect(Array.isArray(tasks)).toBe(true)
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    it('stops a detached task even when indexing the stop into the panel store fails', async () => {
+      const { startAgentBackgroundTask, stopAgentBackgroundTask } =
+        await import('@main/ai/agents/backgroundTaskActions')
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: {} })
+      const record = await startAgentBackgroundTask({
+        agentId: 'agent_test',
+        storageDir: path.join(agentsDataDir, 'agent_test', 'background-tasks'),
+        command: `${nodeBin} -e "setTimeout(() => {}, 30_000)"`,
+        cwd: workspaceDir
+      })
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        // The stop itself must complete (the child dies) even though the index write failed;
+        // a graceful stop returns before the process is reaped, so wait for the pid.
+        const stopped = await stopAgentBackgroundTask('agent_test', record.id, false)
+        expect(stopped).toBeDefined()
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
       } finally {
         withWriteTx.mockImplementation(original!)
       }
