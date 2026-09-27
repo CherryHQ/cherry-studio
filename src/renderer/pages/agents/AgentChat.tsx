@@ -34,11 +34,13 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { isFilesystemRoot } from '@renderer/utils/path'
 import { cn } from '@renderer/utils/style'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { ReactNode } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -281,7 +283,13 @@ const AgentChat = ({
       !runtime.hasOlder &&
       runtime.uiMessages.length === 0
   )
-  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : undefined
+  const canRecoverFilesystemRootWorkspace = Boolean(
+    parsedWorkspacePath?.success && isFilesystemRoot(parsedWorkspacePath.data)
+  )
+  const canChangeWorkspace = Boolean(
+    onSessionWorkspaceChange && (isEmptyConversation || canRecoverFilesystemRootWorkspace)
+  )
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
       if (requestFileNavigation) {

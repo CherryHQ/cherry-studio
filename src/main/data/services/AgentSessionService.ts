@@ -15,6 +15,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { isFilesystemRoot } from '@main/utils/file'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -763,10 +764,11 @@ export class AgentSessionService {
   }
 
   /**
-   * Replace a session's workspace. Only an empty session (no messages) may
-   * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * Replace a session's workspace. Only an empty session may change its
+   * workspace, except a persisted filesystem-root binding, which may move
+   * onto a supported workspace while keeping its messages.
+   * Lives on `PUT /agent-sessions/:id/workspace` rather than the generic PATCH
+   * because it creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
@@ -779,8 +781,13 @@ export class AgentSessionService {
 
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    // Historical filesystem-root bindings may move onto a supported workspace
+    // without dropping messages. Every other binding locks once a message exists.
+    const recoveringFilesystemRoot =
+      current.workspace.type === AGENT_WORKSPACE_TYPE.USER && isFilesystemRoot(current.workspace.path)
+    if (!recoveringFilesystemRoot) {
+      this.assertSessionHasNoMessagesTx(tx, id)
+    }
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)

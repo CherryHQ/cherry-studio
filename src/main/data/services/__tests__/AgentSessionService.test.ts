@@ -976,6 +976,65 @@ describe('AgentSessionService', () => {
     expect(allWorkspaceRows[0]?.id).toBe(originalSystemWorkspaceId)
   })
 
+  it('recovers a messaged session bound to a persisted filesystem-root workspace without deleting its history', async () => {
+    const rootWorkspaceId = 'workspace-persisted-root'
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: rootWorkspaceId,
+      name: 'Persisted Root',
+      path: '/',
+      type: 'user',
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-root-history',
+        agentId: 'agent-session-test',
+        name: 'Historical root session',
+        workspaceId: rootWorkspaceId,
+        orderKey: 'a1'
+      },
+      {
+        id: 'session-root-sibling',
+        agentId: 'agent-session-test',
+        name: 'Sibling root session',
+        workspaceId: rootWorkspaceId,
+        orderKey: 'a2'
+      }
+    ])
+    await insertSessionMessage('session-root-history', 'message-root-history')
+    await insertSessionMessage('session-root-sibling', 'message-root-sibling')
+    const safeWorkspace = await createWorkspace('recovered-subfolder')
+
+    const updated = agentSessionService.setWorkspace('session-root-history', {
+      type: 'user',
+      workspaceId: safeWorkspace.id
+    })
+
+    expect(updated).toMatchObject({
+      id: 'session-root-history',
+      workspaceId: safeWorkspace.id,
+      workspace: { path: safeWorkspace.path, type: 'user' }
+    })
+    expect(
+      await dbh.db
+        .select({ id: agentSessionMessageTable.id, sessionId: agentSessionMessageTable.sessionId })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, 'session-root-history'))
+    ).toEqual([{ id: 'message-root-history', sessionId: 'session-root-history' }])
+    expect(agentSessionService.getById('session-root-sibling')).toMatchObject({
+      id: 'session-root-sibling',
+      workspaceId: rootWorkspaceId
+    })
+    expect(
+      await dbh.db
+        .select({ id: agentSessionMessageTable.id })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, 'session-root-sibling'))
+    ).toEqual([{ id: 'message-root-sibling' }])
+    const [rootRow] = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, rootWorkspaceId))
+    expect(rootRow).toMatchObject({ id: rootWorkspaceId, path: '/' })
+  })
+
   it('rejects workspace updates after messages are sent', async () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
     const secondWorkspace = await createWorkspace('after-locked-switch')

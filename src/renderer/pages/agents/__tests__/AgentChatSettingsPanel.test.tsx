@@ -558,6 +558,28 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
+  it('lets a messaged filesystem-root session change workspace', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    const onSessionWorkspaceChange = vi.fn()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspaceId: 'workspace-root',
+      workspace: { id: 'workspace-root', type: 'user', name: 'Root', path: '/' }
+    } as any
+
+    renderAgentChat({
+      conversationBootstrap: createConversationBootstrap(session),
+      onSessionWorkspaceChange
+    })
+
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar workspace' }))
+    expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
+  })
+
   it('does not allow switching the workspace after messages are present', () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
