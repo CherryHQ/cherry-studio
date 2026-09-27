@@ -25,6 +25,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
 const chatWriteMock = vi.hoisted(() => ({
   canStartNewContext: true,
   editMessage: vi.fn(),
+  regenerate: vi.fn(),
   setActiveNode: vi.fn(),
   startNewContext: vi.fn()
 }))
@@ -293,6 +294,7 @@ function MessageListAdapterHarness({
   messages = [],
   onBindRuntime,
   onStartBranchDraft,
+  composerActiveModelId,
   onValue,
   partsByMessageId = {},
   topic
@@ -302,6 +304,7 @@ function MessageListAdapterHarness({
   messages?: CherryUIMessage[]
   onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
+  composerActiveModelId?: string
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
@@ -314,7 +317,8 @@ function MessageListAdapterHarness({
     streamingLayers,
     imageActionConsumer,
     onBindRuntime,
-    onStartBranchDraft
+    onStartBranchDraft,
+    composerActiveModelId: composerActiveModelId as any
   })
 
   useEffect(() => {
@@ -604,6 +608,33 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
     expect(value?.actions.deleteMessage).toBeUndefined()
     expect(consumePendingTopicImageActions('topic-a')).toEqual([])
+  })
+
+  it('routes regenerate through ChatWrite with a composer model override when the provider changed', async () => {
+    chatWriteMock.regenerate.mockResolvedValueOnce(undefined)
+    let value: MessageListProviderValue | undefined
+    const failedAssistant = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [{ type: 'data-error', data: { message: 'failed' } }],
+      metadata: {
+        modelId: 'provider-a::model-x',
+        status: 'error'
+      }
+    } as CherryUIMessage
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[failedAssistant]}
+        composerActiveModelId={'provider-b::model-x'}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await value?.actions.regenerateMessage?.('assistant-1')
+
+    expect(chatWriteMock.regenerate).toHaveBeenCalledWith('assistant-1', { modelId: 'provider-b::model-x' })
   })
 
   it('routes the clear-context divider action through ChatWrite and restores composer focus', async () => {

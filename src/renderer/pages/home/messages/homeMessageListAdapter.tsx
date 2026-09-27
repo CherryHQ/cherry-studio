@@ -62,6 +62,7 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from './topicImageActionBus'
+import { resolveRegenerateModelOverride } from './resolveRegenerateModelOverride'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -80,6 +81,7 @@ interface HomeMessageListParams {
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  composerActiveModelId?: UniqueModelId
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -99,6 +101,7 @@ export function useHomeMessageListProviderValue({
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
+  composerActiveModelId,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -723,8 +726,12 @@ export function useHomeMessageListProviderValue({
   )
 
   const regenerateMessage = useCallback<NonNullable<MessageListActions['regenerateMessage']>>(
-    (messageId) => requireChatWrite('regenerateMessage').regenerate(messageId),
-    [requireChatWrite]
+    (messageId) => {
+      const target = messages.find((message) => message.id === messageId)
+      const modelId = resolveRegenerateModelOverride(target, composerActiveModelId)
+      return requireChatWrite('regenerateMessage').regenerate(messageId, modelId ? { modelId } : undefined)
+    },
+    [composerActiveModelId, messages, requireChatWrite]
   )
 
   const regenerateMessageUsingModel = useCallback(

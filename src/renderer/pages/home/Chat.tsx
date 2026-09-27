@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -33,6 +33,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
@@ -110,6 +111,15 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  const composerActiveModelId = useMemo(() => {
+    const fromSelector = activeConversationControlsSnapshot?.mentionedModelSelectorValue[0]?.id
+    if (fromSelector && isUniqueModelId(fromSelector)) return fromSelector
+
+    const fromAssistant = assistantContext.model?.id
+    if (fromAssistant && isUniqueModelId(fromAssistant)) return fromAssistant
+
+    return undefined
+  }, [activeConversationControlsSnapshot, assistantContext.model?.id])
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
@@ -238,6 +248,7 @@ const Chat: FC<Props> = (props) => {
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
+        composerActiveModelId={composerActiveModelId}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on

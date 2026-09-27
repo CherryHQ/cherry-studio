@@ -526,6 +526,26 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('uses an explicit model override when retrying a failed assistant with a different provider', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1', { modelId: 'provider::model-b' })
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-b']
+    })
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('retryMessageId')
+  })
+
   it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
     nonTextAssistant.metadata.modelId = 'provider::model-a'

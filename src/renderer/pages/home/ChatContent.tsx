@@ -18,7 +18,7 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { isUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -38,6 +38,7 @@ interface Props {
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
+  composerActiveModelId?: UniqueModelId
 }
 
 /**
@@ -60,7 +61,8 @@ const ChatContent: FC<Props> = ({
   onBranchLiveStateChange,
   assistantContext,
   providers,
-  onConversationControlsChange
+  onConversationControlsChange,
+  composerActiveModelId
 }) => {
   const {
     uiMessages,
@@ -87,6 +89,7 @@ const ChatContent: FC<Props> = ({
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
+      composerActiveModelId={composerActiveModelId}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -134,6 +137,7 @@ const ChatContentInner: FC<InnerProps> = ({
   assistantContext,
   providers,
   onConversationControlsChange,
+  composerActiveModelId,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -228,6 +232,7 @@ const ChatContentInner: FC<InnerProps> = ({
         selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
+        composerActiveModelId={composerActiveModelId}
       />
     </div>
   )
