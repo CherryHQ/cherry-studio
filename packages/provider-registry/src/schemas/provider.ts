@@ -149,7 +149,9 @@ export const EndpointDialectSchema = z.object({
   /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
   developerRole: z.boolean().optional(),
   /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
-  reasoningSummary: z.boolean().optional()
+  reasoningSummary: z.boolean().optional(),
+  /** Rejects Anthropic Messages requests that omit `max_tokens`. Absent ⇒ false. */
+  requiresMaxOutputTokens: z.boolean().optional()
 })
 
 /** Per-endpoint-type configuration in registry */

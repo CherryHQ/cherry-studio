@@ -172,7 +172,8 @@ export const inLoopCompactionFeature: RequestFeature = {
         undefined,
         scope.assistant,
         scope.model,
-        scope.endpointType
+        scope.endpointType,
+        scope.provider
       )
     )
     const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)

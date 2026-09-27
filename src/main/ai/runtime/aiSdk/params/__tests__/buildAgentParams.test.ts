@@ -631,6 +631,37 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBeUndefined()
   })
 
+  it('uses the endpoint fallback when anthropic-messages requires max_tokens and the model has no catalog limit', async () => {
+    const provider = makeProvider({
+      id: 'lmstudio',
+      presetProviderId: 'lmstudio',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          dialect: { requiresMaxOutputTokens: true }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'lmstudio::local-model',
+      providerId: 'lmstudio',
+      apiModelId: 'local-model',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.maxOutputTokens).toBe(8192)
+  })
+
   it('applies call override over custom parameter and enabled assistant max tokens', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 65_536)
     const assistant = makeAssistant({
