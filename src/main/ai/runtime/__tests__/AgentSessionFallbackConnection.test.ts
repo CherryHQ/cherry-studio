@@ -170,4 +170,52 @@ describe('Pi/DSH connection fallback', () => {
     expect(driver.connect).not.toHaveBeenCalled()
     await wrapper.close()
   })
+
+  it('still falls back when the failed turn emitted only usage metadata', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    // Pi projects `turn_end` usage as a `message-metadata` chunk; a provider turn can emit that
+    // (tokens were consumed) and still fail before streaming anything user-visible.
+    primary.events.push({
+      type: 'chunk',
+      chunk: { type: 'message-metadata', messageMetadata: { totalTokens: 12 } }
+    } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'data-model-fallback' } }
+    })
+    expect(driver.connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'backup::model' }))
+    await wrapper.close()
+  })
+
+  it('suppresses fallback when user-visible content already streamed', async () => {
+    const primary = fakeConnection()
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 't1', delta: 'partial' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'text-delta' } } })
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(driver.connect).not.toHaveBeenCalled()
+    await wrapper.close()
+  })
 })
