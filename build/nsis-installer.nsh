@@ -31,7 +31,6 @@
         IntOp $3 $3 | $4
         ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
           StrCpy $0 "1"
-          Goto vcRedistRestoreView
         ${EndIf}
       ${EndIf}
     ${EndIf}
@@ -53,10 +52,16 @@
     ${OrIf} ${IsNativeARM64}
       SetRegView 64
       !insertmacro checkVCRedistRegistryView
+      ${If} $0 == "1"
+        Goto vcRedistRestoreView
+      ${EndIf}
     ${EndIf}
 
     SetRegView 32
     !insertmacro checkVCRedistRegistryView
+    ${If} $0 == "1"
+      Goto vcRedistRestoreView
+    ${EndIf}
 
   vcRedistRestoreView:
     ; Match electron-builder's registry view before later installer code runs.
