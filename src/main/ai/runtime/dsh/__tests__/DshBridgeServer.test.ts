@@ -478,7 +478,7 @@ describe('DshBridgeServer', () => {
     await expect(ask).resolves.toEqual({ outcome: 'rejected' })
   })
 
-  it('returns a trimmed rejection reason for the plugin to deliver to the agent', async () => {
+  it('returns the attributed rejection with exact multiline user words for the plugin', async () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', {
       sessionId: SESSION_ID,
@@ -489,24 +489,61 @@ describe('DshBridgeServer', () => {
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
 
+    const reason = '\n  keep the copy in two steps  \n'
     toolApprovalRegistry.dispatch(event.request.approvalId, {
       approved: false,
       source: 'user',
-      reason: '  use a copy instead  '
+      reason
     })
 
     await expect(ask).resolves.toEqual({
       outcome: 'rejected',
-      rejectionReason: 'use a copy instead'
+      rejectionReason: `The user denied permission to use bash. The tool did not execute. The user's exact words are between these markers:\n<<<USER_WORDS>>>\n${reason}\n<<<USER_WORDS>>>`
     })
   })
 
-  it('does not attach feedback to approvals, blank denials, or edited-input fallbacks', async () => {
+  it.each([
+    ['reason omitted', undefined],
+    ['whitespace-only reason', '   '],
+    ['legacy UI reason', '用户拒绝了该工具的权限。']
+  ])('returns the fixed no-reason message when the %s is denied', async (_case, reason) => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false, source: 'user', reason })
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason:
+        'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    })
+  })
+
+  it('returns a host rejection reason unchanged', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, {
+      approved: false,
+      source: 'host',
+      hostReason: 'Tool request was cancelled before approval'
+    })
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason: 'Tool request was cancelled before approval'
+    })
+  })
+
+  it('does not attach feedback to approvals or edited-input fallbacks', async () => {
     const harness = await makeHarness()
 
     for (const decision of [
       { approved: true },
-      { approved: false, source: 'user', reason: '   ' },
       { approved: true, updatedInput: { command: 'echo edited' } }
     ] satisfies DispatchDecision[]) {
       const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })

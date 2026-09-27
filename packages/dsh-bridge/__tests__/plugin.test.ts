@@ -750,6 +750,43 @@ describe('cherry bridge plugin', () => {
     })
   })
 
+  it('injects the host rejection payload verbatim as a user message', async () => {
+    const payload =
+      "The user denied permission to use bash. The tool did not execute. The user's exact words are between these markers:\n<<<USER_WORDS>>>\n\n  keep the copy in two steps  \n\n<<<USER_WORDS>>>"
+    const host = await startHost((method) =>
+      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: payload } : {}
+    )
+    const inject = vi.fn()
+    const agent = {
+      id: 'session-1',
+      session: { snapshotEvents: () => [{ type: 'approval/asked', seq: 12 }] },
+      inject
+    } as unknown as Agent
+    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const ctx = makeContext({
+      on: (event: string, handler: unknown) => {
+        if (event === 'approval/request') approvalHandler = handler as typeof approvalHandler
+        return () => undefined
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!approvalHandler) throw new Error('approval handler was not registered')
+
+    await expect(
+      approvalHandler({ agent, toolName: 'bash', callId: 'call-with-feedback' } as ApprovalRequest)
+    ).resolves.toBe('rejected')
+    expect(inject).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        content: [{ type: 'text', text: `Tool approval feedback for "bash":\n${payload}` }],
+        source: { kind: 'user' }
+      })
+    )
+  })
+
   it('rejects an unknown method instead of answering it', async () => {
     const host = await startHost()
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath
