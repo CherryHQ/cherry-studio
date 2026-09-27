@@ -297,6 +297,35 @@ describe('ApiHost', () => {
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
+  it('persists allowSelfSignedTls through the provider settings merge patch', async () => {
+    updateProviderMock.mockResolvedValue(undefined)
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost: vi.fn(),
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" />)
+
+    const toggle = screen.getByRole('switch', { name: /Allow Self-Signed Certificates|允许自签名证书/i })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        providerSettings: {
+          allowSelfSignedTls: true
+        }
+      })
+    })
+  })
+
   it('returns no connection field when the provider hides connection settings', () => {
     useProviderMock.mockReturnValue({
       provider: {

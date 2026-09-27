@@ -222,7 +222,8 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       providerId: z.string().optional(),
       assistantId: z.string().optional(),
-      throwOnError: z.boolean().optional()
+      throwOnError: z.boolean().optional(),
+      requestContext: z.literal('provider-setup').optional()
     }),
     output: z.array(ModelSchema.partial())
   }),
@@ -230,6 +231,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       ...aiRequestShape,
       apiKeyOverride: z.string().optional(),
+      requestContext: z.literal('provider-setup').optional(),
       timeout: z.number().optional()
     }),
     output: z.object({ latency: z.number() })

@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type {
@@ -110,6 +112,7 @@ export interface DashScopeProviderParams {
 export interface DashScopeTransportSettings {
   apiKey: string
   imageBaseURL?: string
+  fetch?: FetchFunction
 }
 
 type ResponseFamily = 'choices' | 'results' | 'image_url'
@@ -370,11 +373,13 @@ function buildRequestBody(
 class DashScopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private readonly fetchFn: FetchFunction | undefined
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+    this.fetchFn = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -533,7 +538,7 @@ class DashScopeTransport implements ImageGenerationTransport {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
+      const response = await (this.fetchFn ?? globalThis.fetch)(`${this.baseURL}${path}`, fetchOptions)
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)

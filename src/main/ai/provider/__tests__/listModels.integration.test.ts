@@ -1,9 +1,9 @@
 import { createServer, type Server } from 'node:http'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
@@ -37,17 +37,6 @@ vi.mock('@main/services/CopilotService', () => ({
   }
 }))
 
-// Listing issues its HTTP through `customFetch` (Electron `net.fetch`, the Chromium stack),
-// which has no Chromium behind it under Vitest. Delegate to Node's fetch so the real
-// loopback server below stays reachable; the transport is not what this suite exercises.
-vi.mock('@main/ai/utils/customFetch', async () => {
-  const actual = await vi.importActual<typeof CustomFetchModule>('@main/ai/utils/customFetch')
-  return {
-    ...actual,
-    customFetch: (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init)
-  }
-})
-
 const { listModels } = await import('../listModels')
 
 const servers: Server[] = []
@@ -66,6 +55,7 @@ async function listen(server: Server): Promise<number> {
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('')
+  vi.mocked(net.fetch).mockImplementation((input, init) => fetch(input, init))
 })
 
 afterEach(async () => {
@@ -112,6 +102,7 @@ describe('listModels - LM Studio response isolation', () => {
 
     const models = await listModels(provider)
 
+    expect(net.fetch).toHaveBeenCalledWith(`http://127.0.0.1:${port}/api/v1/models`, expect.any(Object))
     expect(models.map((model) => model.apiModelId)).toEqual(['first-model', 'second-model'])
     expect(models[0]?.name).toBe('First Model')
     expect(

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  releaseProviderTlsSessionMock,
+  releaseProviderTlsSessionIfInactiveMock,
   createMock,
   listMock,
   getByProviderIdMock,
@@ -16,6 +18,8 @@ const {
   moveMock,
   reorderMock
 } = vi.hoisted(() => ({
+  releaseProviderTlsSessionMock: vi.fn(),
+  releaseProviderTlsSessionIfInactiveMock: vi.fn(),
   createMock: vi.fn(),
   listMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
@@ -36,6 +40,11 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getProviderPreset: getProviderPresetMock
   }
+}))
+
+vi.mock('@main/ai/utils/providerTlsExceptions', () => ({
+  releaseProviderTlsSession: releaseProviderTlsSessionMock,
+  releaseProviderTlsSessionIfInactive: releaseProviderTlsSessionIfInactiveMock
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -118,6 +127,7 @@ describe('providerHandlers', () => {
       })
 
       expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: true })
+      expect(releaseProviderTlsSessionIfInactiveMock).toHaveBeenCalledWith(updated)
       expect(result).toBe(updated)
     })
 
@@ -140,6 +150,7 @@ describe('providerHandlers', () => {
       })
 
       expect(deleteMock).toHaveBeenCalledWith('openai')
+      expect(releaseProviderTlsSessionMock).toHaveBeenCalledWith('openai')
       expect(result).toBeUndefined()
     })
   })

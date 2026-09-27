@@ -8,6 +8,7 @@
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { releaseProviderTlsSession, releaseProviderTlsSessionIfInactive } from '@main/ai/utils/providerTlsExceptions'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
@@ -42,11 +43,14 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
-      return providerService.update(params.providerId, parsed)
+      const updated = providerService.update(params.providerId, parsed)
+      releaseProviderTlsSessionIfInactive(updated)
+      return updated
     },
 
     DELETE: async ({ params }) => {
       providerService.delete(params.providerId)
+      releaseProviderTlsSession(params.providerId)
       return undefined
     }
   },

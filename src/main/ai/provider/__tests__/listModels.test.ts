@@ -1,11 +1,13 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { CERT_AUTHORITY_INVALID, CERT_VERIFY_ACCEPT, CERT_VERIFY_USE_CHROMIUM } from '../../utils/providerTlsExceptions'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
@@ -15,6 +17,7 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
 const {
   getRotatedApiKeyMock,
+  resolveApiKeyMock,
   getAuthConfigMock,
   getAuthHeadersMock,
   getCopilotTokenMock,
@@ -23,6 +26,7 @@ const {
   isRegistryProviderMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn(),
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
@@ -34,6 +38,7 @@ const {
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock
   }
 }))
@@ -66,11 +71,12 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
 })
 
 // Import the SUT after the mocks are declared.
-const { listModels } = await import('../listModels')
+const { listModels, probeOllamaModel } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  resolveApiKeyMock.mockReturnValue({ value: '' })
   isRegistryProviderMock.mockImplementation((providerId) => providerId === 'openai')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
@@ -139,6 +145,203 @@ describe('listModels — default grouping', () => {
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('listModels — provider network transport', () => {
+  it('lists models for a provider without TLS opt-in through the default Electron fetch', async () => {
+    const provider = makeProvider({
+      id: 'custom',
+      settings: { allowSelfSignedTls: false },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      }
+    })
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+    vi.mocked(net.fetch).mockResolvedValue(Response.json({ data: [{ id: 'local-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+
+    try {
+      const models = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(models.map((model) => model.apiModelId)).toEqual(['local-model'])
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+    }
+  })
+
+  it('lists opted-in models on an in-memory session and keeps the same host strict otherwise', async () => {
+    const endpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+    }
+    const partitions = new Map<
+      string,
+      {
+        fetch: ReturnType<typeof vi.fn>
+        setCertificateVerifyProc: ReturnType<typeof vi.fn>
+        webRequest: { onBeforeSendHeaders: ReturnType<typeof vi.fn> }
+      }
+    >()
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.fromPartition).mockImplementation((partition: string) => {
+      let created = partitions.get(partition)
+      if (!created) {
+        created = {
+          fetch: vi.fn(async () => Response.json({ data: [{ id: 'local-model' }] })),
+          setCertificateVerifyProc: vi.fn(),
+          webRequest: { onBeforeSendHeaders: vi.fn() }
+        }
+        partitions.set(partition, created)
+      }
+      return created as never
+    })
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+    vi.mocked(net.fetch).mockImplementation(async () => Response.json({ data: [{ id: 'local-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+
+    try {
+      const opted = makeProvider({ id: 'opted', settings: { allowSelfSignedTls: true }, endpointConfigs })
+      const strict = makeProvider({ id: 'strict', settings: { allowSelfSignedTls: false }, endpointConfigs })
+
+      expect((await listModels(opted, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect([...partitions.keys()]).toEqual([expect.not.stringMatching(/^persist:/)])
+      expect(net.fetch).not.toHaveBeenCalled()
+
+      vi.mocked(net.fetch).mockClear()
+      expect((await listModels(strict, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect(partitions.size).toBe(1)
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
+  it('uses an opted-in scoped session for setup discovery while the provider remains disabled', async () => {
+    const endpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+    }
+    const scoped = {
+      fetch: vi.fn(async () => Response.json({ data: [{ id: 'local-model' }] })),
+      setCertificateVerifyProc: vi.fn(),
+      closeAllConnections: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.fromPartition).mockReturnValue(scoped as never)
+    vi.mocked(net.fetch).mockImplementation(async () => Response.json({ data: [{ id: 'strict-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+    const setupOptions = {
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    } as { throwOnError: true; requestContext: 'provider-setup' }
+
+    try {
+      const provider = makeProvider({
+        id: 'setup-provider',
+        isEnabled: false,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs
+      })
+
+      expect((await listModels(provider, undefined, setupOptions)).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect(scoped.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(net.fetch).not.toHaveBeenCalled()
+
+      scoped.fetch.mockClear()
+      expect((await listModels(provider, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'strict-model'
+      ])
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(scoped.fetch).not.toHaveBeenCalled()
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
+  it('allows the dedicated model-list host only on the opted-in provider session', async () => {
+    const scoped = {
+      fetch: vi.fn(async () =>
+        Response.json({ data: [{ id: 'local-model', supported_protocols: ['openai:chat-completions'] }] })
+      ),
+      setCertificateVerifyProc: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.fromPartition).mockReturnValue(scoped as never)
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+
+    try {
+      const provider = makeProvider({
+        id: 'tokendance',
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://llm.internal/v1',
+            modelsApiUrls: { default: 'https://models.internal/catalog' }
+          }
+        }
+      })
+
+      expect((await listModels(provider, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect(scoped.fetch).toHaveBeenCalledWith('https://models.internal/catalog', expect.any(Object))
+
+      const verify = scoped.setCertificateVerifyProc.mock.calls.at(-1)?.[0] as (
+        request: { hostname: string; errorCode?: number },
+        callback: (result: number) => void
+      ) => void
+      const callback = vi.fn()
+      verify({ hostname: 'models.internal', errorCode: CERT_AUTHORITY_INVALID }, callback)
+      expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_ACCEPT)
+      verify({ hostname: 'models.internal', errorCode: -201 }, callback)
+      expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_USE_CHROMIUM)
+      verify({ hostname: 'unlisted.internal', errorCode: CERT_AUTHORITY_INVALID }, callback)
+      expect(callback).toHaveBeenLastCalledWith(CERT_VERIFY_USE_CHROMIUM)
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
+  it('uses the Electron session for Ollama model metadata and existence probes', async () => {
+    const provider = makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'https://ollama.internal' } }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { models: [{ name: 'qwen3:8b' }] } })
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkPostJsonToApiMock.mockImplementation((options) => actual.postJsonToApi(options))
+    vi.mocked(net.fetch).mockResolvedValue(
+      Response.json({ model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 8192 } })
+    )
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+
+    try {
+      const models = await listModels(provider, undefined, { throwOnError: true })
+      expect(models[0].contextWindow).toBe(8192)
+      expect(net.fetch).toHaveBeenCalledWith('https://ollama.internal/api/show', expect.any(Object))
+
+      await expect(probeOllamaModel(provider, 'qwen3:8b')).resolves.toHaveProperty('latency')
+      expect(net.fetch).toHaveBeenCalledWith('https://ollama.internal/api/show', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+    }
+  })
 })
 
 describe('listModels — malformed OpenAI-compatible rows', () => {

@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -40,6 +42,7 @@ export interface DmxapiProviderParams {
 export interface DmxapiTransportSettings {
   apiKey: string
   baseURL?: string
+  fetch?: FetchFunction
 }
 
 /**
@@ -63,10 +66,12 @@ function extractUrlsFromText(text: string): string[] {
 class DmxapiTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private readonly fetchFn: FetchFunction | undefined
 
   constructor(settings: DmxapiTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_DMXAPI_BASE_URL
+    this.fetchFn = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -194,7 +199,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`
     const authHeader = opts?.authHeader ?? 'Authorization'
     const authValue = opts?.authValue ?? `Bearer ${this.apiKey}`
-    const response = await fetch(url, {
+    const response = await (this.fetchFn ?? globalThis.fetch)(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',

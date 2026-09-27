@@ -98,6 +98,7 @@ import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
+import { installProviderCertificateVerifyProc } from './utils/providerTlsExceptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -398,6 +399,8 @@ export class AiService extends BaseService {
     // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
+    // Default session stays fail-closed. Opted-in requests use a scoped session (#20500).
+    this.registerDisposable(installProviderCertificateVerifyProc())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
@@ -1246,7 +1249,10 @@ export class AiService extends BaseService {
         presetProviderId: provider.presetProviderId ?? null
       })
     }
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remoteModels = await listModelsFromProvider(provider, undefined, {
+      throwOnError: request.throwOnError,
+      ...(request.requestContext ? { requestContext: request.requestContext } : {})
+    })
     if (!provider.supplementModelsFromRegistry) {
       return remoteModels
     }
@@ -1301,11 +1307,13 @@ export class AiService extends BaseService {
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
   async checkModel(
-    request: AsInProcess<AiRequest> & { timeout?: number },
+    request: AsInProcess<AiRequest> & { timeout?: number; requestContext?: 'provider-setup' },
     options?: { chatOnly: boolean }
   ): Promise<{ latency: number }> {
     request.requestOptions?.signal?.throwIfAborted()
-    const { provider, model } = this.getProviderAndModel(request)
+    const { provider: configuredProvider, model } = this.getProviderAndModel(request)
+    const provider =
+      request.requestContext === 'provider-setup' ? { ...configuredProvider, isEnabled: true } : configuredProvider
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
@@ -1323,7 +1331,11 @@ export class AiService extends BaseService {
       onAbort = () => reject(signal.reason)
       signal.addEventListener('abort', onAbort, { once: true })
     })
-    const probeRequest = { ...request, requestOptions: { ...request.requestOptions, signal } }
+    const probeRequest = {
+      ...request,
+      requestOptions: { ...request.requestOptions, signal },
+      resolvedModel: { provider, model }
+    }
     try {
       let probe: Promise<unknown>
       if (isOllamaProvider(provider) && !options?.chatOnly) {

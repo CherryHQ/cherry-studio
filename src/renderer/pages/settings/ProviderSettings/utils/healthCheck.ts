@@ -245,11 +245,12 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
  */
 export async function checkApi(
   uniqueModelId: UniqueModelId,
-  options?: { apiKey?: string; timeout?: number; signal?: AbortSignal }
+  options?: { apiKey?: string; timeout?: number; signal?: AbortSignal; requestContext?: 'provider-setup' }
 ): Promise<{ latency: number }> {
   options?.signal?.throwIfAborted()
   return await ipcApi.request('ai.provider.model.check', {
     apiKeyOverride: options?.apiKey,
+    ...(options?.requestContext ? { requestContext: options.requestContext } : {}),
     uniqueModelId,
     timeout: options?.timeout ?? 15000
   })

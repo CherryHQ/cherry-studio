@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
@@ -98,15 +100,18 @@ export interface PpioProviderParams {
 export interface PpioTransportSettings {
   apiKey: string
   baseURL?: string
+  fetch?: FetchFunction
 }
 
 class PpioTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private readonly fetchFn: FetchFunction | undefined
 
   constructor(settings: PpioTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_PPIO_BASE_URL
+    this.fetchFn = settings.fetch
   }
 
   private async request<T>(
@@ -151,7 +156,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
 
     try {
-      const response = await fetch(url, fetchOptions)
+      const response = await (this.fetchFn ?? globalThis.fetch)(url, fetchOptions)
 
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
