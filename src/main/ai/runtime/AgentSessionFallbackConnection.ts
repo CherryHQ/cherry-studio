@@ -80,7 +80,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
-    return this.current.redirect?.(input) ?? false
+    const stashed = this.current.redirect?.(input) ?? false
+    // A stashed steer moves the live turn onto the steered continuation, so the stored prompt is no
+    // longer replayable: a fallback would resend the turn without the steer the host already folded in.
+    if (stashed) this.lastInput = undefined
+    return stashed
   }
 
   refreshTraceContext(context: Parameters<NonNullable<AgentRuntimeConnection['refreshTraceContext']>>[0]) {
