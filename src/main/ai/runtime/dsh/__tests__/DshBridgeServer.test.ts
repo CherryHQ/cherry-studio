@@ -521,21 +521,14 @@ describe('DshBridgeServer', () => {
     })
   })
 
-  it('returns a host rejection reason unchanged', async () => {
+  it('returns the session-close host rejection reason unchanged', async () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
-    const event = harness.events[0]
-    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
-
-    toolApprovalRegistry.dispatch(event.request.approvalId, {
-      approved: false,
-      source: 'host',
-      hostReason: 'Tool request was cancelled before approval'
-    })
+    expect(toolApprovalRegistry.abort(SESSION_ID, 'dsh-session-closed')).toBe(1)
     await expect(ask).resolves.toEqual({
       outcome: 'rejected',
-      rejectionReason: 'Tool request was cancelled before approval'
+      rejectionReason: 'dsh-session-closed'
     })
   })
 
