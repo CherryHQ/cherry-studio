@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for renderer-side CacheService value-equality semantics.
  *
@@ -8,7 +10,7 @@
  * scenarios the upgrade actually changes: object/array/record values that
  * are reconstructed as new references on every write.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL CacheService
 vi.unmock('@data/CacheService')
@@ -41,7 +43,7 @@ afterEach(() => {
 async function createService() {
   const { CacheService } = await import('../CacheService')
   const service = new CacheService()
-  const inbound = onSync.mock.calls.at(-1)![0] as (message: import('@shared/data/cache/cacheTypes').CacheSyncMessage) => void
+  const inbound = onSync.mock.calls.at(-1)![0] as (message: CacheSyncMessage) => void
   return { service, inbound }
 }
 
