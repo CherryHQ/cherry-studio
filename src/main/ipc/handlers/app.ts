@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import { inspectNotesRelocation, migrateNotesDirectory } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -39,6 +40,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
     requestUserDataRelocation(path, copy)
   },
+  'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) =>
+    migrateNotesDirectory(sourcePath, targetPath, { merge }),
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),
