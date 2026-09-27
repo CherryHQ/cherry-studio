@@ -1704,7 +1704,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "doubao - AI model provider",
+      "description": "Doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -1769,7 +1769,7 @@
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao",
+      "name": "Doubao",
       "serverTools": [
         {
           "id": "web-search",
