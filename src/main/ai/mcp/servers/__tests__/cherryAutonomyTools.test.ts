@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isPidAlive } from '@main/ai/agents/backgroundTasks'
 import type * as ChannelsModule from '@main/ai/channels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -2160,6 +2161,13 @@ describe('cherry-tools autonomy tools', () => {
         const record = JSON.parse(result.content[0].text)
         expect(record.status).toBe('running')
         expect(record.pid).toBeGreaterThan(0)
+
+        // The disk record exists even though indexing failed, so `stop` can still find the task.
+        // Without this the detached child outlives the test and holds the fixture dirs open
+        // while afterEach removes them.
+        const stopped = await callTool(server, { action: 'stop', task_id: record.id }, 'background_task')
+        expect(stopped.isError).toBeFalsy()
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
       } finally {
         withWriteTx.mockImplementation(original!)
       }
