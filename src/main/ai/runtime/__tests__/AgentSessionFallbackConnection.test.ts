@@ -17,7 +17,7 @@ function fakeConnection() {
   const events = new AsyncEventQueue<AgentRuntimeEvent>()
   const close = vi.fn(async () => events.close())
   const send = vi.fn()
-  return { events, close, send, reconcile: vi.fn(async () => 'current' as const) }
+  return { events, close, send, redirect: vi.fn(() => false), reconcile: vi.fn(async () => 'current' as const) }
 }
 
 describe('Pi/DSH connection fallback', () => {
@@ -202,7 +202,7 @@ describe('Pi/DSH connection fallback', () => {
 
   it('does not replay the original prompt once a steer has moved the turn into a continuation', async () => {
     const primary = fakeConnection()
-    primary.redirect = vi.fn(() => true)
+    primary.redirect.mockReturnValue(true)
     const driver = { connect: vi.fn() }
     const wrapper = new AgentSessionFallbackConnection(
       driver as unknown as AgentSessionRuntimeDriver,
