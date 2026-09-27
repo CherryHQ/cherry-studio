@@ -15,69 +15,94 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 describe('toModelMessages', () => {
   it.each([
     [
+      'bash',
       '  say "stop"\nfirst  ',
       'The user denied permission to use bash. The tool did not execute. The user\'s exact words are between these markers:\n<<<USER_WORDS>>>\n  say "stop"\nfirst  \n<<<USER_WORDS>>>'
     ],
     [
+      'bash',
       undefined,
       'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    ],
+    [
+      'builtin_AskUserQuestion',
+      undefined,
+      'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    ],
+    [
+      'bash',
+      '用户拒绝了该工具的权限。',
+      'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    ],
+    [
+      'AskUserQuestion',
+      'User dismissed AskUserQuestion',
+      'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    ],
+    [
+      'bash',
+      'User denied tool execution',
+      'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
     ]
-  ])('sends an attributed execution-denied result to the model for reason %s', async (reason, expected) => {
-    const stored = ui('assistant', [
-      {
-        type: 'tool-bash',
-        toolCallId: 'call-1',
-        state: 'approval-responded',
-        input: {},
-        approval: { id: 'ap-1', approved: false, ...(reason === undefined ? {} : { reason }) }
-      }
-    ])
-    const original = structuredClone(stored)
-    let received: unknown
-    const model = new MockLanguageModelV3({
-      doStream: async (options) => {
-        received = options.prompt
-        const parts: LanguageModelV3StreamPart[] = [
-          { type: 'text-start', id: 'text-1' },
-          { type: 'text-delta', id: 'text-1', delta: 'done' },
-          { type: 'text-end', id: 'text-1' },
-          {
-            type: 'finish',
-            finishReason: { unified: 'stop', raw: 'stop' },
-            usage: {
-              inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
-              outputTokens: { total: 1, text: 1, reasoning: undefined }
+  ])(
+    'sends an attributed execution-denied result to the model for %s reason %s',
+    async (toolName, reason, expected) => {
+      const stored = ui('assistant', [
+        {
+          type: `tool-${toolName}`,
+          toolCallId: 'call-1',
+          state: 'approval-responded',
+          input: {},
+          approval: { id: 'ap-1', approved: false, ...(reason === undefined ? {} : { reason }) }
+        }
+      ])
+      const original = structuredClone(stored)
+      let received: unknown
+      const model = new MockLanguageModelV3({
+        doStream: async (options) => {
+          received = options.prompt
+          const parts: LanguageModelV3StreamPart[] = [
+            { type: 'text-start', id: 'text-1' },
+            { type: 'text-delta', id: 'text-1', delta: 'done' },
+            { type: 'text-end', id: 'text-1' },
+            {
+              type: 'finish',
+              finishReason: { unified: 'stop', raw: 'stop' },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                outputTokens: { total: 1, text: 1, reasoning: undefined }
+              }
             }
-          }
-        ]
-        return { stream: convertArrayToReadableStream(parts) }
-      }
-    })
-    await streamText({
-      model,
-      messages: await toModelMessages([stored]),
-      tools: { bash: tool({ inputSchema: z.object({}), needsApproval: true, execute: async () => ({}) }) }
-    }).text
+          ]
+          return { stream: convertArrayToReadableStream(parts) }
+        }
+      })
+      await streamText({
+        model,
+        messages: await toModelMessages([stored]),
+        tools: { [toolName]: tool({ inputSchema: z.object({}), needsApproval: true, execute: async () => ({}) }) }
+      }).text
 
-    expect(received).toEqual([
-      {
-        role: 'assistant',
-        content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'bash', input: {} }]
-      },
-      {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: 'call-1',
-            toolName: 'bash',
-            output: { type: 'execution-denied', reason: expected }
-          }
-        ]
-      }
-    ])
-    expect(stored).toEqual(original)
-  })
+      expect(received).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName, input: {} }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName,
+              output: { type: 'execution-denied', reason: expected }
+            }
+          ]
+        }
+      ])
+      expect(stored).toEqual(original)
+    }
+  )
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [

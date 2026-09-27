@@ -37,6 +37,14 @@ describe('decisionToPermissionResult — DispatchDecision → Claude PermissionR
     })
   })
 
+  it('tells the model an unanswered question was dismissed', () => {
+    expect(decisionToPermissionResult({ approved: false, source: 'user' }, original, 'AskUserQuestion')).toEqual({
+      behavior: 'deny',
+      message:
+        'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    })
+  })
+
   it('preserves host reasons without attributing them to the user', () => {
     expect(
       decisionToPermissionResult({ approved: false, source: 'host', hostReason: 'aborted' }, original, 'Bash')

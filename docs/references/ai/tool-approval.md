@@ -68,6 +68,19 @@ The stored approval part and renderer display keep the user's input unchanged.
 Chat message conversion formats only its model-input copy; Claude Code and pi
 use the same formatter when returning a denied tool result.
 
+When `AskUserQuestion` or `builtin_AskUserQuestion` is declined without a typed
+reason, the model sees a fixed message saying the question was dismissed without
+an answer, the tool did not execute, and the user is waiting. Other tools retain
+the fixed no-reason permission-denial message. A typed reason remains quoted
+exactly, including on a question.
+
+Older versions persisted their own denial fallback strings as approval reasons:
+the 13 localized `agent.toolPermission.defaultDenyMessage` values, `User dismissed
+AskUserQuestion`, and `User denied tool execution`. The formatter recognizes only
+exact matches after trimming and treats them as no recorded user reason. It does
+not change the persisted part or renderer display. A typed reason that merely
+contains one of those strings is still quoted exactly.
+
 ## Persistent decisions
 
 `useToolApproval`

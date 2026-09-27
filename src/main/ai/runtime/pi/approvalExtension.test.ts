@@ -158,6 +158,20 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
+  it('reports a dismissed question through the pi authorizer', async () => {
+    const toolName = 'builtin_AskUserQuestion'
+    const { authorizeTool, emitted } = buildGate({ approvalRequiredTools: new Set([toolName]) })
+    const pending = authorizeTool({ toolName, toolCallId: 'question-1', input: {} })
+    await flush()
+
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, source: 'user' })
+    await expect(pending).resolves.toEqual({
+      block: true,
+      reason:
+        'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    })
+  })
+
   it('pauses an outer code-mode timeout only while a nested approval is pending', async () => {
     const { authorizeTool, emitted } = buildGate()
     const pause = vi.fn()
