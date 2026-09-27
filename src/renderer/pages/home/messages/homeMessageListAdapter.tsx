@@ -55,6 +55,7 @@ import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } fr
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
+import { resolveRegenerateModelOverride } from './resolveRegenerateModelOverride'
 import {
   consumePendingTopicImageActions,
   rejectPendingTopicImageActions,
@@ -62,7 +63,6 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from './topicImageActionBus'
-import { resolveRegenerateModelOverride } from './resolveRegenerateModelOverride'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 

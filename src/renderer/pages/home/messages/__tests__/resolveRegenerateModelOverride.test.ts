@@ -15,7 +15,9 @@ function assistantMessage(modelId: string): CherryUIMessage {
 
 describe('resolveRegenerateModelOverride', () => {
   it('returns undefined when the composer model matches the failed assistant model', () => {
-    expect(resolveRegenerateModelOverride(assistantMessage('provider-a::model-x'), 'provider-a::model-x')).toBeUndefined()
+    expect(
+      resolveRegenerateModelOverride(assistantMessage('provider-a::model-x'), 'provider-a::model-x')
+    ).toBeUndefined()
   })
 
   it('returns the composer model when it differs from the failed assistant model', () => {
