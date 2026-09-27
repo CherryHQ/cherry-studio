@@ -190,10 +190,11 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   }
 
   const userAdjustedSelection = applyUserReasoningEffortTranslation(requested, input.userEffortMap)
-  const selection = resolveSelection(
-    userAdjustedSelection === requested ? input.selection : userAdjustedSelection,
-    input.model
-  )
+  const selectionForResolve =
+    userAdjustedSelection !== requested
+      ? userAdjustedSelection
+      : normalizeRequestedSelection(userAdjustedSelection, input.model)
+  const selection = resolveSelection(selectionForResolve, input.model)
   if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)
