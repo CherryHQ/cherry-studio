@@ -508,7 +508,8 @@ vi.mock('../components/AgentChatNavbar', () => ({
       )}
     </div>
   ),
-  AgentCheckpointUndo: () => null
+  AgentCheckpointUndo: () => null,
+  AgentWorkspaceFolderPickerButton: () => null
 }))
 
 vi.mock('../AgentSidePanel', () => ({

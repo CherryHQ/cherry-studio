@@ -561,7 +561,8 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 vi.mock('../components/AgentChatNavbar', () => ({
   AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>,
-  AgentCheckpointUndo: () => null
+  AgentCheckpointUndo: () => null,
+  AgentWorkspaceFolderPickerButton: () => null
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
