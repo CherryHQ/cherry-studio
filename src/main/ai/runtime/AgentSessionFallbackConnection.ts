@@ -33,6 +33,13 @@ export function classifyRuntimeFallbackError(error: unknown): string | undefined
 }
 
 /**
+ * Chunk types that carry no user-visible payload (usage totals, step bookkeeping). A turn that
+ * emitted only these has shown the user nothing, so replaying its input on the fallback model
+ * cannot duplicate an answer — they must not mark the stream active and suppress the fallback.
+ */
+const NON_CONTENT_CHUNK_TYPES = new Set(['start', 'start-step', 'finish-step', 'finish', 'message-metadata', 'abort'])
+
+/**
  * Rebuilds a Pi/DSH connection once when a provider fails before producing turn content. It owns
  * one stable event stream, so the host keeps its existing turn, persistence listener, and renderer
  * stream while the runtime's provider/model injection is rebuilt for the fallback model.
@@ -122,7 +129,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
           }
           if (event.type === 'background-tasks') this.backgroundTasksRunning = event.tasks.length > 0
           if (event.type === 'background-work-state') this.backgroundWorkActive = event.active
-          if (event.type === 'chunk') this.hasActivity = true
+          if (event.type === 'chunk' && !NON_CONTENT_CHUNK_TYPES.has(event.chunk.type)) this.hasActivity = true
           if (event.type === 'error' && (await this.tryFallback(event.error))) {
             restarted = true
             break
