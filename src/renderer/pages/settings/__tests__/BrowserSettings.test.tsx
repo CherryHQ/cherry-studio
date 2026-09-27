@@ -104,7 +104,10 @@ beforeAll(async () => {
     interpolation: { escapeValue: false }
   })
 })
-afterEach(cleanup)
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  cleanup()
+})
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
@@ -524,6 +527,9 @@ describe('Browser preferences', () => {
     await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeEnabled()
     )
     view.unmount()
     renderSettings()
