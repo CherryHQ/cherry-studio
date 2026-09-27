@@ -9,8 +9,7 @@ type AgentModelSettingsScope = {
 
 export function AgentModelSettingsRightPanel({ active, scope }: RightPanelComponentProps<AgentModelSettingsScope>) {
   const panel = useAgentModelSettingsPanel(scope.meta.agentId, scope.meta.sessionId)
-  const missingAgent =
-    !scope.meta.agentId || (Boolean(scope.meta.agentId) && !panel.pending && !panel.agent)
+  const missingAgent = !scope.meta.agentId || (Boolean(scope.meta.agentId) && !panel.pending && !panel.agent)
 
   return (
     <ConversationModelSettingsPanel
