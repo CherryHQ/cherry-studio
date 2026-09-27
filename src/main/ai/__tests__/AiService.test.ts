@@ -758,7 +758,7 @@ describe('AiService', () => {
       expect(mockGenerateImage).toHaveBeenCalledOnce()
     })
 
-    it('keeps total URL download failure on the provider-error path', async () => {
+    it('explains non-downloadable URL-only output as invalid, not an empty provider response', async () => {
       const service = createService()
       vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
@@ -766,9 +766,18 @@ describe('AiService', () => {
       })
       mockDownloadImageAsBase64.mockResolvedValue(null)
       mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        options.onProviderCall?.({
+          modality: 'image',
+          requestId: 'ai-core:image:test',
+          providerId: 'test-provider',
+          modelId: 'test-model',
+          imageCount: 2,
+          metrics: { timeCompletionMs: 10 },
+          completedAt: 100
+        })
         await options.experimental_download([
-          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false },
-          { url: new URL('https://example.com/b.png'), isUrlSupportedByModel: false }
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false, originalIndex: 0 },
+          { url: new URL('https://example.com/b.png'), isUrlSupportedByModel: false, originalIndex: 1 }
         ])
         throw new NoImageGeneratedError({ responses: [] })
       })
@@ -780,8 +789,56 @@ describe('AiService', () => {
           cleanupPolicy: 'delete_when_unreferenced',
           paramValues: {}
         })
-      ).rejects.toThrow(/all downloads failed/i)
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 2,
+          rejected: [
+            { index: 0, reason: 'download_failed' },
+            { index: 1, reason: 'download_failed' }
+          ]
+        }
+      })
       expect(mockDownloadImageAsBase64).toHaveBeenCalledTimes(2)
+    })
+
+    it('explains malformed URL-only output as invalid, not an empty provider response', async () => {
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      })
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        options.onProviderCall?.({
+          modality: 'image',
+          requestId: 'ai-core:image:test',
+          providerId: 'test-provider',
+          modelId: 'test-model',
+          imageCount: 2,
+          metrics: { timeCompletionMs: 10 },
+          completedAt: 100
+        })
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 2,
+          rejected: [
+            { index: 0, reason: 'invalid_image_data' },
+            { index: 1, reason: 'invalid_image_data' }
+          ]
+        }
+      })
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
     })
 
     it('reports malformed raw candidates alongside failed URL downloads', async () => {

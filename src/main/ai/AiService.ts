@@ -1007,21 +1007,9 @@ export class AiService extends BaseService {
           ? error.cause
           : undefined
       if (noImageError) {
-        const remoteDownloadFailures = [...remoteDownloadOutcomes.values()].filter(Boolean).length
-        if (
-          remoteDownloadOutcomes.size > 0 &&
-          remoteDownloadFailures === remoteDownloadOutcomes.size &&
-          providerImageCount <= remoteDownloadOutcomes.size
-        ) {
-          throw new Error(`Image generation produced ${remoteDownloadOutcomes.size} URL(s) but all downloads failed`, {
-            cause: error
-          })
-        }
-        if (providerImageCount > 0) {
-          const receivedCount = Math.max(
-            providerImageCount,
-            ...[...remoteDownloadOutcomes.keys()].map((index) => index + 1)
-          )
+        const highestDownloadIndex = Math.max(-1, ...remoteDownloadOutcomes.keys())
+        const receivedCount = Math.max(providerImageCount, highestDownloadIndex + 1)
+        if (receivedCount > 0) {
           const rejected = Array.from({ length: receivedCount }, (_, index) => ({
             index,
             reason: remoteDownloadOutcomes.get(index) ? ('download_failed' as const) : ('invalid_image_data' as const)
