@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Input, Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
@@ -13,13 +13,23 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateProvider } = useProviderMutations(providerId)
-  const [isCommitting, setIsCommitting] = useState(false)
+  const [isCommittingMode, setIsCommittingMode] = useState(false)
 
   const currentProxy = provider?.settings?.proxy
+  const proxyMode = currentProxy?.mode ?? 'system'
+  const savedUrl = currentProxy?.mode === 'custom' ? currentProxy.url : ''
+
+  // A local draft, not a mutation fired on every keystroke: committing per keystroke disabled the
+  // field mid-round-trip (below) and could resolve out of order, so a saved value could overwrite
+  // characters typed after it. Committed once, on blur, instead.
+  const [draftUrl, setDraftUrl] = useState(savedUrl)
+  useEffect(() => {
+    setDraftUrl(savedUrl)
+  }, [savedUrl])
 
   const handleProxyModeChange = useCallback(
     async (mode: string) => {
-      setIsCommitting(true)
+      setIsCommittingMode(true)
       try {
         let newProxy: ProviderProxyConfig
         if (mode === 'system') {
@@ -41,42 +51,31 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
           }
         })
       } finally {
-        setIsCommitting(false)
+        setIsCommittingMode(false)
       }
     },
     [updateProvider, currentProxy]
   )
 
-  const handleCustomUrlChange = useCallback(
+  const commitUrl = useCallback(
     async (url: string) => {
-      if (!url.trim()) return
-      setIsCommitting(true)
-      try {
-        await updateProvider({
-          providerSettings: {
-            proxy: {
-              mode: 'custom',
-              url
-            }
-          }
-        })
-      } finally {
-        setIsCommitting(false)
-      }
+      if (url === savedUrl) return
+      await updateProvider({
+        providerSettings: {
+          proxy: { mode: 'custom', url }
+        }
+      })
     },
-    [provider, updateProvider]
+    [updateProvider, savedUrl]
   )
 
   if (!provider) return null
-
-  const proxyMode = currentProxy?.mode ?? 'system'
-  const proxyUrl = currentProxy?.mode === 'custom' ? currentProxy.url : ''
 
   return (
     <div className="space-y-3">
       <div>
         <Label className="mb-2 block text-sm font-medium">{t('settings.provider.proxy_mode')}</Label>
-        <RadioGroup value={proxyMode} onValueChange={handleProxyModeChange} disabled={isCommitting}>
+        <RadioGroup value={proxyMode} onValueChange={handleProxyModeChange} disabled={isCommittingMode}>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="system" id="proxy-system" />
             <Label htmlFor="proxy-system" className="font-normal cursor-pointer">
@@ -103,14 +102,10 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
           <Label className="mb-2 block text-sm font-medium">{t('settings.provider.proxy_url')}</Label>
           <Input
             type="url"
-            value={proxyUrl}
-            onChange={(e) => {
-              const newUrl = e.currentTarget.value
-              if (newUrl === proxyUrl) return
-              void handleCustomUrlChange(newUrl)
-            }}
+            value={draftUrl}
+            onChange={(e) => setDraftUrl(e.currentTarget.value)}
+            onBlur={() => void commitUrl(draftUrl)}
             placeholder={t('settings.provider.proxy_url_placeholder')}
-            disabled={isCommitting}
           />
         </div>
       )}
