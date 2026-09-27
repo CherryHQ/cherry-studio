@@ -34,6 +34,10 @@ const logger = loggerService.withContext('ai:fileProcessor')
 // `file part media type <raw>` on the ai-sdk side otherwise.
 const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
 
+function startsWithIgnoreCase(value: string, prefix: string): boolean {
+  return value.slice(0, prefix.length).toLowerCase() === prefix
+}
+
 /**
  * Last-line defense before provider dispatch: any FileUIPart heading out of the
  * chat pipeline gets a `type/subtype` mediaType or a filename/URL-inferred
@@ -59,6 +63,7 @@ function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
 async function fileEntryIdToDataUrl(fileEntryId: string) {
   try {
     const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
+    if (!content) return null
     return { url: `data:${mime};base64,${content}`, mediaType: mime }
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
@@ -78,6 +83,7 @@ async function fileUrlToDataUrl(fileUrl: string) {
   try {
     const absPath = AbsoluteFilePathSchema.parse(fileURLToPath(fileUrl))
     const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
+    if (!data) return null
     return { url: `data:${mime};base64,${data}`, mediaType: mime }
   } catch (error) {
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
@@ -111,15 +117,16 @@ async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
     // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
     // is available, drop the part rather than emit `{type:'file', data:''}`.
     const url = part.url
-    if (!url || !url.startsWith('file://')) return null
+    if (!url || !startsWithIgnoreCase(url, 'file://')) return null
     const rescued = await fileUrlToDataUrl(url)
     return rescued ? { ...part, ...rescued } : null
   }
 
   const url = part.url
   if (!url?.trim()) return null
-  if (url.startsWith('data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim())) return null
-  if (!url.startsWith('file://')) return part
+  if (startsWithIgnoreCase(url, 'data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim()))
+    return null
+  if (!startsWithIgnoreCase(url, 'file://')) return part
 
   const inlined = await fileUrlToDataUrl(url)
   if (!inlined) return null

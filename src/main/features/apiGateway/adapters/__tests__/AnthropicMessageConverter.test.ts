@@ -151,11 +151,23 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   })
 
   it.each([
+    ['HTTPS://img.example/CaseSensitive.PNG?token=AbC', 'https://img.example/CaseSensitive.PNG?token=AbC'],
+    ['FILE:///tmp/CaseSensitive.PNG', 'file:///tmp/CaseSensitive.PNG'],
+    ['DATA:image/png;base64,AAA', 'data:image/png;base64,AAA']
+  ])('accepts %s and lowercases only its scheme', (url, expectedUrl) => {
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: expectedUrl }])
+  })
+
+  it.each([
     { type: 'base64' as const, media_type: 'image/png' as const, data: '' },
     { type: 'base64' as const, media_type: 'image/png' as const, data: '  ' },
     { type: 'url' as const, url: '' },
     { type: 'url' as const, url: '  ' },
     { type: 'url' as const, url: 'data:image/png;base64,' },
+    { type: 'url' as const, url: 'DATA:image/png;base64,' },
     { type: 'url' as const, url: 'data:image/png' },
     { type: 'url' as const, url: 'ftp://example.com/x.png' }
   ])('replaces an unusable image source with a visible note: %j', (source) => {

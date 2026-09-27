@@ -37,16 +37,19 @@ const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string
   let imgPath: string
+  let emptyPath: string
 
   beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-'))
     imgPath = path.join(tmpDir, 'pixel.png')
+    emptyPath = path.join(tmpDir, 'empty.png')
     const png = Buffer.from(
       '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
         '01000000050001A7DFAA680000000049454E44AE426082',
       'hex'
     )
     await fs.writeFile(imgPath, png)
+    await fs.writeFile(emptyPath, '')
   })
 
   afterAll(async () => {
@@ -58,6 +61,24 @@ describe('materializeNativeFilePart — file:// inline', () => {
       filePart({ url: `file://${imgPath}`, mediaType: 'image/png', filename: 'pixel.png' })
     )
     expect(out?.url.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('inlines a mixed-case FILE:// URL like a lowercase file URL', async () => {
+    const out = await materializeNativeFilePart(filePart({ url: `FILE://${imgPath}`, mediaType: 'image/png' }))
+    expect(out?.url).toBe(`data:image/png;base64,${(await fs.readFile(imgPath)).toString('base64')}`)
+  })
+
+  it('rejects a zero-byte file:// image and surfaces a visible note', async () => {
+    const part = filePart({ url: `file://${emptyPath}`, mediaType: 'image/png', filename: 'empty.png' })
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    const prepared = await prepareChatMessages([{ id: 'empty-file', role: 'user', parts: [part] }], {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "empty.png": [could not read this file].' }
+    ])
   })
 
   it('normalizes a bare-extension mediaType (.png) from the on-disk file', async () => {
@@ -78,12 +99,23 @@ describe('materializeNativeFilePart — file:// inline', () => {
     expect(out?.url).toBe('data:image/png;base64,AAA')
   })
 
-  it.each(['', '  ', 'data:image/png;base64,', 'data:image/png;base64,  ', 'data:image/png,', 'data:image/png'])(
-    'rejects an unresolvable legacy image URL %j',
-    async (url) => {
-      expect(await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))).toBeNull()
-    }
-  )
+  it('preserves a mixed-case DATA: URL with a payload', async () => {
+    const url = 'DATA:image/png;base64,AAA'
+    const out = await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))
+    expect(out?.url).toBe(url)
+  })
+
+  it.each([
+    '',
+    '  ',
+    'data:image/png;base64,',
+    'data:image/png;base64,  ',
+    'data:image/png,',
+    'data:image/png',
+    'DATA:image/png;base64,'
+  ])('rejects an unresolvable legacy image URL %j', async (url) => {
+    expect(await materializeNativeFilePart(filePart({ url, mediaType: 'image/png' }))).toBeNull()
+  })
 
   it('degrades an unresolved legacy image to a visible note before model conversion', async () => {
     const prepared = await prepareChatMessages(
@@ -217,5 +249,46 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
       filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } })
     )
     expect(out).toBeNull()
+  })
+
+  it('rejects a zero-byte entry and surfaces a visible note', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValue({ content: '', mime: 'image/png' })
+    const part = filePart({
+      url: '',
+      mediaType: 'image/png',
+      filename: 'empty.png',
+      providerMetadata: { cherry: { fileEntryId: 'empty-entry' } }
+    })
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    const prepared = await prepareChatMessages([{ id: 'empty-entry', role: 'user', parts: [part] }], {
+      attachments: [],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    expect(prepared[0].parts).toEqual([
+      { type: 'text', text: 'Attached file "empty.png": [could not read this file].' }
+    ])
+  })
+
+  it('rescues a zero-byte entry read from a valid file:// snapshot', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValueOnce({ content: '', mime: 'image/png' })
+    const png = Buffer.from('pixel')
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-rescue-'))
+    const imgPath = path.join(tmpDir, 'pixel.png')
+    try {
+      await fs.writeFile(imgPath, png)
+      const out = await materializeNativeFilePart(
+        filePart({
+          url: `file://${imgPath}`,
+          mediaType: 'image/png',
+          providerMetadata: { cherry: { fileEntryId: 'empty-entry' } }
+        })
+      )
+      expect(out?.url).toBe(`data:image/png;base64,${png.toString('base64')}`)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
   })
 })

@@ -81,13 +81,11 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
   if (source.type === 'url') {
-    if (!source.url.trim() || !/^(https?:\/\/|file:\/\/|data:)/.test(source.url)) return undefined
-    if (
-      source.url.startsWith('data:') &&
-      (source.url.indexOf(',') < 0 || !source.url.slice(source.url.indexOf(',') + 1).trim())
-    )
-      return undefined
-    return { type: 'file', mediaType: 'image/png', url: source.url }
+    const prefix = /^(https?:\/\/|file:\/\/|data:)/i.exec(source.url)?.[0]
+    if (!source.url.trim() || !prefix) return undefined
+    const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
+    if (url.startsWith('data:') && (url.indexOf(',') < 0 || !url.slice(url.indexOf(',') + 1).trim())) return undefined
+    return { type: 'file', mediaType: 'image/png', url }
   }
   return undefined
 }
