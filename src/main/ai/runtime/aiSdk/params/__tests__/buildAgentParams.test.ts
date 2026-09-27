@@ -22,6 +22,7 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
+import { getDeferredToolsSystemPrompt } from '../../prompts/deferredTools'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
@@ -2134,5 +2135,30 @@ describe('assistant browser tool selection', () => {
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('browser_open')
+  })
+
+  it('defers the browser surface in a fresh topic even with a large context window', async () => {
+    const enabled = await resolveTools(
+      { conversation: CONVERSATION },
+      makeAssistant(),
+      makeModel({ contextWindow: 1_000_000 }),
+      false,
+      []
+    )
+    expect(Object.keys(enabled.tools ?? {}).filter((name) => name.startsWith('browser_'))).toEqual([])
+    expect(enabled.tools).toHaveProperty('tool_search')
+    expect(enabled.tools).toHaveProperty('tool_inspect')
+    expect(enabled.tools).toHaveProperty('tool_invoke')
+    expect(
+      enabled.deferredEntries
+        .filter((entry) => entry.namespace === 'browser')
+        .map((entry) => entry.name)
+        .sort()
+    ).toEqual(
+      createBrowserToolEntries()
+        .map((entry) => entry.name)
+        .sort()
+    )
+    expect(getDeferredToolsSystemPrompt(enabled.deferredEntries)).toMatch(/<namespace name="browser" count="\d+"\/>/)
   })
 })
