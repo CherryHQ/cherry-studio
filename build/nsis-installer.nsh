@@ -37,6 +37,8 @@
       ${EndIf}
       StrCpy $3 "0"
       ReadRegDWORD $3 HKLM "$2" "Major"
+      ; Major detects v14 runtime presence, not a minimum build requirement.
+      ; Installed == 1 already accepted every v14 build.
       ${If} $3 >= 14
         StrCpy $0 "1"
         Goto vcRedistRestoreView
@@ -209,18 +211,21 @@
   Call checkVCRedist
   ${If} $0 != "1"
     StrCpy $4 "0"
-    ; A recorded install or its executable identifies updates even when INSTDIR differs.
-    ; Silent mode alone cannot distinguish an update from a fresh install.
-    ReadRegStr $3 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "InstallLocation"
-    ${If} $3 != ""
+    ; The updater signals updates; builder stores install paths under its install key.
+    ${If} ${isUpdated}
       StrCpy $4 "1"
-    ${EndIf}
-    ReadRegStr $3 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "InstallLocation"
-    ${If} $3 != ""
-      StrCpy $4 "1"
-    ${EndIf}
-    ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-      StrCpy $4 "1"
+    ${Else}
+      ReadRegStr $3 HKLM "${INSTALL_REGISTRY_KEY}" "InstallLocation"
+      ${If} $3 != ""
+        StrCpy $4 "1"
+      ${EndIf}
+      ReadRegStr $3 HKCU "${INSTALL_REGISTRY_KEY}" "InstallLocation"
+      ${If} $3 != ""
+        StrCpy $4 "1"
+      ${EndIf}
+      ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+        StrCpy $4 "1"
+      ${EndIf}
     ${EndIf}
     ; Select download URL based on system architecture (stored in $1)
     ${If} $1 == "arm64"
