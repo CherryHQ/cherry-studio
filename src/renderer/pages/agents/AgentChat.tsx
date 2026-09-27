@@ -289,6 +289,13 @@ const AgentChat = ({
       void runtime.sendMessage({ text: t('agent.toolPermission.executionModel.followUp') })
       return
     }
+    // The update revalidates the agent query, handing `activeAgent` a fresh identity while this
+    // effect is still awaiting it. Content, not identity, decides whether the update phase is
+    // done — otherwise the re-run would issue a second update and cancel this one's result.
+    if (activeAgent.model === handoff.modelId) {
+      setPlanExecutionHandoff({ ...handoff, modelApplied: true })
+      return
+    }
     let cancelled = false
     void (async () => {
       // `updateModel` never throws — it toasts and resolves `undefined` on failure. Dropping the
@@ -297,7 +304,9 @@ const AgentChat = ({
         { agentId: activeAgent.id, modelId: handoff.modelId },
         { showSuccessToast: false }
       )
-      if (!updated || cancelled) {
+      // A superseded run must not touch the handoff — the run that re-ran this effect owns it.
+      if (cancelled) return
+      if (!updated) {
         setPlanExecutionHandoff(undefined)
         return
       }
