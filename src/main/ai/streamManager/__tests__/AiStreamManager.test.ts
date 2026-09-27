@@ -2886,7 +2886,7 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults[0].isTopicDone).toBe(false)
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
 
-      mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
 
       // Subscribers learn the topic is done, the cross-window status cache settles to 'done'…
       expect(listener.doneResults).toHaveLength(2)
@@ -2896,6 +2896,44 @@ describe('AiStreamManager', () => {
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('done')
 
       // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
+    // The close must ride the canonical terminal dispatch: payload-free (the completion that opened
+    // the hold already delivered and persisted its bubble), persistence stays untouched, and cleanup
+    // subscribers keep receiving the topic-done their flush rides on — even when their id carries a
+    // `persistence:` prefix (`persistence:trace:`), which a string-prefix skip would drop.
+    it('finalizeHeldTopicStream closes the topic payload-free through the canonical dispatch', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s6'
+      const transport = new FakeListener(`l:${topicId}`)
+      const persistence = new FakeListener(`persistence:assistant:${topicId}`, 'persistence')
+      const trace = new FakeListener(`persistence:trace:${topicId}`, 'cleanup')
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [transport, persistence, trace]
+      })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(trace.doneResults).toHaveLength(1)
+
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+
+      // Transport learns the topic closed with no execution content replayed…
+      expect(transport.doneResults).toHaveLength(2)
+      expect(transport.doneResults[1].isTopicDone).toBe(true)
+      expect('finalMessage' in transport.doneResults[1]).toBe(false)
+      expect('timings' in transport.doneResults[1]).toBe(false)
+      // …persistence is not re-invoked (there is no new execution to write)…
+      expect(persistence.doneResults).toHaveLength(1)
+      // …and cleanup still sees the topic-done (TraceFlushListener saves spans on it).
+      expect(trace.doneResults).toHaveLength(2)
+      expect(trace.doneResults[1].isTopicDone).toBe(true)
+
       await vi.runAllTimersAsync()
       expect(mgr.inspect(topicId)).toBeUndefined()
     })
@@ -2911,7 +2949,7 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults[0].isTopicDone).toBe(true)
 
       // Still inside the eviction grace period, but already terminal — no duplicate topic-done.
-      mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+      await mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
 
       expect(listener.doneResults).toHaveLength(1)
     })

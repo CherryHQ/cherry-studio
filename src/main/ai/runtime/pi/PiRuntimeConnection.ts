@@ -496,7 +496,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
     // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
-    const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
+    const content = input.systemReminder ? wrapSteerReminder(rawContent, input.backgroundTasksNote) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     this.promptRunActive = true
     void session.prompt(content, options).then(

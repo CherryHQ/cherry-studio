@@ -637,10 +637,14 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.messageSnapshot = messageSnapshot
       // Read before the event applies: a follow-up arriving after the spawning turn settled takes this
       // reuse path instead of `startNextTurn`, so it needs the same reminder the queued drain builds.
+      // The note only reaches the model through reminder wrapping, so the flag rides with it.
       const admissionNote = this.backgroundTasksAdmissionNote(existing)
       this.applyRuntimeStateEvent(existing, {
         type: 'begin-turn',
-        turn: { ...turn, ...(admissionNote ? { backgroundTasksNote: admissionNote } : {}) },
+        turn: {
+          ...turn,
+          ...(admissionNote ? { backgroundTasksNote: admissionNote, systemReminder: true } : {})
+        },
         clearQueue: true
       })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
@@ -2234,7 +2238,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // occupancy already gone) and releases the stream through the normal terminal lifecycle.
     if (isAgentSessionRuntimeBusy(entry.runtimeState)) return
     if (willAgentSessionRuntimeContinue(entry.runtimeState)) return
-    application.get('AiStreamManager').finalizeHeldTopicStream(entry.topicId, entry.modelId)
+    void application
+      .get('AiStreamManager')
+      .finalizeHeldTopicStream(entry.topicId, entry.modelId)
+      .catch((err) => logger.warn('Failed to finalize held topic stream', { sessionId: entry.sessionId, err }))
   }
 
   private handleBackgroundFlowChunk(

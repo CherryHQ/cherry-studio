@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
-  finalizeHeldTopicStream: vi.fn(),
+  finalizeHeldTopicStream: vi.fn(async () => undefined),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -902,8 +902,9 @@ describe('AgentSessionRuntimeService', () => {
         .getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
+      // The note reaches the model only through reminder wrapping, so the flag must ride with it.
       expect(send).toHaveBeenCalledWith(
-        expect.objectContaining({ backgroundTasksNote: expect.stringContaining('Long review') })
+        expect.objectContaining({ systemReminder: true, backgroundTasksNote: expect.stringContaining('Long review') })
       )
       void service.closeSession('session-1')
     })

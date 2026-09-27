@@ -1639,33 +1639,35 @@ export class AiStreamManager extends BaseService {
    * Clean twin of `terminateHeldTopicStream`: settle a stream a chaining turn kept alive
    * (`isTopicDone=false`, terminal lifecycle skipped) when its successor will never arrive — an agent
    * session held it for a receive-only wake that is not coming (task stopped/killed, headless
-   * responder). The completion that opened the hold already finalised and persisted its bubble, so
-   * this only closes the topic: notify subscribers (persistence skipped), write the terminal status
-   * and run the terminal lifecycle. No-op unless the stream is still held, so one already in its
-   * eviction grace period never gets a duplicate terminal notification.
+   * responder). The completion that opened the hold already finalised, persisted, and delivered its
+   * bubble, so this only closes the topic through the canonical terminal dispatch with a payload-free
+   * done (no `finalMessage`/timings to replay), skipping only the persistence phase — there is no new
+   * execution to write. Then the terminal status is written and the terminal lifecycle runs so the
+   * status cache settles and the stream is evicted. No-op unless the stream is still held, so one
+   * already in its eviction grace period never gets a duplicate terminal notification.
    */
-  finalizeHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined): void {
+  async finalizeHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream?.heldForContinuation) return
+    // Claim the settle synchronously so a second drain edge racing this dispatch cannot
+    // double-close the topic.
+    stream.heldForContinuation = false
     const exec = modelId ? stream.executions.get(modelId) : undefined
     const result: StreamDoneResult = {
-      ...(exec ? { finalMessage: exec.finalMessage } : {}),
       status: 'success',
       modelId,
       attemptId: exec?.attemptId,
       topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
       anchorMessageId: exec?.anchorMessageId,
-      isTopicDone: true,
-      ...(exec ? { timings: { ...exec.timings }, runtimeTiming: exec.runtimeTiming.snapshot() } : {})
+      isTopicDone: true
     }
-    for (const listener of stream.listeners.values()) {
-      if (listener.id.startsWith('persistence:')) continue
-      try {
-        void listener.onDone(result)
-      } catch (err) {
-        logger.warn('finalizeHeldTopicStream listener threw', { topicId, err })
-      }
-    }
+    await this.dispatchToListeners(
+      stream,
+      'onDone',
+      (listener) => listener.onDone(result),
+      (listener) => listener.terminalPhase === 'persistence'
+    )
+    if (this.activeStreams.get(topicId) !== stream) return
     // The hold only exists across a `done` topic gap, so this restates the value the settling
     // execution resolved rather than overriding a live status.
     stream.status = 'done'
@@ -2134,15 +2136,17 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
-   * notification, while cleanup work remains last.
+   * notification, while cleanup work remains last. `skip` opts listeners out while keeping them
+   * registered and uncounted.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (listener: StreamListener) => void | Promise<void>
+    invoke: (listener: StreamListener) => void | Promise<void>,
+    skip?: (listener: StreamListener) => boolean
   ): Promise<void> {
     const dead: string[] = []
-    const listeners = [...stream.listeners]
+    const listeners = [...stream.listeners].filter(([, listener]) => !skip?.(listener))
     const orderedListeners = [
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'persistence'),
       ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),

@@ -13,6 +13,8 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
+  /** A listener can see more than one topic settle (chain hold + close); deliver the reply once. */
+  private delivered = false
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -57,6 +59,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
+    if (this.delivered) return
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) {
       logger.warn('ChannelAdapterListener.onDone with empty text', {
@@ -67,6 +70,7 @@ export class ChannelAdapterListener implements StreamListener {
       return
     }
 
+    this.delivered = true
     try {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.completeStream(text)
