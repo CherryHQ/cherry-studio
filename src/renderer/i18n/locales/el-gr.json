@@ -5535,6 +5535,7 @@
   "settings.voice.dictation.status_label": "Κατάσταση υπαγόρευσης",
   "settings.voice.language.auto_detect": "Αυτόματη ανίχνευση",
   "settings.voice.language.placeholder": "Ετικέτα γλώσσας, για παράδειγμα el-GR",
+  "settings.voice.language.world": "Κόσμος",
   "settings.voice.microphone.denied": "Η πρόσβαση στο μικρόφωνο δεν είναι διαθέσιμη",
   "settings.voice.microphone.open_settings": "Άνοιγμα ρυθμίσεων μικροφώνου",
   "settings.voice.model.apple_asr": "Αναγνώριση ομιλίας συστήματος Apple",

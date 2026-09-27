@@ -5535,6 +5535,7 @@
   "settings.voice.dictation.status_label": "Trạng thái đọc chính tả",
   "settings.voice.language.auto_detect": "Tự động phát hiện",
   "settings.voice.language.placeholder": "Thẻ ngôn ngữ, ví dụ vi-VN",
+  "settings.voice.language.world": "Thế giới",
   "settings.voice.microphone.denied": "Không thể truy cập micrô",
   "settings.voice.microphone.open_settings": "Mở cài đặt micrô",
   "settings.voice.model.apple_asr": "Nhận dạng giọng nói hệ thống Apple",

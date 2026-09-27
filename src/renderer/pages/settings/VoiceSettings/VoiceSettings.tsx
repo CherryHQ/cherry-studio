@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Combobox,
-  type ComboboxOption,
   InputNumber,
   Select,
   SelectContent,
@@ -57,6 +55,12 @@ interface QueriedRecognitionStatus {
   modelId: LocalTranscriptionModelId
   language: string
   result: StatusState
+}
+
+interface VoiceSelectOption {
+  value: string
+  label: string
+  disabled?: boolean
 }
 
 type FunAsrAction = 'download' | 'cancel' | 'remove'
@@ -118,6 +122,16 @@ function optionalValue(value: string | null | undefined): string | undefined {
 function languageValue(value: string | null | undefined): string | undefined {
   const language = optionalValue(value)
   return language?.toLowerCase() === 'auto' ? undefined : language
+}
+
+function languageLabel(language: string, displayNames: Intl.DisplayNames, worldLabel: string): string {
+  try {
+    const label = displayNames.of(language) ?? language
+    // Electron may leave the world-region code untranslated.
+    return new Intl.Locale(language).region === '001' ? label.replace('001', worldLabel) : label
+  } catch {
+    return language
+  }
 }
 
 function transcriptionModelId(value: string | null | undefined): LocalTranscriptionModelId | undefined {
@@ -217,26 +231,23 @@ function VoiceSettings() {
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? DEFAULT_APPLE_ASR_LOCALE
   const selectedVoice = voices.find((voice) => voice.id === speechVoice)
   const effectiveSpeechLanguage = selectedVoice?.language ?? languageValue(speechLanguage) ?? ''
-  const speechLanguageOptions = useMemo<ComboboxOption[]>(() => {
-    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' })
+  const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
+    const worldLabel = t('settings.voice.language.world')
     const languages = new Set(voices.map((voice) => voice.language))
     if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
     return [
       { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
       ...Array.from(languages)
-        .map((language) => {
-          let label = language
-          try {
-            label = displayNames.of(language) ?? language
-          } catch {
-            // Keep a previously entered locale visible even when it is invalid.
-          }
-          return { value: language, label, disabled: !voices.some((voice) => voice.language === language) }
-        })
+        .map((language) => ({
+          value: language,
+          label: languageLabel(language, displayNames, worldLabel),
+          disabled: !voices.some((voice) => voice.language === language)
+        }))
         .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
   }, [effectiveSpeechLanguage, i18n.language, t, voices])
-  const speechVoiceOptions: ComboboxOption[] = [
+  const speechVoiceOptions: VoiceSelectOption[] = [
     { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
     ...voices
       .filter((voice) => voice.language === effectiveSpeechLanguage)
@@ -250,37 +261,21 @@ function VoiceSettings() {
       disabled: true
     })
   }
-  const recognitionLanguageOptions = useMemo<ComboboxOption[]>(() => {
+  const recognitionLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
     if (!asrLocales) return []
-    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' })
-    const label = (tag: string) => {
-      try {
-        return `${displayNames.of(tag) ?? tag} (${tag})`
-      } catch {
-        return tag
-      }
-    }
-    const installed = new Set(asrLocales.installed)
-    const options: ComboboxOption[] = [...asrLocales.supported]
-      .sort((a, b) => Number(installed.has(b)) - Number(installed.has(a)) || a.localeCompare(b))
-      .map((tag) => ({
-        value: tag,
-        label:
-          tag === DEFAULT_APPLE_ASR_LOCALE && !languageValue(recognitionLanguage)
-            ? `${label(tag)} · ${t('common.default')}`
-            : label(tag),
-        description: t(installed.has(tag) ? 'settings.voice.status.ready' : 'settings.voice.status.not_installed')
-      }))
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
+    const worldLabel = t('settings.voice.language.world')
+    const label = (tag: string) => languageLabel(tag, displayNames, worldLabel)
+    const options: VoiceSelectOption[] = asrLocales.supported.map((tag) => ({ value: tag, label: label(tag) }))
     if (!asrLocales.supported.includes(effectiveRecognitionLanguage)) {
       options.push({
         value: effectiveRecognitionLanguage,
         label: label(effectiveRecognitionLanguage),
-        description: t('settings.voice.status.unsupported'),
         disabled: true
       })
     }
-    return options
-  }, [asrLocales, effectiveRecognitionLanguage, i18n.language, recognitionLanguage, t])
+    return options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+  }, [asrLocales, effectiveRecognitionLanguage, i18n.language, t])
   const recognitionStatus =
     hasConfiguredRecognitionModel && !configuredRecognitionModel
       ? ({ status: 'unsupported', reason: 'unsupported' } satisfies StatusState)
@@ -522,8 +517,6 @@ function VoiceSettings() {
     }
   }
 
-  const error = actionFailed || dictation.error || speech.error
-
   return (
     <SettingsContentColumn theme={theme}>
       <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
@@ -566,25 +559,25 @@ function VoiceSettings() {
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Combobox
-            className="w-64"
-            aria-label={t('settings.voice.recognition.language')}
-            options={
-              funAsrSelected
-                ? [{ value: 'auto', label: t('settings.voice.language.auto_detect') }]
-                : recognitionLanguageOptions
-            }
+          <Select
             value={funAsrSelected ? 'auto' : effectiveRecognitionLanguage}
             disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
-            onChange={(value) => {
-              if (typeof value === 'string') savePreference(() => setRecognitionPreferences({ language: value }))
-            }}
-            placeholder={t('common.select')}
-            searchPlaceholder={t('common.search')}
-            emptyText={t('common.no_results')}
-            searchPlacement="trigger"
-            popoverClassName="w-(--radix-popover-trigger-width)"
-          />
+            onValueChange={(language) => savePreference(() => setRecognitionPreferences({ language }))}>
+            <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
+              <SelectValue placeholder={t('common.select')} />
+            </SelectTrigger>
+            <SelectContent>
+              {funAsrSelected ? (
+                <SelectItem value="auto">{t('settings.voice.language.auto_detect')}</SelectItem>
+              ) : (
+                recognitionLanguageOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                    {option.label}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-status" className="scroll-mt-6">
@@ -657,6 +650,7 @@ function VoiceSettings() {
           <Textarea.Input
             ref={transcriptRef}
             aria-label={t('settings.voice.recognition.transcript')}
+            aria-describedby={dictation.error ? 'voice-recognition-error' : undefined}
             value={transcript}
             onValueChange={setTranscript}
             onFocus={() => voiceTargetManager.markCurrent('voice-settings-transcription-test')}
@@ -701,7 +695,7 @@ function VoiceSettings() {
               </Button>
             ) : null}
           </div>
-          {dictation.phase !== 'idle' ? (
+          {dictation.phase !== 'idle' && !dictation.error ? (
             <p
               role="status"
               aria-label={t('settings.voice.dictation.status_label')}
@@ -710,6 +704,11 @@ function VoiceSettings() {
               {dictation.elapsedMs > 0
                 ? ` · ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(dictation.elapsedMs / 1000) })}`
                 : ''}
+            </p>
+          ) : null}
+          {dictation.error ? (
+            <p id="voice-recognition-error" role="alert" className="text-sm text-error">
+              {t(errorKey(dictation.error))}
             </p>
           ) : null}
         </div>
@@ -739,13 +738,9 @@ function VoiceSettings() {
         <SettingDivider />
         <SettingRow id="setting-voice-speech-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Combobox
-            className="w-64"
-            aria-label={t('settings.voice.speech.language')}
-            options={speechLanguageOptions}
+          <Select
             value={effectiveSpeechLanguage || EMPTY_VALUE}
-            onChange={(value) => {
-              if (typeof value !== 'string') return
+            onValueChange={(value) => {
               const language = value === EMPTY_VALUE ? '' : value
               savePreference(() =>
                 setSpeechPreferences({
@@ -753,36 +748,48 @@ function VoiceSettings() {
                   voiceId: selectedVoice?.language === language ? selectedVoice.id : ''
                 })
               )
-            }}
-            placeholder={t('common.select')}
-            searchPlaceholder={t('common.search')}
-            emptyText={t('common.no_results')}
-            searchPlacement="trigger"
-            popoverClassName="w-(--radix-popover-trigger-width)"
-          />
+            }}>
+            <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.language')}>
+              <SelectValue placeholder={t('common.select')} />
+            </SelectTrigger>
+            <SelectContent>
+              {speechLanguageOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
-          <Combobox
-            className="w-64"
-            aria-label={t('settings.voice.speech.voice')}
-            options={speechVoiceOptions}
-            value={speechVoice || EMPTY_VALUE}
-            disabled={!effectiveSpeechLanguage}
-            onChange={(value) => {
-              if (typeof value !== 'string') return
-              savePreference(() =>
-                setSpeechPreferences({ voiceId: value === EMPTY_VALUE ? '' : value, language: effectiveSpeechLanguage })
-              )
-            }}
-            placeholder={t('common.select')}
-            searchPlaceholder={t('common.search')}
-            emptyText={t('common.no_results')}
-            searchPlacement="trigger"
-            popoverClassName="w-(--radix-popover-trigger-width)"
-          />
-        </SettingRow>
+        {effectiveSpeechLanguage ? (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
+              <Select
+                value={speechVoice || EMPTY_VALUE}
+                onValueChange={(value) => {
+                  savePreference(() =>
+                    setSpeechPreferences({
+                      voiceId: value === EMPTY_VALUE ? '' : value,
+                      language: effectiveSpeechLanguage
+                    })
+                  )
+                }}>
+                <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.voice')}>
+                  <SelectValue placeholder={t('common.select')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {speechVoiceOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+          </>
+        ) : null}
         <SettingDivider />
         <SettingRow id="setting-voice-speech-speed" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.voice.speech.speed')}</SettingRowTitle>
@@ -809,6 +816,7 @@ function VoiceSettings() {
         <div id="setting-voice-speech-test" className="scroll-mt-6 space-y-3">
           <Textarea.Input
             aria-label={t('settings.voice.speech.preview_text')}
+            aria-describedby={speech.error ? 'voice-speech-error' : undefined}
             value={previewText}
             maxLength={5000}
             onValueChange={setPreviewText}
@@ -822,6 +830,11 @@ function VoiceSettings() {
             {speechBusy ? <Square className="size-4" /> : <Play className="size-4" />}
             {t(speechBusy ? 'common.stop' : 'settings.voice.action.play_preview')}
           </Button>
+          {speech.error ? (
+            <p id="voice-speech-error" role="alert" className="text-sm text-error">
+              {t(errorKey(speech.error))}
+            </p>
+          ) : null}
         </div>
       </SettingGroup>
 
@@ -842,9 +855,9 @@ function VoiceSettings() {
         </SettingRow>
       </SettingGroup>
 
-      {error ? (
+      {actionFailed ? (
         <p role="alert" className="mt-4 text-destructive text-sm">
-          {t(errorKey(error))}
+          {t(errorKey(actionFailed))}
         </p>
       ) : null}
     </SettingsContentColumn>

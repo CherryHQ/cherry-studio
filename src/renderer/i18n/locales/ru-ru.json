@@ -5535,6 +5535,7 @@
   "settings.voice.dictation.status_label": "Состояние диктовки",
   "settings.voice.language.auto_detect": "Автоматическое определение",
   "settings.voice.language.placeholder": "Тег языка, например ru-RU",
+  "settings.voice.language.world": "весь мир",
   "settings.voice.microphone.denied": "Доступ к микрофону недоступен",
   "settings.voice.microphone.open_settings": "Открыть настройки микрофона",
   "settings.voice.model.apple_asr": "Системное распознавание речи Apple",

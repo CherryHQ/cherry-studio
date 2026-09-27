@@ -5535,6 +5535,7 @@
   "settings.voice.dictation.status_label": "Diktierstatus",
   "settings.voice.language.auto_detect": "Automatische Erkennung",
   "settings.voice.language.placeholder": "Sprach-Tag, zum Beispiel de-DE",
+  "settings.voice.language.world": "Welt",
   "settings.voice.microphone.denied": "Mikrofonzugriff ist nicht verfügbar",
   "settings.voice.microphone.open_settings": "Mikrofoneinstellungen öffnen",
   "settings.voice.model.apple_asr": "Apple-Systemspracherkennung",

@@ -7,6 +7,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
+vi.unmock('@cherrystudio/ui')
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -107,6 +109,10 @@ const models = [
 
 describe('VoiceSettings', () => {
   beforeAll(async () => {
+    if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
+    if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
+    if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
+    HTMLElement.prototype.scrollIntoView = () => {}
     await i18n.changeLanguage('en-US')
   })
 
@@ -142,8 +148,9 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
 
     expect(await screen.findByRole('heading', { name: /voice/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
-    expect(screen.getByLabelText(/speech voice/i)).toHaveValue('__unconfigured__')
+    expect(screen.getByLabelText(/recognition model/i)).toHaveTextContent(/not configured/i)
+    expect(screen.getByLabelText(/speech language/i)).toHaveTextContent(/not configured/i)
+    expect(screen.queryByRole('combobox', { name: /speech voice/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
   })
@@ -166,10 +173,14 @@ describe('VoiceSettings', () => {
     const { unmount } = render(<VoiceSettings />)
 
     const language = await screen.findByRole('combobox', { name: /recognition language/i })
-    await screen.findByRole('option', { name: /Chinese.*zh-CN/i })
+    const user = userEvent.setup()
+    await waitFor(() => expect(language).toBeEnabled())
+    await user.click(language)
+    const chinese = await screen.findByRole('option', { name: 'Chinese (China)' })
     expect(screen.queryByRole('option', { name: /French/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /recognition language/i })).not.toBeInTheDocument()
 
-    await userEvent.setup().selectOptions(language, 'zh-CN')
+    await user.click(chinese)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
     )
@@ -207,7 +218,7 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
 
     const language = await screen.findByRole('combobox', { name: /recognition language/i })
-    expect(language).toHaveValue('en-US')
+    await waitFor(() => expect(language).toHaveTextContent('English (United States)'))
     fireEvent.click(await screen.findByRole('button', { name: /install/i }))
     await waitFor(() => expect(voice.install).toHaveBeenCalledWith({ language: 'en-US', source: 'settings' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
@@ -222,7 +233,7 @@ describe('VoiceSettings', () => {
     fireEvent.click(record)
 
     expect(voice.dictationStartScoped).toHaveBeenCalledWith()
-    expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
+    expect(screen.getByLabelText(/recognition model/i)).toHaveTextContent(/not configured/i)
     expect(MockUsePreferenceUtils.getAllPreferenceValues()).not.toHaveProperty('feature.voice.recognition.model_id')
     expect(voice.install).not.toHaveBeenCalled()
   })
@@ -236,21 +247,106 @@ describe('VoiceSettings', () => {
     const user = userEvent.setup()
     const { rerender } = render(<VoiceSettings />)
     const language = screen.getByRole('combobox', { name: /speech language/i })
-    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
-    await within(language).findByRole('option', { name: 'Chinese (China)' })
-    expect(within(language).getAllByRole('option', { name: 'Chinese (China)' })).toHaveLength(1)
-    expect(voiceInput).toBeDisabled()
+    expect(screen.queryByRole('combobox', { name: /speech voice/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Speech voice')).not.toBeInTheDocument()
+    await user.click(language)
+    const chinese = await screen.findByRole('option', { name: 'Chinese (China)' })
+    expect(screen.getAllByRole('option', { name: 'Chinese (China)' })).toHaveLength(1)
 
-    await user.selectOptions(language, 'zh-CN')
+    await user.click(chinese)
     rerender(<VoiceSettings />)
+    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
     expect(voiceInput).toBeEnabled()
-    expect(within(voiceInput).getByRole('option', { name: 'Tingting' })).toBeInTheDocument()
-    expect(within(voiceInput).getByRole('option', { name: 'Tingting (Premium)' })).toBeInTheDocument()
-    expect(within(voiceInput).queryByRole('option', { name: /Samantha|zh-CN/ })).not.toBeInTheDocument()
+    await user.click(voiceInput)
+    expect(await screen.findByRole('option', { name: 'Tingting' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Tingting (Premium)' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Samantha|zh-CN/ })).not.toBeInTheDocument()
 
-    await user.selectOptions(voiceInput, 'voice.chinese.premium')
+    await user.click(screen.getByRole('option', { name: 'Tingting (Premium)' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.chinese.premium')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+    rerender(<VoiceSettings />)
+
+    await user.click(language)
+    await user.click(await screen.findByRole('option', { name: /not configured/i }))
+    rerender(<VoiceSettings />)
+    expect(screen.queryByRole('combobox', { name: /speech voice/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Speech voice')).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('')
+  })
+
+  it('uses matching language-region labels and groups regional variants in both language selectors', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listTranscriptionLocales.mockResolvedValue({
+      supported: ['en-US', 'fr-FR', 'en-GB', 'en-AU'],
+      installed: ['en-US']
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.us', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.fr', name: 'Thomas', language: 'fr-FR' },
+      { id: 'voice.gb', name: 'Daniel', language: 'en-GB' },
+      { id: 'voice.au', name: 'Karen', language: 'en-AU' }
+    ])
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    const recognitionLanguage = screen.getByRole('combobox', { name: /recognition language/i })
+    await waitFor(() => expect(recognitionLanguage).toBeEnabled())
+    await user.click(recognitionLanguage)
+    const labels = ['English (Australia)', 'English (United Kingdom)', 'English (United States)', 'French (France)']
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual(labels)
+
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('combobox', { name: /speech language/i }))
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'Not configured',
+      ...labels
+    ])
+  })
+
+  it.each([
+    {
+      locale: 'en-US',
+      label: 'Arabic (world)',
+      recognition: 'Recognition language',
+      speech: 'Speech language',
+      voice: 'Speech voice'
+    },
+    { locale: 'zh-CN', label: '阿拉伯语（世界）', recognition: '识别语言', speech: '朗读语言', voice: '朗读语音' }
+  ])('localizes the world region in $locale when Electron returns its numeric code', async (labels) => {
+    await i18n.changeLanguage(labels.locale)
+    const nativeOf = Intl.DisplayNames.prototype.of
+    const displayName = vi
+      .spyOn(Intl.DisplayNames.prototype, 'of')
+      .mockImplementation(function (this: Intl.DisplayNames, code) {
+        if (code === 'ar-001')
+          return this.resolvedOptions().locale.startsWith('zh') ? '阿拉伯语（001）' : 'Arabic (001)'
+        return nativeOf.call(this, code)
+      })
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['ar-001'], installed: ['ar-001'] })
+    voice.listVoices.mockResolvedValue([{ id: 'voice.arabic', name: 'Majed', language: 'ar-001' }])
+    const view = render(<VoiceSettings />)
+    try {
+      const user = userEvent.setup()
+      const recognition = screen.getByRole('combobox', { name: labels.recognition })
+      await waitFor(() => expect(recognition).toBeEnabled())
+      await user.click(recognition)
+      await user.click(await screen.findByRole('option', { name: labels.label }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('ar-001')
+
+      await user.click(screen.getByRole('combobox', { name: labels.speech }))
+      await user.click(await screen.findByRole('option', { name: labels.label }))
+      view.rerender(<VoiceSettings />)
+      await user.click(screen.getByRole('combobox', { name: labels.voice }))
+      await user.click(await screen.findByRole('option', { name: 'Majed' }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('ar-001')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.arabic')
+    } finally {
+      view.unmount()
+      displayName.mockRestore()
+      await i18n.changeLanguage('en-US')
+    }
   })
 
   it('clears an incompatible voice when the user changes language without selecting a replacement', async () => {
@@ -264,13 +360,14 @@ describe('VoiceSettings', () => {
     ])
     const { rerender } = render(<VoiceSettings />)
     const language = screen.getByRole('combobox', { name: /speech language/i })
-    await within(language).findByRole('option', { name: 'Chinese (China)' })
-    await userEvent.setup().selectOptions(language, 'zh-CN')
+    const user = userEvent.setup()
+    await user.click(language)
+    await user.click(await screen.findByRole('option', { name: 'Chinese (China)' }))
     rerender(<VoiceSettings />)
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
-    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveValue('__unconfigured__')
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
     expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
   })
 
@@ -278,8 +375,10 @@ describe('VoiceSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', 'voice.exact')
     render(<VoiceSettings />)
 
-    await waitFor(() => expect(screen.getByRole('combobox', { name: /speech language/i })).toHaveValue('en-US'))
-    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveValue('voice.exact')
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /speech language/i })).toHaveTextContent('English (United States)')
+    )
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent('Exact Voice')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBeNull()
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.exact')
   })
@@ -292,8 +391,9 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
 
     const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
-    expect(await within(voiceInput).findByRole('option', { name: /voice.*unavailable/i })).toBeDisabled()
-    expect(voiceInput).toHaveValue('voice.removed')
+    expect(voiceInput).toHaveTextContent(/voice.*unavailable/i)
+    await userEvent.setup().click(voiceInput)
+    expect(await screen.findByRole('option', { name: /voice.*unavailable/i })).toHaveAttribute('aria-disabled', 'true')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.removed')
   })
 
@@ -323,7 +423,7 @@ describe('VoiceSettings', () => {
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/funaudiollm.*modelscope/i)
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/apache-2\.0/i)
     expect(screen.getByLabelText(/recognition language/i)).toBeDisabled()
-    expect(screen.getByLabelText(/recognition language/i)).toHaveValue('auto')
+    expect(screen.getByLabelText(/recognition language/i)).toHaveTextContent(/auto/i)
     expect(voice.funAsrDownload).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('button', { name: /download model/i }))
     await waitFor(() => expect(voice.funAsrDownload).toHaveBeenCalledOnce())
@@ -350,7 +450,8 @@ describe('VoiceSettings', () => {
     })
     render(<VoiceSettings />)
 
-    await user.click(await screen.findByRole('button', { name: 'FunASR Nano' }))
+    await user.click(screen.getByRole('combobox', { name: /recognition model/i }))
+    await user.click(await screen.findByRole('option', { name: 'FunASR Nano' }))
 
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
@@ -525,11 +626,24 @@ describe('VoiceSettings', () => {
     }
     render(<VoiceSettings />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    const recordingTest = within(document.getElementById('setting-voice-recognition-test')!)
+    expect(await recordingTest.findByRole('alert')).toHaveTextContent(
       'No speech was detected. Check your microphone and record again.'
     )
     await waitFor(() => expect(screen.getByRole('button', { name: /record test/i })).toBeEnabled())
     expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps recognition and playback errors beside their own test controls without hiding either', async () => {
+    voice.dictation = { phase: 'failed', elapsedMs: 0, recoveryAvailable: false, error: 'no_speech' }
+    voice.speech = { phase: 'failed', progress: { completed: 0, total: 0 }, error: 'timeout' }
+    render(<VoiceSettings />)
+
+    const recordingTest = within(document.getElementById('setting-voice-recognition-test')!)
+    const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
+    expect(await recordingTest.findByRole('alert')).toHaveTextContent(/no speech was detected/i)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/timed out/i)
+    expect(screen.getAllByRole('alert')).toHaveLength(2)
   })
 
   it('clears the previous result when starting a new recording test', async () => {
