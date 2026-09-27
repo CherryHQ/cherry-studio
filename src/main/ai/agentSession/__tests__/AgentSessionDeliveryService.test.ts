@@ -116,7 +116,10 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: vi.fn() }))
 vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: { setOwnerStateTx: () => [], notifyReadModelChange: vi.fn() }
+  agentTaskService: {
+    setOwnerStateTx: () => ({ scheduleIds: [], deletedSchedules: [] }),
+    notifyReadModelChange: vi.fn()
+  }
 }))
 
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({

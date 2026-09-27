@@ -76,6 +76,7 @@ import type {
 import {
   finalizeInterruptedParts,
   PersistenceListener,
+  type StreamDoneResult,
   type StreamErrorResult,
   type StreamListener,
   type StreamPausedResult,
@@ -98,6 +99,7 @@ import {
   hasAgentSessionRuntimeBackgroundWork,
   hasAgentSessionRuntimeOpenStream,
   isAgentSessionRuntimeAutonomous,
+  isAgentSessionRuntimeAwaitingBackground,
   isAgentSessionRuntimeBusy,
   isAgentSessionRuntimeCompacting,
   isAgentSessionRuntimeTransitioning,
@@ -305,31 +307,18 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   constructor(
     private readonly service: AgentSessionRuntimeService,
     private readonly sessionId: string,
-    private readonly turnId: string,
-    private readonly assistantMessageId: string
+    private readonly turnId: string
   ) {
     this.id = `agent-runtime:${sessionId}`
   }
 
   onChunk(): void {}
 
-  onDone(): void {
+  onDone(result: StreamDoneResult): void {
     // Always advance the runtime turn. For a single-model agent turn, `isTopicDone=false` only means
     // the stream manager is CHAINING the next turn (keeping the stream alive so the queued follow-up
     // can carry the renderer listeners) — which still needs markTurnTerminal to open that next turn.
-    let status: AgentSessionRuntimeTerminalStatus = 'success'
-    try {
-      if (agentSessionMessageService.getSessionMessage(this.sessionId, this.assistantMessageId).status === 'error') {
-        status = 'error'
-      }
-    } catch (error) {
-      logger.warn('Unable to read persisted Agent turn status', {
-        sessionId: this.sessionId,
-        assistantMessageId: this.assistantMessageId,
-        error
-      })
-      status = 'error'
-    }
+    const status: AgentSessionRuntimeTerminalStatus = result?.persistedAssistantStatus === 'error' ? 'error' : 'success'
     this.service.markTurnTerminal(this.sessionId, status, this.turnId)
   }
 
@@ -640,7 +629,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return {
         listeners: [
           this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, turn.assistantMessageId),
+          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
           new TraceFlushListener(input.topicId)
         ],
         turnId,
@@ -665,7 +654,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return {
       listeners: [
         this.createPersistenceListener(entry, userMessage),
-        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, turn.assistantMessageId),
+        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
         new TraceFlushListener(input.topicId)
       ],
       turnId,
@@ -1910,7 +1899,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
-        this.handleBackgroundWorkState(entry, event.active, connection)
+        this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
         break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
@@ -1921,6 +1910,10 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'autonomous-turn-state': {
         if (event.state === 'finished') {
           this.handleAutonomousGenerationFinished(entry, connection)
+          break
+        }
+        if (event.origin.kind === 'background-work' && isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+          this.applyRuntimeStateEvent(entry, event)
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
@@ -2178,7 +2171,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleBackgroundWorkState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
-    connection = this.currentConnection(entry)
+    connection = this.currentConnection(entry),
+    awaitingReply = active
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
@@ -2186,6 +2180,7 @@ export class AgentSessionRuntimeService extends BaseService {
       type: 'connection-occupancy',
       occupancy: 'background',
       active,
+      awaitingReply,
       ...(active
         ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
         : {})
@@ -2218,6 +2213,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+    }
+
+    const turn = this.liveTurn(entry)
+    if (turn?.assistantMessageId === messageId && turn.controller) {
+      this.enqueueTurnChunk(entry, turn, chunk)
+      return
     }
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
@@ -2468,6 +2469,13 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+    if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-agent-task-event',
+        id: uuidv7(),
+        data: merged as unknown as AgentTaskEventPartData
+      })
+    }
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
@@ -2863,7 +2871,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: nextTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -2935,7 +2943,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: turn.abortController,
       listeners: [
         this.createPersistenceListener(entry, turn.userMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId, turn.assistantMessageId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3044,7 +3052,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: receiveOnlyTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3161,7 +3169,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: continuationTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, steerMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
     })

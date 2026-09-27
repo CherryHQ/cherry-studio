@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -511,6 +512,7 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
+    invalidateCachedMessageUiStates(['msg-1'])
     activityStore = new KeyedMessageActivityStore()
     topicStreamStore.setStatus(undefined)
     mockThinkingBlockMounted.mockClear()
@@ -1414,6 +1416,73 @@ describe('MessagePartsRenderer', () => {
       const html = container.innerHTML
       expect(html.indexOf('first.mp4')).toBeLessThan(html.indexOf('between videos'))
       expect(html.indexOf('between videos')).toBeLessThan(html.indexOf('second.mp4'))
+    })
+
+    it.each(['pending', 'success'] as const)('keeps subagent entries after the reply while %s', (status) => {
+      const { container } = renderParts(
+        [
+          { type: 'text', text: 'Delegating review' },
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          { type: 'text', text: 'Current summary' },
+          { type: 'text', text: 'Private child output', providerMetadata: { cherry: { parentToolCallId: 'reviewer' } } }
+        ] as CherryMessagePart[],
+        msg({ status }),
+        { openAgentToolFlow: vi.fn() }
+      )
+      if (status === 'success') fireEvent.click(screen.getByRole('button', { expanded: false }))
+      const summary = screen.getByText('Current summary')
+      const child = screen.getByTestId('mock-message-tools')
+      expect(summary.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(container.querySelectorAll('[data-tool-name="Agent"]')).toHaveLength(1)
+      expect(screen.queryByText('Private child output')).toBeNull()
+    })
+
+    it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
+      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const actions = { openAgentToolFlow: vi.fn() }
+      activateTurn('streaming')
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+      finishTurn('done')
+      rerender(renderPartsTree(parts, msg(), actions))
+      expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { expanded: false }))
+      rerender(renderPartsTree([...parts, { type: 'text', text: 'Final answer' }], msg(), actions))
+      expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
+    })
+
+    it.each(['error', 'stopped', 'in_progress'] as const)(
+      'keeps %s subtasks visible after the parent response',
+      (status) => {
+        const parts = [
+          toolPart('reviewer', 'output-available', 'Agent'),
+          {
+            type: 'data-agent-task-event',
+            data: { taskId: 'child', toolUseId: 'reviewer', status }
+          }
+        ] as CherryMessagePart[]
+        renderParts(parts, msg(), { openAgentToolFlow: vi.fn() })
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
+      }
+    )
+
+    it('keeps the list open when the user is reading a subtask as the turn finishes', () => {
+      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const actions = { openAgentToolFlow: vi.fn(), isAgentToolFlowActive: () => true }
+      activateTurn('streaming')
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
+      finishTurn('done')
+      rerender(renderPartsTree(parts, msg(), { ...actions, isAgentToolFlowActive: () => false }))
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+      expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
     })
 
     it('keeps parent agent-flow parts out of the top-level message', () => {

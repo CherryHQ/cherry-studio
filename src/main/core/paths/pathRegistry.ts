@@ -60,7 +60,7 @@ export function buildPathRegistry() {
   const appRootResources = path.join(app.getAppPath(), 'resources')
 
   return Object.freeze({
-    // -- A. cherry.* — ~/.cherrystudio infrastructure --
+    // -- A. cherry.* — CHERRY_HOME infrastructure --
     'cherry.home': CHERRY_HOME,
     'cherry.bin': path.join(CHERRY_HOME, 'bin'),
     'cherry.config': path.join(CHERRY_HOME, 'config'),
@@ -99,6 +99,8 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+
+    'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged

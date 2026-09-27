@@ -469,12 +469,28 @@ describe('useProviderModelPullReconcile', () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to load provider models for manage drawer', {
         providerId: 'openai',
         catalogFailed: true,
-        upstreamFailed: true
+        upstreamFailed: true,
+        category: 'unknown'
       })
       expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(apiKey)
     } finally {
       loggerErrorSpy.mockRestore()
     }
+  })
+
+  it('surfaces the proxy/SSL diagnosis when the upstream fetch fails on a certificate', async () => {
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new Error('Cannot connect to API: net::ERR_CERT_AUTHORITY_INVALID')
+    )
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.loadErrorMessage).toBe('error.diagnosis.proxy')
+    })
   })
 
   it('keeps catalog models visible when upstream model loading fails', async () => {

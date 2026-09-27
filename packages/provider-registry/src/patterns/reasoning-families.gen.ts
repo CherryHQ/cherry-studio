@@ -47,6 +47,12 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^nova-2' },
   // anthropic
   {
+    pattern: '^(?:anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: false,
+    wireDialect: 'effort'
+  },
+  {
     pattern: '^(?:anthropic\\.)?claude-fable',
     effort: ['low', 'medium', 'high', 'max'],
     toggle: false,

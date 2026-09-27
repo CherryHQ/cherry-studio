@@ -11,3 +11,4 @@ export { getSessionToolTarget, parseSessionCreateResult, parseSessionSendResult 
 export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'
+export { getSubagentTaskStatus } from './subagentStatus'

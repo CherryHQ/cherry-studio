@@ -2418,11 +2418,18 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-8-flash-next",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Qwen 3.8 Flash Next",
@@ -4445,6 +4452,64 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-5-5",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 5.5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
         "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
         "wireDialect": "effort"
       }
@@ -17059,6 +17124,128 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "family": "gpt",
+      "id": "gpt-6-luna",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6 Luna",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.02
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.25
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 0.75
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "family": "gpt",
+      "id": "gpt-6-sol",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6 Sol",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 15
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "audio-recognition", "audio-generation", "structured-output"],
       "contextWindow": 128000,
       "id": "gpt-audio",
@@ -22259,5 +22446,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ecb64236eab094c8"
+  "version": "b266093d9b453039"
 }

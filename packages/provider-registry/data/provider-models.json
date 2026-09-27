@@ -12007,6 +12007,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "anthropic/claude-opus-5.5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "anthropic/claude-opus-5-fast",
       "modelId": "claude-opus-5-fast",
       "pricing": {
@@ -21370,6 +21393,56 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6-luna",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-luna",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
+      "apiModelId": "gpt-6-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "deepseek-flash",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-flash",
@@ -23422,6 +23495,44 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-5.5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -39670,6 +39781,29 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "claude-opus-5-5@default",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "claude-sonnet-4@20250514",
       "modelId": "claude-sonnet-4",
       "pricing": {
@@ -40655,5 +40789,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "268f15c29341edb0"
+  "version": "5948b27b1d472351"
 }

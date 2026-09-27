@@ -1,10 +1,12 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Hyperlink from '../Hyperlink'
+import Link from '../Link'
 
-const { parseMetadata, metadataHook } = vi.hoisted(() => ({
+const { parseMetadata, metadataHook, openExternalUrl } = vi.hoisted(() => ({
+  openExternalUrl: vi.fn(),
   parseMetadata: vi.fn(),
   metadataHook: vi.fn()
 }))
@@ -12,6 +14,9 @@ const { parseMetadata, metadataHook } = vi.hoisted(() => ({
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: metadataHook
+}))
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageListActions: () => ({ openExternalUrl })
 }))
 
 describe('Hyperlink context menu', () => {
@@ -21,6 +26,24 @@ describe('Hyperlink context menu', () => {
     metadataHook.mockReturnValue({ metadata: { title: 'Website preview' }, isLoading: false, parseMetadata })
   })
   afterEach(() => vi.useRealTimers())
+
+  it('opens a website preview through its conversation while preserving modified clicks', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    const href = 'https://example.com/a%20b'
+    render(<Link href={href}>Website</Link>)
+    await user.hover(screen.getByRole('link', { name: 'Website' }))
+    const preview = await screen.findByRole('link', { name: /Website preview/ })
+    for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+      const event = createEvent.click(preview, { [modifier]: true })
+      fireEvent(preview, event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    fireEvent(preview, new MouseEvent('auxclick', { button: 1, bubbles: true }))
+    expect(openExternalUrl).not.toHaveBeenCalled()
+    await user.click(preview)
+    expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(href)
+  })
 
   it('renders empty-href content without a preview', async () => {
     render(

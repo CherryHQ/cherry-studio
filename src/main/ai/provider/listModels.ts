@@ -3,11 +3,16 @@
  *
  * Uses Strategy Registry pattern: first matching fetcher wins.
  * All HTTP calls use @ai-sdk/provider-utils for consistent error handling.
+ *
+ * Every request runs through {@link modelListFetch} — the same Chromium network stack
+ * chat uses — so TLS trust and proxy settings cannot diverge between listing models
+ * and talking to them.
  */
 
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
+  type FetchFunction,
   getFromApi as aiSdkGetFromApi,
   postJsonToApi,
   zodSchema
@@ -38,6 +43,7 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
@@ -67,6 +73,22 @@ import {
 import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
+
+/**
+ * Provider `fetch` for model listing: Electron `net.fetch` (Chromium) rather than Node's
+ * global fetch.
+ *
+ * Node only trusts its own bundled CA store, while Chromium trusts the OS one and honors
+ * the session proxy — so an intercepting corporate root CA that is installed system-wide
+ * (and therefore fine for chat, which already goes through `customFetch`) made *listing*
+ * fail with a certificate error. Sharing the stack keeps both paths agreeing on trust,
+ * proxy and error vocabulary (Chromium `net::ERR_CERT_*`, which `classifyErrorCategory`
+ * maps to the proxy/SSL diagnosis).
+ *
+ * `cache: 'no-store'` because Chromium's HTTP cache would otherwise serve a stale
+ * `/models` response on a second pull, resurrecting deleted models.
+ */
+const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...init, cache: 'no-store' })
 
 // ── Types ──
 
@@ -143,7 +165,8 @@ async function getFromApi<T>({
       errorSchema: zodSchema(ApiErrorSchema),
       errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
     }),
-    abortSignal
+    abortSignal,
+    fetch: modelListFetch
   })
 
   return value
@@ -224,7 +247,8 @@ async function fetchOllamaContextWindow(
         errorSchema: zodSchema(ApiErrorSchema),
         errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
       }),
-      abortSignal: signal
+      abortSignal: signal,
+      fetch: modelListFetch
     })
     return readOllamaContextLength(value.model_info)
   } catch (error) {

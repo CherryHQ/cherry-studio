@@ -104,6 +104,8 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
+  // Model listing issues its HTTP through the same fetch, so tests that exercise the
+  // real listing path stub this mock with the response they expect.
   customFetch: vi.fn()
 }))
 
@@ -1795,7 +1797,10 @@ describe('AiService tool approval', () => {
         [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
       }
     })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    // Listing runs on the provider fetch (`customFetch` → Electron `net.fetch`), which the
+    // module mock above stubs — feed it the `/models` payload directly.
+    const { customFetch } = await import('../utils/customFetch')
+    vi.mocked(customFetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           data: [
@@ -1831,7 +1836,7 @@ describe('AiService tool approval', () => {
       expect(embedSpy).not.toHaveBeenCalled()
       expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
     } finally {
-      fetchSpy.mockRestore()
+      vi.mocked(customFetch).mockReset()
     }
   })
 
