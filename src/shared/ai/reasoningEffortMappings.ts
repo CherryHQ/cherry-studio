@@ -79,7 +79,6 @@ export function applyUserReasoningEffortTranslation<T extends string>(
   return (translated ?? selection) as T
 }
 
-/** Keep only targets the model declares in its reasoning vocabulary. */
 /** Project a UI effort through user overrides and the model vocabulary (renderer preview). */
 export function previewMappedReasoningEffort(
   selection: ReasoningEffortOption,
