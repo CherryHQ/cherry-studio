@@ -381,14 +381,15 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const { invocationModel: claudeCodeInvocationModel } = resolveClaudeCodeReasoningContext(model)
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
-    reasoningEffortMapping: Object.entries(getUserReasoningEffortMap(provider, model)).sort(([a], [b]) =>
-      a.localeCompare(b)
-    ),
+    reasoningEffortMapping: Object.entries(
+      getUserReasoningEffortMap({ id: model.providerId }, claudeCodeInvocationModel)
+    ).sort(([a], [b]) => a.localeCompare(b)),
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
@@ -598,14 +599,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
-/**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
- */
-function resolveClaudeCodeThinkingOptions(
-  model: Model,
-  reasoningEffort: ReasoningEffortOption
-): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+function resolveClaudeCodeReasoningContext(model: Model) {
   const profile = providerRegistryService.resolveReasoningProfile(
     {
       id: 'anthropic',
@@ -618,6 +612,18 @@ function resolveClaudeCodeThinkingOptions(
   const invocationModel = profile.support
     ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
     : model
+  return { profile, invocationModel }
+}
+
+/**
+ * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
+ * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
+ */
+function resolveClaudeCodeThinkingOptions(
+  model: Model,
+  reasoningEffort: ReasoningEffortOption
+): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+  const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
