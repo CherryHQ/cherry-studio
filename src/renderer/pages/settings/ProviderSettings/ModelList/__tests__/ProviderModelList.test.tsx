@@ -54,10 +54,11 @@ vi.mock('@renderer/components/VirtualList', () => ({
   }
 }))
 
-const { moveModelMock, applyReorderedListMock, toastErrorMock } = vi.hoisted(() => ({
+const { moveModelMock, applyReorderedListMock, toastErrorMock, pendingModelIdsState } = vi.hoisted(() => ({
   moveModelMock: vi.fn().mockResolvedValue(undefined),
   applyReorderedListMock: vi.fn().mockResolvedValue(undefined),
-  toastErrorMock: vi.fn()
+  toastErrorMock: vi.fn(),
+  pendingModelIdsState: { value: new Set<string>() }
 }))
 
 vi.mock('@renderer/data/hooks/useReorder', () => ({
@@ -119,7 +120,7 @@ vi.mock('../useProviderModelList', () => ({
         { id: 'openai::d1', providerId: 'openai', group: 'rerank' }
       ],
       disabled: false,
-      pendingModelIds: new Set<string>(),
+      pendingModelIds: pendingModelIdsState.value,
       defaultModelIds: new Set<string>(),
       onEditModel: vi.fn(),
       onDeleteModel: vi.fn(),
@@ -140,6 +141,7 @@ describe('ProviderModelList', () => {
     modelListStateMock.hasVisibleModels = true
     providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [] }
     searchTextMock.value = ''
+    pendingModelIdsState.value = new Set<string>()
   })
 
   it('turns a same-group drop into an anchored reorder request', () => {
@@ -206,6 +208,19 @@ describe('ProviderModelList', () => {
     })
 
     expect(moveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('turns group dragging off while a model operation is pending', () => {
+    // A group move carries every member's id, so a pending delete would make
+    // the write fail on a row that is already gone. Row drags are gated too.
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+    expect(virtualListPropsRef.current.dragCapabilities).toMatchObject({ groups: true })
+
+    pendingModelIdsState.value = new Set(['openai::gpt-4'])
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    expect(virtualListPropsRef.current.dragCapabilities).toMatchObject({ groups: false, items: true })
+    expect(virtualListPropsRef.current.canDragItem({ id: 'openai::gpt-4' })).toBe(false)
   })
 
   it('tells the user when the reorder is rejected instead of silently snapping back', async () => {

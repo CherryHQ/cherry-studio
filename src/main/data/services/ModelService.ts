@@ -1315,19 +1315,8 @@ class ModelService {
    * `delete` deliberately do not apply here.
    */
   reorder(uniqueModelId: string, anchor: OrderRequest): void {
-    const orderedIds = withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx((tx) => {
-          applyScopedMoves(tx, userModelTable, [{ id: uniqueModelId, anchor }], {
-            pkColumn: userModelTable.id,
-            scopeColumn: userModelTable.providerId
-          })
-          return this.selectProviderModelIdsTx(tx, uniqueModelId)
-        }),
-      defaultHandlersFor('Model', uniqueModelId)
-    )
+    this.applyReorder([{ id: uniqueModelId, anchor }], uniqueModelId)
 
-    notifyModelOrderChange(orderedIds)
     logger.info('Reordered model', { uniqueModelId })
   }
 
@@ -1339,6 +1328,21 @@ class ModelService {
   reorderBatch(moves: OrderBatchRequest['moves']): void {
     if (moves.length === 0) return
 
+    this.applyReorder(moves, `batch(${moves.length} items)`)
+
+    logger.info('Reordered models', {
+      count: moves.length,
+      ids: moves.map((move) => move.id)
+    })
+  }
+
+  /**
+   * The one write path both entry points share: validate the scope, move the
+   * rows in a single transaction, then broadcast the partition whose order
+   * changed. A single move and a group block move differ only in the moves
+   * they hand over, so the orchestration lives here rather than twice.
+   */
+  private applyReorder(moves: OrderBatchRequest['moves'], identifier: string): void {
     const orderedIds = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -1346,18 +1350,14 @@ class ModelService {
             pkColumn: userModelTable.id,
             scopeColumn: userModelTable.providerId
           })
-          // A batch is a group block move, so the whole partition's relative
-          // order changes, not only the moved rows.
+          // A block move changes the partition's relative order, not just the
+          // moved rows, so the whole partition is reported.
           return this.selectProviderModelIdsTx(tx, moves[0].id)
         }),
-      defaultHandlersFor('Model', `batch(${moves.length} items)`)
+      defaultHandlersFor('Model', identifier)
     )
 
     notifyModelOrderChange(orderedIds)
-    logger.info('Reordered models', {
-      count: moves.length,
-      ids: moves.map((move) => move.id)
-    })
   }
 
   /**

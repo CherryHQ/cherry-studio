@@ -145,7 +145,11 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
           onReorderModel={disabled || isReorderingModels ? undefined : handleReorderModel}
           orderedModels={modelList.sections.orderedModels}
-          onReorderGroups={disabled || isReorderingModels ? undefined : handleReorderGroups}
+          onReorderGroups={
+            disabled || isReorderingModels || modelList.sections.pendingModelIds.size > 0
+              ? undefined
+              : handleReorderGroups
+          }
         />
       </div>
       <EditModelDrawer

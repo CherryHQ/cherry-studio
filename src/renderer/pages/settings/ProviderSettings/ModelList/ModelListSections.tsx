@@ -58,7 +58,10 @@ interface ModelListSectionsProps {
    */
   orderedModels?: readonly Model[]
   /**
-   * Persist a whole-group move. Omitted when the list is not reorderable.
+   * Persist a whole-group move. Omitted when the list is not reorderable —
+   * which includes while a model operation is pending, because a group move
+   * carries every member's id and a pending delete would fail the write on a
+   * row that is already gone. Row drags are gated the same way.
    * The drag's `sourceIndex` / `targetIndex` decide whether the group lands
    * before or after the target.
    */
