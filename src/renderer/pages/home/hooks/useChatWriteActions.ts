@@ -32,12 +32,12 @@ import {
   type AssistantTurnOptions,
   type BranchMessagesResponse,
   type CherryUIMessage,
-  isFailedAssistantMessage,
   type Message as DbMessage
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 
+import { isFailedAssistantMessage } from '../messages/isFailedAssistantMessage'
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatWriteActions')
@@ -311,6 +311,7 @@ export function useChatWriteActions(params: Params): Result {
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const isFailedAssistant = target ? isFailedAssistantMessage(target) : false
       const canRetryInPlace =
+        target !== undefined &&
         isFailedAssistant &&
         parentAnchorId !== undefined &&
         retryModelId !== undefined &&

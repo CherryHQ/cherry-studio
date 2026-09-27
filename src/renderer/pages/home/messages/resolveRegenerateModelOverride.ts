@@ -1,4 +1,6 @@
-import { isFailedAssistantMessage, type CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
+import { isFailedAssistantMessage } from './isFailedAssistantMessage'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 export function resolveRegenerateModelOverride(

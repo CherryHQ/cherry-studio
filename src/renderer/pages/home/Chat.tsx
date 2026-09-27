@@ -33,11 +33,11 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { resolveComposerActiveModelId } from './messages/resolveComposerActiveModelId'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
+import { resolveComposerActiveModelId } from './messages/resolveComposerActiveModelId'
 import type { AddNewTopicPayload } from './types'
 
 const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
@@ -112,12 +112,8 @@ const Chat: FC<Props> = (props) => {
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
   const composerActiveModelId = useMemo(
-    () =>
-      resolveComposerActiveModelId(
-        activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? [],
-        assistantContext.model?.id
-      ),
-    [activeConversationControlsSnapshot, assistantContext.model?.id]
+    () => resolveComposerActiveModelId(activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? []),
+    [activeConversationControlsSnapshot]
   )
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
