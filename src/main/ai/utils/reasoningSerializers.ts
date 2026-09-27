@@ -189,12 +189,10 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
   }
 
-  const userAdjustedSelection = applyUserReasoningEffortTranslation(requested, input.userEffortMap)
-  const selectionForResolve =
-    userAdjustedSelection !== requested
-      ? userAdjustedSelection
-      : normalizeRequestedSelection(userAdjustedSelection, input.model)
-  const selection = resolveSelection(selectionForResolve, input.model)
+  const selection = resolveSelection(
+    applyUserReasoningEffortTranslation(requested, input.userEffortMap),
+    input.model
+  )
   if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)

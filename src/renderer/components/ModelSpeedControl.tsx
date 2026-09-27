@@ -191,7 +191,7 @@ export function ModelSpeedControl({
       providerId: model.providerId,
       modelId: isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id,
       modelFamily: model.family,
-      uniqueModelId: model.id
+      uniqueModelId: isUniqueModelId(model.id) ? model.id : undefined
     })
     return sanitizeUserReasoningEffortMap(raw, model.reasoning?.selectableEfforts)
   }, [effortMappings, model.family, model.id, model.providerId, model.reasoning?.selectableEfforts])
