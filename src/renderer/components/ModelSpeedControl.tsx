@@ -422,17 +422,7 @@ export function ModelSpeedControl({
   const { t } = useTranslation()
 
   if (
-    !modelSpeedControlHasVisibleControls({
-      model,
-      reasoningEffort,
-      reasoningSummary,
-      serviceTier,
-      fastMode,
-      onReasoningEffortChange,
-      onReasoningSummaryChange,
-      onServiceTierChange,
-      onFastModeChange
-    })
+    !modelSpeedControlHasVisibleControls({ model, onFastModeChange, onServiceTierChange, onReasoningSummaryChange })
   ) {
     return null
   }
