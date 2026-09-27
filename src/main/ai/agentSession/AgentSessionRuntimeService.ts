@@ -1291,8 +1291,22 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   isSessionBusyForArchive(sessionId: string): boolean {
+    return this.isSessionBusy(sessionId) || this.hasPendingBackgroundWork(sessionId)
+  }
+
+  /**
+   * Whether detached background work — or its final flow flush — is still pending. Background
+   * occupancy deliberately stays out of `isSessionBusy` so it never gates turn scheduling, but it
+   * must gate destructive session operations: deleting the session would remove the message rows
+   * the pending persistence still writes to.
+   */
+  hasPendingBackgroundWork(sessionId: string): boolean {
+    for (const owner of this.inFlightBackgroundFlowFlushes.values()) {
+      if (owner === sessionId) return true
+    }
     const entry = this.entries.get(sessionId)
-    return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+    return entry !== undefined && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+  }
   }
 
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
