@@ -190,7 +190,11 @@ function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
     id: entry.id,
     key,
     ...(entry.label ? { label: entry.label } : {}),
-    isEnabled: entry.isEnabled
+    isEnabled: entry.isEnabled,
+    ...(entry.tier ? { tier: entry.tier } : {}),
+    ...(entry.renewalAnchor ? { renewalAnchor: entry.renewalAnchor } : {}),
+    ...(entry.renewalTimezone ? { renewalTimezone: entry.renewalTimezone } : {}),
+    ...(entry.note ? { note: entry.note } : {})
   }
 }
 

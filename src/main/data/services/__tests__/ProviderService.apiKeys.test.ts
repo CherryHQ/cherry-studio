@@ -238,6 +238,46 @@ describe('ProviderService API keys', () => {
     ])
   })
 
+  it('carries tier, renewal anchor/timezone, and note through a bulk replace', async () => {
+    await seedProvider()
+
+    const replacement = [
+      {
+        id: 'key-new',
+        key: 'sk-new',
+        isEnabled: true,
+        tier: 'paid' as const,
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
+    ]
+    const updated = providerService.replaceApiKeys('openai', replacement)
+
+    expect(updated.apiKeys).toEqual([
+      {
+        id: 'key-new',
+        isEnabled: true,
+        tier: 'paid',
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
+    ])
+    const storedKeys = await readApiKeys()
+    expect(storedKeys).toEqual([
+      {
+        id: 'key-new',
+        key: 'sk-new',
+        isEnabled: true,
+        tier: 'paid',
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
+    ])
+  })
+
   it('rejects invalid replacement API key entries before persisting', async () => {
     await seedProvider()
 
