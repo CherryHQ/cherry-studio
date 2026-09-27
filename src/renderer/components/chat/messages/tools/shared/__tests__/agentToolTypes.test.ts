@@ -25,6 +25,31 @@ describe('dsh receipt identities', () => {
     expect(extractLaunchReceiptId('I started subagent dsh-child-1 earlier')).toBeUndefined()
   })
 
+  it('does not read an embedded marker line as a launch receipt', () => {
+    // A child's own multi-line answer may quote the phrase; only the whole output is a receipt.
+    expect(
+      extractLaunchReceiptId('Here is what I ran.\nstarted subagent dsh-child-1\nHope that helps.')
+    ).toBeUndefined()
+  })
+
+  it('does not read an embedded delivery line as a continuation', () => {
+    expect(getResumedAgentId('transcript follows:\nmessage delivered to agent dsh-child-1')).toBeUndefined()
+  })
+
+  it('indexes a persisted static tool part, which carries its name in the part type', () => {
+    const staticLaunch = {
+      type: 'tool-Agent',
+      toolCallId: 'call-launch',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1'
+    } as unknown as CherryMessagePart
+
+    const launchIndex = buildAgentLaunchIndex({ m1: [staticLaunch] })
+    expect(launchIndex.toolCallIds.has('call-launch')).toBe(true)
+    expect(launchIndex.launchesByAgentId.get('dsh-child-1')?.toolCallId).toBe('call-launch')
+  })
+
   it('reads a structured subagentId', () => {
     expect(extractLaunchReceiptId({ subagentId: 'dsh-child-1' })).toBe('dsh-child-1')
   })

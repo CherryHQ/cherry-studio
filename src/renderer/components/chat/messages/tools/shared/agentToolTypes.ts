@@ -47,6 +47,7 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
+import { getToolName, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -290,7 +291,8 @@ export function getResumedAgentId(output: unknown): string | undefined {
       /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
       /"subagent_id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
       // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
-      /^message delivered to agent[ \t]+(\S+)$/m.exec(output.trim())?.[1]
+      // The whole output must be that line: a child's own prose must not name a target.
+      /^message delivered to agent[ \t]+(\S+)$/.exec(output.trim())?.[1]
     )
   }
   if (output && typeof output === 'object') {
@@ -314,8 +316,8 @@ export function getResumedAgentId(output: unknown): string | undefined {
 export function extractLaunchReceiptId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     // dsh acknowledges a continuable launch with exactly `started subagent <childId>` and no other
-    // prose; the whole line must match so a child's own answer cannot pass for a receipt.
-    const dshLaunch = /^started subagent[ \t]+(\S+)$/m.exec(output.trim())?.[1]
+    // prose; the whole output must match, or a child's own answer naming the phrase would register.
+    const dshLaunch = /^started subagent[ \t]+(\S+)$/.exec(output.trim())?.[1]
     if (dshLaunch) return dshLaunch
     // The trailer marker alone is spoofable by prose; require the launch receipt's structural
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
@@ -369,14 +371,19 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      // A persisted static tool part carries its name in the part type, not in a `toolName` field,
+      // so the name comes from the SDK helper that understands both shapes.
+      const toolPart = part as unknown as Parameters<typeof getToolName>[0]
+      if (!isToolUIPart(toolPart)) continue
+      const toolName = getToolName(toolPart).trim()
       // DSH launches under its own tool names, so the wire name is matched alongside the shared
       // ones rather than through a canonicalising import, which would cycle back into this module.
       if (
-        record.toolName !== AgentToolsType.Agent &&
-        record.toolName !== AgentToolsType.Task &&
-        record.toolName !== AgentToolsType.Workflow &&
-        record.toolName !== 'subagent' &&
-        record.toolName !== 'subagent_fork'
+        toolName !== AgentToolsType.Agent &&
+        toolName !== AgentToolsType.Task &&
+        toolName !== AgentToolsType.Workflow &&
+        toolName !== 'subagent' &&
+        toolName !== 'subagent_fork'
       )
         continue
       if (typeof record.toolCallId !== 'string') continue
