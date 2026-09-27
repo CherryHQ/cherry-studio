@@ -32,7 +32,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/cordis-plugin-group": "1.0.2",
     "@deepseek-ai/cordis-plugin-include": "1.0.7",
     "@deepseek-ai/cordis-plugin-loader": "1.0.3",
@@ -94,8 +94,8 @@
     "@deepseek-ai/dsh-subagent-fork-in-process": "0.1.2-rc.1",
     "@deepseek-ai/dsh-subagent-in-process-driver": "0.1.2-rc.1",
     "@deepseek-ai/dsh-subagent-spawn-in-process": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-subprocess": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-subprocess-local": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-subprocess-local": "0.1.7-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.1.2-rc.1",
     "@deepseek-ai/dsh-timeout": "0.1.2-rc.1",
     "@deepseek-ai/dsh-token-meter": "0.1.2-rc.1",
