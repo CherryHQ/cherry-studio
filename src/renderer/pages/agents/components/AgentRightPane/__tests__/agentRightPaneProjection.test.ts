@@ -1609,6 +1609,15 @@ describe('isResumeReceiptCall', () => {
     expect(isResumeReceiptCall('call-launch', { m1: parts })).toBe(false)
   })
 
+  it('does not redirect a call the resumed content streams under', () => {
+    // A cold-resumed dsh child streams under its own send_message call, so that call is the flow's
+    // root even though its receipt names a child whose launch is loaded and redirectable.
+    const receipt = dshSendMessage('call-send')
+    const child = dshPart('child', 'subagent', undefined, 'call-send')
+    const launch = dshPart('call-launch', 'subagent', 'started subagent dsh-child-1')
+    expect(resolveFlowToolCallId('call-send', { m1: [receipt, child, launch] })).toBeUndefined()
+  })
+
   it('reads a claude-code resume receipt as a continuation', () => {
     const parts = [
       toolPart(

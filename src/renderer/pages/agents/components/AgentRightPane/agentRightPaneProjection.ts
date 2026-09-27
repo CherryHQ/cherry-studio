@@ -454,6 +454,11 @@ export function resolveFlowToolCallId(
   // One index for the whole walk: it gates a stamped root to the loaded window — an absent root
   // would open an empty flow pane — and resolves the unstamped fallback the same way.
   const launchIndex = buildAgentLaunchIndex(partsByMessageId)
+  // A call the content streams under is a root in its own right — a cold-resumed dsh child streams
+  // under its own send_message call — so redirecting it would move the content off its own root.
+  for (const parts of Object.values(partsByMessageId)) {
+    if (parts.some((part) => getPartParentToolCallId(part) === toolCallId)) return undefined
+  }
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolCallId?: unknown; output?: unknown }
