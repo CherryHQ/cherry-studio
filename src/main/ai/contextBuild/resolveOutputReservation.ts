@@ -70,14 +70,7 @@ export function resolveOutputReservation(
   let largest: number | undefined
   for (const model of models) {
     const { endpointType, provider } = endpointContextOf(model)
-    const reservation = resolveRequestedMaxOutputTokens(
-      undefined,
-      undefined,
-      assistant,
-      model,
-      endpointType,
-      provider
-    )
+    const reservation = resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointType, provider)
     if (reservation !== undefined && (largest === undefined || reservation > largest)) largest = reservation
   }
   return largest

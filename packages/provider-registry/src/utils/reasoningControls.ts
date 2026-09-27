@@ -11,6 +11,17 @@
  */
 import type { ReasoningControl, ReasoningSupport } from '../schemas/model'
 
+const REASONING_CONTROL_KIND_ORDER: Record<ReasoningControl['kind'], number> = {
+  effort: 0,
+  budget: 1,
+  toggle: 2
+}
+
+/** Stable UI / test order: effort knobs, then budget, then on/off toggle. */
+export function canonicalizeReasoningControlOrder(controls: ReasoningControl[]): void {
+  controls.sort((a, b) => REASONING_CONTROL_KIND_ORDER[a.kind] - REASONING_CONTROL_KIND_ORDER[b.kind])
+}
+
 export type DerivedReasoningFields = Pick<
   ReasoningSupport,
   'supportedEfforts' | 'thinkingTokenLimits' | 'defaultEffort'

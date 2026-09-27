@@ -31,6 +31,7 @@ import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
+import { canonicalizeReasoningControlOrder } from '../src/utils/reasoningControls'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
@@ -453,6 +454,7 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       const inferred = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
       if (inferred) controls.unshift(inferred)
     }
+    canonicalizeReasoningControlOrder(controls)
   }
   // Reasoning normalization — `controls` is the source of truth: whenever a
   // model declares it (upstream ingest, creator hand-list, or heuristic fill),
