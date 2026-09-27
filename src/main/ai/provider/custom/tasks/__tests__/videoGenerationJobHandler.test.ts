@@ -6,7 +6,7 @@ import type { VideoGenerationJobInput } from '../../videoGenerationModel'
 
 const {
   appGetMock,
-  dbUpdateMock,
+  dbSetMock,
   getByProviderIdMock,
   getByKeyMock,
   resolveApiKeyMock,
@@ -15,7 +15,7 @@ const {
   pollMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  dbUpdateMock: vi.fn(),
+  dbSetMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   getByKeyMock: vi.fn(),
   resolveApiKeyMock: vi.fn(),
@@ -59,9 +59,10 @@ beforeEach(() => {
       return {
         getDb: () => ({
           update: () => ({
-            set: () => ({
-              where: () => ({ run: dbUpdateMock })
-            })
+            set: (values: Record<string, unknown>) => {
+              dbSetMock(values)
+              return { where: () => ({ run: vi.fn() }) }
+            }
           })
         })
       }
@@ -90,5 +91,52 @@ describe('videoGenerationJobHandler.execute', () => {
     const result = await videoGenerationJobHandler.execute(createCtx())
 
     expect(result).toEqual({ videoUrl: 'https://cdn.example.com/video.mp4' })
+  })
+
+  it('marks the row failed (not left processing) when a poll error is thrown', async () => {
+    pollMock.mockRejectedValue(new Error('provider 500'))
+
+    await expect(videoGenerationJobHandler.execute(createCtx())).rejects.toThrow('provider 500')
+
+    expect(dbSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', errorMessage: expect.stringContaining('provider 500') })
+    )
+  })
+
+  it('marks the row failed (not left pending) when submit itself throws', async () => {
+    submitMock.mockRejectedValue(new Error('submit boom'))
+
+    await expect(videoGenerationJobHandler.execute(createCtx())).rejects.toThrow('submit boom')
+
+    expect(dbSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', errorMessage: expect.stringContaining('submit boom') })
+    )
+  })
+
+  it('marks the row failed (not left processing forever) when the job is cancelled mid-poll', async () => {
+    const controller = new AbortController()
+    pollMock.mockImplementation(async (_taskId: string, signal: AbortSignal) => {
+      controller.abort()
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+      return null
+    })
+
+    await expect(videoGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow()
+
+    expect(dbSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
+  })
+
+  it('marks the row failed when the job is cancelled while sleeping between polls', async () => {
+    const controller = new AbortController()
+    pollMock.mockImplementation(async () => {
+      // Not done yet, but cancelled right after — the abort must be caught at the
+      // sleepWithSignal() call between polls, not just inside poll() itself.
+      controller.abort()
+      return null
+    })
+
+    await expect(videoGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow()
+
+    expect(dbSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
   })
 })

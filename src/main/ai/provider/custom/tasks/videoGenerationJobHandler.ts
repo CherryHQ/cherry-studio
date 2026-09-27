@@ -44,60 +44,62 @@ export const videoGenerationJobHandler: JobHandler<VideoGenerationJobInput> = {
 
     let providerTaskId: string
 
-    const persisted = ctx.metadata.providerTaskId as string | undefined
-    if (persisted) {
-      providerTaskId = persisted
-      logger.debug('Resumed video job from persisted state', { jobId: ctx.jobId, providerTaskId })
-    } else {
-      providerTaskId = await transport.submit({
-        modelId,
-        prompt: input.prompt,
-        duration: input.duration,
-        resolution: input.resolution
-      })
-      await ctx.patchMetadata({ providerTaskId })
+    try {
+      const persisted = ctx.metadata.providerTaskId as string | undefined
+      if (persisted) {
+        providerTaskId = persisted
+        logger.debug('Resumed video job from persisted state', { jobId: ctx.jobId, providerTaskId })
+      } else {
+        providerTaskId = await transport.submit({
+          modelId,
+          prompt: input.prompt,
+          duration: input.duration,
+          resolution: input.resolution
+        })
+        await ctx.patchMetadata({ providerTaskId })
+        application
+          .get('DbService')
+          .getDb()
+          .update(videoTable)
+          .set({ providerTaskId, status: 'processing', jobId: ctx.jobId })
+          .where(eq(videoTable.id, input.videoId))
+          .run()
+        ctx.reportProgress(5, { stage: 'submitted' })
+      }
+
+      while (!ctx.signal.aborted) {
+        const videoUrl = await transport.poll(providerTaskId, ctx.signal)
+
+        if (videoUrl !== null) {
+          application
+            .get('DbService')
+            .getDb()
+            .update(videoTable)
+            .set({ status: 'completed', videoUrl })
+            .where(eq(videoTable.id, input.videoId))
+            .run()
+          ctx.reportProgress(100, { stage: 'done' })
+          return { videoUrl } satisfies VideoGenerationJobOutput
+        }
+
+        ctx.reportProgress(50, { stage: 'polling' })
+        await sleepWithSignal(POLL_INTERVAL_MS, ctx.signal)
+      }
+
+      throw new DOMException('aborted', 'AbortError')
+    } catch (err) {
+      // Every exit that isn't the `completed` return above — a poll error, a cancelled/timed-out
+      // signal aborting mid-poll or mid-sleep, or a submit failure — must leave the row in a
+      // terminal state, or a cancelled job leaves it "processing" forever with no way to retry.
       application
         .get('DbService')
         .getDb()
         .update(videoTable)
-        .set({ providerTaskId, status: 'processing', jobId: ctx.jobId })
+        .set({ status: 'failed', errorMessage: String(err) })
         .where(eq(videoTable.id, input.videoId))
         .run()
-      ctx.reportProgress(5, { stage: 'submitted' })
+      throw err
     }
-
-    while (!ctx.signal.aborted) {
-      let videoUrl: string | null
-      try {
-        videoUrl = await transport.poll(providerTaskId, ctx.signal)
-      } catch (err) {
-        application
-          .get('DbService')
-          .getDb()
-          .update(videoTable)
-          .set({ status: 'failed', errorMessage: String(err) })
-          .where(eq(videoTable.id, input.videoId))
-          .run()
-        throw err
-      }
-
-      if (videoUrl !== null) {
-        application
-          .get('DbService')
-          .getDb()
-          .update(videoTable)
-          .set({ status: 'completed', videoUrl })
-          .where(eq(videoTable.id, input.videoId))
-          .run()
-        ctx.reportProgress(100, { stage: 'done' })
-        return { videoUrl } satisfies VideoGenerationJobOutput
-      }
-
-      ctx.reportProgress(50, { stage: 'polling' })
-      await sleepWithSignal(POLL_INTERVAL_MS, ctx.signal)
-    }
-
-    throw new DOMException('aborted', 'AbortError')
   }
 }
 
