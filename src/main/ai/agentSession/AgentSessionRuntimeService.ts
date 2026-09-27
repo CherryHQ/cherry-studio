@@ -281,7 +281,6 @@ type AgentSessionRuntimeEntry = {
   runtimeState: RuntimeState
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
-  fallbackUsageSource?: SourceSnapshot
   connectionLoop?: Promise<void>
   lastResumeToken?: string
   idleTimer?: ReturnType<typeof setTimeout>
@@ -693,15 +692,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private agentUsageSource(entry: AgentSessionRuntimeEntry): SourceSnapshot {
-    if (entry.fallbackUsageSource) return entry.fallbackUsageSource
     const agent = agentService.getAgent(entry.agentId)
-    return (entry.fallbackUsageSource = {
+    return {
       type: 'agent',
       id: entry.agentId,
       name: agent?.name ?? null,
       // Mirror the author snapshot's default avatar when the agent exists.
       icon: agent ? agent.configuration?.avatar?.trim() || '🤖' : null
-    })
+    }
   }
 
   private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {

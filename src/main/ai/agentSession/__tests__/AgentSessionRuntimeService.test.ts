@@ -807,6 +807,67 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('attributes usage to the reassigned agent when an idle runtime entry is reused', () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      name: 'First Agent',
+      configuration: { avatar: '🧭' }
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+
+    expect(service.getActiveUsageContext('session-1')?.source).toEqual({
+      type: 'agent',
+      id: 'agent-1',
+      name: 'First Agent',
+      icon: '🧭'
+    })
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-2',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      name: 'Second Agent',
+      configuration: { avatar: '🛰️' }
+    })
+    service.beginTurn({ ...baseTurnInput, agentId: 'agent-2', assistantMessageId: 'assistant-2' })
+
+    expect(getEntry(service)).toBe(entry)
+    const reassignedSource = { type: 'agent', id: 'agent-2', name: 'Second Agent', icon: '🛰️' }
+    expect(service.getActiveUsageContext('session-1')?.source).toEqual(reassignedSource)
+
+    entry.usageCapture = {
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+      providerId: 'claude-code',
+      providerName: 'Claude Code',
+      source: null,
+      frozenModels: []
+    }
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'usage',
+      invocation: {
+        requestId: 'sdk-reassigned-request',
+        model: 'claude-sonnet-4-5',
+        messageAssociation: 'current-turn',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+      }
+    })
+    expect(mocks.recordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'sdk-reassigned-request',
+        context: expect.objectContaining({
+          source: reassignedSource,
+          messageRef: { kind: 'agent-session', id: 'assistant-2' }
+        })
+      })
+    )
+  })
+
   it('keeps the agent identity for gateway usage when the agent entity is unavailable', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
