@@ -1,5 +1,6 @@
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 
 import type {
   MessageListActions,
@@ -25,7 +26,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
   streamingLayers?: MessageStreamingLayers
   deleteMessage?: MessageListActions['deleteMessage']
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
-  persistDiagnosis?: ErrorDetailContentProps['onDiagnosisComplete']
+  getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
   /** Load-all pagination handle for select-all; absent = fully loaded. */
   selectAllPagination?: MessageListSelectAllPagination
 }
@@ -43,7 +44,7 @@ export function useMessageListAdapterCapabilities({
   streamingLayers,
   deleteMessage,
   diagnosticReport,
-  persistDiagnosis,
+  getDoctorSubject,
   selectAllPagination
 }: UseMessageListAdapterCapabilitiesOptions) {
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
@@ -53,7 +54,7 @@ export function useMessageListAdapterCapabilities({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
-  const errorActions = useMessageErrorActions({ diagnosticReport, persistDiagnosis })
+  const errorActions = useMessageErrorActions({ diagnosticReport, getDoctorSubject })
   const selectionController = useMessageSelectionController({
     topicId,
     messages,

@@ -218,6 +218,7 @@ export const MinimaxExtension = ProviderExtension.create({
  */
 export const MoonshotExtension = ProviderExtension.create({
   name: 'moonshot',
+  aliases: ['moonshot-global'] as const,
   supportsImageGeneration: false,
   create: async (settings) => {
     const module = await import('./custom/moonshotProvider')

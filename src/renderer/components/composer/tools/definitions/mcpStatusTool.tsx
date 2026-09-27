@@ -3,11 +3,11 @@ import { Check, Globe2, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentMutationsById, useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -254,21 +254,6 @@ export function buildMcpGlobalConfigFooterItem(t: TFunction): ComposerToolFooter
   }
 }
 
-function clearMcpStatusInputQuery(
-  inputAdapter: QuickPanelInputAdapter | undefined,
-  queryAnchor: number | undefined,
-  triggerInfo: { type: 'input' | 'button' } | undefined
-) {
-  if (!inputAdapter || triggerInfo?.type !== 'input' || queryAnchor === undefined) return
-
-  const text = inputAdapter.getText()
-  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-  if (cursorOffset < queryAnchor) return
-
-  inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  inputAdapter.focus()
-}
-
 export function createMcpStatusLauncher(
   items: QuickPanelListItem[],
   t: TFunction,
@@ -294,15 +279,12 @@ export function createMcpStatusLauncher(
     icon: <McpLogo aria-hidden />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       onOpen?.()
-      clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
       quickPanel.open({
         title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
         list: items,
         symbol: ComposerPanelSymbol.McpStatus,
         parentPanel,
-        queryAnchor,
-        triggerInfo: { type: 'button' },
-        trackInputQuery: true,
+        ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo }),
         readOnly: !editable
       })
     }

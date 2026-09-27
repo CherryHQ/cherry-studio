@@ -158,7 +158,7 @@ const Link: React.FC<LinkProps> = (props) => {
 
   // 普通链接
   return (
-    <Hyperlink href={props.href || ''}>
+    <Hyperlink href={props.href || ''} onOpenLink={hostname ? openExternalUrl : undefined}>
       <a
         {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
         target="_blank"

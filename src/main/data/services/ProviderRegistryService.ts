@@ -79,6 +79,8 @@ export interface ProviderDisplayMetadata {
   availableInEditions?: Provider['availableInEditions']
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
+  /** Registry-owned opt-in for incomplete API model lists. */
+  supplementModelsFromRegistry?: boolean
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
@@ -787,6 +789,7 @@ class ProviderRegistryService {
         websites: provider?.metadata?.website,
         availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
+        supplementModelsFromRegistry: provider?.supplementModelsFromRegistry,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
         serverTools: provider?.serverTools,

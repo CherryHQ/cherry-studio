@@ -4,6 +4,7 @@ import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@s
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
+  exited?: Promise<void>
   terminalReason?: string
   category?: ErrorCategory
   exitCode?: number
