@@ -69,53 +69,60 @@ export const buildSyllabusJobHandler: JobHandler<BuildSyllabusJobInput> = {
     const course = courseService.getById(courseId)
 
     courseService.patch(courseId, { syllabusStatus: 'building' })
-    ctx.reportProgress(5, { stage: 'reading' })
-
-    // Read first 30 chunks from the knowledge base vector index
-    const indexPath = getKnowledgeVectorStoreFilePathSync(course.knowledgeBaseId)
-    let chunks: string[] = []
 
     try {
-      const db = new Database(indexPath, { readonly: true })
+      ctx.reportProgress(5, { stage: 'reading' })
+
+      // Read first 30 chunks from the knowledge base vector index
+      const indexPath = getKnowledgeVectorStoreFilePathSync(course.knowledgeBaseId)
+      let chunks: string[] = []
+
       try {
-        const rows = db
-          .prepare(
-            `SELECT c.text FROM search_unit su
-             JOIN content c ON su.content_hash = c.content_hash
-             ORDER BY su.unit_index ASC LIMIT 30`
-          )
-          .all() as Array<{ text: string }>
-        chunks = rows.map((r) => r.text)
-      } finally {
-        db.close()
+        const db = new Database(indexPath, { readonly: true })
+        try {
+          const rows = db
+            .prepare(
+              `SELECT c.text FROM search_unit su
+               JOIN content c ON su.content_hash = c.content_hash
+               ORDER BY su.unit_index ASC LIMIT 30`
+            )
+            .all() as Array<{ text: string }>
+          chunks = rows.map((r) => r.text)
+        } finally {
+          db.close()
+        }
+      } catch (err) {
+        logger.warn('Failed to read knowledge index for course', { courseId, error: String(err) })
       }
+
+      ctx.reportProgress(40, { stage: 'extracting' })
+
+      let headings = extractHeadingsFromChunks(chunks)
+      if (headings.length < 3 && chunks.length > 0) {
+        const fullText = chunks.join('\n')
+        headings = await extractViaLlm(courseId, fullText)
+      }
+
+      if (headings.length === 0) {
+        throw new Error(`Could not extract syllabus for course ${courseId}`)
+      }
+
+      courseService.upsertLessons(
+        courseId,
+        headings.map((title, i) => ({ title, sortOrder: i + 1 }))
+      )
+      courseService.patch(courseId, {
+        syllabusStatus: 'ready',
+        totalLessons: headings.length,
+        completedLessons: 0
+      })
+
+      ctx.reportProgress(100, { stage: 'done' })
     } catch (err) {
-      logger.warn('Failed to read knowledge index for course', { courseId, error: String(err) })
-    }
-
-    ctx.reportProgress(40, { stage: 'extracting' })
-
-    let headings = extractHeadingsFromChunks(chunks)
-    if (headings.length < 3 && chunks.length > 0) {
-      const fullText = chunks.join('\n')
-      headings = await extractViaLlm(courseId, fullText)
-    }
-
-    if (headings.length === 0) {
+      // Any failure past this point — including a cancelled/timed-out job — must leave the
+      // course in a terminal state, or it stays "building" forever with no way to retry.
       courseService.patch(courseId, { syllabusStatus: 'failed' })
-      throw new Error(`Could not extract syllabus for course ${courseId}`)
+      throw err
     }
-
-    courseService.upsertLessons(
-      courseId,
-      headings.map((title, i) => ({ title, sortOrder: i + 1 }))
-    )
-    courseService.patch(courseId, {
-      syllabusStatus: 'ready',
-      totalLessons: headings.length,
-      completedLessons: 0
-    })
-
-    ctx.reportProgress(100, { stage: 'done' })
   }
 }
