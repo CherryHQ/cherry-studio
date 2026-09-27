@@ -27,6 +27,7 @@ type ConversationModelSettingsPanelProps = {
   model?: Model
   modelPending?: boolean
   missingAssistant?: boolean
+  missingEntity?: 'assistant' | 'agent'
   settings?: AssistantSettings
   reasoningEffort: ReasoningEffortOption
   reasoningSummary?: ReasoningSummary
@@ -44,6 +45,7 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
   model,
   modelPending,
   missingAssistant,
+  missingEntity = 'assistant',
   settings,
   reasoningEffort,
   reasoningSummary,
@@ -60,11 +62,12 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
   if (!active) return null
 
   if (missingAssistant) {
+    const entityKey = missingEntity === 'agent' ? 'agent' : 'assistant'
     return (
       <EmptyState
         className="h-full px-4"
-        title={t('chat.model_settings.no_assistant.title')}
-        description={t('chat.model_settings.no_assistant.description')}
+        title={t(`chat.model_settings.no_${entityKey}.title`)}
+        description={t(`chat.model_settings.no_${entityKey}.description`)}
       />
     )
   }

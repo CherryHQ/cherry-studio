@@ -777,6 +777,8 @@
   "chat.message.useful.tip": "In this group of messages, this message will be selected to join the context",
   "chat.model_settings.empty.description": "This model does not expose adjustable parameters in Cherry Studio.",
   "chat.model_settings.empty.title": "No adjustable settings",
+  "chat.model_settings.no_agent.description": "This agent was removed or is no longer available. Select another agent to configure model settings.",
+  "chat.model_settings.no_agent.title": "Agent unavailable",
   "chat.model_settings.no_assistant.description": "Link this conversation to an assistant to edit model and assistant parameters.",
   "chat.model_settings.no_assistant.title": "No assistant selected",
   "chat.model_settings.no_model.description": "Choose a model for the assistant to configure model-specific settings.",

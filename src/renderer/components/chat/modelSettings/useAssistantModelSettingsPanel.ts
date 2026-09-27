@@ -55,17 +55,12 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
     })
   }, [selectedAssistantId])
 
-  useEffect(() => {
-    if (model?.supportsFastMode !== true) setFastMode(false)
-  }, [model?.supportsFastMode, setFastMode])
-
   const patchSettings = useCallback(
     (patch: Partial<AssistantSettings>) => {
       if (!selectedAssistantId) return Promise.resolve(undefined)
       return updateAssistantSettings(patch)?.catch((error) => {
         logger.warn('Failed to persist assistant model settings', { error })
         toast.error(t('common.save_failed'))
-        throw error
       })
     },
     [selectedAssistantId, t, updateAssistantSettings]

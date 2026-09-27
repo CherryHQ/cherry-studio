@@ -198,13 +198,12 @@ const TOPIC_MODEL_SETTINGS_CAPABILITY = {
     id: MODEL_SETTINGS_PANE_ID,
     instanceKey: `model-settings:${scope.topicId ?? 'unavailable'}:${scope.assistantId ?? ''}`,
     title: scope.modelSettingsTitle,
-    readiness: scope.topicId && scope.assistantId ? 'ready' : 'unavailable'
+    readiness: scope.topicId ? 'ready' : 'unavailable'
   })
 } satisfies RightPanelCapability<TopicRightPanelScope>
 
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   TOPIC_RESOURCE_PANE_CAPABILITY,
-  TOPIC_MODEL_SETTINGS_CAPABILITY,
   {
     component: TopicBranchRightPanel,
     resolve: (scope) => ({
@@ -215,6 +214,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
+  TOPIC_MODEL_SETTINGS_CAPABILITY,
   {
     component: TopicBrowserRightPanel,
     resolve: (scope) => ({

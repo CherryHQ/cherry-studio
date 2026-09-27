@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentTurnFastMode } from '@renderer/hooks/agent/useAgentTurnFastMode'
 import { useModelById } from '@renderer/hooks/useModel'
-import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 export function useAgentModelSettingsPanel(agentId: string | undefined, sessionId?: string) {
-  const { t } = useTranslation()
   const { agent, isLoading: isAgentLoading } = useAgent(agentId ?? null)
   const { model, isLoading: isModelLoading } = useModelById(agent?.model)
   const { updateAgent } = useUpdateAgent()
@@ -55,10 +51,6 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
     })
   }, [agent?.id])
 
-  useEffect(() => {
-    if (model?.supportsFastMode !== true) setFastMode(false)
-  }, [model?.supportsFastMode, setFastMode])
-
   const patchConfiguration = useCallback(
     async (configuration: { reasoning_effort?: ReasoningEffortOption; service_tier?: ServiceTierSelection }) => {
       if (!agent?.id) return
@@ -77,12 +69,11 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })
-        .catch((error) => {
+        .catch(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
-          toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
         })
     },
-    [agent?.id, patchConfiguration, t]
+    [agent?.id, patchConfiguration]
   )
 
   const handleServiceTierChange = useCallback(
@@ -94,18 +85,18 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
         .then(() => {
           setServiceTierOverride((current) => (current?.version === version ? null : current))
         })
-        .catch((error) => {
+        .catch(() => {
           setServiceTierOverride((current) => (current?.version === version ? null : current))
-          toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
         })
     },
-    [agent?.id, patchConfiguration, t]
+    [agent?.id, patchConfiguration]
   )
 
   const pending = isAgentLoading || isModelLoading
   const ready = Boolean(agent?.id && model && !pending)
 
   return {
+    agent,
     model,
     pending,
     ready,
