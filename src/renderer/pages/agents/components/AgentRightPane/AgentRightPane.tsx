@@ -424,8 +424,13 @@ function AgentRightPaneActionsProvider({
   const runtimeRef = useRef(runtime)
   runtimeRef.current = runtime
   // A root outside the loaded window is not a dead click: hold the intent and page older history in
-  // until it arrives, so the flow opens without the user scrolling back by hand.
-  const [pendingFlowOpen, setPendingFlowOpen] = useState<AgentToolFlowOpenInput | null>(null)
+  // until it arrives, so the flow opens without the user scrolling back by hand. The intent carries
+  // the session and the nesting that asked for it — a later session must not inherit either.
+  const [pendingFlowOpen, setPendingFlowOpen] = useState<{
+    sessionId?: string
+    input: AgentToolFlowOpenInput
+    nested: boolean
+  } | null>(null)
   const pagedForRef = useRef<string | null>(null)
   const showFlowTab = useCallback(
     (input: AgentToolFlowOpenInput, nested: boolean) => {
@@ -448,7 +453,7 @@ function AgentRightPaneActionsProvider({
       // must not open an empty pane rooted at the continuation itself.
       if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId)) {
         pagedForRef.current = null
-        setPendingFlowOpen(input)
+        setPendingFlowOpen({ sessionId, input, nested })
         return
       }
       const flowInput = resolved
@@ -459,16 +464,14 @@ function AgentRightPaneActionsProvider({
     [canOpenAgentToolFlow, showFlowTab]
   )
   useEffect(() => {
-    if (!pendingFlowOpen) return
+    if (!pendingFlowOpen || pendingFlowOpen.sessionId !== sessionId) return
+    const { input, nested } = pendingFlowOpen
     const partsByMessageId = runtime?.partsByMessageId ?? null
-    const resolved = resolveFlowToolCallId(pendingFlowOpen.toolCallId, partsByMessageId)
+    const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId)
     if (resolved) {
       setPendingFlowOpen(null)
       pagedForRef.current = null
-      showFlowTab(
-        { ...pendingFlowOpen, toolCallId: resolved.toolCallId, title: resolved.description ?? pendingFlowOpen.title },
-        false
-      )
+      showFlowTab({ ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }, nested)
       return
     }
     if (!runtime?.hasOlder) {
@@ -479,11 +482,11 @@ function AgentRightPaneActionsProvider({
       return
     }
     // One page per arrival: the parts map changes with each load, so a repeat cannot spin.
-    const requestKey = `${pendingFlowOpen.toolCallId}:${Object.keys(partsByMessageId ?? {}).length}`
+    const requestKey = `${input.toolCallId}:${Object.keys(partsByMessageId ?? {}).length}`
     if (pagedForRef.current === requestKey) return
     pagedForRef.current = requestKey
     runtime.loadOlder?.()
-  }, [pendingFlowOpen, runtime, showFlowTab, t])
+  }, [pendingFlowOpen, runtime, sessionId, showFlowTab, t])
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return

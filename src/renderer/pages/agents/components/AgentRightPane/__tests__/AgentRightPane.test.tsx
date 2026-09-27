@@ -2102,6 +2102,99 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
   })
 
+  // The chase belongs to the session that asked for it: switching sessions must not page or open a
+  // flow in the one the user moved to.
+  it('does not chase a paged-out root into another session', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (sessionId: string, partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane('session-a', { m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // Session b holds the receipt and its launch root under the same call ids, so only the session
+    // gate stops the chase from opening a flow there.
+    view.rerender(pane('session-b', { m1: [receipt], m2: [launch] }))
+
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // A deferred open is still the nested open the caller asked for: the flow it was opened from
+  // stays underneath, reachable through the pane's back affordance.
+  it('keeps the nesting of a deferred flow open', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open parent" title="Parent flow" toolCallId="call-parent" />
+        <OpenFlowButton label="open nested" title="Nested flow" toolCallId="call-send" nested />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open parent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open nested' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane({ m1: [receipt], m2: [launch] }))
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Parent flow')
+  })
+
   it('resolves a dynamic flow panel from the declared flow capability', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
