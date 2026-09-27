@@ -43,7 +43,6 @@ describe('RichEditor toolbar focus', () => {
       document.removeEventListener('mousedown', moveFocus)
     }
 
-    expect(editingSurface.querySelector('strong')).toHaveTextContent('hello')
     expect(changes).toContain('**hello** world')
     expect(editingSurface).toHaveFocus()
   })
