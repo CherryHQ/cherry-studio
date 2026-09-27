@@ -8,9 +8,7 @@ describe('resolveComposerActiveModelId', () => {
   })
 
   it('returns undefined when multiple selector models are active', () => {
-    expect(
-      resolveComposerActiveModelId([{ id: 'provider-a::model-x' }, { id: 'provider-b::model-y' }])
-    ).toBeUndefined()
+    expect(resolveComposerActiveModelId([{ id: 'provider-a::model-x' }, { id: 'provider-b::model-y' }])).toBeUndefined()
   })
 
   it('returns undefined when the selector is empty', () => {
