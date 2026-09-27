@@ -41,7 +41,10 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
   const modelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
   const modelExists = useCallback(
-    (id: UniqueModelId) => providerById.get(modelById.get(id)?.providerId ?? '')?.isEnabled === true,
+    (id: UniqueModelId) => {
+      const model = modelById.get(id)
+      return model?.isEnabled === true && providerById.get(model.providerId)?.isEnabled === true
+    },
     [modelById, providerById]
   )
 
@@ -76,17 +79,23 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
   const [apiKeyLimits] = usePreference('chat.routing.api_key_limits')
   const quotaStatsParams = useMemo(() => {
     if (!destinationModel || !apiKeyLimits || Object.keys(apiKeyLimits).length === 0) return { enabled: false }
-    const periods = [...new Set(Object.values(apiKeyLimits).map((limit) => limit.period))]
+    // Per limit, not per period: two limits can share a period yet renew on different anchors/
+    // timezones, and a period-only lookup fetches too short a window for whichever renews later.
+    const periodStarts = Object.entries(apiKeyLimits).map(([limitKey, limit]) => {
+      const [providerId, keyId] = limitKey.split('::')
+      const apiKey = providerById.get(providerId)?.apiKeys.find((k) => k.id === keyId)
+      return periodStartOf(limit.period, apiKey?.renewalAnchor, apiKey?.renewalTimezone)
+    })
     return {
       query: {
         groupBy: 'apiKeyModel' as const,
         metric: 'requests' as const,
-        from: usageStatsFrom(periods.map((period) => periodStartOf(period))),
+        from: usageStatsFrom(periodStarts),
         to: Date.now(),
         limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
-  }, [destinationModel, apiKeyLimits])
+  }, [destinationModel, apiKeyLimits, providerById])
   const { data: quotaUsageData } = useQuery('/ai-usage-records/stats', quotaStatsParams)
 
   const quotaUsageCounts = useMemo(() => {
