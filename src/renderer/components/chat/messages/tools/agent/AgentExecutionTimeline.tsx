@@ -2,7 +2,7 @@ import { parse as parsePartialJson } from 'partial-json'
 import { type ReactElement, useDeferredValue, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAgentLaunchIndex, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
@@ -14,8 +14,9 @@ import {
 } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext, ToolHeader } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
-import { getPartLaunchToolCallId } from '../toolParentMetadata'
+import { getPartLaunchToolCallId, getPartParentToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval, type ToolResponseLike } from '../toolResponse'
+import { useAgentLaunchIndex } from './AgentLaunchIndexContext'
 import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
@@ -99,6 +100,16 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         : undefined,
     [tool?.name, response, toolResponse, launchIndex, listActions]
   )
+  // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
+  // redirecting to the launch root would drop everything the resume produced.
+  const receiptRootsItsFlow = useMemo(
+    () =>
+      resumeState?.kind === 'navigable' &&
+      Object.values(partsMap ?? {}).some((parts) =>
+        parts.some((part) => getPartParentToolCallId(part) === toolResponse.toolCallId)
+      ),
+    [resumeState, partsMap, toolResponse.toolCallId]
+  )
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
@@ -138,11 +149,12 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         hasError={effectiveStatus === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
         openFlowOnClick={isSubagentTool || resumeTarget !== undefined}
-        flowTargetToolCallId={resumeTarget?.toolCallId}
+        flowTargetToolCallId={receiptRootsItsFlow ? undefined : resumeTarget?.toolCallId}
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
         flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
         labelOverride={resumeHeader?.header}
+        leadingLabel={resumeTarget ? t('message.tools.activity.continueHandle') : undefined}
         showInlineDetails={!isSubagentTool}
       />
       <ToolApprovalOutcome approval={toolResponse.approval} />

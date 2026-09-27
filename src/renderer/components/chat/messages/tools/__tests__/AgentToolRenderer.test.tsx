@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,13 +36,16 @@ const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
-  const [actual, agentToolTypes] = await Promise.all([
-    importOriginal(),
-    import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
-  ])
+  const actual = await importOriginal()
   return {
     ...(actual as Record<string, unknown>),
-    usePartsMap: () => mockPartsMap(),
+    usePartsMap: () => mockPartsMap()
+  }
+})
+
+vi.mock('../agent/AgentLaunchIndexContext', async () => {
+  const agentToolTypes = await import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
+  return {
     useAgentLaunchIndex: () =>
       agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   }
@@ -1278,16 +1281,60 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // The entry identifies itself by the resumed agent's own description, not "SendMessage",
-      // and echoes the launch card's verb.
+      // and leads with the launch card's verb in the same row shape the launch uses.
+      const row = screen.getByRole('button', { name: /Continue handling/ })
       expect(screen.queryByText('SendMessage')).toBeNull()
-      expect(screen.getByText('Continue handling')).toBeInTheDocument()
-      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+      expect(within(row).getByText('Continue handling')).toBeInTheDocument()
+      expect(within(row).getByText('Inspect renderer')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      fireEvent.click(row)
       // The flow's title is the agent's launch identity, not the resume request's summary — the
       // same agent must read identically from every entry point.
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-launch',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
+    // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
+    // redirecting to the launch root would drop every round the resume produced.
+    it('roots a cold-resumed receipt at its own call when content streams under it', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'child-read',
+            toolName: 'Read',
+            state: 'output-available',
+            callProviderMetadata: { 'claude-code': { parentToolCallId: 'call-123' } }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
+      // The receipt itself, not the launch whose flow would be missing the resumed rounds — the
+      // title still names the agent.
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
         toolName: 'SendMessage',
         title: 'Inspect renderer'
       })
@@ -1357,12 +1404,12 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+      const row = screen.getByRole('button', { name: /Continue handling/ })
       // The launch description, not the resume request's summary.
-      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+      expect(within(row).getByText('Inspect renderer')).toBeInTheDocument()
       expect(screen.queryByText('Continue the review')).toBeNull()
 
-      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      fireEvent.click(row)
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-launch',
         toolName: 'SendMessage',
@@ -1513,9 +1560,8 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       expect(screen.queryByText('SendMessage')).toBeNull()
-      expect(screen.getByText('Continue handling')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-launch',
         toolName: 'SendMessage',

@@ -65,6 +65,7 @@ export function AgentToolCallCard({
   flowTargetToolCallId,
   flowTitle,
   labelOverride,
+  leadingLabel,
   showInlineDetails = true
 }: {
   toolCallId?: string
@@ -82,6 +83,8 @@ export function AgentToolCallCard({
   flowTitle?: string
   /** Replaces the renderer's label — used when a caller knows a more identifying one. */
   labelOverride?: ReactNode
+  /** Verb the row leads with — a resume receipt reads as a continuation, a launch has none. */
+  leadingLabel?: string
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
@@ -107,10 +110,10 @@ export function AgentToolCallCard({
             title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
-  // A card whose flow lives elsewhere — a resume receipt pointing at its launch root — keeps the
-  // disclosure header: that header carries the resume presentation and still opens the target flow.
-  if (openToolFlow && !flowTargetToolCallId) {
-    const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
+  // A resume receipt opens the flow of the agent it continues, so its row keeps the same shape as
+  // the launch row and only leads with the continuation verb.
+  if (openToolFlow) {
+    const title = flowTitle ?? getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
     const Icon = failed
@@ -131,7 +134,7 @@ export function AgentToolCallCard({
           : status === 'cancelled'
             ? t('message.tools.cancelled')
             : t('message.tools.pending')
-    const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+    const selected = actions?.isAgentToolFlowActive?.(flowTargetToolCallId ?? toolCallId ?? '') ?? false
     return (
       <Tooltip content={title} delay={600} asChild>
         <Button
@@ -152,6 +155,7 @@ export function AgentToolCallCard({
             )}>
             <Icon aria-hidden="true" className={cn('size-3.5', running && 'motion-safe:animate-spin')} />
           </span>
+          {leadingLabel && <span className="shrink-0 text-xs text-muted-foreground">{leadingLabel}</span>}
           <span className="min-w-0 flex-1 truncate text-left">{title}</span>
           {status === 'done' && !failed ? (
             <span className="sr-only">{label}</span>
