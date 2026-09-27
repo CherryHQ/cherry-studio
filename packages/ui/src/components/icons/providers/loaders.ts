@@ -72,6 +72,7 @@ export const PROVIDER_ICON_LOADERS = {
   grok: () => import('./grok').then(({ GrokIcon }) => GrokIcon),
   groq: () => import('./groq').then(({ GroqIcon }) => GroqIcon),
   higress: () => import('./higress').then(({ HigressIcon }) => HigressIcon),
+  hubris: () => import('./hubris').then(({ HubrisIcon }) => HubrisIcon),
   huggingface: () => import('./huggingface').then(({ HuggingfaceIcon }) => HuggingfaceIcon),
   hyperbolic: () => import('./hyperbolic').then(({ HyperbolicIcon }) => HyperbolicIcon),
   ideogram: () => import('./ideogram').then(({ IdeogramIcon }) => IdeogramIcon),
