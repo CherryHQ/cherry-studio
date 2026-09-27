@@ -6,7 +6,6 @@ import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import { REASONING_EFFORT_ORDER } from '@cherrystudio/provider-registry'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { preferenceService } from '@renderer/data/PreferenceService'
 import {
   SettingDescription,
   SettingGroup,
@@ -15,6 +14,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { ReasoningEffortMappingOverrides, UserReasoningEffortMap } from '@shared/data/preference/preferenceTypes'
@@ -80,8 +80,7 @@ const ReasoningEffortMappingSettings: FC = () => {
     (source: ReasoningEffort, target: string) => {
       if (scope === 'provider' && !selectedProviderId) return
 
-      const currentOverrides =
-        preferenceService.getCachedValue('feature.reasoning.effort_mappings') ?? overrides
+      const currentOverrides = preferenceService.getCachedValue('feature.reasoning.effort_mappings') ?? overrides
       const currentScopeMap = readScopeMap(currentOverrides, scope, selectedProviderId)
       const nextMap = { ...currentScopeMap }
       if (target === AUTOMATIC_VALUE) {
