@@ -11,7 +11,8 @@
 !include x64.nsh
 !include FileFunc.nsh
 
-; Microsoft requires a redist at least as new as the MSVC toolset that built the app.
+; Microsoft requires a redist at least as new as the MSVC toolset used to build the app.
+; Windows rebuilds native modules from source without a pinned MSVC toolset; these values must track the actual build toolset.
 !define VC_RUNTIME_MIN_MAJOR 14
 !define VC_RUNTIME_MIN_MINOR 40
 !define /math VC_RUNTIME_MIN_MAJOR_BITS ${VC_RUNTIME_MIN_MAJOR} << 16
@@ -56,40 +57,6 @@
 
     SetRegView 32
     !insertmacro checkVCRedistRegistryView
-
-    ${If} $1 != "arm64"
-      ${IfNot} ${IsNativeARM64}
-        ReadEnvStr $4 "PROCESSOR_ARCHITEW6432"
-        ${If} $4 == "AMD64"
-          StrCpy $2 "$WINDIR\Sysnative"
-        ${ElseIf} $4 == ""
-          ReadEnvStr $4 "PROCESSOR_ARCHITECTURE"
-          ${If} $4 == "AMD64"
-          ${AndIf} ${RunningX64}
-            StrCpy $2 "$SYSDIR"
-          ${Else}
-            StrCpy $2 ""
-          ${EndIf}
-        ${Else}
-          StrCpy $2 ""
-        ${EndIf}
-        ${If} $2 != ""
-          ClearErrors
-          GetDLLVersion "$2\vcruntime140.dll" $3 $4
-          ${IfNot} ${Errors}
-            ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
-              ClearErrors
-              GetDLLVersion "$2\msvcp140.dll" $3 $4
-              ${IfNot} ${Errors}
-                ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
-                  StrCpy $0 "1"
-                ${EndIf}
-              ${EndIf}
-            ${EndIf}
-          ${EndIf}
-        ${EndIf}
-      ${EndIf}
-    ${EndIf}
 
   vcRedistRestoreView:
     ; Match electron-builder's registry view before later installer code runs.
