@@ -266,7 +266,9 @@ const AgentChat = ({
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES,
     onPlanModelHandoff: (modelId) => {
-      if (!activeAgent || !isUniqueModelId(modelId)) return
+      // Can arrive before the agent query resolves (the composer stays usable); the completion
+      // effect below waits for `activeAgent` and finishes the handoff once it loads.
+      if (!isUniqueModelId(modelId)) return
       setPlanExecutionHandoff({ sessionId: sessionSnapshot?.id ?? '', modelId })
     }
   })
