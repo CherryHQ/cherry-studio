@@ -523,7 +523,7 @@ vi.mock('@renderer/hooks/chat/useAssistantPendingModelSettings', async () => {
     return { effective, startPending, finishPending }
   }
 
-  function usePendingSettingsPatch(assistantId: string | null | undefined, canonicalSettings: unknown) {
+  function usePendingSettingsPatch(_assistantId: string | null | undefined, canonicalSettings: unknown) {
     return {
       effectiveSettings: canonicalSettings,
       pendingPatch: undefined,

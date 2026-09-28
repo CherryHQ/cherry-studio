@@ -1,5 +1,6 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { ServiceTierSelection } from '@shared/data/types/model'
@@ -22,18 +23,20 @@ function useAgentPendingSetting<T>(
 ) {
   const cacheKey = getKey(agentId ?? FALLBACK_AGENT_KEY)
   const [pending, setPending] = useCache(cacheKey)
-  const versionRef = useRef(0)
 
   const effective = agentId && pending ? pending.value : canonical
 
   const startPending = useCallback(
     (value: T): number => {
       if (!agentId) return 0
-      const version = ++versionRef.current
-      setPending({ value, version })
-      return version
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return { value, version }
+      })
+      const stored = cacheService.get(cacheKey) as { version: number } | undefined
+      return stored?.version ?? 0
     },
-    [agentId, setPending]
+    [agentId, cacheKey, setPending]
   )
 
   const finishPending = useCallback(
@@ -53,6 +56,9 @@ export function useAgentPendingReasoningEffort(
   return useAgentPendingSetting(agentId, getReasoningEffortPendingKey, canonicalReasoningEffort)
 }
 
-export function useAgentPendingServiceTier(agentId: string | null | undefined, canonicalServiceTier: ServiceTierSelection) {
+export function useAgentPendingServiceTier(
+  agentId: string | null | undefined,
+  canonicalServiceTier: ServiceTierSelection
+) {
   return useAgentPendingSetting(agentId, getServiceTierPendingKey, canonicalServiceTier)
 }

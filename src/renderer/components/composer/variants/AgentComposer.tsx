@@ -1351,7 +1351,12 @@ const AgentComposerInner = ({
       )
         .then((updatedAgent) => {
           finishReasoningPending(pendingVersion)
-          if (!updatedAgent) return
+          if (!updatedAgent) {
+            setReasoningOverride((current) =>
+              current?.agentId === agent.id && current.version === version ? null : current
+            )
+            return
+          }
 
           setReasoningOverride((current) =>
             current?.agentId === agent.id && current.version === version

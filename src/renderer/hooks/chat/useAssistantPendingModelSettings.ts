@@ -1,8 +1,9 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
-import type { AssistantModelSettingsPatch, AssistantSettings } from '@shared/data/types/assistant'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { AssistantModelSettingsPatch, AssistantSettings } from '@shared/data/types/assistant'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -27,18 +28,20 @@ function useAssistantPendingSetting<T>(
 ) {
   const cacheKey = getKey(assistantId ?? FALLBACK_ASSISTANT_KEY)
   const [pending, setPending] = useCache(cacheKey)
-  const versionRef = useRef(0)
 
   const effective = assistantId && pending ? pending.value : canonical
 
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
-      const version = ++versionRef.current
-      setPending({ value, version })
-      return version
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return { value, version }
+      })
+      const stored = cacheService.get(cacheKey) as { version: number } | undefined
+      return stored?.version ?? 0
     },
-    [assistantId, setPending]
+    [assistantId, cacheKey, setPending]
   )
 
   const finishPending = useCallback(
@@ -71,7 +74,6 @@ export function useAssistantPendingSettingsPatch(
 ) {
   const cacheKey = getSettingsPatchPendingKey(assistantId ?? FALLBACK_ASSISTANT_KEY)
   const [pending, setPending] = useCache(cacheKey)
-  const versionRef = useRef(0)
 
   const pendingPatch = assistantId && pending ? pending.patch : undefined
   const effectiveSettings =
@@ -80,14 +82,17 @@ export function useAssistantPendingSettingsPatch(
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
-      const version = ++versionRef.current
-      setPending((current) => ({
-        patch: { ...current?.patch, ...patch },
-        version
-      }))
-      return version
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return {
+          patch: { ...current?.patch, ...patch },
+          version
+        }
+      })
+      const stored = cacheService.get(cacheKey) as { version: number } | undefined
+      return stored?.version ?? 0
     },
-    [assistantId, setPending]
+    [assistantId, cacheKey, setPending]
   )
 
   const finishPending = useCallback(

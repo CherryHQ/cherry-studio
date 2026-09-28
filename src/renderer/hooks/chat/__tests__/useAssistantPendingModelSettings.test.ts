@@ -34,4 +34,37 @@ describe('useAssistantPendingReasoningEffort', () => {
     expect(canonical.result.current.effective).toBe('default')
     expect(consumer.result.current.effective).toBe('default')
   })
+
+  it('does not clear a newer pending value when an older mutation finishes', () => {
+    const assistantId = 'assistant-2'
+    const pendingKey = `chat.assistant.reasoning_effort_pending.${assistantId}` as const
+    cacheService.delete(pendingKey)
+
+    const first = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
+    const second = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
+
+    let firstVersion = 0
+    let secondVersion = 0
+    act(() => {
+      firstVersion = first.result.current.startPending('medium')
+      secondVersion = second.result.current.startPending('high')
+    })
+
+    expect(first.result.current.effective).toBe('high')
+    expect(secondVersion).toBeGreaterThan(firstVersion)
+
+    act(() => {
+      first.result.current.finishPending(firstVersion)
+    })
+
+    expect(first.result.current.effective).toBe('high')
+    expect(second.result.current.effective).toBe('high')
+
+    act(() => {
+      second.result.current.finishPending(secondVersion)
+    })
+
+    expect(first.result.current.effective).toBe('default')
+    expect(second.result.current.effective).toBe('default')
+  })
 })
