@@ -15,6 +15,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { registerNotesEditFlush } from '@renderer/services/notesEditFlush'
 import {
   addDir,
   addNote,
@@ -289,6 +290,8 @@ const NotesPage: FC = () => {
     }
   }, [flushFileDraft])
 
+  useEffect(() => registerNotesEditFlush(flushFileDraft), [flushFileDraft])
+
   useEffect(() => {
     if (contentLoadError) {
       logger.error('Failed to load note content:', contentLoadError)
@@ -302,7 +305,7 @@ const NotesPage: FC = () => {
         // 首次启动，获取默认路径
         const info = await ipcApi.request('app.get_info')
         const defaultPath = info.notesPath
-        updateNotesPath(defaultPath)
+        void updateNotesPath(defaultPath)
         return
       }
 
@@ -324,7 +327,7 @@ const NotesPage: FC = () => {
           timeout: 10000
         })
 
-        updateNotesPath(defaultPath)
+        void updateNotesPath(defaultPath)
 
         // 检查默认路径下是否有笔记文件
         try {

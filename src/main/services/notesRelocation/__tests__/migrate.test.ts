@@ -21,6 +21,8 @@ describe('notesRelocation', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-relocation-'))
     defaultNotesDir = path.join(tempRoot, 'default-notes')
     fs.mkdirSync(defaultNotesDir, { recursive: true })
+    fs.mkdirSync(path.join(tempRoot, 'appdata'), { recursive: true })
+    fs.mkdirSync(path.join(tempRoot, 'files'), { recursive: true })
     vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
       if (key === 'feature.notes.data') return defaultNotesDir
       if (key === 'sys.appdata') return path.join(tempRoot, 'appdata')
@@ -107,6 +109,28 @@ describe('notesRelocation', () => {
     const result = await migrateNotesDirectory(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(1)
     expect(fs.readFileSync(path.join(target, 'image.png'), 'utf8')).toBe('png')
+  })
+
+  it('fails merge verification when a new file lands with the wrong size', async () => {
+    const source = path.join(tempRoot, 'source-notes-verify')
+    const target = path.join(tempRoot, 'target-notes-verify')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'new-note.md'), '# New content')
+    fs.writeFileSync(path.join(target, 'existing.txt'), 'keep')
+
+    const copyFile = fs.promises.copyFile
+    const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to) => {
+      await copyFile(from, to)
+      if (String(to).endsWith('new-note.md')) {
+        await fs.promises.writeFile(to, '# short')
+      }
+    })
+
+    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_VERIFY_FAILED'
+    })
+    copyFileSpy.mockRestore()
   })
 
   it('does not overwrite existing target files when merging', async () => {
