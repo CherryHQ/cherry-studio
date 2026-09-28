@@ -28,7 +28,7 @@ function buildPatchFromFields(
   if (!fields) return {}
   return Object.fromEntries(
     Object.entries(fields).flatMap(([key, entry]) => (entry ? [[key, entry.value]] : []))
-  ) as AssistantModelSettingsPatch
+  )
 }
 
 function mergePatchFields(
