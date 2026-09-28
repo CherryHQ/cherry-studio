@@ -7,6 +7,7 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
@@ -111,6 +112,12 @@ function AgentEditDialogHost({
   const { agent, error } = useAgent(target.id)
   const modelFilter = useAgentModelFilter(agent?.type)
   const isModelDisabled = useAgentModelDisabled(open)
+  useEffect(() => {
+    if (open && agent?.type === 'local') {
+      openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(agent.id)}`)
+      onOpenChange(false)
+    }
+  }, [agent?.id, agent?.type, open, onOpenChange])
 
   useEffect(() => {
     if (!error) return
@@ -119,6 +126,7 @@ function AgentEditDialogHost({
     toast.error(t('common.error'))
   }, [error, t, target.id])
 
+  if (agent?.type === 'local') return null
   return (
     <AgentEditDialog
       open={open}

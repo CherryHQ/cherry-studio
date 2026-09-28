@@ -4,9 +4,12 @@ import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
   AntigravityCli,
   ClaudeCode,
+  CursorCli,
   GeminiCli,
   GithubCopilotCli,
   KimiCli as KimiCode,
+  KiroCli,
+  TraeCli,
   OpenaiCodex,
   OpenCode,
   PiCli,
@@ -37,11 +40,17 @@ export const CLI_TOOLS = [
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
+const CLI_ICONS: Record<string, SvgIcon> = {
+  ...Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon])),
+  cursor: CursorCli,
+  kiro: KiroCli,
+  trae: TraeCli
+}
 
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
 const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
+  [CodeCli.MINIMAX_CODE]: '24 24 72 72',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
   [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68'

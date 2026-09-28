@@ -2,6 +2,12 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import {
+  LocalAgentConfigurationSchema,
+  LocalAgentCheckResultSchema,
+  type LocalAgentSessionInfo,
+  type LocalAgentDetection
+} from '@shared/ai/localAgent'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -71,13 +77,18 @@ export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
+  model: UniqueModelIdSchema.nullable(),
   type: AgentEntitySchema.shape.type,
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
    */
   skillIds: AgentSkillIdSetSchema.optional()
-})
+}).refine(
+  (value) =>
+    value.type === 'local' ? !!value.configuration?.localRuntime && value.model === null : value.model !== null,
+  { message: 'Local agents require localRuntime; provider agents require a model' }
+)
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
@@ -321,6 +332,15 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.session_info': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<LocalAgentSessionInfo | null>()
+  }),
+  'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
+  'ai.local_agents.check': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: LocalAgentCheckResultSchema
+  }),
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema

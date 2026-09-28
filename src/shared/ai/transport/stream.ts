@@ -4,6 +4,7 @@ import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '.
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
+import type { ExecutionId } from '../executionIdentity'
 
 export const aiStreamAdmissionReasons = {
   SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
@@ -39,7 +40,7 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
 export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
@@ -71,7 +72,7 @@ export type TopicStreamStatus =
  * a row (temporary topic).
  */
 export interface ActiveExecution {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
   attemptId: number
   anchorMessageId?: string
@@ -147,7 +148,7 @@ type AiStreamRegenerateTarget =
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number
@@ -160,7 +161,7 @@ export interface StreamDonePayload {
 export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number

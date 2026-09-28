@@ -527,6 +527,7 @@ export class AgentJobsService extends BaseService {
   // way), so no AI-domain IpcError code is minted for them — unlike trigger
   // validation, where the form must branch on the code.
   private assertAgentIsActive(agentId: string): void {
+    if (agentService.getAgent(agentId)?.type === 'local') throw new Error('Local agents do not support scheduled tasks')
     // Trashed is refused with missing: the row would register and arm, then the
     // post-commit read refuses a non-active owner, stranding the schedule.
     if (agentService.getLifecycleState(agentId) !== 'active') {

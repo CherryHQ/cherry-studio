@@ -80,6 +80,14 @@ describe('redactRecord', () => {
 })
 
 describe('redactDeep', () => {
+  it('hides arbitrary local runtime environment and arguments without changing configuration', () => {
+    const value = { configuration: { localRuntime: { protocol: 'acp', env: { CUSTOM: 'private' }, args: ['secret'] } } }
+    expect(redactDeep(value)).toEqual({
+      configuration: { localRuntime: { protocol: 'acp', env: REDACTED, args: REDACTED } }
+    })
+    expect(value.configuration.localRuntime.env.CUSTOM).toBe('private')
+  })
+
   it('redacts sensitive keys at any depth, keeps benign ones', () => {
     const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } }) as Record<string, any>
     expect(out.authorization).toBe(REDACTED)

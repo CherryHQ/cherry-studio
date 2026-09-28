@@ -90,7 +90,8 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) }
 } as const
 
 /** Type for per-service overrides */

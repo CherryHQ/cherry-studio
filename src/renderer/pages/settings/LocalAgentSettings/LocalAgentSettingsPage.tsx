@@ -1,0 +1,530 @@
+import { useSearch } from '@tanstack/react-router'
+import {
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Search,
+  X,
+  Terminal
+} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  PageSidePanel,
+  Button,
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  Tooltip,
+  Label,
+  Switch,
+  Textarea
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
+import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { toast } from '@renderer/services/toast'
+import {
+  LOCAL_AGENT_PRESETS,
+  LocalAgentConfigurationSchema,
+  type LocalAgentConfiguration,
+  type LocalAgentCheckResult,
+  type LocalAgentDetection,
+  type LocalAgentPreset
+} from '@shared/ai/localAgent'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+
+export function LocalAgentSettingsPage() {
+  const { t } = useTranslation()
+  const { agents, refetch } = useAgents({ includeDisabledLocal: true })
+  const [detections, setDetections] = useState<LocalAgentDetection[]>([])
+  const [detecting, setDetecting] = useState(false)
+  const [query, setQuery] = useState('')
+  const search = useSearch({ strict: false }) as { id?: string }
+  const [selected, setSelected] = useState(search.id ?? 'claude')
+  const refresh = useCallback(async () => {
+    setDetecting(true)
+    try {
+      setDetections(await ipcApi.request('ai.local_agents.detect', {}))
+    } catch (error) {
+      toast.error(String(error))
+    } finally {
+      setDetecting(false)
+    }
+  }, [])
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+  useIpcOn('binary.availability_changed', () => void refresh())
+  const localAgents = agents.filter((a) => a.type === 'local')
+  const entries = [
+    ...LOCAL_AGENT_PRESETS.map((preset) => ({
+      id: preset.id,
+      name: localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)?.name ?? preset.name,
+      preset,
+      agent: localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)
+    })),
+    ...localAgents
+      .filter((a) => !a.configuration?.localRuntime?.presetId)
+      .map((agent) => ({ id: agent.id, name: agent.name, preset: undefined, agent }))
+  ].sort(
+    (a, b) =>
+      Number(!!b.agent?.configuration?.localRuntime?.enabled) - Number(!!a.agent?.configuration?.localRuntime?.enabled)
+  )
+  const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
+  return (
+    <div className="flex h-full min-h-0 w-full">
+      <aside className="flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-r-[0.5px] border-border">
+        <div className="px-2.5 pt-2.5">
+          <InputGroup className="h-8 rounded-[10px] bg-background shadow-none">
+            <InputGroupAddon className="pl-2.5">
+              <Search className="lucide-custom size-3.5 text-muted-foreground" />
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label={t('common.search')}
+              placeholder={t('common.search')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="px-1.5 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation()
+                  setQuery('')
+                }
+              }}
+            />
+            <InputGroupAddon align="inline-end" className="gap-0 pr-1">
+              {query && (
+                <Tooltip content={t('common.clear')}>
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={t('common.clear')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setQuery('')}>
+                    <X className="lucide-custom size-3 text-muted-foreground" />
+                  </InputGroupButton>
+                </Tooltip>
+              )}
+              <Tooltip content={t('local_agents.detect')}>
+                <InputGroupButton
+                  size="icon-xs"
+                  aria-label={t('local_agents.detect')}
+                  disabled={detecting}
+                  onClick={() => void refresh()}>
+                  <RefreshCw
+                    className={cn('lucide-custom size-3.5 text-muted-foreground', detecting && 'animate-spin')}
+                  />
+                </InputGroupButton>
+              </Tooltip>
+            </InputGroupAddon>
+          </InputGroup>
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-auto px-2.5 pt-2 pb-0">
+          {entries
+            .filter((e) => e.name.toLowerCase().includes(query.toLowerCase()))
+            .map((e) => {
+              const enabled = e.agent?.configuration?.localRuntime?.enabled
+              const detection = detections.find((d) => d.presetId === e.id)
+              const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
+              const notInstalled = !!detection && !detection.path && !executableOverride
+              const status = notInstalled
+                ? t('local_agents.not_installed')
+                : enabled
+                  ? t('local_agents.enabled')
+                  : executableOverride
+                    ? t('settings.provider.not_checked')
+                    : detection?.path
+                      ? t('local_agents.detected')
+                      : t('local_agents.not_installed')
+              return (
+                <Tooltip key={e.id} content={`${e.name} · ${status}`} asChild placement="right" delay={400}>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-2.5 pl-3 text-left font-normal shadow-none hover:bg-muted',
+                      entry?.id === e.id && 'bg-muted font-medium'
+                    )}
+                    aria-pressed={entry?.id === e.id}
+                    aria-label={`${e.name} · ${status}`}
+                    onClick={() => setSelected(e.id)}>
+                    <LocalAgentIcon preset={e.preset} />
+                    <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
+                    {notInstalled ? (
+                      <span className="shrink-0 text-xs font-normal text-foreground-tertiary">
+                        {t('local_agents.not_installed')}
+                      </span>
+                    ) : (
+                      enabled && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-success" />
+                    )}
+                  </Button>
+                </Tooltip>
+              )
+            })}
+          {!entries.some((e) => e.name.toLowerCase().includes(query.toLowerCase())) && (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t('common.no_results')}</p>
+          )}
+        </div>
+        <div className="shrink-0 px-2.5 pb-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-full gap-1.5 text-xs shadow-none"
+            onClick={() => setSelected('custom-new')}>
+            <Plus className="size-3.5" />
+            {t('local_agents.custom')}
+          </Button>
+        </div>
+      </aside>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <LocalAgentEditor
+          key={`${entry?.agent?.id ?? selected}:${entry?.agent?.updatedAt ?? ''}`}
+          preset={entry?.preset}
+          agent={entry?.agent}
+          detection={detections.find((d) => d.presetId === entry?.preset?.id)}
+          onSaved={async (id) => {
+            await refetch()
+            setSelected(id)
+            await refresh()
+          }}
+        />
+      </main>
+    </div>
+  )
+}
+
+function LocalAgentIcon({ preset }: { preset?: LocalAgentPreset }) {
+  return (
+    <span className="flex size-[26px] shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background">
+      {preset ? (
+        <CliIcon
+          id={CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id}
+          size={20}
+        />
+      ) : (
+        <Terminal className="size-4" />
+      )}
+    </span>
+  )
+}
+
+function LocalAgentEditor({
+  preset,
+  agent,
+  detection,
+  onSaved
+}: {
+  preset?: LocalAgentPreset
+  agent?: AgentEntity
+  detection?: LocalAgentDetection
+  onSaved: (id: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const { updateAgent } = useUpdateAgent()
+  const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime ?? {
+    protocol: preset?.protocol ?? 'acp',
+    presetId: preset?.id,
+    enabled: false,
+    args: [],
+    env: {}
+  }
+  const [config, setConfig] = useState(initial)
+  const [name, setName] = useState(agent?.name ?? preset?.name ?? '')
+  const [args, setArgs] = useState(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
+  const [env, setEnv] = useState(JSON.stringify(initial.env, null, 2))
+  const [busyAction, setBusyAction] = useState<'save' | 'check' | 'toggle'>()
+  const busy = busyAction !== undefined
+  const [result, setResult] = useState<string>()
+  const [resultOk, setResultOk] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [editing, setEditing] = useState(!preset && !agent)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const openEditor = () => {
+    setConfig(initial)
+    setName(agent?.name ?? preset?.name ?? '')
+    setArgs(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
+    setEnv(JSON.stringify(initial.env, null, 2))
+    setDirty(false)
+    setConfirmClose(false)
+    setResult(undefined)
+    setEditing(true)
+  }
+  const closeEditor = () => {
+    if (busy) return
+    if (dirty) setConfirmClose(true)
+    else setEditing(false)
+  }
+  const parsed = () => LocalAgentConfigurationSchema.parse({ ...config, args: JSON.parse(args), env: JSON.parse(env) })
+  const checkError = (response: LocalAgentCheckResult) =>
+    response.status === 'not-installed'
+      ? t('local_agents.install_required')
+      : [
+          response.status === 'authentication-required'
+            ? t('local_agents.login_required')
+            : response.status === 'incompatible'
+              ? t('local_agents.incompatible')
+              : t('common.error'),
+          response.error
+        ]
+          .filter(Boolean)
+          .join('\n')
+  const check = async () => {
+    setBusyAction('check')
+    try {
+      const response = await ipcApi.request('ai.local_agents.check', initial)
+      setResultOk(response.ok)
+      setResult(
+        response.ok
+          ? [t('local_agents.connected'), response.version, response.path].filter(Boolean).join('\n')
+          : checkError(response)
+      )
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
+  const save = async (enabled?: boolean) => {
+    if (busy) return
+    setBusyAction(enabled === undefined ? 'save' : 'toggle')
+    setResult(undefined)
+    try {
+      const localRuntime = enabled === undefined ? parsed() : { ...initial, enabled }
+      const savedName = enabled === undefined ? name.trim() : (agent?.name ?? preset?.name ?? '')
+      if (!savedName) throw new Error(t('local_agents.name_required'))
+      if (localRuntime.enabled || (!preset && !agent)) {
+        const response = await ipcApi.request('ai.local_agents.check', localRuntime)
+        if (!response.ok) {
+          setResultOk(false)
+          setResult(checkError(response))
+          return
+        }
+      }
+      const updated = agent
+        ? await updateAgent({ id: agent.id, name: savedName, configuration: { localRuntime } })
+        : await createAgentAndRefresh(
+            { type: 'local', name: savedName, model: null, configuration: { localRuntime } },
+            async () => {}
+          )
+      if (updated) {
+        setDirty(false)
+        setEditing(false)
+        toast.success(t('common.saved'))
+        await onSaved(updated.id)
+      }
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
+  const pathField = (
+    <div className="space-y-2">
+      <Label htmlFor="local-agent-path">{t('local_agents.executable')}</Label>
+      <Input
+        id="local-agent-path"
+        className="h-8 font-mono text-xs"
+        placeholder={detection?.path ?? preset?.executable}
+        value={config.executableOverride ?? ''}
+        onChange={(e) => setConfig({ ...config, executableOverride: e.target.value || undefined })}
+      />
+    </div>
+  )
+  const feedback = result && (
+    <div
+      role="status"
+      className={cn(
+        'flex items-start gap-2 rounded-lg border p-3 text-xs',
+        resultOk
+          ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
+          : 'border-error-border bg-error-subtle text-error-subtle-foreground'
+      )}>
+      {resultOk ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
+      <p className="min-w-0 whitespace-pre-wrap break-words">{result}</p>
+    </div>
+  )
+  return (
+    <>
+      <header className="shrink-0 px-6 py-2.5">
+        <div className="mx-auto flex min-h-7 w-full max-w-3xl items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <h1 className="truncate text-[15px] leading-tight font-semibold">
+              {agent?.name ?? preset?.name ?? t('local_agents.custom')}
+            </h1>
+            <Tooltip content={t('common.advanced_settings')} asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
+                aria-label={t('common.advanced_settings')}
+                disabled={busy}
+                onClick={openEditor}>
+                <Settings2 className="lucide-custom size-3.5 text-muted-foreground" />
+              </Button>
+            </Tooltip>
+          </div>
+          {busyAction === 'toggle' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          <Switch
+            aria-label={t('local_agents.enable')}
+            checked={initial.enabled}
+            disabled={busy || (!preset && !agent)}
+            onCheckedChange={(enabled) => void save(enabled)}
+          />
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pt-1.5 pb-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.description')}</p>
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm leading-[1.3] font-medium">{t('local_agents.executable')}</h2>
+              <span className="text-xs text-muted-foreground">
+                {initial.executableOverride
+                  ? t('settings.provider.not_checked')
+                  : detection?.path
+                    ? t('local_agents.detected')
+                    : t('local_agents.not_installed')}
+              </span>
+            </div>
+            {(initial.executableOverride ?? detection?.path) && (
+              <div className="flex min-h-8 items-center rounded-lg border border-border-subtle bg-muted/30 px-2.5 py-1.5">
+                <p className="min-w-0 break-all font-mono text-xs text-foreground">
+                  {initial.executableOverride ?? detection?.path}
+                </p>
+              </div>
+            )}
+            {!initial.executableOverride && detection?.path && (
+              <p className="text-xs text-foreground-tertiary">
+                {detection.source === 'mise' ? 'CodeMate' : t('settings.dependencies.source.system')}
+                {detection.version && ` · ${detection.version}`}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg border-border-subtle text-xs shadow-none"
+                disabled={busy || (!preset && !agent)}
+                onClick={() => void check()}>
+                <RefreshCw
+                  className={cn(
+                    'lucide-custom size-3.5 text-muted-foreground',
+                    busyAction === 'check' && 'animate-spin'
+                  )}
+                />
+                {t('local_agents.check')}
+              </Button>
+              {preset ? (
+                <a
+                  className={cn(
+                    'inline-flex items-center gap-1.5 text-xs text-link hover:underline',
+                    !detection?.path && !initial.executableOverride && 'font-medium'
+                  )}
+                  href={preset.helpUrl}
+                  target="_blank"
+                  rel="noreferrer">
+                  {t('local_agents.help')}
+                  <ExternalLink className="size-3" />
+                </a>
+              ) : (
+                !agent && (
+                  <Button size="sm" onClick={openEditor}>
+                    {t('common.settings')}
+                  </Button>
+                )
+              )}
+            </div>
+            {!editing && feedback}
+          </section>
+        </div>
+      </div>
+      <PageSidePanel
+        open={editing}
+        onClose={closeEditor}
+        title={t('common.advanced_settings')}
+        closeLabel={t('common.close')}
+        footer={
+          <div className="space-y-3">
+            {confirmClose ? (
+              <div className="space-y-2" role="alert">
+                <p className="text-sm">{t('agent.preview_pane.edit.leave.title')}</p>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setConfirmClose(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setDirty(false)
+                      setEditing(false)
+                      setConfirmClose(false)
+                      setResult(undefined)
+                    }}>
+                    {t('agent.preview_pane.edit.discard')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" disabled={busy} onClick={closeEditor}>
+                  {t('common.cancel')}
+                </Button>
+                <Button disabled={busy || (!dirty && !!agent)} onClick={() => void save()}>
+                  {busyAction === 'save' && <Loader2 className="size-4 animate-spin" />}
+                  {t('common.save')}
+                </Button>
+              </div>
+            )}
+          </div>
+        }>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>
+        <fieldset
+          disabled={busy}
+          className="min-w-0 space-y-5"
+          onChange={() => {
+            setDirty(true)
+            setConfirmClose(false)
+            setResult(undefined)
+          }}>
+          <div className="space-y-2">
+            <Label htmlFor="local-agent-name">{t('common.name')}</Label>
+            <Input id="local-agent-name" className="h-8" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          {pathField}
+          <div className="space-y-2">
+            <Label htmlFor="local-agent-args">{t('local_agents.arguments')}</Label>
+            <Textarea.Input
+              id="local-agent-args"
+              className="min-h-16 font-mono text-xs"
+              value={args}
+              onChange={(e) => setArgs(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="local-agent-env">{t('local_agents.environment')}</Label>
+            <Textarea.Input
+              id="local-agent-env"
+              className="min-h-24 font-mono text-xs"
+              value={env}
+              onChange={(e) => setEnv(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+        </fieldset>
+        {feedback}
+      </PageSidePanel>
+    </>
+  )
+}

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
@@ -623,6 +624,60 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
     service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })
     expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
+  })
+
+  it('uses the newly selected native runtime instead of an empty task previous warm connection', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'previous-runtime-session'
+    entry.connection = { close: async () => {}, send: async () => {}, reconcile: async () => 'invalid' }
+    const events = createAsyncQueue<any>()
+    runtimeDriverRegistry.register({
+      type: 'local',
+      capabilities: ['agent-session'],
+      validateSession: () => {},
+      listAvailableTools: async () => [],
+      connect: async (input) => {
+        expect(input.resumeToken).toBeUndefined()
+        return {
+          events: events.iterable,
+          close: async () => {},
+          reconcile: async () => 'current',
+          send: async () => {
+            events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'native' } })
+            events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'native', delta: 'native reply' } })
+            events.push({ type: 'chunk', chunk: { type: 'text-end', id: 'native' } })
+            events.push({ type: 'turn-complete' })
+          }
+        }
+      }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'local-agent',
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { enabled: true } }
+    })
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      agentId: 'local-agent',
+      agentType: 'local',
+      modelId: 'runtime:local-agent',
+      assistantMessageId: 'native-reply'
+    })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    const chunks: UIMessageChunk[] = []
+    for (;;) {
+      const next = await reader.read()
+      if (next.done) break
+      chunks.push(next.value)
+    }
+    expect(chunks).toContainEqual({ type: 'text-delta', id: 'native', delta: 'native reply' })
+    await service.closeSession('session-1')
   })
 
   it('aborts live streams before shutdown clears their pending approvals', async () => {

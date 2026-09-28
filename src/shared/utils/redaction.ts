@@ -43,7 +43,9 @@ export function redactDeep(value: unknown): unknown {
     if (Array.isArray(val)) return val.map((v) => redact(v, seen))
     const out: Record<string, any> = {}
     for (const [k, v] of Object.entries(val)) {
-      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
+      if (k === 'localRuntime' && v && typeof v === 'object') {
+        out[k] = redact({ ...v, env: REDACTED, args: REDACTED }, seen)
+      } else out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
     }
     return out
   }

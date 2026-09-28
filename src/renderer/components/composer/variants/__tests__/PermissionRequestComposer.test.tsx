@@ -86,10 +86,25 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  it('returns the original scoped native permission option', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'native-session-grant', kind: 'allow_always', name: 'Allow during this session' },
+        { optionId: 'native-deny', kind: 'reject_once', name: 'Reject this operation' }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow during this session' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'native-session-grant' }
+      })
+    )
   })
 
   it('submits an approval decision', async () => {

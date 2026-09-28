@@ -78,6 +78,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -87,6 +88,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
+import { imageExts, textExts, documentExts } from '@shared/utils/file'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
@@ -113,6 +115,7 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { LocalAgentModelControl } from './agent/LocalAgentModelControl'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
@@ -794,13 +797,32 @@ const AgentComposerInner = ({
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelDisabled = useAgentModelDisabled()
-  const isModelUnavailable = Boolean(agent) && !model && !modelPending
-  const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
+  const isModelUnavailable = Boolean(agent) && agent?.type !== 'local' && !model && !modelPending
+  const missingModelMessage =
+    agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled
+      ? t('local_agents.disabled')
+      : isModelUnavailable
+        ? t('code.model_required')
+        : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
     [pinnedToolIds]
   )
+  const [localInfo, setLocalInfo] = useState<LocalAgentSessionInfo | null>(null)
+  useEffect(() => {
+    if (agent?.type !== 'local') return
+    let cancelled = false
+    void ipcApi
+      .request('ai.local_agents.session_info', { sessionId })
+      .then((info) => {
+        if (!cancelled) setLocalInfo(info)
+      })
+      .catch((error) => logger.warn('Failed to read local agent capabilities', { error }))
+    return () => {
+      cancelled = true
+    }
+  }, [agent?.type, sessionId, isStreaming])
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
@@ -891,16 +913,24 @@ const AgentComposerInner = ({
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
-  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled && agent?.type !== 'local' })
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
   )
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled
+    enabled: knowledgeBasesDataEnabled && agent?.type !== 'local'
   })
 
-  const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+  const fileCapabilities = useComposerFileCapabilities(model)
+  const canAddImageFile = agent?.type === 'local' ? localInfo?.images === true : fileCapabilities.canAddImageFile
+  const supportedExts = useMemo(
+    () =>
+      agent?.type === 'local'
+        ? [...textExts, ...documentExts, ...(localInfo?.images ? imageExts : [])]
+        : fileCapabilities.supportedExts,
+    [agent?.type, localInfo?.images, fileCapabilities.supportedExts]
+  )
 
   useEffect(() => {
     if (model?.supportsFastMode !== true) setFastMode(false)
@@ -1212,8 +1242,11 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
-    [skillManageFooterAction, skillsLauncher, toolsRegistry]
+    () =>
+      agent?.type === 'local'
+        ? undefined
+        : toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [agent?.type, skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1231,10 +1264,11 @@ const AgentComposerInner = ({
   )
 
   const handleRootPanelOpen = useCallback(() => {
+    if (agent?.type === 'local') return
     void refreshAvailableSkills().catch((error) => {
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
-  }, [refreshAvailableSkills])
+  }, [agent?.type, refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
@@ -1606,9 +1640,9 @@ const AgentComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
-      if (sendDisabled) return
+      if (sendDisabled || (agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled)) return
       if (directSendInFlightRef.current) return
-      if (!model) {
+      if (!model && agent?.type !== 'local') {
         toast.error(t('code.model_required'))
         return
       }
@@ -1639,6 +1673,7 @@ const AgentComposerInner = ({
       }
     },
     [
+      agent,
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
@@ -1667,41 +1702,43 @@ const AgentComposerInner = ({
     const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
     const slashCommandsLabel = t('chat.input.slash_commands.title')
-    return [
-      ...(hasNewSessionAction
-        ? [
-            {
-              id: AGENT_NEW_SESSION_TOOL_ID,
-              label: newSessionLabel,
-              icon: <NewConversationIcon size={18} aria-hidden />,
-              customizePlacement: 'leading' as const,
-              requiresPanel: false,
-              onSelect: () => handleCreateEmptySession()
-            }
-          ]
-        : []),
-      {
-        id: 'skills',
-        label: skillLabel,
-        icon: <ToolCase size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) =>
-          unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
-      },
-      {
-        id: 'slash-commands',
-        label: slashCommandsLabel,
-        icon: <Terminal size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
-      },
-      {
-        id: ComposerPanelSymbol.McpStatus,
-        label: 'MCP',
-        icon: <McpLogo width={18} height={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) =>
-          unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
-      }
-    ]
-  }, [handleCreateEmptySession, hasNewSessionAction, t])
+    return (
+      [
+        ...(hasNewSessionAction
+          ? [
+              {
+                id: AGENT_NEW_SESSION_TOOL_ID,
+                label: newSessionLabel,
+                icon: <NewConversationIcon size={18} aria-hidden />,
+                customizePlacement: 'leading' as const,
+                requiresPanel: false,
+                onSelect: () => handleCreateEmptySession()
+              }
+            ]
+          : []),
+        {
+          id: 'skills',
+          label: skillLabel,
+          icon: <ToolCase size={18} aria-hidden />,
+          onSelect: ({ unifiedPanelControl }) =>
+            unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
+        },
+        {
+          id: 'slash-commands',
+          label: slashCommandsLabel,
+          icon: <Terminal size={18} aria-hidden />,
+          onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        },
+        {
+          id: ComposerPanelSymbol.McpStatus,
+          label: 'MCP',
+          icon: <McpLogo width={18} height={18} aria-hidden />,
+          onSelect: ({ unifiedPanelControl }) =>
+            unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
+        }
+      ] satisfies ComposerToolbarCustomTool[]
+    ).filter((tool) => agent?.type !== 'local' || !['skills', ComposerPanelSymbol.McpStatus].includes(tool.id))
+  }, [agent?.type, handleCreateEmptySession, hasNewSessionAction, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1718,6 +1755,7 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
+        hiddenIds={agent?.type === 'local' ? ['knowledge-base', 'permission-mode'] : undefined}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1726,6 +1764,7 @@ const AgentComposerInner = ({
       />
     ),
     [
+      agent?.type,
       customizeToolbarOpen,
       isModelUnavailable,
       pinnedToolIds,
@@ -1774,6 +1813,7 @@ const AgentComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
+      {agent?.type === 'local' && <LocalAgentModelControl agent={agent} info={localInfo} disabled={isStreaming} />}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
     </>
   )
@@ -1783,7 +1823,9 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {(model || agent?.type === 'local') && (
+        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />
+      )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface

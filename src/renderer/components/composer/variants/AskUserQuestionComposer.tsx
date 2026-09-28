@@ -89,7 +89,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         const notes = customAnswers[index]?.trim()
 
         if (values.length > 0) {
-          answers[question.question] = values.join(', ')
+          answers[question.id ?? question.question] = values
+            .map((value) => question.options.find((option) => (option.id ?? option.label) === value)?.label ?? value)
+            .join(', ')
         } else if (notes) {
           // Typed text without a selection is the answer itself; next to a selection
           // it travels as an `annotations` note instead (see buildAnnotations).
@@ -149,11 +151,26 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         updatedInput: {
           ...request.input,
           answers: buildAnswers(answersByIndex),
+          ...(request.input.choiceOnly && {
+            answerSelections: Object.fromEntries(
+              questions.map((question, index) => [question.id ?? question.question, answersByIndex[index] ?? []])
+            )
+          }),
           ...(annotations && { annotations })
         }
       })
     },
-    [buildAnnotations, buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
+    [
+      buildAnnotations,
+      buildAnswers,
+      hasAnyAnswer,
+      isSubmitting,
+      request.input,
+      request.match,
+      respond,
+      selectedAnswers,
+      questions
+    ]
   )
 
   const handleDismiss = useCallback(async () => {
@@ -269,7 +286,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
         <div className="mt-2 flex flex-col gap-1.5">
           {currentQuestion.options.map((option, optionIndex) => {
-            const isSelected = selectedForCurrent.includes(option.label)
+            const isSelected = selectedForCurrent.includes(option.id ?? option.label)
 
             return (
               <Button
@@ -283,7 +300,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 )}
                 disabled={isSubmitting}
                 aria-pressed={isSelected}
-                onClick={() => handleSelectOption(option.label)}>
+                onClick={() => handleSelectOption(option.id ?? option.label)}>
                 <span
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
@@ -325,32 +342,34 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         </div>
 
         <div className="mt-2 flex items-end gap-2 border-border-subtle border-t pt-2">
-          <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
-            <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-            <Textarea.Input
-              value={currentCustomAnswer}
-              disabled={isSubmitting}
-              rows={1}
-              placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              aria-label={t('agent.askUserQuestion.customPlaceholder')}
-              className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
-              onValueChange={(value) =>
-                setCustomAnswers((prev) => ({
-                  ...prev,
-                  [currentIndex]: value
-                }))
-              }
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-                event.preventDefault()
-                void handleCustomAction()
-              }}
-            />
-          </div>
+          {!request.input.choiceOnly && (
+            <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
+              <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              <Textarea.Input
+                value={currentCustomAnswer}
+                disabled={isSubmitting}
+                rows={1}
+                placeholder={t('agent.askUserQuestion.customPlaceholder')}
+                aria-label={t('agent.askUserQuestion.customPlaceholder')}
+                className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
+                onValueChange={(value) =>
+                  setCustomAnswers((prev) => ({
+                    ...prev,
+                    [currentIndex]: value
+                  }))
+                }
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                  event.preventDefault()
+                  void handleCustomAction()
+                }}
+              />
+            </div>
+          )}
           <Button
             type="button"
             variant="ghost"
-            className="h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
+            className="ml-auto h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>

@@ -212,6 +212,7 @@ function ModelControl({
 }
 
 function WorkspaceControl({
+  agent,
   workspace,
   workspaceId,
   workspaceChanging,
@@ -222,6 +223,7 @@ function WorkspaceControl({
   onWorkspaceChange
 }: Pick<
   AgentConversationControlsProps,
+  | 'agent'
   | 'workspace'
   | 'workspaceId'
   | 'workspaceChanging'
@@ -238,10 +240,10 @@ function WorkspaceControl({
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
   const workspaceLabel = isSystemWorkspace
-    ? t('agent.session.workspace_selector.no_project')
+    ? t(agent?.type === 'local' ? 'local_agents.managed_workspace' : 'agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
-  if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
+  if (!onWorkspaceChange && workspace?.path && (workspace.type === 'user' || agent?.type === 'local')) {
     const openMenuTrigger = (
       <Button
         variant="ghost"
@@ -364,7 +366,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
   return (
     <>
       <AgentControl {...props} />
-      <ModelControl {...props} />
+      {props.agent?.type !== 'local' && <ModelControl {...props} />}
       <WorkspaceControl {...props} />
     </>
   )

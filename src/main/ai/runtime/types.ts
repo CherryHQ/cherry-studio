@@ -9,12 +9,14 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { MessageSnapshot } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -61,7 +63,7 @@ export interface AgentRuntimeTraceContext {
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -189,6 +191,7 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  readonly localSessionInfo?: LocalAgentSessionInfo
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
@@ -216,7 +219,7 @@ export interface AgentRuntimeConnection {
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
-    modelId: UniqueModelId
+    modelId: ExecutionId
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]

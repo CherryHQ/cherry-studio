@@ -290,6 +290,13 @@ export class AgentSessionService {
     createdAt = Date.now()
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    const [owner] = tx
+      .select({ type: agentsTable.type, configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, dto.agentId))
+      .all()
+    if (owner?.type === 'local' && !(owner.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled)
+      throw DataApiErrorFactory.invalidOperation('create session', 'Local agent is disabled')
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -849,6 +856,25 @@ export class AgentSessionService {
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    if (reassigned) {
+      const owners = tx
+        .select({ id: agentsTable.id, type: agentsTable.type, configuration: agentsTable.configuration })
+        .from(agentsTable)
+        .where(
+          inArray(
+            agentsTable.id,
+            [current.agentId, patch.agentId].filter((value): value is string => typeof value === 'string')
+          )
+        )
+        .all()
+      if (owners.some((owner) => owner.type === 'local')) this.assertSessionHasNoMessagesTx(tx, id)
+      const target = owners.find((owner) => owner.id === patch.agentId)
+      if (
+        target?.type === 'local' &&
+        !(target.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled
+      )
+        throw DataApiErrorFactory.invalidOperation('change agent', 'Local agent is disabled')
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))

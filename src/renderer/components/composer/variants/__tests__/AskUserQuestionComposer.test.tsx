@@ -359,3 +359,39 @@ describe('AskUserQuestionComposer', () => {
     expect(onRespond).not.toHaveBeenCalled()
   })
 })
+
+it('keeps native option IDs distinct for identical labels and excludes unsupported free text', async () => {
+  const request = makeRequest()
+  request.input = {
+    choiceOnly: true,
+    questions: [
+      {
+        id: 'features',
+        question: 'Choose features',
+        header: 'Features',
+        multiSelect: true,
+        options: [
+          { id: 'one', label: 'Same, label' },
+          { id: 'two', label: 'Same, label' }
+        ]
+      }
+    ]
+  }
+  const onRespond = vi.fn().mockResolvedValue(undefined)
+  render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  const options = screen.getAllByRole('button', { name: /Same, label/ })
+  await userEvent.click(options[1])
+  expect(options[0]).toHaveAttribute('aria-pressed', 'false')
+  expect(options[1]).toHaveAttribute('aria-pressed', 'true')
+  await userEvent.click(screen.getAllByRole('button', { name: 'Submit' })[0])
+  expect(onRespond).toHaveBeenCalledWith(
+    expect.objectContaining({
+      approved: true,
+      updatedInput: expect.objectContaining({
+        answerSelections: { features: ['two'] },
+        answers: { features: 'Same, label' }
+      })
+    })
+  )
+})

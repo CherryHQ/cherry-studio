@@ -67,7 +67,7 @@ export const useAgent = (id: string | null) => {
  * @param options.enabled - Skip the list query when the caller has nothing to render
  *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = (options: { enabled?: boolean } = {}) => {
+export const useAgents = (options: { enabled?: boolean; includeDisabledLocal?: boolean } = {}) => {
   const { t } = useTranslation()
   const enabled = options.enabled ?? true
   const { data, isLoading, error, refetch } = useQuery('/agents', {
@@ -75,7 +75,13 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
     query: { limit: AGENTS_MAX_LIMIT }
   })
   useDataChange(enabled ? '/agents' : [], () => void refetch())
-  const agents = useMemo<AgentEntity[]>(() => data?.items ?? [], [data])
+  const agents = useMemo<AgentEntity[]>(
+    () =>
+      (data?.items ?? []).filter(
+        (a) => options.includeDisabledLocal || a.type !== 'local' || a.configuration?.localRuntime?.enabled
+      ),
+    [data, options.includeDisabledLocal]
+  )
   const invalidate = useInvalidateCache()
 
   const addAgent = useCallback(

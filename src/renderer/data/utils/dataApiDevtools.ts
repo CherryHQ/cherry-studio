@@ -1,5 +1,6 @@
 import { isDev } from '@renderer/utils/platform'
 import type { DataResponse, HttpMethod } from '@shared/data/api/types'
+import { redactDeep } from '@shared/utils/redaction'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
@@ -195,7 +196,9 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
   const result: Record<string, unknown> = {}
   const entries = Object.entries(value as Record<string, unknown>)
   for (const [key, item] of entries.slice(0, MAX_OBJECT_KEYS)) {
-    result[key] = sanitizeValue(item, depth + 1)
+    const preview =
+      key === 'localRuntime' ? (redactDeep({ localRuntime: item }) as { localRuntime: unknown }).localRuntime : item
+    result[key] = sanitizeValue(preview, depth + 1)
   }
   if (entries.length > MAX_OBJECT_KEYS) {
     result.__truncatedKeys = entries.length - MAX_OBJECT_KEYS

@@ -30,16 +30,19 @@ import type { AgentType } from '@shared/data/types/agent'
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
   pi: PiCli,
+  local: PiCli,
   dsh: Deepseek
 } satisfies Record<AgentType, IconComponent>
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
   'claude-code': 'size-6',
   pi: 'size-4',
+  local: 'size-4',
   dsh: 'size-7'
 }
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
+  local: 'local_agents.description',
   // t('library.config.agent.field.runtime.option_description.claude_code')
   'claude-code': 'library.config.agent.field.runtime.option_description.claude_code',
   // t('library.config.agent.field.runtime.option_description.pi')
@@ -48,7 +51,9 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   dsh: 'library.config.agent.field.runtime.option_description.dsh'
 }
 
-const RUNTIMES = (Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]).filter((runtime) => runtime !== 'dsh')
+const RUNTIMES = (Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]).filter(
+  (runtime) => runtime !== 'dsh' && runtime !== 'local'
+)
 const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {

@@ -2,6 +2,7 @@ import {
   Activity,
   Archive,
   Bell,
+  Bot,
   CalendarClock,
   Cloud,
   Command,
@@ -60,6 +61,7 @@ export interface SettingsMenuEntry {
 export const settingsMenu: readonly SettingsMenuEntry[] = [
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
+  { route: '/settings/local-agents', titleKey: 'local_agents.title', icon: createElement(Bot) },
   {
     route: '/settings/local-models',
     titleKey: 'settings.dependencies.localModels.title',

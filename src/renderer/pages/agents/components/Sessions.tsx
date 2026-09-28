@@ -425,7 +425,12 @@ const Sessions = ({
     restoreSession,
     togglePin
   } = agentSessionsSource
-  const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
+  const {
+    agents,
+    error: agentsError,
+    isLoading: isAgentsLoading,
+    refetch: refetchAgents
+  } = useAgents({ includeDisabledLocal: true })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
@@ -730,7 +735,8 @@ const Sessions = ({
             earlier: t('agent.session.group.earlier')
           },
           agent: {
-            unknown: t('agent.session.group.unknown_agent')
+            unknown: t('agent.session.group.unknown_agent'),
+            local: t('local_agents.badge')
           },
           workdir: {
             none: t('agent.session.group.no_workdir')
@@ -789,7 +795,11 @@ const Sessions = ({
   const sessionGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
     if (displayMode === 'agent') {
       const section = { id: SESSION_AGENT_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.agent) }
-      return agentsForDisplay.map((agent) => ({ id: getSessionAgentGroupId(agent.id), label: agent.name, section }))
+      return agentsForDisplay.map((agent) => ({
+        id: getSessionAgentGroupId(agent.id),
+        label: agent.type === 'local' ? `${agent.name} · ${t('local_agents.badge')}` : agent.name,
+        section
+      }))
     }
 
     if (displayMode === 'workdir') {
