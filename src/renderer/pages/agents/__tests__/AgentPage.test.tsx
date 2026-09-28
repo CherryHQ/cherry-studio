@@ -9,6 +9,7 @@ import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -260,7 +261,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/hooks/useModel')>()
+  const actual = await importOriginal<typeof UseModelModule>()
   return {
     ...actual,
     useModels: () => ({ models: [] }),
