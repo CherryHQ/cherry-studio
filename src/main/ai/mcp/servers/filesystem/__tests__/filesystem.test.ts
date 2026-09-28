@@ -310,4 +310,37 @@ describe('filesystem MCP security', () => {
       expect(viaReplaceAll).toBe(`${newString}\n`)
     })
   })
+
+  describe('edit empty fuzzy candidates', () => {
+    // A whitespace-only old_string survives as an empty fuzzy candidate:
+    // TrimmedBoundaryReplacer trims it to '' and content.includes('') is
+    // always true, so indexOf('') === 0 "finds" it. replace_all would then
+    // write new_string between every character (an empty match is never a real
+    // edit); the single-match path only escaped that because
+    // indexOf('') !== lastIndexOf('') skipped the candidate. Neither path
+    // should ever consume an empty candidate.
+    async function editInWorkspace(content: string, oldString: string, replaceAll: boolean) {
+      const root = await createTempDir('edit-empty-')
+      await fs.writeFile(path.join(root, 'f.txt'), content, 'utf-8')
+      await handleEditTool(
+        { file_path: 'f.txt', old_string: oldString, new_string: 'X', replace_all: replaceAll },
+        root
+      )
+      return fs.readFile(path.join(root, 'f.txt'), 'utf-8')
+    }
+
+    it('replace_all reports not-found instead of interleaving new_string between characters', async () => {
+      await expect(editInWorkspace('line1\nline2\n', '   \n  ', true)).rejects.toThrow(
+        'old_string not found in content'
+      )
+    })
+
+    it('single replace reports not-found for the same whitespace-only old_string', async () => {
+      await expect(editInWorkspace('line1\nline2\n', '   ', false)).rejects.toThrow('old_string not found in content')
+    })
+
+    it('still replaces a whitespace old_string that literally appears', async () => {
+      await expect(editInWorkspace('a\n   \nb\n', '   ', true)).resolves.toBe('a\nX\nb\n')
+    })
+  })
 })

@@ -531,6 +531,14 @@ export function replaceWithFuzzyMatch(
 
   for (const replacer of ALL_REPLACERS) {
     for (const search of replacer(content, oldString)) {
+      // Replacers can yield the empty string: TrimmedBoundaryReplacer trims a
+      // whitespace-only old_string to '' and content.includes('') is always
+      // true, and LineTrimmedReplacer can yield the blank trailing line. An
+      // empty candidate is always "found" (indexOf('') is 0), so replace_all
+      // would interleave new_string between every character; the single-match
+      // path only avoided that by accident (indexOf('') never equals
+      // lastIndexOf('')). Skip empty candidates so neither path consumes one.
+      if (search === '') continue
       const index = content.indexOf(search)
       if (index === -1) continue
       notFound = false
