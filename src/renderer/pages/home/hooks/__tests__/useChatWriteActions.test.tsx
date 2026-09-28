@@ -585,6 +585,51 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('keeps a multi-model group reply on its own model when regenerating it without an explicit model', async () => {
+    const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    replyA.metadata.modelId = 'provider::model-a'
+    replyA.parts = [{ type: 'text', text: 'answer a' }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
+    })
+    expect(seedReservedMessages).toHaveBeenCalled()
+  })
+
+  it('still retries a failed multi-model group reply in place with its original model', async () => {
+    const failedReplyA = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedReplyA.metadata.modelId = 'provider::model-a'
+    failedReplyA.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedReplyA, replyB])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
+    })
+  })
+
   it('inherits the active assistant turn options when resending its user message', async () => {
     streamOpen.mockReset()
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
