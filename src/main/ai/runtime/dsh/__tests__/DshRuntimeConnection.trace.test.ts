@@ -5,9 +5,17 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { classifyRuntimeFallbackError } from '../../AgentSessionFallbackConnection'
+import { agentService } from '@data/services/AgentService'
+
+import { AgentSessionFallbackConnection, classifyRuntimeFallbackError } from '../../AgentSessionFallbackConnection'
+import { AsyncEventQueue } from '../../AsyncEventQueue'
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
+import type {
+  AgentRuntimeConnectInput,
+  AgentRuntimeEvent,
+  AgentRuntimeTraceContext,
+  AgentSessionRuntimeDriver
+} from '../../types'
 
 interface FakeSpan {
   name: string
@@ -886,6 +894,63 @@ describe('DshRuntimeConnection turn-end failure mapping', () => {
     } finally {
       await connection.close()
       await consume
+    }
+  })
+})
+
+// The fallback wrapper announces `data-model-fallback` as soon as its replay send resolves, so a
+// rejected `session/prompt` that resolves silently made it persist a model swap that never happened.
+describe('DshRuntimeConnection send admission', () => {
+  it('propagates a rejected session/prompt while still reporting it in-stream', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('prompt rejected'))
+
+    await expect(connection.send({ message: {} } as never)).rejects.toThrow('prompt rejected')
+    await vi.waitFor(() => expect(events.some((event) => event.type === 'error')).toBe(true))
+
+    await connection.close()
+    await consume
+  })
+
+  it('leaves no fallback marker when the fallback submission is rejected immediately', async () => {
+    const getAgent = vi.spyOn(agentService, 'getAgent').mockReturnValue({
+      configuration: { fallback_model_ids: ['backup::model'] }
+    } as never)
+    const fallback = await new DshRuntimeConnection(connectInput).start()
+    const primaryEvents = new AsyncEventQueue<AgentRuntimeEvent>()
+    const primary = {
+      events: primaryEvents,
+      send: vi.fn(),
+      close: vi.fn(async () => primaryEvents.close()),
+      redirect: vi.fn(() => false),
+      reconcile: vi.fn(async () => 'current' as const)
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      { connect: vi.fn(async () => fallback) } as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 'session-1', agentId: 'agent-1', modelId: 'primary::model' },
+      primary
+    )
+
+    try {
+      await wrapper.send({ message: {} } as never)
+      // The fallback's replay hits the same immediate rejection the primary failed with.
+      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('prompt rejected'))
+      primaryEvents.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+      const seen: AgentRuntimeEvent[] = []
+      for await (const event of wrapper.events) seen.push(event)
+
+      expect(seen).not.toContainEqual(
+        expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+      )
+      expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+    } finally {
+      getAgent.mockRestore()
+      await wrapper.close()
     }
   })
 })

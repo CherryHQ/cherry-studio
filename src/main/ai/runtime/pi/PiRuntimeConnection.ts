@@ -463,8 +463,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   send(input: AgentRuntimeUserInput): void {
     const session = this.session
     if (!session) {
-      this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
-      return
+      // Also thrown so the fallback wrapper can observe the rejected submission (dsh parity).
+      const error = new Error('pi session is not started')
+      this.eventQueue.push({ type: 'error', error })
+      throw error
     }
     const rawContent = buildAgentUserContent(input.message)
 

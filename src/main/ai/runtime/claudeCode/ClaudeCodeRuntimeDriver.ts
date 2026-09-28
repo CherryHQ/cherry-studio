@@ -47,7 +47,6 @@ import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { readRetryPolicy } from '../aiSdk'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -70,7 +69,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
-import { resolveAgentSessionFallback } from './modelFallback'
+import { resolveAgentFallbackPolicy, resolveAgentSessionFallback } from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -843,7 +842,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         error,
         currentModelId: this.input.modelId,
         hasTurnActivity: this.adapter?.hasTurnActivity === true,
-        policy: this.readFallbackPolicy()
+        policy: resolveAgentFallbackPolicy(this.input.agentId)
       })
       if (!decision) return false
       this.fallbackAttempted = true
@@ -927,12 +926,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages
     })
-  }
-
-  private readFallbackPolicy() {
-    const global = readRetryPolicy()
-    const configured = agentService.getAgent(this.input.agentId)?.configuration?.fallback_model_ids
-    return configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {

@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { readRetryPolicy } from './aiSdk'
 import { AsyncEventQueue } from './AsyncEventQueue'
-import { selectFallbackModelId } from './claudeCode'
+import { resolveAgentFallbackPolicy, selectFallbackModelId } from './claudeCode'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -72,11 +70,16 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     return this.current.usageCapture
   }
 
-  send(input: AgentRuntimeUserInput): void | Promise<void> {
+  async send(input: AgentRuntimeUserInput): Promise<void> {
     this.lastInput = input
     this.hasActivity = false
     this.attempted = false
-    return this.current.send(input)
+    try {
+      await this.current.send(input)
+    } catch {
+      // Submission failures already surface as an error event (and may fail over in pump()); the
+      // rejection exists for fallback admission checks, so the host must not see a second channel.
+    }
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -161,16 +164,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       return false
     const reason = classifyRuntimeFallbackError(error)
     if (!reason) return false
-    const global = readRetryPolicy()
-    const configured = agentService.getAgent(this.input.agentId)?.configuration?.fallback_model_ids
-    const policy = configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
-    const fallbackModelId = selectFallbackModelId(policy, this.currentModelId)
+    const fallbackModelId = selectFallbackModelId(resolveAgentFallbackPolicy(this.input.agentId), this.currentModelId)
     if (!fallbackModelId) return false
     this.attempted = true
+    let connection: AgentRuntimeConnection | undefined
     try {
       await this.current.close()
       if (this.closed) return false
-      const connection = await this.driver.connect({
+      connection = await this.driver.connect({
         ...this.input,
         modelId: fallbackModelId,
         resumeToken: this.resumeToken,
@@ -184,14 +185,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         await connection.close()
         return false
       }
-      this.current = connection
-      const previousModelId = this.currentModelId
-      this.currentModelId = fallbackModelId
       this.hasActivity = false
+      // The swap is real only once the replay is admitted: a rejected send must leave no persisted
+      // marker — and no live connection — claiming a swap that never happened. The new connection's
+      // events are not pumped until this returns, so the marker still precedes them.
       await connection.send(this.lastInput)
-      // Announce only once the replay was admitted: a rejected send must leave no persisted marker
-      // claiming a swap that never happened. The new connection's events are not pumped until this
-      // returns, so the marker still precedes them.
+      const previousModelId = this.currentModelId
+      this.current = connection
+      this.currentModelId = fallbackModelId
       this.queue.push({
         type: 'chunk',
         chunk: {
@@ -203,6 +204,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       return true
     } catch (cause) {
       logger.warn('Pi/DSH fallback connection failed', { sessionId: this.input.sessionId, fallbackModelId, cause })
+      if (connection) await Promise.resolve(connection.close()).catch(() => undefined)
       return false
     }
   }
