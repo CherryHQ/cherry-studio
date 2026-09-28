@@ -1,6 +1,5 @@
 import { useCallback } from 'react'
 
-import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { AssistantModelSettingsPatch, AssistantSettings } from '@shared/data/types/assistant'
@@ -21,6 +20,25 @@ function getSettingsPatchPendingKey(assistantId: string): UseCacheKey {
   return `chat.assistant.settings_patch_pending.${assistantId}`
 }
 
+type SettingsPatchPending = {
+  patch: AssistantModelSettingsPatch
+  version: number
+  contributions: Record<number, AssistantModelSettingsPatch>
+}
+
+function mergeSettingsPatchContributions(
+  contributions: Record<number, AssistantModelSettingsPatch>
+): AssistantModelSettingsPatch {
+  const versions = Object.keys(contributions)
+    .map(Number)
+    .sort((a, b) => a - b)
+  let patch: AssistantModelSettingsPatch = {}
+  for (const version of versions) {
+    patch = { ...patch, ...contributions[version] }
+  }
+  return patch
+}
+
 function useAssistantPendingSetting<T>(
   assistantId: string | null | undefined,
   getKey: (id: string) => UseCacheKey,
@@ -34,14 +52,14 @@ function useAssistantPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
+      let version = 0
       setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+        version = (current?.version ?? 0) + 1
         return { value, version }
       })
-      const stored = cacheService.get(cacheKey) as { version: number } | undefined
-      return stored?.version ?? 0
+      return version
     },
-    [assistantId, cacheKey, setPending]
+    [assistantId, setPending]
   )
 
   const finishPending = useCallback(
@@ -82,22 +100,38 @@ export function useAssistantPendingSettingsPatch(
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
-      setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+      let version = 0
+      setPending((current: SettingsPatchPending | null) => {
+        version = (current?.version ?? 0) + 1
+        const contributions = { ...current?.contributions, [version]: patch }
         return {
-          patch: { ...current?.patch, ...patch },
-          version
+          patch: mergeSettingsPatchContributions(contributions),
+          version,
+          contributions
         }
       })
-      const stored = cacheService.get(cacheKey) as { version: number } | undefined
-      return stored?.version ?? 0
+      return version
     },
-    [assistantId, cacheKey, setPending]
+    [assistantId, setPending]
   )
 
   const finishPending = useCallback(
     (version: number) => {
-      setPending((current) => (current?.version === version ? null : current))
+      setPending((current: SettingsPatchPending | null) => {
+        if (!current?.contributions?.[version]) {
+          return current?.version === version ? null : current
+        }
+        const nextContributions = { ...current.contributions }
+        delete nextContributions[version]
+        const remainingVersions = Object.keys(nextContributions)
+        if (remainingVersions.length === 0) return null
+        const nextVersion = Math.max(...remainingVersions.map(Number))
+        return {
+          patch: mergeSettingsPatchContributions(nextContributions),
+          version: nextVersion,
+          contributions: nextContributions
+        }
+      })
     },
     [setPending]
   )

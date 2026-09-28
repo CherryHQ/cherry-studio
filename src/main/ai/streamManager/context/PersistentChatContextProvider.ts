@@ -305,6 +305,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerServiceTier: req.serviceTier,
         pendingSteerFastMode: req.fastMode === true,
+        pendingSteerAssistantSettingsPatch: req.assistantSettingsPatch,
         reservedMessages: [toReservedUIMessage(userMessage)]
       }
     }

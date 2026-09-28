@@ -1,6 +1,5 @@
 import { useCallback } from 'react'
 
-import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { ServiceTierSelection } from '@shared/data/types/model'
@@ -29,14 +28,14 @@ function useAgentPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!agentId) return 0
+      let version = 0
       setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+        version = (current?.version ?? 0) + 1
         return { value, version }
       })
-      const stored = cacheService.get(cacheKey) as { version: number } | undefined
-      return stored?.version ?? 0
+      return version
     },
-    [agentId, cacheKey, setPending]
+    [agentId, setPending]
   )
 
   const finishPending = useCallback(

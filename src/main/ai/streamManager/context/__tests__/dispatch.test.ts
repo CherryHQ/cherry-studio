@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -82,6 +83,7 @@ function wirePrepare(
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     fastMode?: boolean
+    assistantSettingsPatch?: AssistantModelSettingsPatch
   }
 ) {
   spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
@@ -96,7 +98,8 @@ function wirePrepare(
       pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
       pendingSteerReasoningEffort: opts.reasoningEffort,
       pendingSteerServiceTier: opts.serviceTier,
-      pendingSteerFastMode: opts.fastMode
+      pendingSteerFastMode: opts.fastMode,
+      pendingSteerAssistantSettingsPatch: opts.assistantSettingsPatch
     })
   })
 }
@@ -129,7 +132,28 @@ describe('dispatchStreamRequest — steer', () => {
     // and the persisted user row is enqueued as a pending steer before send (which just attaches).
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', 'flex', false)
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', 'flex', false, undefined)
+  })
+
+  it('carries assistant settings patch into a queued steer continuation', async () => {
+    const assistantSettingsPatch = { temperature: 0.2 }
+    wirePrepare(mocks.persistentPrepare, 'topic-patch', {
+      inject: true,
+      steer: true,
+      assistantSettingsPatch
+    })
+    const manager = makeManager(true)
+
+    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-patch'))
+
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith(
+      'topic-patch',
+      'u1',
+      undefined,
+      undefined,
+      false,
+      assistantSettingsPatch
+    )
   })
 
   it('carries Fast into a queued steer continuation', async () => {
@@ -143,7 +167,7 @@ describe('dispatchStreamRequest — steer', () => {
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-fast'))
 
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', undefined, true)
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', undefined, true, undefined)
   })
 
   it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {

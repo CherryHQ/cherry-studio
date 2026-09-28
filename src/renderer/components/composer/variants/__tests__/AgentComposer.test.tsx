@@ -282,22 +282,6 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-// useAgentSessionSlashCommands now observes the shared slash-command catalog via
-// useSharedCacheValue (globally mocked); with no catalog seeded the composer
-// falls back to the builtin list. This inline cacheService only serves the
-// remaining typed-draft, casual queue, and subscribe consumers.
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    get: vi.fn(() => undefined),
-    has: vi.fn(() => false),
-    set: vi.fn(),
-    getCasual: vi.fn(() => ''),
-    hasCasual: vi.fn(() => false),
-    setCasual: vi.fn(),
-    subscribe: vi.fn(() => () => {})
-  }
-}))
-
 vi.mock('@renderer/hooks/agent/useAgentTurnFastMode', async () => {
   const { useCallback, useState } = await import('react')
 

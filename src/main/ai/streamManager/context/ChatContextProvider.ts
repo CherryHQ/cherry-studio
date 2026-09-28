@@ -7,6 +7,7 @@
 
 import type { Span } from '@opentelemetry/api'
 
+import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -51,6 +52,8 @@ export interface PreparedDispatch {
   pendingSteerServiceTier?: ServiceTierSelection
   /** Fast selection captured alongside the pending steer. */
   pendingSteerFastMode?: boolean
+  /** Assistant settings overlay captured alongside the pending steer. */
+  pendingSteerAssistantSettingsPatch?: AssistantModelSettingsPatch
   /** Persisted user/assistant skeletons created for this dispatch. */
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */

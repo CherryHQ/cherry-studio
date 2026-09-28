@@ -26,6 +26,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { AssistantModelSettingsPatchSchema } from '@shared/data/types/assistant'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -34,7 +35,6 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
-import { AssistantModelSettingsPatchSchema } from '@shared/data/types/assistant'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { FileVersionSchema } from '@shared/types/file'
 

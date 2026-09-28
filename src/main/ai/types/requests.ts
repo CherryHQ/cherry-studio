@@ -3,10 +3,9 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-
-import type { AssistantModelSettingsPatch } from '@shared/data/types/assistant'
 
 /**
  * IPC-safe per-request transport config. Every field here survives

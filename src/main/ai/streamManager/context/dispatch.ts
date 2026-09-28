@@ -140,7 +140,8 @@ export async function dispatchStreamRequest(
       prepared.pendingSteerUserMessageId,
       prepared.pendingSteerReasoningEffort,
       prepared.pendingSteerServiceTier,
-      prepared.pendingSteerFastMode === true
+      prepared.pendingSteerFastMode === true,
+      prepared.pendingSteerAssistantSettingsPatch
     )
   } else if (
     provider.name === persistentChatContextProvider.name &&

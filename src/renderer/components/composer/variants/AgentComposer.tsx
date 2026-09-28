@@ -810,6 +810,8 @@ const AgentComposerInner = ({
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
     : configuredReasoningEffort
+  const canonicalReasoningEffortRef = useRef(canonicalReasoningEffort)
+  canonicalReasoningEffortRef.current = canonicalReasoningEffort
   const {
     effective: pendingReasoningEffort,
     startPending: startReasoningPending,
@@ -822,6 +824,7 @@ const AgentComposerInner = ({
     canonicalAtMutationStart?: ThinkingOption
   } | null>(null)
   const reasoningMutationVersionRef = useRef(0)
+  const [, setReasoningPendingSync] = useState(0)
   const activeReasoningOverride =
     reasoningOverride &&
     reasoningOverride.agentId === agent?.id &&
@@ -1339,7 +1342,8 @@ const AgentComposerInner = ({
       setReasoningOverride({
         agentId: agent.id,
         value: option,
-        version
+        version,
+        canonicalAtMutationStart
       })
 
       void updateAgent(
@@ -1351,28 +1355,24 @@ const AgentComposerInner = ({
       )
         .then((updatedAgent) => {
           finishReasoningPending(pendingVersion)
-          if (!updatedAgent) {
-            setReasoningOverride((current) =>
-              current?.agentId === agent.id && current.version === version ? null : current
-            )
-            return
-          }
-
-          setReasoningOverride((current) =>
-            current?.agentId === agent.id && current.version === version
-              ? {
-                  ...current,
-                  value: updatedAgent.configuration?.reasoning_effort ?? 'default',
-                  canonicalAtMutationStart
-                }
-              : current
-          )
+          setReasoningOverride((current) => {
+            if (current?.agentId !== agent.id || current.version !== version) return current
+            if (!updatedAgent) return null
+            if (canonicalAtMutationStart !== canonicalReasoningEffortRef.current) return null
+            return {
+              ...current,
+              value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+              canonicalAtMutationStart
+            }
+          })
+          setReasoningPendingSync((token) => token + 1)
         })
         .catch(() => {
           finishReasoningPending(pendingVersion)
           setReasoningOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )
+          setReasoningPendingSync((token) => token + 1)
         })
     },
     [agent, canonicalReasoningEffort, finishReasoningPending, startReasoningPending, updateAgent]
