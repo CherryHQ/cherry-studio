@@ -17,3 +17,9 @@ export const ToolSchema = z.strictObject({
 export type Tool = z.infer<typeof ToolSchema>
 export type ToolApproval = z.infer<typeof ToolApprovalSchema>
 export type ToolOrigin = z.infer<typeof ToolOriginSchema>
+
+/**
+ * Tool names that end a plan — Claude Code `ExitPlanMode`, dsh `exit_plan_mode`. Main's
+ * execution-model handoff gate and the renderer's approval picker must classify these identically.
+ */
+export const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set(['ExitPlanMode', 'exit_plan_mode'])
