@@ -101,7 +101,12 @@ export class SchedulerService extends BaseService {
   /**
    * Register a callback to fire on schedule. Calling `registerSchedule` twice
    * with the same `id` replaces the previous registration (the old timer is
-   * stopped first).
+   * stopped first). For `interval` triggers, re-registering with the same
+   * period carries the pending fire deadline over instead of resetting it —
+   * frequent re-arms (startup recovery, timer sync, lifecycle events) must not
+   * push the next fire a full period away every time, which would starve the
+   * schedule indefinitely. A period change, or a re-arm while a callback is in
+   * flight, starts a fresh period.
    *
    * @param id - Unique identifier for this schedule; reused for `pause` / `resume` / `unregister` / `triggerNow`
    * @param trigger - Cron expression, repeating interval, or one-shot delay
@@ -109,6 +114,9 @@ export class SchedulerService extends BaseService {
    * @returns Disposable that unregisters when disposed; the service also auto-cleans on `onStop`
    */
   registerSchedule(id: string, trigger: Trigger, callback: ScheduleCallback): Disposable {
+    // Re-arming the same period carries the pending fire over — resetting it
+    // (as repeated re-arms do) would starve the schedule indefinitely.
+    const previous = this.intervalHandles.get(id)
     if (this.has(id)) this.unregister(id)
 
     if (trigger.kind === 'cron') {
@@ -116,7 +124,11 @@ export class SchedulerService extends BaseService {
     } else if (trigger.kind === 'once') {
       this.scheduleOnce(id, trigger.at, callback)
     } else {
-      this.scheduleInterval(id, trigger.ms, callback)
+      const carriedDelayMs =
+        previous?.kind === 'interval' && previous.ms === trigger.ms && !previous.running
+          ? Math.max(0, Math.min(trigger.ms, previous.nextRunAt - Date.now()))
+          : undefined
+      this.scheduleInterval(id, trigger.ms, callback, carriedDelayMs)
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
@@ -268,7 +280,7 @@ export class SchedulerService extends BaseService {
     this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
 
-  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
+  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback, firstDelayMs?: number): void {
     const fire = async (): Promise<void> => {
       const entry = this.intervalHandles.get(id)
       if (!entry || entry.kind !== 'interval') return
@@ -289,8 +301,9 @@ export class SchedulerService extends BaseService {
       entry.running = false
     }
 
-    const nextRunAt = Date.now() + ms
-    const handle = setTimeout(fire, ms)
+    const firstDelay = Math.max(0, firstDelayMs ?? ms)
+    const nextRunAt = Date.now() + firstDelay
+    const handle = setTimeout(fire, firstDelay)
     handle.unref?.()
     this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
   }

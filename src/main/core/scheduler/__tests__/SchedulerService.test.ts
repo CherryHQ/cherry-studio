@@ -8,7 +8,7 @@
  * very short delays.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -111,6 +111,71 @@ describe('interval trigger', () => {
     await tick(45)
     // Should have re-armed and fired again despite the throw.
     expect(fires).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('interval re-arm phase preservation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('survives a re-registration storm — identical re-arms never push the fire out', async () => {
+    let count = 0
+    scheduler.registerSchedule('storm', { kind: 'interval', ms: 60 }, () => {
+      count++
+    })
+    // JobManager re-arms (startup recovery, resume, timer sync) can fire more
+    // often than the period; they must not push the pending deadline forever.
+    for (let i = 0; i < 30; i++) {
+      await vi.advanceTimersByTimeAsync(5)
+      scheduler.registerSchedule('storm', { kind: 'interval', ms: 60 }, () => {
+        count++
+      })
+    }
+    expect(count).toBeGreaterThanOrEqual(1)
+  })
+
+  it('re-registering the same interval keeps the pending fire deadline', () => {
+    scheduler.registerSchedule('phase', { kind: 'interval', ms: 60_000 }, () => undefined)
+    const firstDeadline = scheduler.getNextRun('phase')?.getTime() ?? 0
+    vi.advanceTimersByTime(10_000)
+    scheduler.registerSchedule('phase', { kind: 'interval', ms: 60_000 }, () => undefined)
+    // Deadline carried over, not reset to a fresh period from now.
+    expect(scheduler.getNextRun('phase')?.getTime()).toBe(firstDeadline)
+  })
+
+  it('changing the interval length still resets the phase', () => {
+    scheduler.registerSchedule('rephase', { kind: 'interval', ms: 60_000 }, () => undefined)
+    const before = Date.now()
+    scheduler.registerSchedule('rephase', { kind: 'interval', ms: 120_000 }, () => undefined)
+    expect(scheduler.getNextRun('rephase')?.getTime()).toBe(before + 120_000)
+  })
+
+  it('re-registering while a fire is in flight starts a fresh period (no immediate double fire)', async () => {
+    let count = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    scheduler.registerSchedule('inflight', { kind: 'interval', ms: 20 }, async () => {
+      count++
+      await gate
+    })
+    await vi.advanceTimersByTimeAsync(20)
+    expect(count).toBe(1)
+    scheduler.registerSchedule('inflight', { kind: 'interval', ms: 20 }, () => {
+      count++
+    })
+    const countAtReRegister = count
+    release()
+    await vi.advanceTimersByTimeAsync(0) // the blocked fire settles; it must not chain
+    expect(count).toBe(countAtReRegister)
+    await vi.advanceTimersByTimeAsync(20) // past one period — the replacement chain fires
+    expect(count).toBeGreaterThan(countAtReRegister)
   })
 })
 
