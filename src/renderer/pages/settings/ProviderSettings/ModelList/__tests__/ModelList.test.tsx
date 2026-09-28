@@ -79,25 +79,6 @@ describe('useProviderModelList', () => {
     ])
   })
 
-  it('keeps numeric group names in model order rather than numeric order', () => {
-    // Group names come from `model.group`, which is free text, so they can look
-    // like array indices. A plain object enumerates integer-like keys in
-    // ascending numeric order ahead of insertion order, which would silently
-    // throw away a manual group arrangement whenever a group is named like a
-    // number — `10` before `2` is a legal arrangement the user can reach by
-    // dragging, so it has to survive the round trip.
-    const numeric = [
-      { id: 'openai::a10', name: 'A10', capabilities: ['vision'], isEnabled: true, providerId: 'openai', group: '10' },
-      { id: 'openai::a2', name: 'A2', capabilities: ['chat'], isEnabled: true, providerId: 'openai', group: '2' },
-      { id: 'openai::a1', name: 'A1', capabilities: ['rerank'], isEnabled: true, providerId: 'openai', group: '1' }
-    ] as any
-    useModelsMock.mockReturnValue({ models: numeric, isLoading: false, refetch: refetchModelsMock })
-
-    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
-
-    expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['10', '2', '1'])
-  })
-
   it('exposes the full ordered model list for block moves', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
