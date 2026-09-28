@@ -12,7 +12,6 @@ import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
-import type { AssistantModelSettingsPatch } from '../types/assistant'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { ServiceTierSelection, UniqueModelId } from '../types/model'
@@ -182,8 +181,8 @@ export type CacheAssistantReasoningEffortPending = CacheAssistantModelSettingPen
 export type CacheAssistantServiceTierPending = CacheAssistantModelSettingPending<ServiceTierSelection>
 
 export type CacheAssistantSettingsPatchPending = {
-  patch: AssistantModelSettingsPatch
   version: number
+  fields: Record<string, { value: unknown; version: number }>
 }
 
 export type CacheAgentReasoningEffortPending = CacheAssistantModelSettingPending<ReasoningEffortOption>

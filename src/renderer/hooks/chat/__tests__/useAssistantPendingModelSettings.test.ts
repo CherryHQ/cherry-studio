@@ -2,12 +2,12 @@ import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import {
   useAssistantPendingReasoningEffort,
   useAssistantPendingSettingsPatch
 } from '../useAssistantPendingModelSettings'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
@@ -102,6 +102,38 @@ describe('useAssistantPendingSettingsPatch', () => {
 
     act(() => {
       second.result.current.finishPending(secondVersion)
+    })
+
+    expect(first.result.current.effectiveSettings).toEqual(canonical)
+  })
+
+  it('does not keep superseded field values when a newer mutation finishes first', () => {
+    const assistantId = 'assistant-4'
+    const pendingKey = `chat.assistant.settings_patch_pending.${assistantId}` as const
+    cacheService.delete(pendingKey)
+
+    const canonical = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 1 }
+    const first = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
+    const second = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
+
+    let firstVersion = 0
+    let secondVersion = 0
+    act(() => {
+      firstVersion = first.result.current.startPending({ temperature: 0.2 })
+      secondVersion = second.result.current.startPending({ temperature: 0.8 })
+    })
+
+    expect(first.result.current.effectiveSettings?.temperature).toBe(0.8)
+
+    act(() => {
+      second.result.current.finishPending(secondVersion)
+    })
+
+    expect(first.result.current.effectiveSettings?.temperature).toBe(1)
+    expect(first.result.current.pendingPatch).toBeUndefined()
+
+    act(() => {
+      first.result.current.finishPending(firstVersion)
     })
 
     expect(first.result.current.effectiveSettings).toEqual(canonical)

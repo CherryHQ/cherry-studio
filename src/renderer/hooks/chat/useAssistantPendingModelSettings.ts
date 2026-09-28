@@ -1,7 +1,9 @@
 import { useCallback } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { CacheAssistantSettingsPatchPending } from '@shared/data/cache/cacheValueTypes'
 import type { AssistantModelSettingsPatch, AssistantSettings } from '@shared/data/types/assistant'
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -20,23 +22,48 @@ function getSettingsPatchPendingKey(assistantId: string): UseCacheKey {
   return `chat.assistant.settings_patch_pending.${assistantId}`
 }
 
-type SettingsPatchPending = {
-  patch: AssistantModelSettingsPatch
-  version: number
-  contributions: Record<number, AssistantModelSettingsPatch>
+function buildPatchFromFields(
+  fields: CacheAssistantSettingsPatchPending['fields'] | undefined
+): AssistantModelSettingsPatch {
+  if (!fields) return {}
+  return Object.fromEntries(
+    Object.entries(fields).flatMap(([key, entry]) => (entry ? [[key, entry.value]] : []))
+  ) as AssistantModelSettingsPatch
 }
 
-function mergeSettingsPatchContributions(
-  contributions: Record<number, AssistantModelSettingsPatch>
-): AssistantModelSettingsPatch {
-  const versions = Object.keys(contributions)
-    .map(Number)
-    .sort((a, b) => a - b)
-  let patch: AssistantModelSettingsPatch = {}
-  for (const version of versions) {
-    patch = { ...patch, ...contributions[version] }
+function mergePatchFields(
+  current: CacheAssistantSettingsPatchPending | null | undefined,
+  patch: AssistantModelSettingsPatch,
+  version: number
+): CacheAssistantSettingsPatchPending {
+  const fields: Record<string, { value: unknown; version: number }> = { ...current?.fields }
+  for (const key of Object.keys(patch) as Array<keyof AssistantModelSettingsPatch>) {
+    const value = patch[key]
+    if (value !== undefined) {
+      fields[key] = { value, version }
+    }
   }
-  return patch
+  return { version, fields }
+}
+
+function removePatchFieldsForVersion(
+  current: CacheAssistantSettingsPatchPending,
+  version: number
+): CacheAssistantSettingsPatchPending | null {
+  const fields = { ...current.fields }
+  for (const key of Object.keys(fields)) {
+    if (fields[key]?.version === version) {
+      delete fields[key]
+    }
+  }
+  const remainingVersions = Object.values(fields)
+    .map((entry) => entry?.version ?? 0)
+    .filter((entryVersion) => entryVersion > 0)
+  if (remainingVersions.length === 0) return null
+  return {
+    fields,
+    version: Math.max(...remainingVersions)
+  }
 }
 
 function useAssistantPendingSetting<T>(
@@ -52,14 +79,12 @@ function useAssistantPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
-      let version = 0
-      setPending((current) => {
-        version = (current?.version ?? 0) + 1
-        return { value, version }
-      })
+      const current = cacheService.get(getKey(assistantId))
+      const version = (current?.version ?? 0) + 1
+      setPending({ value, version })
       return version
     },
-    [assistantId, setPending]
+    [assistantId, getKey, setPending]
   )
 
   const finishPending = useCallback(
@@ -93,23 +118,20 @@ export function useAssistantPendingSettingsPatch(
   const cacheKey = getSettingsPatchPendingKey(assistantId ?? FALLBACK_ASSISTANT_KEY)
   const [pending, setPending] = useCache(cacheKey)
 
-  const pendingPatch = assistantId && pending ? pending.patch : undefined
+  const pendingPatch =
+    assistantId && pending && Object.keys(pending.fields).length > 0 ? buildPatchFromFields(pending.fields) : undefined
   const effectiveSettings =
-    canonicalSettings && pendingPatch ? { ...canonicalSettings, ...pendingPatch } : canonicalSettings
+    canonicalSettings && pendingPatch && Object.keys(pendingPatch).length > 0
+      ? { ...canonicalSettings, ...pendingPatch }
+      : canonicalSettings
 
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
-      let version = 0
-      setPending((current: SettingsPatchPending | null) => {
-        version = (current?.version ?? 0) + 1
-        const contributions = { ...current?.contributions, [version]: patch }
-        return {
-          patch: mergeSettingsPatchContributions(contributions),
-          version,
-          contributions
-        }
-      })
+      const key = getSettingsPatchPendingKey(assistantId)
+      const current = cacheService.get(key) ?? null
+      const version = (current?.version ?? 0) + 1
+      setPending(mergePatchFields(current, patch, version))
       return version
     },
     [assistantId, setPending]
@@ -117,20 +139,9 @@ export function useAssistantPendingSettingsPatch(
 
   const finishPending = useCallback(
     (version: number) => {
-      setPending((current: SettingsPatchPending | null) => {
-        if (!current?.contributions?.[version]) {
-          return current?.version === version ? null : current
-        }
-        const nextContributions = { ...current.contributions }
-        delete nextContributions[version]
-        const remainingVersions = Object.keys(nextContributions)
-        if (remainingVersions.length === 0) return null
-        const nextVersion = Math.max(...remainingVersions.map(Number))
-        return {
-          patch: mergeSettingsPatchContributions(nextContributions),
-          version: nextVersion,
-          contributions: nextContributions
-        }
+      setPending((current) => {
+        if (!current) return current
+        return removePatchFieldsForVersion(current, version)
       })
     },
     [setPending]
