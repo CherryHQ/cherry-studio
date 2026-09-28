@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "请输入智能体名称。",
   "local_agents.no_resume": "此 CLI 不支持会话恢复，关闭或停止后需要新建对话。",
   "local_agents.not_installed": "未安装",
-  "local_agents.title": "本地智能体",
+  "local_agents.title": "智能体服务",
   "local_agents.unsaved": "有未保存的修改",
   "message.agents.import.error": "导入失败",
   "message.agents.imported": "成功导入 {{count}} 个助手",

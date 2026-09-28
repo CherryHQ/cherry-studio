@@ -29,6 +29,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
@@ -129,7 +130,7 @@ export function LocalAgentSettingsPage() {
             </InputGroupAddon>
           </InputGroup>
         </div>
-        <div className="min-h-0 flex-1 space-y-2 overflow-auto px-2.5 pt-2 pb-0">
+        <Scrollbar className="min-h-0 flex-1 space-y-2 px-2.5 pt-2 pb-0">
           {entries
             .filter((e) => e.name.toLowerCase().includes(query.toLowerCase()))
             .map((e) => {
@@ -173,7 +174,7 @@ export function LocalAgentSettingsPage() {
           {!entries.some((e) => e.name.toLowerCase().includes(query.toLowerCase())) && (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t('common.no_results')}</p>
           )}
-        </div>
+        </Scrollbar>
         <div className="shrink-0 px-2.5 pb-2.5">
           <Button
             variant="outline"
@@ -209,6 +210,7 @@ function LocalAgentIcon({ preset }: { preset?: LocalAgentPreset }) {
         <CliIcon
           id={CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id}
           size={20}
+          className="size-5"
         />
       ) : (
         <Terminal className="size-4" />
@@ -383,7 +385,7 @@ function LocalAgentEditor({
           />
         </div>
       </header>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pt-1.5 pb-6">
+      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pt-1.5 pb-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.description')}</p>
           <section className="space-y-3">
@@ -397,10 +399,10 @@ function LocalAgentEditor({
                     : t('local_agents.not_installed')}
               </span>
             </div>
-            {(initial.executableOverride ?? detection?.path) && (
+            {(initial.executableOverride ?? detection?.path ?? preset?.executable) && (
               <div className="flex min-h-8 items-center rounded-lg border border-border-subtle bg-muted/30 px-2.5 py-1.5">
                 <p className="min-w-0 break-all font-mono text-xs text-foreground">
-                  {initial.executableOverride ?? detection?.path}
+                  {initial.executableOverride ?? detection?.path ?? preset?.executable}
                 </p>
               </div>
             )}
@@ -448,7 +450,7 @@ function LocalAgentEditor({
             {!editing && feedback}
           </section>
         </div>
-      </div>
+      </Scrollbar>
       <PageSidePanel
         open={editing}
         onClose={closeEditor}

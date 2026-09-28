@@ -1,4 +1,5 @@
-Kiro, TRAE and Cursor icons (kiro-cli.svg, trae-cli.svg, cursor-cli.svg and generated React components)
+Brand icons: Cursor, Kiro, TRAE, Amp, CodeBuddy, Devin, Junie, Mistral, Poolside and Snowflake.
+SVG source files and their generated React components.
 Source: https://github.com/lobehub/lobe-icons
 
 MIT License

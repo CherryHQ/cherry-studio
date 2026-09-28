@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Introduceți numele agentului.",
   "local_agents.no_resume": "Acest CLI nu poate restaura sesiunile. După închidere sau oprire, începeți o conversație nouă.",
   "local_agents.not_installed": "Neinstalat",
-  "local_agents.title": "Agenți locali",
+  "local_agents.title": "Servicii de agenți",
   "local_agents.unsaved": "Modificări nesalvate",
   "message.agents.import.error": "Import eșuat",
   "message.agents.imported": "S-au importat cu succes {{count}} asistent/asistenți",

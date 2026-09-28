@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "請輸入智慧體名稱。",
   "local_agents.no_resume": "此 CLI 不支援對話恢復，關閉或停止後需要建立新對話。",
   "local_agents.not_installed": "未安裝",
-  "local_agents.title": "本機智慧體",
+  "local_agents.title": "智慧體服務",
   "local_agents.unsaved": "有尚未儲存的修改",
   "message.agents.import.error": "匯入失敗",
   "message.agents.imported": "已成功匯入 {{count}} 位助理",

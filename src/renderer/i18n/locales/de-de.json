@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Agentennamen eingeben.",
   "local_agents.no_resume": "Diese CLI kann Sitzungen nicht wiederherstellen. Nach dem Schließen oder Stoppen ist eine neue Unterhaltung erforderlich.",
   "local_agents.not_installed": "Nicht installiert",
-  "local_agents.title": "Lokale Agenten",
+  "local_agents.title": "Agenten-Dienste",
   "local_agents.unsaved": "Ungespeicherte Änderungen",
   "message.agents.import.error": "Import fehlgeschlagen",
   "message.agents.imported": "{{count}} Assistenten erfolgreich importiert",

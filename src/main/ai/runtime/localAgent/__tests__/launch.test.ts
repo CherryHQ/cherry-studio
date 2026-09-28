@@ -66,7 +66,27 @@ describe('local agent installation resolution', () => {
   it.each([
     ['copilot', 'copilot', ['--acp']],
     ['minimax', 'mcode', ['acp']],
-    ['cursor', 'agent', ['acp']]
+    ['cursor', 'agent', ['acp']],
+    ['cline', 'cline', ['--acp']],
+    ['kilo', 'kilo', ['acp']],
+    ['goose', 'goose', ['acp']],
+    ['codebuddy-code', 'codebuddy', ['--acp']],
+    ['auggie', 'auggie', ['--acp']],
+    ['junie', 'junie', ['--acp=true']],
+    ['factory-droid', 'droid', ['exec', '--output-format', 'acp-daemon']],
+    ['devin', 'devin', ['acp']],
+    ['antigravity-acp', 'agy_acp_server.par', []],
+    ['mistral-vibe', 'vibe-acp', []],
+    ['amp-acp', 'amp-acp', []],
+    ['pi-acp', 'pi-acp', []],
+    ['deepagents', 'deepagents-acp', []],
+    ['glm-acp-agent', 'glm-acp-agent', []],
+    ['grok-build', 'grok', ['agent', 'stdio']],
+    ['cortex-code', 'cortex', ['acp', 'serve']],
+    ['fast-agent', 'fast-agent-acp', ['-x']],
+    ['stakpak', 'stakpak', ['acp']],
+    ['vtcode', 'vtcode', ['acp']],
+    ['poolside', 'pool', ['acp']]
   ] as const)('launches %s through ACP using the installed binary', async (presetId, executable, args) => {
     inventory.snapshots[executable] = {
       name: executable,
@@ -74,8 +94,27 @@ describe('local agent installation resolution', () => {
     }
     const launch = await resolveLocalAgentLaunch({ ...config, presetId, protocol: 'acp' })
     expect(launch.executable).toBe(`/user/bin/${executable}`)
-    expect(launch.args).toEqual(args)
+    expect(launch.args).toEqual(presetId === 'antigravity-acp' && process.platform === 'linux' ? ['--uid='] : args)
     expect(launch.env.MISE_DATA_DIR).toBe('/user/mise')
+  })
+
+  it('applies required protocol environment without overriding explicit user choices', async () => {
+    inventory.snapshots.vtcode = { name: 'vtcode', availability: { source: 'system', path: '/user/bin/vtcode' } }
+    const launch = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'vtcode',
+      protocol: 'acp',
+      env: { VT_ACP_ZED_ENABLED: '0' }
+    })
+    expect(launch.env.VT_ACP_ENABLED).toBe('1')
+    expect(launch.env.VT_ACP_ZED_ENABLED).toBe('0')
+  })
+
+  it('does not mistake the base CLI for a separately installed ACP adapter', async () => {
+    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_NOT_INSTALLED'
+    })
   })
 
   it('prefers managed aliases and leaves missing presets visible during passive discovery', async () => {
@@ -84,6 +123,5 @@ describe('local agent installation resolution', () => {
     const found = await detectLocalAgents()
     expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({ source: 'mise', path: '/managed/qoder' })
     expect(found.find((entry) => entry.presetId === 'codex')).toMatchObject({ source: 'none' })
-    expect(found).toHaveLength(13)
   })
 })

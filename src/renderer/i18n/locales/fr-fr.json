@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Saisissez un nom d’agent.",
   "local_agents.no_resume": "Ce CLI ne restaure pas les sessions. Après sa fermeture ou son arrêt, créez une nouvelle conversation.",
   "local_agents.not_installed": "Non installé",
-  "local_agents.title": "Agents locaux",
+  "local_agents.title": "Services d’agents",
   "local_agents.unsaved": "Modifications non enregistrées",
   "message.agents.import.error": "Échec de l'importation",
   "message.agents.imported": "Importation réussie de {{count}} assistant(s)",

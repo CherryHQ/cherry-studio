@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Bir ajan adı girin.",
   "local_agents.no_resume": "Bu CLI oturumları geri yükleyemez. Kapatma veya durdurma sonrasında yeni bir konuşma başlatın.",
   "local_agents.not_installed": "Yüklü değil",
-  "local_agents.title": "Yerel ajanlar",
+  "local_agents.title": "Ajan hizmetleri",
   "local_agents.unsaved": "Kaydedilmemiş değişiklikler",
   "message.agents.import.error": "İçe aktarma başarısız oldu",
   "message.agents.imported": "{{count}} asistan başarıyla içe aktarıldı",

@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Enter an agent name.",
   "local_agents.no_resume": "This CLI cannot restore sessions. Closing or stopping it requires a new conversation.",
   "local_agents.not_installed": "Not installed",
-  "local_agents.title": "Local agents",
+  "local_agents.title": "Agent services",
   "local_agents.unsaved": "Unsaved changes",
   "message.agents.import.error": "Import failed",
   "message.agents.imported": "Successfully imported {{count}} assistant(s)",

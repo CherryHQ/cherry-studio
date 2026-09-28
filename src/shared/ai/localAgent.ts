@@ -18,6 +18,8 @@ export interface LocalAgentPreset {
   executable: string
   aliases?: readonly string[]
   args: readonly string[]
+  platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
+  env?: Readonly<Record<string, string>>
   helpUrl: string
 }
 
@@ -127,6 +129,182 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     executable: 'hermes',
     args: ['acp'],
     helpUrl: 'https://hermes-agent.nousresearch.com/docs/user-guide/features/acp/'
+  },
+  {
+    id: 'cline',
+    name: 'Cline',
+    protocol: 'acp',
+    executable: 'cline',
+    args: ['--acp'],
+    helpUrl: 'https://cline.bot/cli'
+  },
+  {
+    id: 'kilo',
+    name: 'Kilo',
+    protocol: 'acp',
+    executable: 'kilo',
+    args: ['acp'],
+    helpUrl: 'https://kilo.ai/'
+  },
+  {
+    id: 'goose',
+    name: 'goose',
+    protocol: 'acp',
+    executable: 'goose',
+    args: ['acp'],
+    helpUrl: 'https://block.github.io/goose/'
+  },
+  {
+    id: 'codebuddy-code',
+    name: 'Codebuddy Code',
+    protocol: 'acp',
+    executable: 'codebuddy',
+    aliases: ['codebuddy-code', 'cbc'],
+    args: ['--acp'],
+    helpUrl: 'https://www.codebuddy.cn/cli/'
+  },
+  {
+    id: 'auggie',
+    name: 'Auggie CLI',
+    protocol: 'acp',
+    executable: 'auggie',
+    args: ['--acp'],
+    env: {
+      AUGMENT_DISABLE_AUTO_UPDATE: '1'
+    },
+    helpUrl: 'https://www.augmentcode.com/'
+  },
+  {
+    id: 'junie',
+    name: 'Junie',
+    protocol: 'acp',
+    executable: 'junie',
+    args: ['--acp=true'],
+    helpUrl: 'https://junie.jetbrains.com'
+  },
+  {
+    id: 'factory-droid',
+    name: 'Factory Droid',
+    protocol: 'acp',
+    executable: 'droid',
+    args: ['exec', '--output-format', 'acp-daemon'],
+    env: {
+      DROID_DISABLE_AUTO_UPDATE: 'true',
+      FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false'
+    },
+    helpUrl: 'https://factory.ai/product/cli'
+  },
+  {
+    id: 'devin',
+    name: 'Devin',
+    protocol: 'acp',
+    executable: 'devin',
+    args: ['acp'],
+    helpUrl: 'https://docs.devin.ai/cli'
+  },
+  {
+    id: 'antigravity-acp',
+    name: 'Google Antigravity',
+    protocol: 'acp',
+    executable: 'agy_acp_server.par',
+    aliases: ['agy_acp_server'],
+    platformArgs: {
+      linux: ['--uid=']
+    },
+    args: [],
+    helpUrl: 'https://antigravity.google/docs/ide/extensions'
+  },
+  {
+    id: 'mistral-vibe',
+    name: 'Mistral Vibe',
+    protocol: 'acp',
+    executable: 'vibe-acp',
+    args: [],
+    helpUrl: 'https://mistral.ai/products/vibe'
+  },
+  {
+    id: 'amp-acp',
+    name: 'Amp',
+    protocol: 'acp',
+    executable: 'amp-acp',
+    args: [],
+    helpUrl: 'https://github.com/tao12345666333/amp-acp'
+  },
+  {
+    id: 'pi-acp',
+    name: 'pi ACP',
+    protocol: 'acp',
+    executable: 'pi-acp',
+    args: [],
+    helpUrl: 'https://github.com/svkozak/pi-acp'
+  },
+  {
+    id: 'deepagents',
+    name: 'DeepAgents',
+    protocol: 'acp',
+    executable: 'deepagents-acp',
+    args: [],
+    helpUrl: 'https://docs.langchain.com/oss/javascript/deepagents/overview'
+  },
+  {
+    id: 'glm-acp-agent',
+    name: 'GLM Agent',
+    protocol: 'acp',
+    executable: 'glm-acp-agent',
+    args: [],
+    helpUrl: 'https://github.com/stefandevo/glm-acp-agent'
+  },
+  {
+    id: 'grok-build',
+    name: 'Grok Build',
+    protocol: 'acp',
+    executable: 'grok',
+    args: ['agent', 'stdio'],
+    helpUrl: 'https://x.ai/cli'
+  },
+  {
+    id: 'cortex-code',
+    name: 'Cortex Code',
+    protocol: 'acp',
+    executable: 'cortex',
+    args: ['acp', 'serve'],
+    helpUrl: 'https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code'
+  },
+  {
+    id: 'fast-agent',
+    name: 'fast-agent',
+    protocol: 'acp',
+    executable: 'fast-agent-acp',
+    args: ['-x'],
+    helpUrl: 'https://fast-agent.ai'
+  },
+  {
+    id: 'stakpak',
+    name: 'Stakpak',
+    protocol: 'acp',
+    executable: 'stakpak',
+    args: ['acp'],
+    helpUrl: 'https://stakpak.dev'
+  },
+  {
+    id: 'vtcode',
+    name: 'VT Code',
+    protocol: 'acp',
+    executable: 'vtcode',
+    args: ['acp'],
+    env: {
+      VT_ACP_ENABLED: '1',
+      VT_ACP_ZED_ENABLED: '1'
+    },
+    helpUrl: 'https://github.com/vinhnx/VTCode/blob/main/docs/guides/zed-acp.md'
+  },
+  {
+    id: 'poolside',
+    name: 'Poolside',
+    protocol: 'acp',
+    executable: 'pool',
+    args: ['acp'],
+    helpUrl: 'https://poolside.ai'
   }
 ]
 

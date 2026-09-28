@@ -96,7 +96,46 @@ entries, not a claim that every installed version implements the protocol.
 | Qoder | `qoderclicn --acp` (aliases supported) | — | Not tested |
 | Trae | `traecli acp serve` | — | Not tested |
 | Hermes | `hermes acp` | CLI did not report `--version` | Handshake, multi-turn context, edit approval and file write passed |
+| Cline | `cline --acp` | — | Registry launch definition checked (3.0.65); real CLI acceptance pending |
+| Kilo | `kilo acp` | — | Registry launch definition checked (7.8.1); real CLI acceptance pending |
+| goose | `goose acp` | — | Registry launch definition checked (1.52.0); real CLI acceptance pending |
+| Codebuddy Code | `codebuddy --acp` | — | Registry launch definition checked (2.159.0); real CLI acceptance pending |
+| Auggie CLI | `auggie --acp` | — | Registry launch definition checked (0.36.0); real CLI acceptance pending |
+| Junie | `junie --acp=true` | — | Registry launch definition checked (3419.16.0); real CLI acceptance pending |
+| Factory Droid | `droid exec --output-format acp-daemon` | — | Registry launch definition checked (0.228.0); real CLI acceptance pending |
+| Devin | `devin acp` | — | Registry launch definition checked (3000.11.3); real CLI acceptance pending |
+| Google Antigravity | `agy_acp_server.par ` | — | Registry launch definition checked (1.2.1); real CLI acceptance pending |
+| Mistral Vibe | `vibe-acp ` | — | Registry launch definition checked (2.25.8); real CLI acceptance pending |
+| Amp | `amp-acp ` | — | Registry launch definition checked (0.9.0); real CLI acceptance pending |
+| pi ACP | `pi-acp ` | — | Registry launch definition checked (0.0.34); real CLI acceptance pending |
+| DeepAgents | `deepagents-acp ` | — | Registry launch definition checked (0.1.7); real CLI acceptance pending |
+| GLM Agent | `glm-acp-agent ` | — | Registry launch definition checked (1.12.0); real CLI acceptance pending |
+| Grok Build | `grok agent stdio` | — | Registry launch definition checked (1.0.43); real CLI acceptance pending |
+| Cortex Code | `cortex acp serve` | — | Registry launch definition checked (1.0.73); real CLI acceptance pending |
+| fast-agent | `fast-agent-acp -x` | — | Registry launch definition checked (0.10.1); real CLI acceptance pending |
+| Stakpak | `stakpak acp` | — | Registry launch definition checked (0.3.88); real CLI acceptance pending |
+| VT Code | `vtcode acp` | — | Registry launch definition checked (0.96.14); real CLI acceptance pending |
+| Poolside | `pool acp` | — | Registry launch definition checked (1.0.16); real CLI acceptance pending |
 | Custom ACP | Explicit executable and arguments | User selected | Controlled fixture processes tested |
+
+The 20 additional presets use the [ACP Registry](https://github.com/agentclientprotocol/registry)
+launch definitions checked on 2026-09-28. Registry versions in this table are
+reference versions, not versions installed or tested by Cherry. No packages are
+silently downloaded when detecting or connecting to a preset.
+
+Amp requires `amp-acp`, Pi requires `pi-acp`, DeepAgents requires `deepagents-acp`,
+and GLM requires `glm-acp-agent`. Antigravity uses Google's separate
+`agy_acp_server.par` (or `agy_acp_server.exe` on Windows), not the Antigravity CLI
+already available in CodeMate. Vibe uses `vibe-acp`, and fast-agent uses
+`fast-agent-acp`. Install the ACP entry point from the preset's registry link and
+make it available on PATH, or select its explicit path in advanced settings.
+
+Antigravity uses the registry's `--uid=` argument on Linux. Auggie and Droid
+receive the registry's auto-update suppression variables, and VT Code receives
+its ACP feature flags; explicit user environment values take precedence.
+fast-agent preserves the user's model configuration instead of injecting the
+registry's suggested `FAST_AGENT_MODEL=codexplan`. Models and authentication
+must be configured in the CLI before use.
 
 Cursor's `cursor/ask_question` and `cursor/create_plan` blocking extensions use the
 existing question composer and approval flow. Question and option IDs are retained

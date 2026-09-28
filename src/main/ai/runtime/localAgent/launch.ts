@@ -61,7 +61,9 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
       : { ...shellEnv, ...mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')]) }
   return {
     executable,
-    args: config.args.length ? config.args : [...(preset?.args ?? [])],
-    env: { ...env, ...config.env }
+    args: config.args.length
+      ? config.args
+      : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
+    env: { ...env, ...preset?.env, ...config.env }
   }
 }

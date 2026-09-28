@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "Введите имя агента.",
   "local_agents.no_resume": "Этот CLI не восстанавливает сеансы. После закрытия или остановки начните новый разговор.",
   "local_agents.not_installed": "Не установлен",
-  "local_agents.title": "Локальные агенты",
+  "local_agents.title": "Сервисы агентов",
   "local_agents.unsaved": "Несохранённые изменения",
   "message.agents.import.error": "Импорт не выполнен",
   "message.agents.imported": "Успешно импортировано ассистентов: {{count}}",

@@ -2191,7 +2191,7 @@
   "local_agents.name_required": "エージェント名を入力してください。",
   "local_agents.no_resume": "この CLI はセッションを復元できません。終了または停止後は新しい会話が必要です。",
   "local_agents.not_installed": "未インストール",
-  "local_agents.title": "ローカルエージェント",
+  "local_agents.title": "エージェントサービス",
   "local_agents.unsaved": "未保存の変更があります",
   "message.agents.import.error": "インポートに失敗しました",
   "message.agents.imported": "{{count}} 件のアシスタントをインポートしました",
