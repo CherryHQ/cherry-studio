@@ -222,7 +222,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   evictOldestWarmQuery(): boolean {
     const oldestKey = this.entries.keys().next().value
     if (oldestKey === undefined) return false
-    void this.close(oldestKey)
+    const entry = this.entries.get(oldestKey)
+    if (!entry) return false
+    this.entries.delete(oldestKey)
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
+    void this.closeEntry(entry)
     return true
   }
 

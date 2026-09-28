@@ -171,6 +171,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeProcessManager extends BaseService {
   private readonly processes = new Set<TrackedSpawnedProcess>()
+  private readonly processesByDiagnostics = new Map<string, TrackedSpawnedProcess>()
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
@@ -179,8 +180,28 @@ export class ClaudeCodeProcessManager extends BaseService {
     return this.processes.size
   }
 
+  /**
+   * Drop a parked warm query's CLI child from the active cap before its async dispose finishes.
+   * No-op when the reference is unknown or the process already exited.
+   */
+  releaseWarmQueryProcess(diagnosticsReference: string): void {
+    const child = this.processesByDiagnostics.get(diagnosticsReference)
+    if (!child) return
+    this.forgetProcess(child, diagnosticsReference)
+    if (this.hasExited(child)) return
+    try {
+      child.kill('SIGTERM')
+    } catch (error) {
+      logger.warn('Failed to signal Claude Code subprocess during warm eviction', { error })
+    }
+  }
+
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
-    prepareClaudeCodeSpawnCapacity()
+    if (!prepareClaudeCodeSpawnCapacity()) {
+      const error = new Error('Claude Code CLI process cap reached')
+      recordClaudeCodeSpawnError(diagnostics, error)
+      throw error
+    }
     resetClaudeCodeProcessDiagnostics(diagnostics)
     const rawChild = this.spawnProcess(options.command, options.args, {
       cwd: options.cwd,
@@ -197,11 +218,11 @@ export class ClaudeCodeProcessManager extends BaseService {
       })
     })
     const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
-    this.processes.add(child)
+    this.trackProcess(child, diagnostics.reference)
     // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
-    rawChild.once('exit', () => this.processes.delete(child))
+    rawChild.once('exit', () => this.forgetProcess(child, diagnostics.reference))
     child.once('error', () => {
-      if (child.pid === undefined) this.processes.delete(child)
+      if (child.pid === undefined) this.forgetProcess(child, diagnostics.reference)
     })
     return child
   }
@@ -214,7 +235,7 @@ export class ClaudeCodeProcessManager extends BaseService {
   killAll(signal: NodeJS.Signals): void {
     for (const child of [...this.processes]) {
       if (this.hasExited(child)) {
-        this.processes.delete(child)
+        this.forgetProcess(child)
         continue
       }
       try {
@@ -231,6 +252,22 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   private hasExited(child: TrackedSpawnedProcess): boolean {
     return child.exitCode !== null || child.signalCode != null
+  }
+
+  private trackProcess(child: TrackedSpawnedProcess, diagnosticsReference: string): void {
+    this.processes.add(child)
+    this.processesByDiagnostics.set(diagnosticsReference, child)
+  }
+
+  private forgetProcess(child: TrackedSpawnedProcess, diagnosticsReference?: string): void {
+    this.processes.delete(child)
+    if (diagnosticsReference) {
+      this.processesByDiagnostics.delete(diagnosticsReference)
+      return
+    }
+    for (const [reference, tracked] of this.processesByDiagnostics) {
+      if (tracked === child) this.processesByDiagnostics.delete(reference)
+    }
   }
 }
 

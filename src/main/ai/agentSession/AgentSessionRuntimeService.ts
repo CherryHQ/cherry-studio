@@ -1073,6 +1073,14 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry.runtimeState.execution.kind === 'idle'
   }
 
+  private tryEagerlyCloseUnheldHeadlessSession(entry: AgentSessionRuntimeEntry): void {
+    const execution = entry.runtimeState.execution
+    const completedTurn = execution.kind === 'idle' ? execution.lastTurn : undefined
+    if (this.shouldEagerlyCloseUnheldHeadlessSession(entry, completedTurn)) {
+      void this.closeSession(entry.sessionId)
+    }
+  }
+
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
@@ -2205,6 +2213,7 @@ export class AgentSessionRuntimeService extends BaseService {
     } else {
       void this.finishBackgroundFlows(entry)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
+      this.tryEagerlyCloseUnheldHeadlessSession(entry)
     }
   }
 

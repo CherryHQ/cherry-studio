@@ -16,15 +16,32 @@ describe('claudeCodeSpawnCapacity', () => {
   })
 
   it('evicts parked warm queries until the CLI cap allows another spawn', () => {
-    const evictOldestWarmQuery = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false)
+    let activeCount = 6
+    const evictOldestWarmQuery = vi.fn(() => {
+      if (activeCount < 6) return false
+      activeCount -= 1
+      return true
+    })
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => activeCount }
+      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
+      throw new Error(`unexpected service ${name}`)
+    })
+
+    expect(prepareClaudeCodeSpawnCapacity()).toBe(true)
+    expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
+    expect(activeCount).toBe(5)
+  })
+
+  it('refuses another spawn while the cap is saturated and nothing warm remains to evict', () => {
+    const evictOldestWarmQuery = vi.fn().mockReturnValue(false)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => 6 }
       if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
       throw new Error(`unexpected service ${name}`)
     })
 
-    prepareClaudeCodeSpawnCapacity()
-
-    expect(evictOldestWarmQuery).toHaveBeenCalledTimes(2)
+    expect(prepareClaudeCodeSpawnCapacity()).toBe(false)
+    expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
   })
 })

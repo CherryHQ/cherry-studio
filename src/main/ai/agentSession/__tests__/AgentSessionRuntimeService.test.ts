@@ -1306,6 +1306,21 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
     })
 
+    it('closes an unheld headless session when background work finishes after the turn settled', () => {
+      const service = new AgentSessionRuntimeService()
+      const connection = { close: vi.fn().mockResolvedValue(undefined), send: vi.fn(), events: [] }
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = connection
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
     async function rollContinuation(initialHeadless: boolean, steerHeadless: boolean) {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), headless: initialHeadless })

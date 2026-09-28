@@ -18,11 +18,12 @@ export function isClaudeCodeSpawnMemoryPressured(): boolean {
  * Drop parked warm queries before spawning so channel/idle prewarm cannot stack unbounded CLI
  * children on Windows. No-op when under the cap.
  */
-export function prepareClaudeCodeSpawnCapacity(): void {
+export function prepareClaudeCodeSpawnCapacity(): boolean {
   const processManager = application.getOptional('ClaudeCodeProcessManager')
   const warmManager = application.getOptional('ClaudeCodeWarmQueryManager')
-  if (!processManager || !warmManager) return
+  if (!processManager || !warmManager) return true
   while (processManager.getActiveProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) {
-    if (!warmManager.evictOldestWarmQuery()) break
+    if (!warmManager.evictOldestWarmQuery()) return false
   }
+  return processManager.getActiveProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
 }
