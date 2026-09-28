@@ -11,6 +11,7 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import {
   createClaudeCodeProcessDiagnostics,
   createSpawnClaudeCodeProcess,
@@ -214,7 +215,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     })
   }
 
+  /**
+   * Close one parked warm query so a live turn can spawn when the global CLI cap is reached.
+   * Returns false when nothing was evicted.
+   */
+  evictOldestWarmQuery(): boolean {
+    const oldestKey = this.entries.keys().next().value as string | undefined
+    if (!oldestKey) return false
+    void this.close(oldestKey)
+    return true
+  }
+
   async prewarm(request: WarmQueryRequest): Promise<void> {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')

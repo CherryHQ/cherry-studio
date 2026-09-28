@@ -1050,10 +1050,27 @@ export class AgentSessionRuntimeService extends BaseService {
       !isAgentSessionRuntimeAutonomous(entry.runtimeState)
     ) {
       this.requestRuntimeLaunch(entry, 'queued-turn')
+    } else if (this.shouldEagerlyCloseUnheldHeadlessSession(entry, completedTurn)) {
+      void this.closeSession(entry.sessionId)
     } else {
       this.refreshIdleTimer(entry)
       if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
     }
+  }
+
+  /**
+   * Channel and other headless callers never hold a warm lease; keeping their CLI subprocess warm
+   * for minutes (then prewarming again on idle) stacks commit on Windows (#19865).
+   */
+  private shouldEagerlyCloseUnheldHeadlessSession(
+    entry: AgentSessionRuntimeEntry,
+    completedTurn: AgentSessionTurn | undefined
+  ): boolean {
+    if (!completedTurn?.headless) return false
+    if (this.warmLeaseHolders.has(entry.sessionId)) return false
+    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return false
+    if (entry.runtimeState.queue.length > 0) return false
+    return entry.runtimeState.execution.kind === 'idle'
   }
 
   closeSession(sessionId: string): Promise<void> {
@@ -3302,8 +3319,10 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const { sessionId, agentType, lastResumeToken } = entry
       void this.closeSession(sessionId)
-      if (lastResumeToken) {
+      if (lastResumeToken && this.warmLeaseHolders.has(sessionId)) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
+      } else if (lastResumeToken) {
+        application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()

@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import { prepareClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
@@ -174,7 +175,12 @@ export class ClaudeCodeProcessManager extends BaseService {
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
 
+  getActiveProcessCount(): number {
+    return this.processes.size
+  }
+
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
+    prepareClaudeCodeSpawnCapacity()
     resetClaudeCodeProcessDiagnostics(diagnostics)
     const rawChild = this.spawnProcess(options.command, options.args, {
       cwd: options.cwd,

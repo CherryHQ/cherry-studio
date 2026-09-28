@@ -65,6 +65,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
@@ -1370,6 +1371,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
