@@ -718,6 +718,39 @@ export function Topics({
     [clearActiveTopic, deleteTopicById, refreshTopics, restoreTopic, setActiveTopic, t]
   )
 
+  const handleDeleteTopicPermanentlyFromMenu = useCallback(
+    async (topic: Topic) => {
+      const wasActiveAtStart = topic.id === activeTopicIdRef.current
+      const assistantTopicsBeforeDelete = topicsRef.current.filter(
+        (candidate) => candidate.assistantId === topic.assistantId
+      )
+      const replacement =
+        pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
+        findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+
+      try {
+        await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+      } catch (err) {
+        logger.error('Failed to permanently delete topic', { topicId: topic.id, err })
+        if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else if (isTrashTargetNotFoundError(err))
+          toast.info(t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin'))
+        else toast.error(err instanceof Error ? err.message : t('settings.data.trash.permanent_delete.error'))
+        return
+      }
+
+      const currentActiveTopicId = activeTopicIdRef.current
+      const shouldReplaceSelection = (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
+      if (shouldReplaceSelection) {
+        if (replacement) setActiveTopic(replacement)
+        else clearActiveTopic()
+      }
+
+      toast.success(t('settings.data.trash.permanent_delete.success'))
+    },
+    [clearActiveTopic, deleteTopicById, setActiveTopic, t]
+  )
+
   const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
@@ -1623,6 +1656,7 @@ export function Topics({
           onAutoRename={handleAutoRename}
           onClearMessages={handleClearMessages}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
+          onDeletePermanentlyFromMenu={handleDeleteTopicPermanentlyFromMenu}
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onMoveToAssistant={handleMoveTopicToAssistant}
@@ -1719,6 +1753,7 @@ interface TopicListBodyProps {
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeletePermanentlyFromMenu: (topic: Topic) => Promise<void>
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
@@ -1749,6 +1784,7 @@ function TopicListBody(props: TopicListBodyProps) {
     onAutoRename,
     onClearMessages,
     onDeleteFromMenu,
+    onDeletePermanentlyFromMenu,
     onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
@@ -1774,6 +1810,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanentlyFromMenu,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -1796,6 +1833,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanentlyFromMenu,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -1849,6 +1887,7 @@ const TopicRow = memo(function TopicRow({
   onAutoRename,
   onClearMessages,
   onDeleteFromMenu,
+  onDeletePermanentlyFromMenu,
   onMoveToAssistant,
   onOpenInNewTab,
   onOpenInNewWindow,
@@ -1914,6 +1953,7 @@ const TopicRow = memo(function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
+    onDeletePermanently: onDeletePermanentlyFromMenu,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
     onOpenInNewTab,

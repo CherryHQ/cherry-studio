@@ -1159,6 +1159,7 @@
   "common.delete": "Șterge",
   "common.delete_confirm": "Ești sigur că vrei să ștergi?",
   "common.delete_failed": "Nu s-a putut șterge",
+  "common.delete_permanently": "Șterge definitiv",
   "common.delete_success": "Șters cu succes",
   "common.description": "Descriere",
   "common.detail": "Detaliu",

@@ -1159,6 +1159,7 @@
   "common.delete": "Удалить",
   "common.delete_confirm": "Вы уверены, что хотите удалить?",
   "common.delete_failed": "Не удалось удалить",
+  "common.delete_permanently": "Удалить навсегда",
   "common.delete_success": "Удаление выполнено успешно",
   "common.description": "Описание",
   "common.detail": "Подробности",

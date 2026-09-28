@@ -1159,6 +1159,7 @@
   "common.delete": "Xóa",
   "common.delete_confirm": "Bạn có chắc chắn muốn xóa không?",
   "common.delete_failed": "Không xóa được",
+  "common.delete_permanently": "Xoá vĩnh viễn",
   "common.delete_success": "Đã xóa thành công",
   "common.description": "Mô tả",
   "common.detail": "Chi tiết",

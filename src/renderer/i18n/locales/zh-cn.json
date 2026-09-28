@@ -1159,6 +1159,7 @@
   "common.delete": "删除",
   "common.delete_confirm": "确定要删除吗？",
   "common.delete_failed": "删除失败",
+  "common.delete_permanently": "彻底删除",
   "common.delete_success": "删除成功",
   "common.description": "描述",
   "common.detail": "详情",

@@ -254,6 +254,36 @@ const AssistantHistoryRecords = ({
     [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, refetch, restoreTopic, t, timeSortedTopics]
   )
 
+  const handleDeleteTopicPermanentlyFromMenu = useCallback(
+    async (topic: RendererTopic) => {
+      if (topic.pinned) return
+
+      try {
+        await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+      } catch (err) {
+        logger.error('Failed to permanently delete topic from history records', { topicId: topic.id, err })
+        if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else if (isTrashTargetNotFoundError(err))
+          toast.info(t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin'))
+        else toast.error(err instanceof Error ? err.message : t('settings.data.trash.permanent_delete.error'))
+        return
+      }
+
+      if (topic.id === activeRecordId) {
+        const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
+          timeSortedTopics,
+          [topic.id],
+          topic.id,
+          (candidate) => candidate.id
+        )
+        onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
+      }
+
+      toast.success(t('settings.data.trash.permanent_delete.success'))
+    },
+    [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, t, timeSortedTopics]
+  )
+
   const handleBulkDeleteTopics = useCallback(
     async (ids: string[]): Promise<HistoryBulkDeleteResult> => {
       try {
@@ -389,6 +419,7 @@ const AssistantHistoryRecords = ({
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
+        onDeletePermanently: handleDeleteTopicPermanentlyFromMenu,
         onPinTopic: async (topic) => {
           await handlePinTopic(topic)
         },
@@ -405,6 +436,7 @@ const AssistantHistoryRecords = ({
       handleAutoRename,
       handleClearMessages,
       handleDeleteTopicFromMenu,
+      handleDeleteTopicPermanentlyFromMenu,
       handlePinTopic,
       isTopicRenaming,
       notesPath,

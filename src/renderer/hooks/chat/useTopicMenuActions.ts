@@ -33,6 +33,7 @@ export interface TopicMenuActionOptions {
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
   onDelete: TopicDeleteHandler
+  onDeletePermanently: TopicDeleteHandler
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
@@ -60,6 +61,7 @@ export function createTopicActionContext({
   onClearMessages,
   onCopyImage,
   onDelete,
+  onDeletePermanently,
   onExportImage,
   onMoveToAssistant,
   onOpenInNewTab,
@@ -85,6 +87,7 @@ export function createTopicActionContext({
     onCopyMarkdown: copyTopicAsMarkdown,
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
+    onDeletePermanently,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
       const { exportMarkdownToJoplin } = await import('@renderer/services/ExportService')
@@ -217,6 +220,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onClearMessages,
     onCopyImage,
     onDelete,
+    onDeletePermanently,
     onExportImage,
     onMoveToAssistant,
     onOpenInNewTab,
@@ -244,6 +248,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onClearMessages,
         onCopyImage,
         onDelete,
+        onDeletePermanently,
         onExportImage,
         onMoveToAssistant,
         onOpenInNewTab,
@@ -269,6 +274,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onClearMessages,
       onCopyImage,
       onDelete,
+      onDeletePermanently,
       onExportImage,
       onMoveToAssistant,
       onOpenInNewTab,

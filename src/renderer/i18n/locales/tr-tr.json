@@ -1159,6 +1159,7 @@
   "common.delete": "Sil",
   "common.delete_confirm": "Silmek istediğinizden emin misiniz?",
   "common.delete_failed": "Silinemedi",
+  "common.delete_permanently": "Kalıcı Olarak Sil",
   "common.delete_success": "Başarıyla silindi",
   "common.description": "Açıklama",
   "common.detail": "Ayrıntı",

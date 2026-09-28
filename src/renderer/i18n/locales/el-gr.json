@@ -1159,6 +1159,7 @@
   "common.delete": "Διαγραφή",
   "common.delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
   "common.delete_failed": "Αποτυχία διαγραφής",
+  "common.delete_permanently": "Οριστική διαγραφή",
   "common.delete_success": "Η διαγραφή ήταν επιτυχής",
   "common.description": "Περιγραφή",
   "common.detail": "Λεπτομέρειες",

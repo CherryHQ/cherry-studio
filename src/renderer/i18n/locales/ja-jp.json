@@ -1159,6 +1159,7 @@
   "common.delete": "削除",
   "common.delete_confirm": "削除してもよろしいですか？",
   "common.delete_failed": "削除に失敗しました",
+  "common.delete_permanently": "完全に削除",
   "common.delete_success": "削除に成功しました",
   "common.description": "説明",
   "common.detail": "詳細",

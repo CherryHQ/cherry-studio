@@ -1159,6 +1159,7 @@
   "common.delete": "Eliminar",
   "common.delete_confirm": "Tem a certeza de que pretende eliminar?",
   "common.delete_failed": "Falha ao eliminar",
+  "common.delete_permanently": "Eliminar permanentemente",
   "common.delete_success": "Eliminado com sucesso",
   "common.description": "Descrição",
   "common.detail": "detalhes",

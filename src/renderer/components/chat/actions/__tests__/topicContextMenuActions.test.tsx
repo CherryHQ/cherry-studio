@@ -44,6 +44,7 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
     onCopyMarkdown: vi.fn(),
     onCopyPlainText: vi.fn(),
     onDelete: vi.fn(),
+    onDeletePermanently: vi.fn(),
     onExportImage: vi.fn(),
     onExportJoplin: vi.fn(),
     onExportMarkdown: vi.fn(),
@@ -80,9 +81,25 @@ describe('topic context menu actions', () => {
     expect(onDelete).toHaveBeenCalledWith(topic)
   })
 
-  it('does not offer permanent deletion in the conversation menu', () => {
-    const actions = resolveTopicMenuActions(createTopicActionFixture())
-    expect(actions.map((action) => action.id)).not.toContain('topic.delete-permanently')
+  it('offers permanent deletion with confirmation in the conversation menu', async () => {
+    const onDeletePermanently = vi.fn()
+    const context = createTopicActionFixture({ onDeletePermanently })
+    const actions = resolveTopicMenuActions(context)
+    const permanentDeleteAction = actions.find((action) => action.id === 'topic.delete-permanently')
+
+    expect(permanentDeleteAction?.label).toBe('common.delete_permanently')
+    expect(permanentDeleteAction?.danger).toBe(true)
+    expect(permanentDeleteAction?.confirm).toEqual({
+      title: 'settings.data.trash.permanent_delete.confirm_title',
+      description: 'settings.data.trash.permanent_delete.confirm_content',
+      confirmText: 'settings.data.trash.permanent_delete.label',
+      cancelText: 'common.cancel',
+      destructive: true
+    })
+
+    await executeTopicMenuAction(permanentDeleteAction!, context)
+
+    expect(onDeletePermanently).toHaveBeenCalledWith(topic)
   })
 
   it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {

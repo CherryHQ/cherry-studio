@@ -1614,7 +1614,7 @@ describe('Topics', () => {
     })
   })
 
-  it('offers Archive instead of permanent deletion in the topic context menu', () => {
+  it('offers Archive and permanent deletion in the topic context menu', () => {
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1625,9 +1625,7 @@ describe('Topics', () => {
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
     expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeEnabled()
-    expect(
-      within(menuContent as HTMLElement).queryByRole('button', { name: 'Delete Permanently' })
-    ).not.toBeInTheDocument()
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toBeEnabled()
   })
 
   it('adds a topic shortcut without changing its conversation pin', async () => {

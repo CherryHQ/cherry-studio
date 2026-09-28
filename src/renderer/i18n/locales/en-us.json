@@ -1159,6 +1159,7 @@
   "common.delete": "Delete",
   "common.delete_confirm": "Are you sure you want to delete?",
   "common.delete_failed": "Failed to delete",
+  "common.delete_permanently": "Delete Permanently",
   "common.delete_success": "Deleted successfully",
   "common.description": "Description",
   "common.detail": "Detail",
