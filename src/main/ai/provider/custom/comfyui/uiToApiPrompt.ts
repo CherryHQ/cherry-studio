@@ -527,8 +527,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const innerLinks = linkMap(definition.links)
     const inputNodeId = definition.inputNode?.id
 
-    // Bind the definition's promoted inputs from the instance. Only inputs
-    // carrying a widget consume a positional `widgets_values` entry.
+    // Linked widgets still occupy a saved positional value; non-widget sockets do not.
     const innerBindings = new Map<number, Map<number, unknown>>()
     if (inputNodeId !== undefined) {
       const values = instance.widgets_values
@@ -538,9 +537,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         if (slot.link != null) {
           byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
         } else if ('widget' in slot) {
-          // The frontend saves promoted widget values by name alongside the
-          // positional list; a reordered promotion then keys straight instead
-          // of silently swapping positions.
+          // Named values preserve bindings when promoted widgets are reordered.
           const named = instance.widgets_values_named?.[slot.name]
           byName.set(
             slot.name,
@@ -548,8 +545,8 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
               named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]
             )
           )
-          widgetIndex += 1
         }
+        if ('widget' in slot) widgetIndex += 1
       }
       const bySlot = new Map<number, unknown>()
       ;(definition.inputs ?? []).forEach((def, index) => {

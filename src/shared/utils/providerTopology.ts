@@ -31,13 +31,7 @@ function resolvePrimaryEndpoint(provider: Provider | undefined): EndpointType {
     }
   }
 
-  // A provider that declares no chat endpoint at all — an image-only one such
-  // as ComfyUI — still has exactly one endpoint whose host the API Host field
-  // means. Defaulting to `openai-chat-completions` there wrote the user's host
-  // to a key nothing reads: the image endpoint kept the registry's default, so
-  // generation silently ignored the configured host. Registry keys are ordered
-  // first by `mergeEndpointConfigs`, so this picks an endpoint the provider
-  // actually declares even when a stale chat override is also present.
+  // Providers without chat endpoints need their host stored on an endpoint they actually use.
   const declared = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
   if (declared.length > 0) {
     return declared[0]

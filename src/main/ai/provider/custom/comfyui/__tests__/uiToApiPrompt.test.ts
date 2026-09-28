@@ -234,6 +234,57 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(decode?.inputs.samples).toEqual([producer, 0])
   })
 
+  it.each([
+    { name: 'positional', namedValues: undefined, expectedSteps: 20 },
+    { name: 'named', namedValues: { seed: 999, steps: 7 }, expectedSteps: 7 }
+  ])('preserves $name promoted widget values after a linked widget', ({ namedValues, expectedSteps }) => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'PrimitiveNode', widgets_values: [456], outputs: [{ name: 'INT', links: [1] }] },
+          {
+            id: 2,
+            type: 'sub-sampler',
+            inputs: [
+              { name: 'seed', link: 1, widget: { name: 'seed' } },
+              { name: 'steps', link: null, widget: { name: 'steps' } }
+            ],
+            widgets_values: [123, 20],
+            widgets_values_named: namedValues
+          }
+        ],
+        links: [link(1, 1, 0, 2, 0)],
+        definitions: {
+          subgraphs: [
+            {
+              id: 'sub-sampler',
+              inputNode: { id: -10 },
+              inputs: [
+                { name: 'seed', linkIds: [2] },
+                { name: 'steps', linkIds: [3] }
+              ],
+              nodes: [
+                {
+                  id: 3,
+                  type: 'KSampler',
+                  inputs: [
+                    { name: 'seed', link: 2, widget: { name: 'seed' } },
+                    { name: 'steps', link: 3, widget: { name: 'steps' } }
+                  ]
+                }
+              ],
+              links: [link(2, -10, 0, 3, 0), link(3, -10, 1, 3, 1)]
+            }
+          ]
+        }
+      },
+      objectInfo
+    )
+
+    const sampler = Object.values(prompt).find((node) => node.class_type === 'KSampler')
+    expect(sampler?.inputs).toMatchObject({ seed: 456, steps: expectedSteps })
+  })
+
   it('points a consumer of a subgraph output at the inner producer', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {

@@ -1256,9 +1256,7 @@ export class AiService extends BaseService {
       providerId,
       presetProviderId: provider.presetProviderId ?? null
     })
-    // The merge returns a new array, so a skip notice has to be carried over to it:
-    // otherwise the entries the provider holds but cannot list become invisible in
-    // exactly the path that replaces them with catalog models.
+    // Catalog supplementation must not hide the provider's skipped-model notice.
     return {
       models: mergeProviderModelsWithRegistry(remote.models, registryModels),
       ...(remote.skippedModels ? { skippedModels: remote.skippedModels } : {})
@@ -1405,9 +1403,7 @@ export class AiService extends BaseService {
               providerParams: probeParams,
               signal
             })
-            // Accepting the request already proves the credential, the endpoint
-            // and the model; a job left queued would run a whole generation on
-            // the user's machine (ComfyUI submits a real workflow here).
+            // A successful submission proves connectivity; cancel to avoid a full probe generation.
             if (taskId && transport.cancel) {
               await transport.cancel(taskId).catch(() => undefined)
             }

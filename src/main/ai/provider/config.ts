@@ -247,14 +247,7 @@ export async function resolveProviderAiSdkConfig(
       }))
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
-    // ComfyUI is image-only and speaks a node-graph API, so there is no OpenAI route to
-    // fall back to: every request for the preset must resolve to the comfyui extension
-    // (registered in `extensions.ts`). Without this it lands on the generic
-    // openai-compatible builder, which would POST an OpenAI chat body to `/v1/...` and
-    // get ComfyUI's web UI HTML back. Its `languageModel`/`embeddingModel` factories
-    // throw the intentional "not served" error the UI surfaces.
-    // `withoutCredential`, not `withSelectedApiKey`: the server takes none, so selecting
-    // and attributing a stored key would credit one the transport never sends.
+    // ComfyUI has no OpenAI fallback or credential, so its builder bypasses both.
     { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withoutCredential(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
