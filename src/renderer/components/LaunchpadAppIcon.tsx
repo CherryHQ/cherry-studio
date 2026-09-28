@@ -1,7 +1,12 @@
-export function LaunchpadAppIcon({ src, size = 50 }: { src: string; size?: number }) {
+import { cn } from '@renderer/utils/style'
+
+export function LaunchpadAppIcon({ src, size = 50, className }: { src: string; size?: number; className?: string }) {
   return (
     <span
-      className="flex items-center justify-center rounded-2xl border border-border-subtle bg-transparent"
+      className={cn(
+        'flex items-center justify-center rounded-2xl border border-border-subtle bg-transparent',
+        className
+      )}
       style={{ width: size + 6, height: size + 6 }}>
       <span
         className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl select-none"
