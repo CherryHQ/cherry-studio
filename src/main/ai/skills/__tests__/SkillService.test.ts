@@ -794,7 +794,7 @@ describe('SkillService', () => {
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
       vi.mocked(skillPaths.safeRemoveDirectory).mockResolvedValue(undefined)
       const tree = (options.tree ?? ['skills/demo/SKILL.md']).map((entry) =>
-        typeof entry === 'string' ? { path: entry, size: 8 } : entry
+        typeof entry === 'string' ? { path: entry, size: '# skill'.length } : entry
       )
       const gitCalls: string[][] = []
       const treeOid = (treePath: string) => Buffer.from(treePath).toString('hex').padEnd(40, '0')
@@ -839,9 +839,12 @@ describe('SkillService', () => {
             : entriesUnder(treePathOf(args[args.length - 1]))
           for (const entry of checkedOut) {
             const contentPath = path.join(workTree, entry.path)
+            const skillContent = '# skill'
             await fs.promises.mkdir(path.dirname(contentPath), { recursive: true })
-            await fs.promises.writeFile(contentPath, '# skill')
-            await fs.promises.truncate(contentPath, entry.size)
+            await fs.promises.writeFile(contentPath, skillContent)
+            if (entry.size > skillContent.length) {
+              await fs.promises.truncate(contentPath, entry.size)
+            }
           }
           return boundedOutput(options.readTreeOutput ?? '', runOptions)
         }
@@ -2617,7 +2620,8 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           path.join(canonicalContent, 'skills', 'demo'),
           'marketplace',
-          expect.any(String)
+          expect.any(String),
+          { allowFolderMigration: false }
         )
         await expect(
           fs.promises.access(path.join(canonicalContent, 'skills', 'demo', 'scripts', 'run.ts'))
