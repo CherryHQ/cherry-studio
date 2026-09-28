@@ -75,8 +75,8 @@ const NotesSettings: FC = () => {
         t,
         sourcePath: resolvedSource.path,
         targetPath: tempPath,
-        onSuccess: (path) => {
-          updateNotesPath(path)
+        onSuccess: async (path) => {
+          await updateNotesPath(path)
           setTempPath(path)
         }
       })
@@ -90,7 +90,7 @@ const NotesSettings: FC = () => {
     try {
       const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
-      updateNotesPath(info.notesPath)
+      await updateNotesPath(info.notesPath)
       toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)

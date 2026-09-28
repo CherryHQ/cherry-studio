@@ -57,6 +57,19 @@ describe('notesRelocation', () => {
     expect(fs.readFileSync(path.join(source, 'note-a.md'), 'utf8')).toBe('# A')
   })
 
+  it('rejects migration when target already contains non-markdown files without merge', async () => {
+    const source = path.join(tempRoot, 'source-notes-non-md')
+    const target = path.join(tempRoot, 'target-notes-non-md')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Source')
+    fs.writeFileSync(path.join(target, 'image.png'), 'png')
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
+    })
+  })
+
   it('rejects migration when target already contains markdown files without merge', async () => {
     const source = path.join(tempRoot, 'source-notes-2')
     const target = path.join(tempRoot, 'target-notes-2')
@@ -81,6 +94,19 @@ describe('notesRelocation', () => {
     const result = await migrateNotesDirectory(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('# New')
+  })
+
+  it('merges when the target only contains non-markdown files', async () => {
+    const source = path.join(tempRoot, 'source-notes-5')
+    const target = path.join(tempRoot, 'target-notes-5')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# New')
+    fs.writeFileSync(path.join(target, 'image.png'), 'png')
+
+    const result = await migrateNotesDirectory(source, target, { merge: true })
+    expect(result.target.markdownFileCount).toBe(1)
+    expect(fs.readFileSync(path.join(target, 'image.png'), 'utf8')).toBe('png')
   })
 
   it('does not overwrite existing target files when merging', async () => {

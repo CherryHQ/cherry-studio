@@ -78,15 +78,18 @@ export async function copyDirectoryRecursive(
         // Recursively copy subdirectory
         await copyDirectoryRecursive(sourcePath, destPath, options, depth + 1)
       } else if (entryStats.isFile()) {
-        if (options?.skipExistingFiles) {
-          try {
-            await fs.promises.lstat(destPath)
+        try {
+          const destStats = await fs.promises.lstat(destPath)
+          if (destStats.isSymbolicLink()) {
+            throw new Error(`Destination is a symlink: ${destPath}`)
+          }
+          if (options?.skipExistingFiles) {
             logger.debug('Skipping existing file during merge', { path: destPath })
             continue
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-              throw error
-            }
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
           }
         }
         // Copy file with error handling for race conditions
