@@ -70,7 +70,7 @@ const fake = vi.hoisted(() => {
     runtime: {
       assertSessionWritable() {},
       isSessionBusy: () => false,
-      respondToolApproval: vi.fn(() => ({ dispatched: true, modelHandoff: false }))
+      respondToolApproval: vi.fn(() => ({ dispatched: true, handoff: 'not-requested' }))
     }
   }
 })

@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Mô hình hiện tại (tiếp tục lượt này)",
   "agent.toolPermission.executionModel.followUp": "Kế hoạch trên đã được phê duyệt. Bắt đầu thực hiện ngay bây giờ.",
   "agent.toolPermission.executionModel.label": "Chạy bằng",
+  "agent.toolPermission.executionModel.persistenceNote": "Thay đổi mô hình của tác nhân này — mô hình đã chọn cũng áp dụng cho các lượt sau và các phiên khác với tác nhân này.",
   "agent.toolPermission.inputPreview": "Xem trước đầu vào công cụ",
   "agent.toolPermission.pendingBadge": "Đang chờ xử lý",
   "agent.toolPermission.reasonLabel": "Lý do từ chối (không bắt buộc)",

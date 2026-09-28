@@ -126,6 +126,12 @@ const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
  *  only approvals eligible for the approve-with-execution-model handoff. */
 const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set(['ExitPlanMode', 'exit_plan_mode'])
 
+/**
+ * What happened to a requested execution-model handoff. `refused` is the fail-closed answer: the
+ * chosen model cannot be honored, so the caller must not report a successful chosen-model approval.
+ */
+export type PlanModelHandoffResult = 'not-requested' | 'started' | 'already-current' | 'refused'
+
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
   const rightIds = new Set(right)
@@ -1441,21 +1447,25 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
-   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
+   * `dispatched: false` means no registry entry matched, so the caller can fall back to the MCP
+   * path; `handoff` reports what happened to a requested execution model so the caller never has to
+   * guess whether one will be honored (`refused` must not be answered with success).
    */
   respondToolApproval(
     approvalId: string,
     decision: DispatchDecision,
     anchorId?: string,
     options?: { executionModelId?: string }
-  ): { dispatched: boolean; modelHandoff: boolean } {
+  ): { dispatched: boolean; handoff: PlanModelHandoffResult } {
+    const executionModelId = options?.executionModelId
+    const requested = typeof executionModelId === 'string'
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return { dispatched: false, modelHandoff: false }
+    if (!pending) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return { dispatched: false, modelHandoff: false }
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1468,12 +1478,12 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return { dispatched: false, modelHandoff: false }
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
     }
 
     const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
-    if (!dispatched) return { dispatched: false, modelHandoff: false }
+    if (!dispatched) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (dispatched.presentation === 'stream') {
       application
@@ -1481,12 +1491,12 @@ export class AgentSessionRuntimeService extends BaseService {
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
 
-    const modelHandoff =
-      decision.approved &&
-      typeof options?.executionModelId === 'string' &&
-      PLAN_EXIT_TOOL_NAMES.has(dispatched.toolName) &&
-      this.stopTurnForModelHandoff(dispatched.sessionId, options.executionModelId)
-    return { dispatched: true, modelHandoff }
+    // Only an approval has an execution to switch; a denial's model id is meaningless and must not
+    // fail the decision it rides on.
+    if (typeof executionModelId !== 'string' || !decision.approved)
+      return { dispatched: true, handoff: 'not-requested' }
+    if (!PLAN_EXIT_TOOL_NAMES.has(dispatched.toolName.trim())) return { dispatched: true, handoff: 'refused' }
+    return { dispatched: true, handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId) }
   }
 
   /**
@@ -1495,13 +1505,14 @@ export class AgentSessionRuntimeService extends BaseService {
    * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
    * Stop performs — and the renderer completes it by switching the agent model and sending the
    * execution follow-up, which starts a fresh turn on the new model with the session resumed.
-   * Returns false (no handoff) when the session has no entry or the turn already runs that model.
+   * `already-current` when the turn runs that model already; `refused` when there is no session
+   * entry to stop — the caller must not report a handoff that cannot happen.
    */
-  private stopTurnForModelHandoff(sessionId: string, executionModelId: string): boolean {
+  private stopTurnForModelHandoff(sessionId: string, executionModelId: string): PlanModelHandoffResult {
     const entry = this.entries.get(sessionId)
-    if (!entry) return false
+    if (!entry) return 'refused'
     const runningModelId = this.liveTurn(entry)?.modelId ?? entry.modelId
-    if (runningModelId === executionModelId) return false
+    if (runningModelId === executionModelId) return 'already-current'
 
     logger.info('Stopping approved plan turn for execution-model handoff', {
       sessionId,
@@ -1510,7 +1521,7 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
     void this.closeSession(sessionId)
-    return true
+    return 'started'
   }
 
   /**

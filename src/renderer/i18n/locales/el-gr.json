@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Τρέχον μοντέλο (συνέχιση αυτού του γύρου)",
   "agent.toolPermission.executionModel.followUp": "Το παραπάνω σχέδιο εγκρίθηκε. Ξεκίνα την εκτέλεσή του τώρα.",
   "agent.toolPermission.executionModel.label": "Εκτέλεση με",
+  "agent.toolPermission.executionModel.persistenceNote": "Αλλάζει το μοντέλο αυτού του πράκτορα — το επιλεγμένο μοντέλο ισχύει επίσης για μεταγενέστερους γύρους και άλλες συνεδρίες με αυτόν τον πράκτορα.",
   "agent.toolPermission.inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
   "agent.toolPermission.pendingBadge": "Εκκρεμής",
   "agent.toolPermission.reasonLabel": "Λόγος απόρριψης (προαιρετικό)",

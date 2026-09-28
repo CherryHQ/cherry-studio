@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Geçerli model (bu turu sürdür)",
   "agent.toolPermission.executionModel.followUp": "Yukarıdaki plan onaylandı. Şimdi yürütmeye başla.",
   "agent.toolPermission.executionModel.label": "Şununla yürüt",
+  "agent.toolPermission.executionModel.persistenceNote": "Bu ajanın modelini değiştirir — seçilen model sonraki turlarda ve bu ajanın diğer oturumlarında da geçerlidir.",
   "agent.toolPermission.inputPreview": "Araç girdisi önizlemesi",
   "agent.toolPermission.pendingBadge": "Beklemede",
   "agent.toolPermission.reasonLabel": "Reddetme nedeni (isteğe bağlı)",

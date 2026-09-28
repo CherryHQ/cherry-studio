@@ -271,6 +271,7 @@ const AgentChat = ({
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES,
+    modelFilter: agentModelFilter,
     onPlanModelHandoff: (modelId) => {
       // The respond callback can outlive navigation and hold a stale session: only arm while the
       // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.

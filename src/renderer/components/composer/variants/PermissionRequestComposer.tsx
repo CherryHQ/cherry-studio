@@ -12,7 +12,7 @@ import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/A
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
@@ -37,12 +37,15 @@ function isHandledElsewhere(event: KeyboardEvent) {
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /** The agent's runtime-compatibility gate; keeps unrunnable models out of the execution picker. */
+  modelFilter?: ModelSelectorFilter
   className?: string
 }
 
 type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  modelFilter?: ModelSelectorFilter
 }
 
 function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
@@ -79,13 +82,19 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
 
 export function createPermissionRequestComposerOverride({
   request,
-  onRespond
+  onRespond,
+  modelFilter
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
     priority: 90,
     render: ({ className }) => (
-      <PermissionRequestComposer request={request} onRespond={onRespond} className={className} />
+      <PermissionRequestComposer
+        request={request}
+        onRespond={onRespond}
+        modelFilter={modelFilter}
+        className={className}
+      />
     )
   }
 }
@@ -163,7 +172,12 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
   )
 }
 
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  modelFilter,
+  className
+}: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
@@ -268,33 +282,42 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         </div>
 
         {isPlanExitApproval ? (
-          <div className="mt-2.5 flex items-center gap-2 px-1" data-testid="plan-execution-model">
-            <span className="shrink-0 text-muted-foreground text-xs">
-              {t('agent.toolPermission.executionModel.label')}
-            </span>
-            <ModelSelector
-              multiple={false}
-              includeAgentOnlyModels
-              value={executionModel}
-              noneOptionLabel={t('agent.toolPermission.executionModel.current')}
-              onSelect={setExecutionModel}
-              side="top"
-              align="start"
-              trigger={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isSubmitting}
-                  className="h-7 min-w-0 flex-1 justify-between gap-1 px-2 text-xs font-normal"
-                  aria-label={t('agent.toolPermission.executionModel.label')}>
-                  <span className="truncate" title={executionModel?.name}>
-                    {executionModel ? executionModel.name : t('agent.toolPermission.executionModel.current')}
-                  </span>
-                  <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                </Button>
-              }
-            />
+          <div className="mt-2.5 px-1" data-testid="plan-execution-model">
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 text-muted-foreground text-xs">
+                {t('agent.toolPermission.executionModel.label')}
+              </span>
+              <ModelSelector
+                multiple={false}
+                includeAgentOnlyModels
+                filter={modelFilter}
+                value={executionModel}
+                noneOptionLabel={t('agent.toolPermission.executionModel.current')}
+                onSelect={setExecutionModel}
+                side="top"
+                align="start"
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSubmitting}
+                    className="h-7 min-w-0 flex-1 justify-between gap-1 px-2 text-xs font-normal"
+                    aria-label={t('agent.toolPermission.executionModel.label')}>
+                    <span className="truncate" title={executionModel?.name}>
+                      {executionModel ? executionModel.name : t('agent.toolPermission.executionModel.current')}
+                    </span>
+                    <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                  </Button>
+                }
+              />
+            </div>
+            {/* The handoff rewrites the agent's model, so the persistence must be visible pre-approval. */}
+            {executionModel ? (
+              <p className="mt-1 text-muted-foreground text-xs">
+                {t('agent.toolPermission.executionModel.persistenceNote')}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

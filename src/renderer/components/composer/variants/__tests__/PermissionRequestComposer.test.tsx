@@ -49,11 +49,13 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     value,
     onSelect,
-    noneOptionLabel
+    noneOptionLabel,
+    filter
   }: {
     value?: { id: string; name: string }
     onSelect: (model: { id: string; name: string } | undefined) => void
     noneOptionLabel?: string
+    filter?: (model: { id: string; name: string }) => boolean
   }) => (
     <div data-testid="model-selector-mock">
       <button
@@ -72,6 +74,13 @@ vi.mock('@renderer/components/ModelSelector', () => ({
         {noneOptionLabel}
       </button>
       <span data-testid="model-selector-value">{value?.id ?? 'none'}</span>
+      <span data-testid="model-selector-filter">
+        {filter
+          ? filter({ id: 'banned::model', name: 'Banned' })
+            ? 'banned-model-offered'
+            : 'banned-model-filtered'
+          : 'no-filter'}
+      </span>
     </div>
   )
 }))
@@ -257,6 +266,51 @@ describe('PermissionRequestComposer', () => {
     rerender(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
     expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
     expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
+  })
+
+  it('offers only execution models the agent runtime can run', () => {
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    const { rerender } = render(
+      <PermissionRequestComposer
+        request={planRequest}
+        onRespond={vi.fn()}
+        modelFilter={(model) => model.id !== 'banned::model'}
+      />
+    )
+
+    expect(screen.getByTestId('model-selector-filter')).toHaveTextContent('banned-model-filtered')
+
+    // Without the agent's predicate nothing gates the picker.
+    rerender(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
+    expect(screen.getByTestId('model-selector-filter')).toHaveTextContent('no-filter')
+  })
+
+  it('states that the chosen execution model persists on the agent', () => {
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
+
+    // "Current model" changes nothing, so there is nothing to disclose until a model is chosen.
+    expect(screen.queryByText('agent.toolPermission.executionModel.persistenceNote')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('model-selector-pick'))
+    expect(screen.getByText('agent.toolPermission.executionModel.persistenceNote')).toBeInTheDocument()
   })
 
   it('hides the execution-model selector from an MCP tool that merely shares the plan-exit name', () => {

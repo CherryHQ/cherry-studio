@@ -19,6 +19,7 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -148,6 +149,8 @@ interface UseAgentChatRuntimeStateParams {
    * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
    */
   onPlanModelHandoff?: (modelId: string) => void
+  /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
+  modelFilter?: ModelSelectorFilter
 }
 
 export function useAgentChatRuntimeState({
@@ -155,7 +158,8 @@ export function useAgentChatRuntimeState({
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages,
-  onPlanModelHandoff
+  onPlanModelHandoff,
+  modelFilter
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const { t } = useTranslation()
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
@@ -371,7 +375,8 @@ export function useAgentChatRuntimeState({
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    modelFilter
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const editBusy = isPending || editPending || toolApprovalComposerOverrides.length > 0

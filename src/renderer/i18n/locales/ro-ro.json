@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Modelul curent (continuă această rundă)",
   "agent.toolPermission.executionModel.followUp": "Planul de mai sus este aprobat. Începe executarea lui acum.",
   "agent.toolPermission.executionModel.label": "Execută cu",
+  "agent.toolPermission.executionModel.persistenceNote": "Schimbă modelul acestui agent — modelul selectat se aplică și rundelor viitoare și altor sesiuni cu acest agent.",
   "agent.toolPermission.inputPreview": "Previzualizare intrare instrument",
   "agent.toolPermission.pendingBadge": "În așteptare",
   "agent.toolPermission.reasonLabel": "Motivul respingerii (opțional)",

@@ -974,7 +974,7 @@ describe('AiService tool approval', () => {
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: true, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, handoff: 'not-requested' }))
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1006,7 +1006,7 @@ describe('AiService tool approval', () => {
   })
 
   it('echoes the execution model when the runtime performed the plan-approval handoff', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: true, modelHandoff: true }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, handoff: 'started' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1027,8 +1027,67 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('refuses a chosen execution model the live handoff could not honor', async () => {
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, handoff: 'refused' }))
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
+    )
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'plan-approval-2',
+      approved: true,
+      executionModelId: 'anthropic::claude-sonnet-5'
+    })
+
+    // Success here would claim the plan runs on the chosen model while it does not.
+    expect(result).toEqual({ ok: false })
+  })
+
+  it('refuses a chosen execution model that missed the live handoff path', async () => {
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'refused' }))
+    const dispatch = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      return undefined
+    })
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-2',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1',
+      executionModelId: 'anthropic::claude-sonnet-5'
+    })
+
+    // The MCP continuation cannot switch models — refuse instead of dropping the choice silently.
+    expect(result).toEqual({ ok: false })
+    expect(apply).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('reports an already-current execution model without arming a handoff', async () => {
+    const respondToolApproval = vi.fn(() => ({ dispatched: true, handoff: 'already-current' }))
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
+    )
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'plan-approval-3',
+      approved: true,
+      executionModelId: 'anthropic::claude-sonnet-5'
+    })
+
+    // No echo: the renderer must not tear down a turn that already runs the chosen model.
+    expect(result).toEqual({ ok: true })
+  })
+
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1046,7 +1105,7 @@ describe('AiService tool approval', () => {
   })
 
   it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1092,7 +1151,7 @@ describe('AiService tool approval', () => {
   })
 
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1122,7 +1181,7 @@ describe('AiService tool approval', () => {
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
     // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
     // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
@@ -1148,7 +1207,7 @@ describe('AiService tool approval', () => {
   })
 
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1183,7 +1242,7 @@ describe('AiService tool approval', () => {
   })
 
   it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1216,7 +1275,7 @@ describe('AiService tool approval', () => {
   })
 
   it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1248,7 +1307,7 @@ describe('AiService tool approval', () => {
   })
 
   it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => ({ dispatched: false, modelHandoff: false }))
+    const respondToolApproval = vi.fn(() => ({ dispatched: false, handoff: 'not-requested' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }

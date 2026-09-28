@@ -558,7 +558,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({
         dispatched: true,
-        modelHandoff: false
+        handoff: 'not-requested'
       })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
@@ -580,7 +580,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(
         service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
-      ).toEqual({ dispatched: true, modelHandoff: false })
+      ).toEqual({ dispatched: true, handoff: 'not-requested' })
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-bg',
@@ -607,7 +607,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toEqual({
         dispatched: false,
-        modelHandoff: false
+        handoff: 'not-requested'
       })
       expect(resolve).not.toHaveBeenCalled()
       expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
@@ -617,7 +617,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('missing', { approved: true })).toEqual({
         dispatched: false,
-        modelHandoff: false
+        handoff: 'not-requested'
       })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
@@ -642,7 +642,7 @@ describe('AgentSessionRuntimeService', () => {
       const result = service.respondToolApproval('approval-plan', { approved: true }, undefined, {
         executionModelId: switchedModelId
       })
-      expect(result).toEqual({ dispatched: true, modelHandoff: true })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
       // The SDK-side history still records the plan as approved...
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-plan', true)
@@ -669,12 +669,12 @@ describe('AgentSessionRuntimeService', () => {
       const result = service.respondToolApproval('approval-plan-same', { approved: true }, undefined, {
         executionModelId: baseTurnInput.modelId
       })
-      expect(result).toEqual({ dispatched: true, modelHandoff: false })
+      expect(result).toEqual({ dispatched: true, handoff: 'already-current' })
       expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
       expect(closeSession).not.toHaveBeenCalled()
     })
 
-    it('ignores the execution model for non-plan approvals', () => {
+    it('refuses the execution model for non-plan approvals', () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
         approvalId: 'approval-bash',
@@ -692,9 +692,51 @@ describe('AgentSessionRuntimeService', () => {
       const result = service.respondToolApproval('approval-bash', { approved: true }, undefined, {
         executionModelId: switchedModelId
       })
-      expect(result).toEqual({ dispatched: true, modelHandoff: false })
+      expect(result).toEqual({ dispatched: true, handoff: 'refused' })
       expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
       expect(closeSession).not.toHaveBeenCalled()
+    })
+
+    it('hands off a plan-exit tool name the producer padded with whitespace', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-padded',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-padded',
+        // The renderer trims tool names before offering the picker; Main must match it the same way.
+        toolName: ' exit_plan_mode ',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const closeSession = vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-padded' })
+
+      const result = service.respondToolApproval('approval-plan-padded', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      expect(closeSession).toHaveBeenCalledWith('session-1')
+    })
+
+    it('refuses the handoff when the session has no runtime entry to stop', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-orphan',
+        sessionId: 'session-ghost',
+        toolCallId: 'tool-call-plan-orphan',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const result = service.respondToolApproval('approval-plan-orphan', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      // A handoff the runtime cannot perform must not be reported as one.
+      expect(result).toEqual({ dispatched: true, handoff: 'refused' })
     })
   })
 

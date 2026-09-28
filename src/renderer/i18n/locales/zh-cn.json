@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "当前模型（继续本回合）",
   "agent.toolPermission.executionModel.followUp": "上述计划已获批准，请立即开始执行。",
   "agent.toolPermission.executionModel.label": "执行模型",
+  "agent.toolPermission.executionModel.persistenceNote": "更改该智能体的模型——所选模型也将应用于后续回合及该智能体的其他会话。",
   "agent.toolPermission.inputPreview": "工具输入预览",
   "agent.toolPermission.pendingBadge": "待确认",
   "agent.toolPermission.reasonLabel": "拒绝原因（可选）",

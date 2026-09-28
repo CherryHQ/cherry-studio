@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Текущая модель (продолжить этот ход)",
   "agent.toolPermission.executionModel.followUp": "План выше одобрен. Начните его выполнение сейчас.",
   "agent.toolPermission.executionModel.label": "Выполнять с помощью",
+  "agent.toolPermission.executionModel.persistenceNote": "Меняет модель этого агента — выбранная модель также применяется к следующим ходам и другим сессиям с этим агентом.",
   "agent.toolPermission.inputPreview": "Предварительный просмотр ввода инструмента",
   "agent.toolPermission.pendingBadge": "Ожидается",
   "agent.toolPermission.reasonLabel": "Причина отклонения (необязательно)",

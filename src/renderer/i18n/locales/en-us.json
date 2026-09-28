@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Current model (continue this turn)",
   "agent.toolPermission.executionModel.followUp": "The plan above is approved. Start executing it now.",
   "agent.toolPermission.executionModel.label": "Execute with",
+  "agent.toolPermission.executionModel.persistenceNote": "Changes this agent's model — the selected model also applies to later turns and other sessions with this agent.",
   "agent.toolPermission.inputPreview": "Tool input preview",
   "agent.toolPermission.pendingBadge": "Pending",
   "agent.toolPermission.reasonLabel": "Reason for rejection (optional)",

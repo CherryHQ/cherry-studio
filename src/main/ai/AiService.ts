@@ -428,7 +428,7 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const { dispatched, modelHandoff } = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const { dispatched, handoff } = application.get('AgentSessionRuntimeService').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
@@ -439,11 +439,23 @@ export class AiService extends BaseService {
       { executionModelId: payload.executionModelId }
     )
     if (dispatched) {
+      // `refused` means the chosen execution model cannot be honored; answering success would be
+      // the silent drop the handoff protocol must never allow.
+      if (handoff === 'refused') return { ok: false }
       // The handoff echo tells the renderer the turn was stopped and it must complete the
       // handoff (switch model + send the execution follow-up on a fresh turn).
-      return modelHandoff && payload.executionModelId
+      return handoff === 'started' && payload.executionModelId
         ? { ok: true, executionModelId: payload.executionModelId }
         : { ok: true }
+    }
+
+    // A chosen execution model is only meaningful on the live handoff path above — the MCP
+    // continuation below has no model to switch, so refuse rather than drop the choice silently.
+    if (payload.executionModelId) {
+      logger.warn('Tool-approval response requested an execution model without the live handoff path', {
+        approvalId: payload.approvalId
+      })
+      return { ok: false }
     }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.

@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react'
 
 import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ComposerOverride } from './ComposerContext'
@@ -18,13 +19,16 @@ type ToolApprovalComposerOverridesOptions = {
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
+  modelFilter?: ModelSelectorFilter
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
-  onRespond
+  onRespond,
+  modelFilter
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
@@ -94,11 +98,12 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond
+          onRespond,
+          modelFilter
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, modelFilter, onRespond, permissionRequest])
 }

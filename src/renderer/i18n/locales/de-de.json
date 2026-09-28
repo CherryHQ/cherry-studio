@@ -414,6 +414,7 @@
   "agent.toolPermission.executionModel.current": "Aktuelles Modell (diese Runde fortsetzen)",
   "agent.toolPermission.executionModel.followUp": "Der oben stehende Plan ist genehmigt. Beginne jetzt mit der Ausführung.",
   "agent.toolPermission.executionModel.label": "Ausführen mit",
+  "agent.toolPermission.executionModel.persistenceNote": "Ändert das Modell dieses Agenten — das gewählte Modell gilt auch für spätere Runden und andere Sitzungen mit diesem Agenten.",
   "agent.toolPermission.inputPreview": "Vorschau der Werkzeugeingabe",
   "agent.toolPermission.pendingBadge": "Ausstehend",
   "agent.toolPermission.reasonLabel": "Grund für die Ablehnung (optional)",
