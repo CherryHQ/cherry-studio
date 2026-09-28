@@ -2,6 +2,8 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ModelFallbackPartData } from '@shared/data/types/uiParts'
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, values: { reason?: string; model?: string }) => `${values.reason}|${values.model}`
@@ -29,8 +31,11 @@ describe('ModelFallbackBlock', () => {
     expect(screen.getByText('http 500|anthropic/claude-3::beta')).toBeInTheDocument()
   })
 
+  // Persisted rows are read back unvalidated, so an id outside the UniqueModelId contract must
+  // still render rather than throw.
   it('renders an id with no provider prefix instead of throwing', () => {
-    render(<ModelFallbackBlock data={{ from: 'model-a', to: 'bare-model', reason: 'http 429' }} />)
+    const malformed = { from: 'model-a', to: 'bare-model', reason: 'http 429' } as unknown as ModelFallbackPartData
+    render(<ModelFallbackBlock data={malformed} />)
 
     expect(screen.getByText('http 429|bare-model')).toBeInTheDocument()
   })
