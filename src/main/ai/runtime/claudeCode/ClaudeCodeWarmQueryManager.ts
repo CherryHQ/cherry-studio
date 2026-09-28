@@ -11,12 +11,12 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
-import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import {
   createClaudeCodeProcessDiagnostics,
   createSpawnClaudeCodeProcess,
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -220,8 +220,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
    * Returns false when nothing was evicted.
    */
   evictOldestWarmQuery(): boolean {
-    const oldestKey = this.entries.keys().next().value as string | undefined
-    if (!oldestKey) return false
+    const oldestKey = this.entries.keys().next().value
+    if (oldestKey === undefined) return false
     void this.close(oldestKey)
     return true
   }

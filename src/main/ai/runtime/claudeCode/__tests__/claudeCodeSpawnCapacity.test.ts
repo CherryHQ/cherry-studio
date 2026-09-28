@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { getOptional: mocks.applicationGet }
 }))
 
 const { prepareClaudeCodeSpawnCapacity } = await import('../claudeCodeSpawnCapacity')

@@ -3303,6 +3303,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
       const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
 
