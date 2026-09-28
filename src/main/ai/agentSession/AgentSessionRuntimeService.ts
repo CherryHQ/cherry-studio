@@ -49,6 +49,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
+import { PLAN_EXIT_TOOL_NAMES } from '@shared/ai/tool'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -122,9 +123,6 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
-/** Plan-exit tool names across runtimes (Claude Code `ExitPlanMode`, dsh `exit_plan_mode`) — the
- *  only approvals eligible for the approve-with-execution-model handoff. */
-const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set(['ExitPlanMode', 'exit_plan_mode'])
 
 /**
  * What happened to a requested execution-model handoff. `refused` is the fail-closed answer: the

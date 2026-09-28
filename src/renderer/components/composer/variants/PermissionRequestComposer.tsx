@@ -17,6 +17,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import { PLAN_EXIT_TOOL_NAMES } from '@shared/ai/tool'
 import { isUniqueModelId, type Model } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
@@ -26,9 +27,6 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
-
-/** Plan-exit tool names across runtimes — the approvals that offer an execution-model handoff. */
-const PLAN_EXIT_TOOL_NAMES: ReadonlySet<string> = new Set([AgentToolsType.ExitPlanMode, 'exit_plan_mode'])
 
 function isHandledElsewhere(event: KeyboardEvent) {
   return event.defaultPrevented || event.isComposing
