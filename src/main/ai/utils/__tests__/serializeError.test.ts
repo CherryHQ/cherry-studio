@@ -147,6 +147,24 @@ describe('serializeError', () => {
       expect(result.ollamaEffectiveNumCtx).toBe(65_536)
     })
 
+    it('does not tag allocation-like failures without Ollama request context', () => {
+      const providerError = new APICallError({
+        message: 'cuda out of memory',
+        url: 'https://api.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate kv cache',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError)
+
+      expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaTrainedNumCtx).toBeUndefined()
+      expect(result.ollamaEffectiveNumCtx).toBeUndefined()
+    })
+
     it('preserves only safe details from a direct APICallError', () => {
       const providerError = new APICallError({
         message: 'Forbidden',

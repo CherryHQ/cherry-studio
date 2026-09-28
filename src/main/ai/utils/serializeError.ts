@@ -1,10 +1,6 @@
 import { APICallError, RetryError } from 'ai'
 
-import {
-  enrichOllamaContextAllocationSerializedError,
-  isOllamaKvCacheAllocationError,
-  type OllamaNumCtxRequestSnapshot
-} from '@shared/ai/ollamaNumCtx'
+import { enrichOllamaContextAllocationSerializedError, type OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
@@ -48,6 +44,7 @@ function enrichOllamaAllocationError(
   context?: SerializeErrorContext,
   providerText?: string
 ): void {
+  if (!context?.ollamaNumCtx) return
   enrichOllamaContextAllocationSerializedError(
     serialized,
     {
@@ -65,9 +62,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
       typeof error.message === 'string' ? error.message : '',
       typeof error.responseBody === 'string' ? error.responseBody : ''
     ].join('\n')
-    if (isOllamaKvCacheAllocationError(allocationHint)) {
-      enrichOllamaAllocationError(serialized, context, allocationHint)
-    }
+    enrichOllamaAllocationError(serialized, context, allocationHint)
     return serialized
   }
   if (error instanceof Error) {

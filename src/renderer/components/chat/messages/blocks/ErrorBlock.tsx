@@ -7,15 +7,13 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import {
-  OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
-  suggestReducedOllamaNumCtx
-} from '@shared/ai/ollamaNumCtx'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -23,6 +21,13 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 504]
+
+function readOllamaRetryNumCtx(error: SerializedError | undefined): number | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  if (typeof bag?.ollamaEffectiveNumCtx === 'number') return bag.ollamaEffectiveNumCtx
+  if (typeof bag?.ollamaTrainedNumCtx === 'number') return bag.ollamaTrainedNumCtx
+  return undefined
+}
 const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
 const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
@@ -206,46 +211,52 @@ const MessageErrorInfo: React.FC<{
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
-  const canRetryOllamaContext = errorI18nKey === 'ollama_context_memory'
   const modelForRetry = getMessageListItemModel(message)
+  const ollamaRetryCurrentCtx = readOllamaRetryNumCtx(error)
+  const ollamaRetryReducedCtx =
+    ollamaRetryCurrentCtx != null ? suggestReducedOllamaNumCtx(ollamaRetryCurrentCtx) : undefined
+  const canRetryOllamaContext =
+    errorI18nKey === 'ollama_context_memory' &&
+    ollamaRetryCurrentCtx != null &&
+    ollamaRetryReducedCtx != null &&
+    ollamaRetryReducedCtx < ollamaRetryCurrentCtx
 
   const onRetryOllamaReducedContext = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      const modelId = modelForRetry?.id
-      if (!modelId) return
-      const bag = error as Record<string, unknown> | undefined
-      const current =
-        typeof bag?.ollamaEffectiveNumCtx === 'number'
-          ? bag.ollamaEffectiveNumCtx
-          : typeof bag?.ollamaTrainedNumCtx === 'number'
-            ? bag.ollamaTrainedNumCtx
-            : undefined
-      if (current == null) return
+      const uniqueModelId = resolveUniqueModelId(message.modelId, modelForRetry)
+      const current = readOllamaRetryNumCtx(error)
+      if (!uniqueModelId || current == null) return
       const cap = suggestReducedOllamaNumCtx(current)
+      if (cap >= current) return
       const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY) ?? {}
-      cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [modelId]: cap })
-      setTimeoutTimer('retryOllamaReducedContext', async () => {
-        try {
-          await removeMessageErrorPart?.({ messageId: message.id, partId })
-          if (regenerateMessage) {
-            await regenerateMessage(message.id)
-            return
+      cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [uniqueModelId]: cap })
+      setTimeoutTimer(
+        'retryOllamaReducedContext',
+        async () => {
+          try {
+            await removeMessageErrorPart?.({ messageId: message.id, partId })
+            if (regenerateMessage) {
+              await regenerateMessage(message.id)
+              return
+            }
+            notifyInfo?.(t('error.ollama_context_retry_toast'))
+          } catch (retryError) {
+            logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
+              messageId: message.id,
+              partId
+            })
+            notifyError?.(formatErrorMessageWithPrefix(retryError, t('message.error.unknown')))
           }
-          notifyInfo?.(t('error.ollama_context_retry_toast'))
-        } catch (retryError) {
-          logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
-            messageId: message.id,
-            partId
-          })
-          notifyError?.(formatErrorMessageWithPrefix(retryError, t('message.error.unknown')))
-        }
-      }, 0)
+        },
+        0
+      )
     },
     [
       error,
       message.id,
-      modelForRetry?.id,
+      message.modelId,
+      modelForRetry,
       notifyError,
       notifyInfo,
       partId,
