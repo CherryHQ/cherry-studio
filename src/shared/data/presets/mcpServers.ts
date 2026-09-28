@@ -12,13 +12,11 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
-import { ZONEFOUNDRY_MCP_BASE_URL, ZONEFOUNDRY_MCP_BASE_URL_CN } from './zonefoundryMcp'
+import { ZONEFOUNDRY_MCP_BASE_URL } from './zonefoundryMcp'
 
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
 export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & {
   name: BuiltinMcpServerName
-  /** Optional China-accelerated MCP endpoint; runtime picks it via region detection. */
-  baseUrlCn?: string
 }
 
 /** Frozen because both the renderer catalog and the seeder read these objects live. */
@@ -65,7 +63,6 @@ export const PRESET_MCP_SERVERS = freezePresets([
     name: BuiltinMcpServerNames.zonefoundry,
     type: 'streamableHttp',
     baseUrl: ZONEFOUNDRY_MCP_BASE_URL,
-    baseUrlCn: ZONEFOUNDRY_MCP_BASE_URL_CN,
     headers: { APP: 'Cherry Studio' },
     isActive: false,
     env: {

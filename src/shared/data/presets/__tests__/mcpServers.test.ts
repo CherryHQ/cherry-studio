@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
-import { ZONEFOUNDRY_MCP_BASE_URL, ZONEFOUNDRY_MCP_BASE_URL_CN } from '@shared/data/presets/zonefoundryMcp'
+import { ZONEFOUNDRY_MCP_BASE_URL } from '@shared/data/presets/zonefoundryMcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name === name)
@@ -40,7 +40,6 @@ describe('PRESET_MCP_SERVERS', () => {
       expect.objectContaining({
         type: 'streamableHttp',
         baseUrl: ZONEFOUNDRY_MCP_BASE_URL,
-        baseUrlCn: ZONEFOUNDRY_MCP_BASE_URL_CN,
         env: { ZONEFOUNDRY_API_KEY: '' },
         shouldConfig: true,
         isActive: false
