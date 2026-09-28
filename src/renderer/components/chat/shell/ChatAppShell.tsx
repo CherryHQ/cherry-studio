@@ -330,7 +330,7 @@ export function ChatAppShell({
         <div
           data-chat-app-shell-main-region
           className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', mainRegionClassName)}>
-          {mainHeader}
+          {mainHeader && <ErrorBoundary>{mainHeader}</ErrorBoundary>}
           <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <div className="relative flex min-w-0 flex-1 flex-col">
               <motion.div

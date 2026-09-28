@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
+import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import { ChatAppShell } from '../ChatAppShell'
@@ -74,10 +75,6 @@ vi.mock('@data/hooks/useCache', () => ({
       return [persistCacheMock.state.listPaneWidth, persistCacheMock.setListPaneWidth]
     return [persistCacheMock.state.width, persistCacheMock.setWidth]
   })
-}))
-
-vi.mock('@renderer/components/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
 vi.mock('../../panes/Shell', () => ({
@@ -155,6 +152,25 @@ describe('ChatAppShell', () => {
     document.documentElement.style.removeProperty('--assistants-width')
     vi.restoreAllMocks()
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  it('keeps conversation content usable when the main header throws', async () => {
+    const user = userEvent.setup()
+    function BrokenHeader(): ReactNode {
+      throw new Error('header failed')
+    }
+    function Conversation() {
+      const [count, setCount] = useState(0)
+      return <button onClick={() => setCount(count + 1)}>Messages: {count}</button>
+    }
+    render(
+      <ErrorBoundary fallbackComponent={() => <div>Whole page failed</div>}>
+        <ChatAppShell mainHeader={<BrokenHeader />} main={<Conversation />} />
+      </ErrorBoundary>
+    )
+    expect(screen.queryByText('Whole page failed')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Messages: 0' }))
+    expect(screen.getByRole('button', { name: 'Messages: 1' })).toBeVisible()
   })
 
   it('renders side panel in a root overlay host above center layers', () => {

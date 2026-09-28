@@ -77,9 +77,6 @@ const HomePage: FC = () => {
   const minimalContext = useMinimalMode()
   const minimalMode = !!minimalContext?.enabled && minimalContext.isHome
   const [minimalPaneOpen, setMinimalPaneOpen] = useState(true)
-  useEffect(() => {
-    if (minimalMode) setMinimalPaneOpen(true)
-  }, [minimalMode])
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)

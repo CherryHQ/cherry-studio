@@ -103,9 +103,6 @@ const AgentPage = () => {
   const minimalContext = useMinimalMode()
   const minimalMode = !!minimalContext?.enabled && minimalContext.isHome
   const [minimalPaneOpen, setMinimalPaneOpen] = useState(true)
-  useEffect(() => {
-    if (minimalMode) setMinimalPaneOpen(true)
-  }, [minimalMode])
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')

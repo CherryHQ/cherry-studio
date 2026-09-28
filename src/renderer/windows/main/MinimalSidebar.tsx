@@ -128,7 +128,7 @@ export function MinimalSidebarFooter() {
           <Button
             variant="ghost"
             className="group flex-1 justify-start"
-            onClick={() => minimalMode.openFeature('/settings/labs')}>
+            onClick={() => minimalMode.openFeature('/settings')}>
             <Settings className="size-4 text-muted-foreground! group-hover:text-foreground!" />
             {t('settings.title')}
           </Button>

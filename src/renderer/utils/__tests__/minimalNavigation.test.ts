@@ -21,7 +21,7 @@ describe('minimal feature selection', () => {
 
   it('resumes settings from any section', () => {
     const settings = tab('settings', '/settings/model')
-    expect(findMinimalFeatureTab([settings], '/settings/labs')).toBe(settings)
+    expect(findMinimalFeatureTab([settings], '/settings')).toBe(settings)
   })
 
   it('keeps different mini apps and code tools separate', () => {
