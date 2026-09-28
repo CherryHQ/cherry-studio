@@ -805,11 +805,7 @@ async function resolveClaudeCodeRuntimeRoute(
       }
     }
     case 'direct': {
-      const resolvedApiKey = providerService.resolveApiKey(
-        primaryProvider.id,
-        undefined,
-        primaryModel.apiKeyId
-      )
+      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id, undefined, primaryModel.apiKeyId)
       // Keyless local servers (registry authOptional) carry no credential; the
       // SDK still needs a non-empty token. Ollama-endpoint custom providers
       // keep their established stand-in.

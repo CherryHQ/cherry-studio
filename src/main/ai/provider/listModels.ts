@@ -1069,11 +1069,16 @@ export async function probeOllamaModel(
   provider: Provider,
   modelApiId: string | undefined,
   signal?: AbortSignal,
-  apiKeyOverride?: string
+  apiKeyOverride?: string,
+  preferredKeyId?: string | null
 ): Promise<{ latency: number }> {
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
-  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const resolved = providerService.resolveApiKey(
+    provider.id,
+    apiKeyOverride,
+    apiKeyOverride === undefined ? preferredKeyId : undefined
+  )
   const headers = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider), {
     'Content-Type': 'application/json',
     ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
