@@ -1,4 +1,4 @@
-import { sortBy, toPairs } from 'es-toolkit/compat'
+import { sortBy } from 'es-toolkit/compat'
 
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
@@ -64,34 +64,57 @@ function getModelIdGroupName(model: Model): string | undefined {
   return deriveModelGroupName(modelId)
 }
 
-export const groupModels = (
+/**
+ * Groups in an explicit order: first appearance in `models`, or alphabetical
+ * when `preserveGroupOrder` is false.
+ *
+ * This is the order-preserving view. A `ModelGroups` record cannot carry it:
+ * JavaScript enumerates integer-like keys in ascending numeric order ahead of
+ * insertion order, so a group named `10` would always surface before `2` no
+ * matter which order the models were dragged into. Group names come from
+ * `model.group`, which is free text, so `10` and `2` are names a user can
+ * genuinely create — and reach by dragging. Callers that render an ordered
+ * list must read this, not `Object.keys(groupModels(...))`.
+ */
+export const groupModelEntries = (
   models: readonly Model[],
   preserveGroupOrder = false,
   options: GroupModelsOptions = {}
-): ModelGroups => {
-  const grouped = models.reduce<ModelGroups>((acc, model) => {
+): Array<[string, Model[]]> => {
+  const grouped = new Map<string, Model[]>()
+  for (const model of models) {
     const inferredGroup = getModelIdGroupName(model)
     const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
     const shouldPreferStoredGroup = options.preferModelGroup && !hasLegacyProviderGroup
     const preferredGroup = shouldPreferStoredGroup ? model.group : inferredGroup
     const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
     const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
-    if (!acc[groupName]) {
-      acc[groupName] = []
+    const bucket = grouped.get(groupName)
+    if (bucket) {
+      bucket.push(model)
+    } else {
+      grouped.set(groupName, [model])
     }
-    acc[groupName].push(model)
-    return acc
-  }, {})
-
-  if (preserveGroupOrder) {
-    return grouped
   }
 
-  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+  const entries = [...grouped.entries()]
+  return preserveGroupOrder ? entries : sortBy(entries, [0])
+}
+
+/**
+ * The same grouping as a plain record, for callers that only look a group up by
+ * name or count members. Consumers that render an ordered list need
+ * {@link groupModelEntries} instead.
+ */
+export const groupModels = (
+  models: readonly Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): ModelGroups =>
+  groupModelEntries(models, preserveGroupOrder, options).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
   }, {} as ModelGroups)
-}
 
 // Text-to-speech is the only audio-output sub-kind we can single out from
 // generic audio generation today (the `AUDIO_GENERATION` capability backs
@@ -136,8 +159,9 @@ export const applyModelFilters = (
   return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
 }
 
-export const countModelsInGroups = (groups: ModelGroups): number => {
-  return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
+export const countModelsInGroups = (groups: ModelGroups | ReadonlyArray<readonly [string, Model[]]>): number => {
+  const buckets = Array.isArray(groups) ? groups.map(([, models]) => models) : Object.values(groups)
+  return buckets.reduce((acc, group) => acc + group.length, 0)
 }
 
 export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCounts => {

@@ -9,8 +9,7 @@ import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/co
 import {
   calculateModelListDerivedState,
   countModelsInGroups,
-  groupModels,
-  type ModelGroups,
+  groupModelEntries,
   type ModelListCapabilityCounts,
   type ModelListCapabilityFilter
 } from './modelListDerivedState'
@@ -63,12 +62,13 @@ interface UseProviderModelListArgs {
 }
 
 type DisplayedSectionState = {
-  groups: ModelGroups
+  /** Ordered pairs rather than a record: see `groupModelEntries`. */
+  groupEntries: ReadonlyArray<readonly [string, Model[]]>
   displayEnabledModelCount: number
 }
 
-const toGroupSections = (groups: ModelGroups): ModelListGroupSection[] => {
-  return Object.entries(groups).map(([groupName, models]) => ({
+const toGroupSections = (groupEntries: ReadonlyArray<readonly [string, Model[]]>): ModelListGroupSection[] => {
+  return groupEntries.map(([groupName, models]) => ({
     groupName,
     items: models.map((model) => ({ model }))
   }))
@@ -145,11 +145,14 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     // make a manual group arrangement meaningless, and the alternative — a
     // persisted group order that only applies once the user has touched it —
     // is the dual-mode sort the ordering guide explicitly rules out.
-    const groups = groupModels(derivedState.filteredModels, true, { preferModelGroup: true })
+    // The order lives in the entries, not a record: a group named like a number
+    // (`10`, `2`) would otherwise be reordered by JavaScript's integer-key rule
+    // and the manual arrangement would not survive the round trip.
+    const groupEntries = groupModelEntries(derivedState.filteredModels, true, { preferModelGroup: true })
 
     return {
-      groups,
-      displayEnabledModelCount: countModelsInGroups(groups)
+      groupEntries,
+      displayEnabledModelCount: countModelsInGroups(groupEntries)
     }
   }, [derivedState.filteredModels])
 
@@ -273,7 +276,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     [confirmModelsDeleted, defaultModelIds, deleteModels, disabled]
   )
 
-  const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])
+  const enabledSections = useMemo(() => toGroupSections(displayState.groupEntries), [displayState.groupEntries])
   const pendingModelIds = useMemo(() => new Set(Object.keys(pendingModelIdMap)), [pendingModelIdMap])
 
   const header: ProviderModelListHeaderSurface = {

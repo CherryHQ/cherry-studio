@@ -25,7 +25,7 @@ import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWr
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
+import type { ApiPath, ConcreteApiPaths, QueryParamsForPath, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 const logger = loggerService.withContext('useReorder')
@@ -76,15 +76,6 @@ export interface UseReorderOptions {
    * Defaults to `true`. Failure always revalidates regardless of this flag.
    */
   revalidateOnSuccess?: boolean
-  /**
-   * Query the collection is read under, when the collection is query-scoped.
-   *
-   * `GET /models?providerId=…` caches under `[path, query]`, so a path-only
-   * lookup misses the entry and the hook degrades to a silent no-op. Pass the
-   * same query object the sibling `useQuery` call uses and the optimistic
-   * overlay lands on the right key.
-   */
-  query?: Record<string, unknown>
   /**
    * Param token used for the single-item order path, e.g. `'uniqueModelId*'`.
    *
@@ -161,6 +152,23 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
     : never
 
 /**
+ * Query the collection is read under, when the collection is query-scoped.
+ *
+ * `GET /models?providerId=…` caches under `[path, query]`, so a path-only
+ * lookup misses the entry and the hook degrades to a silent no-op. Pass the
+ * same query object the sibling `useQuery` call uses and the optimistic
+ * overlay lands on the right key.
+ *
+ * The type comes from the collection's own declared query: a mistyped field
+ * compiles fine under `Record<string, unknown>` and then misses the sibling
+ * `useQuery` entry, so the hook silently stops reordering instead of failing
+ * where the mistake is.
+ */
+type ReorderQueryOption<TCollection extends string> = {
+  query?: QueryParamsForPath<TCollection, 'GET'>
+}
+
+/**
  * Build optimistic drag-and-drop reorder handlers on top of `useMutation`.
  *
  * The hook assumes the collection under `collectionUrl` is reachable via
@@ -230,15 +238,17 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  */
 export function useReorder<TCollection extends TemplateApiPaths>(
   collectionUrl: TCollection,
-  options: UseReorderOptions & ReorderParamsOption<TCollection>
+  options: UseReorderOptions & ReorderParamsOption<TCollection> & ReorderQueryOption<TCollection>
 ): UseReorderResult
 export function useReorder<TCollection extends ConcreteApiPaths>(
   collectionUrl: TCollection,
-  options?: UseReorderOptions
+  options?: UseReorderOptions & ReorderQueryOption<TCollection>
 ): UseReorderResult
 export function useReorder(
   collectionUrl: ApiPath,
-  options?: UseReorderOptions & { params?: unknown }
+  // The implementation sees the widest shape; the overloads above are what
+  // callers see, and they carry the per-collection `query` type.
+  options?: UseReorderOptions & { query?: unknown; params?: unknown }
 ): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
@@ -263,7 +273,10 @@ export function useReorder(
   const revalidate = options?.revalidateOnSuccess !== false
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
-  const cacheQuery = options?.query
+  // Safe because the only shape any overload admits is that collection's own
+  // declared query object; the cast is what the wider implementation signature
+  // gives up, not an unchecked caller value.
+  const cacheQuery = options?.query as Record<string, unknown> | undefined
   // `:name*` is the greedy-tail token; the request param itself is `name`.
   const itemIdParam = options?.itemIdParam ?? 'id'
   const itemParamName = itemIdParam.endsWith('*') ? itemIdParam.slice(0, -1) : itemIdParam
