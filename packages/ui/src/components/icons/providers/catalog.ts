@@ -11,6 +11,7 @@ import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
 import { Ai302Icon } from './302ai'
 import { AbacusIcon } from './abacus'
+import { AcctokenIcon } from './acctoken/acctoken'
 import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
 import { Ai21Icon } from './ai21'
@@ -176,6 +177,7 @@ export const PROVIDER_ICON_CATALOG = {
   '302ai': Ai302Icon,
   '3min-top': MinTop3Icon,
   abacus: AbacusIcon,
+  acctoken: AcctokenIcon,
   'ai-only': AiOnlyIcon,
   'ai-studio': AiStudioIcon,
   ai21: Ai21Icon,

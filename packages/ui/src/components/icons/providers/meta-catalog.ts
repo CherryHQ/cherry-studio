@@ -9,6 +9,7 @@ import { type IconMeta } from '../types'
 import { meta as minTop3Meta } from './3min-top/meta'
 import { meta as ai302Meta } from './302ai/meta'
 import { meta as abacusMeta } from './abacus/meta'
+import { meta as acctokenMeta } from './acctoken/meta'
 import { meta as aiOnlyMeta } from './ai-only/meta'
 import { meta as aiStudioMeta } from './ai-studio/meta'
 import { meta as ai21Meta } from './ai21/meta'
@@ -173,6 +174,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   '302ai': ai302Meta,
   '3min-top': minTop3Meta,
   abacus: abacusMeta,
+  acctoken: acctokenMeta,
   'ai-only': aiOnlyMeta,
   'ai-studio': aiStudioMeta,
   ai21: ai21Meta,

@@ -9,6 +9,7 @@
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
 export { AbacusIcon as Abacus } from './abacus'
+export { AcctokenIcon as Acctoken } from './acctoken/acctoken'
 export { AiOnlyIcon as AiOnly } from './ai-only'
 export { AiStudioIcon as AiStudio } from './ai-studio'
 export { Ai21Icon as Ai21 } from './ai21'
