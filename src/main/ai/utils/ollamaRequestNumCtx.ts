@@ -12,20 +12,10 @@ export interface OllamaNumCtxResolution extends ResolveOllamaNumCtxInput {
   numCtx: number
 }
 
-let lastTrackedRequest: { modelId: string; resolution: OllamaNumCtxResolution } | undefined
-
-export function trackOllamaRequestNumCtx(model: Model, resolution: OllamaNumCtxResolution): void {
-  lastTrackedRequest = { modelId: model.id, resolution }
-}
-
-export function getLastTrackedOllamaRequestNumCtx(): OllamaNumCtxResolution | undefined {
-  return lastTrackedRequest?.resolution
-}
-
 function readSessionCap(model: Model): number | null | undefined {
   try {
     const caps = application.get('CacheService').getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)
-    return caps[model.id]
+    return caps?.[model.id]
   } catch {
     return undefined
   }

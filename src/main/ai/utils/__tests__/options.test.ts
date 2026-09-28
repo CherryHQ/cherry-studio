@@ -23,8 +23,7 @@ const { resolveOllamaRequestNumCtxMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../ollamaRequestNumCtx', () => ({
-  resolveOllamaRequestNumCtx: resolveOllamaRequestNumCtxMock,
-  trackOllamaRequestNumCtx: vi.fn()
+  resolveOllamaRequestNumCtx: resolveOllamaRequestNumCtxMock
 }))
 
 describe('applyFastModeToProviderOptions', () => {

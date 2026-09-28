@@ -24,6 +24,12 @@ export interface ResolveOllamaNumCtxInput {
   sessionCap?: number | null
 }
 
+/** Per-request trained/effective context sizes for Ollama OOM error handling. */
+export interface OllamaNumCtxRequestSnapshot {
+  trainedContextWindow: number
+  numCtx: number
+}
+
 /**
  * Chooses the `num_ctx` Cherry forwards to Ollama: trained window, bounded by RAM and any
  * session cap from a prior OOM retry.
