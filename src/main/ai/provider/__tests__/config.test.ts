@@ -154,7 +154,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
 
-    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected')
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected', undefined)
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 

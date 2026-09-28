@@ -2037,7 +2037,7 @@ describe('AiService tool approval', () => {
       apiKeyOverride: 'sk-selected'
     })
 
-    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected', undefined)
     expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
@@ -2220,7 +2220,7 @@ describe('AiService tool approval', () => {
       apiKeyOverride: 'sk-selected'
     })
 
-    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected', undefined)
     const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
     expect(url).toContain('/api/show')
     expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')

@@ -399,7 +399,7 @@ describe('ProviderService API keys', () => {
     expect(providerService.resolveApiKey('openai', undefined, 'missing-key').value).toBe('sk-a')
     expect(providerService.resolveApiKey('openai', undefined, 'key-a').value).toBe('sk-a')
 
-    await providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
+    providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
     expect(providerService.resolveApiKey('openai', undefined, 'key-b').value).toBe('sk-a')
   })
 

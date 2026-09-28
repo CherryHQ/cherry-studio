@@ -104,7 +104,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const showApiKeyRouting = (provider?.apiKeys.length ?? 0) > 1
+  const showApiKeyRouting = (provider?.apiKeys?.length ?? 0) > 1
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 

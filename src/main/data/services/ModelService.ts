@@ -1058,11 +1058,16 @@ class ModelService {
     assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
+    const providerKeyIds = new Map<string, Set<string>>()
 
     for (const { providerId, modelId, patch } of items) {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
       if (patch.apiKeyId != null && patch.apiKeyId !== '') {
-        const keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
+        let keyIds = providerKeyIds.get(providerId)
+        if (!keyIds) {
+          keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
+          providerKeyIds.set(providerId, keyIds)
+        }
         if (!keyIds.has(patch.apiKeyId)) {
           throw DataApiErrorFactory.invalidOperation(
             `update model ${providerId}/${modelId}`,
