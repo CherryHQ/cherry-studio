@@ -60,6 +60,8 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private attempted = false
   private closed = false
   private pendingConnection?: AgentRuntimeConnection
+  /** Settles when an in-flight rebuild connect does, so close() cannot outrun a rebuild it cannot see. */
+  private pendingConnect?: Promise<void>
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -124,8 +126,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    // A rebuild between connect() and its swap is not `current` yet, but it is already running this
-    // session's work and must not outlive the close.
+    // A rebuild is invisible until connect() hands it to `pendingConnection`, and it runs this
+    // session's work from then on — wait for the handoff so it cannot outlive the close.
+    await this.pendingConnect
     const pending = this.pendingConnection
     this.pendingConnection = undefined
     await Promise.all([this.current.close(), closeQuietly(pending)])
@@ -188,17 +191,26 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     try {
       await this.current.close()
       if (this.closed) return false
-      connection = await this.driver.connect({
-        ...this.input,
-        modelId: fallbackModelId,
-        resumeToken: this.resumeToken,
-        // The fallback connection's spans must name the model that will actually run, not the
-        // primary whose trace container it inherits.
-        ...(this.input.trace
-          ? { trace: { ...this.input.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } }
-          : {})
-      })
-      this.pendingConnection = connection
+      const created = Promise.withResolvers<void>()
+      this.pendingConnect = created.promise
+      try {
+        connection = await this.driver.connect({
+          ...this.input,
+          modelId: fallbackModelId,
+          resumeToken: this.resumeToken,
+          // The fallback connection's spans must name the model that will actually run, not the
+          // primary whose trace container it inherits.
+          ...(this.input.trace
+            ? { trace: { ...this.input.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } }
+            : {})
+        })
+      } finally {
+        // Publish the rebuild before close() stops waiting on it, or a close that raced the connect
+        // would find nothing to tear down and let it outlive the session.
+        if (connection) this.pendingConnection = connection
+        this.pendingConnect = undefined
+        created.resolve()
+      }
       if (this.closed) {
         await this.discard(connection)
         return false
