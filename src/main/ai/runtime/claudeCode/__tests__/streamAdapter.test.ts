@@ -2127,6 +2127,116 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(stamped).toBe('launch-use')
     })
 
+    it('does not rescan the transcript for every unresolvable resume receipt', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        return null
+      })
+      const { adapter } = createAdapter()
+
+      const sendReceipt = (toolUseId: string) => {
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { content: [{ type: 'tool_use', id: toolUseId, name: 'SendMessage', input: { to: 'agent-1' } }] }
+        } as any)
+        adapter.handleMessage({
+          type: 'user',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: {
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: toolUseId,
+                content: JSON.stringify({ success: true, resumedAgentId: 'agent-1' }),
+                is_error: false
+              }
+            ]
+          }
+        } as any)
+      }
+
+      // Receipts arrive per send, and each unresolved one would scan the persisted transcript.
+      sendReceipt('send-1')
+      sendReceipt('send-2')
+      expect(lookupCalls).toBe(1)
+
+      // The attempt after the window still recovers the root, so the miss is not permanent.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
+      sendReceipt('send-3')
+      nowSpy.mockRestore()
+      expect(lookupCalls).toBe(2)
+    })
+
+    it('keeps the resume-receipt recovery independent of a throttled task edge', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'launch-use'
+      })
+      const { adapter, parts } = createAdapter()
+
+      // The native edge misses first and is throttled on its own key; the receipt must still get
+      // its own attempt, because the marker it stamps depends on the root that attempt returns.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'agent-1', task_type: 'subagent', description: 'Audit' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'agent-1',
+        tool_use_id: 'call_resume',
+        description: 'Audit',
+        task_type: 'subagent'
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { content: [{ type: 'tool_use', id: 'send-1', name: 'SendMessage', input: { to: 'agent-1' } }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-1',
+              content: JSON.stringify({ success: true, resumedAgentId: 'agent-1' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      expect(lookupCalls).toBe(2)
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-1'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('launch-use')
+    })
+
     it('reuses the host-supplied launch root when the adapter starts fresh', () => {
       // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
       // must land on the persisted launch tool-use id, not the resuming call.
