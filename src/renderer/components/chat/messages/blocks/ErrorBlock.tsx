@@ -5,7 +5,12 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import {
+  OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
+  suggestReducedOllamaNumCtx
+} from '@shared/ai/ollamaNumCtx'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
@@ -51,6 +56,12 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       : undefined
 
   if (i18n.exists(i18nKey)) {
+    if (i18nKey === 'error.ollama_context_memory') {
+      const bag = error as Record<string, unknown> | undefined
+      const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
+      const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
+      return t(i18nKey, { trained, effective, detail: providerErrorText(error) })
+    }
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
     if (providerId && typeof providerId === 'string') {
@@ -103,8 +114,15 @@ const MessageErrorInfo: React.FC<{
   error: Props['error']
   message: MessageListItem
 }> = ({ partId, error, message }) => {
-  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
-    useMessageListActions()
+  const {
+    diagnoseMessageError,
+    removeMessageErrorPart,
+    openErrorDetail,
+    navigateErrorTarget,
+    notifyError,
+    notifyInfo,
+    regenerateMessage
+  } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -123,13 +141,16 @@ const MessageErrorInfo: React.FC<{
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
-  const localizedErrorMessage = useMemo(
-    () =>
-      hasAppOwnedI18nKey && !providerId
-        ? t(appOwnedErrorKey)
-        : t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
-    [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, providerId, t]
-  )
+  const localizedErrorMessage = useMemo(() => {
+    if (errorI18nKey === 'ollama_context_memory' && i18n.exists('error.ollama_context_memory')) {
+      const bag = error as Record<string, unknown> | undefined
+      const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
+      const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
+      return t('error.ollama_context_memory', { trained, effective, detail: providerErrorText(error) })
+    }
+    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
+  }, [appOwnedErrorKey, classification.i18nKey, error, errorI18nKey, hasAppOwnedI18nKey, i18n, providerId, t])
 
   useEffect(() => {
     if (
@@ -208,6 +229,56 @@ const MessageErrorInfo: React.FC<{
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const canRetryOllamaContext = errorI18nKey === 'ollama_context_memory'
+  const modelForRetry = getMessageListItemModel(message)
+
+  const onRetryOllamaReducedContext = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const modelId = modelForRetry?.id
+      if (!modelId) return
+      const bag = error as Record<string, unknown> | undefined
+      const current =
+        typeof bag?.ollamaEffectiveNumCtx === 'number'
+          ? bag.ollamaEffectiveNumCtx
+          : typeof bag?.ollamaTrainedNumCtx === 'number'
+            ? bag.ollamaTrainedNumCtx
+            : modelForRetry?.contextWindow
+      if (!current) return
+      const cap = suggestReducedOllamaNumCtx(current)
+      const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY) ?? {}
+      cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [modelId]: cap })
+      setTimeoutTimer('retryOllamaReducedContext', async () => {
+        try {
+          await removeMessageErrorPart?.({ messageId: message.id, partId })
+          if (regenerateMessage) {
+            await regenerateMessage(message.id)
+            return
+          }
+          notifyInfo?.(t('error.ollama_context_retry_toast'))
+        } catch (retryError) {
+          logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
+            messageId: message.id,
+            partId
+          })
+          notifyError?.(formatErrorMessageWithPrefix(retryError, t('message.error.unknown')))
+        }
+      }, 0)
+    },
+    [
+      error,
+      message.id,
+      modelForRetry?.contextWindow,
+      modelForRetry?.id,
+      notifyError,
+      notifyInfo,
+      partId,
+      regenerateMessage,
+      removeMessageErrorPart,
+      setTimeoutTimer,
+      t
+    ]
+  )
 
   return (
     <div
@@ -245,6 +316,16 @@ const MessageErrorInfo: React.FC<{
 
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+        {canRetryOllamaContext && (
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+            onClick={onRetryOllamaReducedContext}>
+            {t('error.ollama_context_retry')}
+          </Button>
+        )}
         {canNavigate && (
           <Button
             size="sm"

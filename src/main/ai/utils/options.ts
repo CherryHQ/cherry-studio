@@ -21,6 +21,7 @@ import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
 import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './reasoningSerializers'
+import { resolveOllamaRequestNumCtx, trackOllamaRequestNumCtx } from './ollamaRequestNumCtx'
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
@@ -422,13 +423,14 @@ function buildOllamaProviderOptions(
   model: Model,
   reasoningOptions: Record<string, unknown>
 ): Record<string, Record<string, unknown>> {
+  const resolved = resolveOllamaRequestNumCtx(model)
+  if (resolved) trackOllamaRequestNumCtx(model, resolved)
   return {
     ollama: {
       ...reasoningOptions,
-      // Forward the model's context window so large-context models are not silently
-      // truncated. Omitting it is deliberate when unknown: Ollama then sizes by available
-      // VRAM (4k / 32k / 256k), which beats any fixed guess we could substitute.
-      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
+      // Forward a memory-feasible context window (#19864). Omitting num_ctx when unknown
+      // is deliberate: Ollama then sizes by available VRAM (4k / 32k / 256k).
+      ...(resolved ? { options: { num_ctx: resolved.numCtx } } : {})
     }
   }
 }
