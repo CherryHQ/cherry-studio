@@ -880,6 +880,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (replayedMessage) {
         this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
       }
+      // The rebuilt query runs on the fallback model: its trace env and every later span must name
+      // it, while traceId/rootSpanId/turnId stay put so the turn remains one trace.
+      if (this.input.trace) {
+        this.input.trace = {
+          ...this.input.trace,
+          modelName: parseUniqueModelId(decision.fallbackModelId).modelId
+        }
+        this.refreshTraceContext(this.input.trace)
+      }
       await this.installQuery(request)
       // Tell the user in the transcript itself — persisted with the turn like any other data part.
       // Announced only now: a swap that never installed must leave no notice claiming it did, and
