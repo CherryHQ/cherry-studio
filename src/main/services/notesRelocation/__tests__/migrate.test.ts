@@ -4,15 +4,12 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetPathMock } = vi.hoisted(() => ({
-  appGetPathMock: vi.fn()
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
-vi.mock('@application', () => ({
-  application: {
-    getPath: appGetPathMock
-  }
-}))
+import { application } from '@application'
 
 import { inspectNotesRelocation, migrateNotesDirectory } from '../migrate'
 
@@ -24,7 +21,7 @@ describe('notesRelocation', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-relocation-'))
     defaultNotesDir = path.join(tempRoot, 'default-notes')
     fs.mkdirSync(defaultNotesDir, { recursive: true })
-    appGetPathMock.mockImplementation((key: string) => {
+    vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
       if (key === 'feature.notes.data') return defaultNotesDir
       if (key === 'sys.appdata') return path.join(tempRoot, 'appdata')
       if (key === 'feature.files.data') return path.join(tempRoot, 'files')
@@ -34,6 +31,7 @@ describe('notesRelocation', () => {
 
   afterEach(() => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
+    vi.restoreAllMocks()
   })
 
   it('copies notes into an empty target and verifies the result', async () => {
@@ -83,5 +81,20 @@ describe('notesRelocation', () => {
     const result = await migrateNotesDirectory(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('# New')
+  })
+
+  it('does not overwrite existing target files when merging', async () => {
+    const source = path.join(tempRoot, 'source-notes-4')
+    const target = path.join(tempRoot, 'target-notes-4')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'conflict.md'), '# Source')
+    fs.writeFileSync(path.join(target, 'conflict.md'), '# Existing')
+    fs.writeFileSync(path.join(source, 'added.md'), '# Added')
+
+    await migrateNotesDirectory(source, target, { merge: true })
+
+    expect(fs.readFileSync(path.join(target, 'conflict.md'), 'utf8')).toBe('# Existing')
+    expect(fs.readFileSync(path.join(target, 'added.md'), 'utf8')).toBe('# Added')
   })
 })
