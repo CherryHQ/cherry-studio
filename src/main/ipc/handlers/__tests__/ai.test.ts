@@ -437,6 +437,26 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
+  it('reports an unsupported edit checkpoint as an edit failure while preserving other fork failures', async () => {
+    const input = {
+      sessionId: 'session-1',
+      target: { messageId: 'user-1', version: 'version-1' },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }]
+    } as never
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED,
+      data: { reason: 'checkpoint_unsupported' }
+    })
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason: 'workspace_changed' }
+    })
+  })
+
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
     const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
