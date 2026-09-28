@@ -127,6 +127,25 @@ const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
 const FLOW_HOST_RECOVERY_RETRY_MS = 5_000
 /** Per-root cap for chunks buffered while their host row is unresolved. */
 const MAX_RECOVERY_FLOW_CHUNKS = 1_000
+/** Per-message and per-session caps for chunks buffered while no accumulator can be seeded. */
+const MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE = 1_000
+const MAX_PENDING_FLOW_CHUNKS_PER_SESSION = 4_000
+/** A failed accumulator seed is retried no more often than this, so an outage cannot read per chunk. */
+const BACKGROUND_FLOW_SEED_RETRY_MS = 5_000
+
+/**
+ * Whether a chunk opens a fresh streamable part. A purged buffer prefix cannot be replayed — the
+ * accumulator aborts on a delta whose start is gone — so these are the points a stream may rejoin.
+ */
+function startsFlowStream(chunk: UIMessageChunk): boolean {
+  return (
+    chunk.type === 'text-start' ||
+    chunk.type === 'reasoning-start' ||
+    chunk.type === 'tool-input-start' ||
+    // A tool call whose input never streamed arrives whole, so this opens its part too.
+    chunk.type === 'tool-input-available'
+  )
+}
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -301,6 +320,12 @@ type AgentSessionRuntimeEntry = {
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
+  /** Buffered chunk count across all messages, so the per-session cap is O(1) to enforce. */
+  pendingBackgroundFlowChunkCount?: number
+  /** Messages whose buffered prefix overflowed; they wait for a fresh stream start, as above. */
+  pendingBackgroundFlowOverflowIds?: Set<string>
+  /** Message id → when its accumulator seed last failed, so retries are spaced out. */
+  backgroundFlowSeedFailedAt?: Map<string, number>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Detached chunks buffered while their host row is still unresolvable (root tool-call id keyed). */
@@ -2277,11 +2302,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
-      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
-      entry.pendingBackgroundFlowChunks = pending
-      const chunks = pending.get(messageId) ?? []
-      chunks.push(chunk)
-      pending.set(messageId, chunks)
+      this.bufferByMessageId(entry, messageId, chunk)
       return
     }
 
@@ -2296,7 +2317,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private bufferRecoveryChunk(entry: AgentSessionRuntimeEntry, rootToolCallId: string, chunk: UIMessageChunk): void {
     // A chunk stream cannot drop its oldest chunk: the accumulator aborts on a delta whose start is
     // gone. An overflowing root therefore gives up its whole buffer and waits for a fresh start.
-    if (chunk.type === 'text-start' || chunk.type === 'tool-input-start') {
+    if (startsFlowStream(chunk)) {
       entry.recoveryFlowOverflowRoots?.delete(rootToolCallId)
     } else if (entry.recoveryFlowOverflowRoots?.has(rootToolCallId)) {
       return
@@ -2341,21 +2362,50 @@ export class AgentSessionRuntimeService extends BaseService {
     return hostMessageId
   }
 
-  /** Hold a chunk for a message whose own row is not committed yet (message-id keyed). */
+  /**
+   * Hold a chunk for a message whose own row is not committed yet (message-id keyed). The same
+   * overflow policy as the recovery buffer applies: an unbounded hold would retain a whole detached
+   * stream, and a purged prefix can never be replayed, so the message waits for a fresh start.
+   */
   private bufferByMessageId(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
+    if (startsFlowStream(chunk)) entry.pendingBackgroundFlowOverflowIds?.delete(messageId)
+    else if (entry.pendingBackgroundFlowOverflowIds?.has(messageId)) return
     const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
     entry.pendingBackgroundFlowChunks = pending
     const chunks = pending.get(messageId) ?? []
+    if (
+      chunks.length >= MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE ||
+      (entry.pendingBackgroundFlowChunkCount ?? 0) >= MAX_PENDING_FLOW_CHUNKS_PER_SESSION
+    ) {
+      pending.delete(messageId)
+      entry.pendingBackgroundFlowChunkCount = Math.max(0, (entry.pendingBackgroundFlowChunkCount ?? 0) - chunks.length)
+      ;(entry.pendingBackgroundFlowOverflowIds ??= new Set()).add(messageId)
+      logger.warn('Detached flow message buffer overflowed; dropped its buffered prefix', {
+        sessionId: entry.sessionId,
+        messageId,
+        chunkCount: chunks.length
+      })
+      return
+    }
     chunks.push(chunk)
     pending.set(messageId, chunks)
+    entry.pendingBackgroundFlowChunkCount = (entry.pendingBackgroundFlowChunkCount ?? 0) + 1
+  }
+
+  /** Take a message's held chunks, keeping the session-wide count in step with them. */
+  private takePendingByMessageId(entry: AgentSessionRuntimeEntry, messageId: string): UIMessageChunk[] | undefined {
+    const chunks = entry.pendingBackgroundFlowChunks?.get(messageId)
+    if (!chunks?.length) return undefined
+    entry.pendingBackgroundFlowChunks?.delete(messageId)
+    entry.pendingBackgroundFlowChunkCount = Math.max(0, (entry.pendingBackgroundFlowChunkCount ?? 0) - chunks.length)
+    return chunks
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
     ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
-    const pending = entry.pendingBackgroundFlowChunks?.get(messageId)
+    const pending = this.takePendingByMessageId(entry, messageId)
     if (!pending?.length) return
 
-    entry.pendingBackgroundFlowChunks?.delete(messageId)
     for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
@@ -2365,11 +2415,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (accumulator === 'hold') {
       // The predecessor is draining: a successor seeded now would miss its trailing chunks and the
       // later flush would overwrite the full row. Buffer until the predecessor settles.
-      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
-      entry.pendingBackgroundFlowChunks = pending
-      const chunks = pending.get(messageId) ?? []
-      chunks.push(chunk)
-      pending.set(messageId, chunks)
+      this.bufferByMessageId(entry, messageId, chunk)
       return
     }
     if (!accumulator) return
@@ -2387,7 +2433,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
-    messageId: string
+    messageId: string,
+    retrySeedNow = false
   ): BackgroundFlowAccumulator | 'hold' | null {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
@@ -2402,6 +2449,13 @@ export class AgentSessionRuntimeService extends BaseService {
 
     let persistedParts: CherryMessagePart[] | undefined
     if (!inheritedParts) {
+      // A failing seed must not read the database once per chunk: an outage would otherwise block
+      // the stream on every delta. Attempts are spaced out and the chunks stay buffered meanwhile.
+      const now = Date.now()
+      const lastFailure = entry.backgroundFlowSeedFailedAt?.get(messageId)
+      if (!retrySeedNow && lastFailure !== undefined && now - lastFailure < BACKGROUND_FLOW_SEED_RETRY_MS) {
+        return 'hold'
+      }
       let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
       try {
         persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
@@ -2416,6 +2470,7 @@ export class AgentSessionRuntimeService extends BaseService {
           })
           return null
         }
+        ;(entry.backgroundFlowSeedFailedAt ??= new Map()).set(messageId, Date.now())
         logger.warn('Detached subagent flow accumulator seed failed', {
           sessionId: entry.sessionId,
           messageId,
@@ -2423,6 +2478,7 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         return 'hold'
       }
+      entry.backgroundFlowSeedFailedAt?.delete(messageId)
       persistedParts = persisted.data.parts ?? []
     }
     const seed: CherryUIMessage = {
@@ -2447,9 +2503,8 @@ export class AgentSessionRuntimeService extends BaseService {
     accumulators.set(messageId, accumulator)
     // Chunks held while this message had no usable accumulator (mid-drain hold, seed error) now
     // flow into it — the buffered ones are older, so they enqueue first.
-    const held = entry.pendingBackgroundFlowChunks?.get(messageId)
+    const held = this.takePendingByMessageId(entry, messageId)
     if (held?.length) {
-      entry.pendingBackgroundFlowChunks?.delete(messageId)
       for (const heldChunk of held) this.enqueueBackgroundFlowChunk(entry, messageId, heldChunk)
     }
     return accumulator
@@ -2495,9 +2550,8 @@ export class AgentSessionRuntimeService extends BaseService {
       this.publishBackgroundFlowParts(entry, accumulator)
       // Chunks held while this accumulator was draining can now flow into a properly seeded
       // successor; flush them so they do not sit in the buffer until some unrelated turn boundary.
-      const pending = entry.pendingBackgroundFlowChunks?.get(accumulator.messageId)
+      const pending = this.takePendingByMessageId(entry, accumulator.messageId)
       if (pending?.length) {
-        entry.pendingBackgroundFlowChunks?.delete(accumulator.messageId)
         for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, accumulator.messageId, chunk)
         void this.finishBackgroundFlows(entry)
       }
@@ -3624,9 +3678,10 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       }
       // Seed-failed chunks never reached an accumulator: retry once so the cascade persists
-      // them; the fold below covers a retry that still fails.
+      // them; the fold below covers a retry that still fails. This last chance ignores the retry
+      // spacing, or a flow that ended inside the window would reach the cache but never the row.
       for (const messageId of [...(entry.pendingBackgroundFlowChunks?.keys() ?? [])]) {
-        this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+        this.getOrCreateBackgroundFlowAccumulator(entry, messageId, true)
       }
       // A successor accumulator created by a flushing predecessor's held-chunk replay drains
       // after the first batch; repeat until no new accumulator appears (converged or stuck).
