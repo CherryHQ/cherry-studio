@@ -8,9 +8,9 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 /** Maximum bytes one pdf.js built-in resource read may return. */
 export const PDFJS_RESOURCE_MAX_BYTES = 1024 * 1024
 
-const PDFJS_RESOURCE_DIRS = {
-  cmap: 'cmaps',
-  standard_font: 'standard_fonts'
+const PDFJS_RESOURCE_PATHS = {
+  cmap: 'feature.pdfjs.cmaps',
+  standard_font: 'feature.pdfjs.standard_fonts'
 } as const
 
 // CMaps are binary (`*.bcmap`); standard font files already carry their extension.
@@ -27,17 +27,14 @@ const PDFJS_RESOURCE_EXTENSIONS = {
  */
 export const pdfjsHandlers: IpcHandlersFor<typeof pdfjsRequestSchemas> = {
   'pdfjs.resource.read': async ({ kind, name }) => {
-    const baseDir = path.resolve(
-      application.getPath('app.root'),
-      'node_modules',
-      'pdfjs-dist',
-      PDFJS_RESOURCE_DIRS[kind]
-    )
-    const target = path.resolve(baseDir, `${name}${PDFJS_RESOURCE_EXTENSIONS[kind]}`)
+    const pathKey = PDFJS_RESOURCE_PATHS[kind]
+    const baseDir = application.getPath(pathKey)
+    const filename = `${name}${PDFJS_RESOURCE_EXTENSIONS[kind]}`
+    const target = application.getPath(pathKey, filename)
 
     // Belt over the schema's basename pattern: the prefix re-check keeps a
     // traversal out even if a future schema relaxation loosens the name rule.
-    if (!target.startsWith(`${baseDir}${path.sep}`)) {
+    if (path.isAbsolute(filename) || !target.startsWith(`${baseDir}${path.sep}`)) {
       throw new Error(`Refusing pdf.js resource outside its bundle directory: ${name}`)
     }
 

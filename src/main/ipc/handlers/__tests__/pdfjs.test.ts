@@ -3,20 +3,20 @@ import { fileURLToPath } from 'node:url'
 
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { pdfjsHandlers } from '../pdfjs'
+import { application } from '@application'
 
-// Point app.root at this repository so the handler resolves the real pdfjs-dist
-// bundle under node_modules, exactly like a development run does. The unified
-// application mock cannot serve this: its getPath returns /mock/<key>, while
-// these tests read real bytes off disk.
-const { getPathMock } = vi.hoisted(() => ({ getPathMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { getPath: getPathMock } }))
+import { pdfjsHandlers } from '../pdfjs'
 
 beforeAll(() => {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..')
-  getPathMock.mockImplementation((key: string) => {
-    if (key === 'app.root') return repoRoot
-    throw new Error(`Unexpected application.getPath key in test: ${key}`)
+  const resourceDirs: Record<string, string> = {
+    'feature.pdfjs.cmaps': 'cmaps',
+    'feature.pdfjs.standard_fonts': 'standard_fonts'
+  }
+  vi.mocked(application.getPath).mockImplementation((key, filename) => {
+    const resourceDir = resourceDirs[key]
+    if (!resourceDir) throw new Error(`Unexpected application.getPath key in test: ${key}`)
+    return path.join(repoRoot, 'node_modules', 'pdfjs-dist', resourceDir, filename ?? '')
   })
 })
 
