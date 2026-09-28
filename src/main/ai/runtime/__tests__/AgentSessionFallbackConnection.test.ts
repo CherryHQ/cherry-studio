@@ -95,7 +95,11 @@ describe('Pi/DSH connection fallback', () => {
   it('does not announce a fallback whose replay is rejected', async () => {
     const primary = fakeConnection()
     const fallback = fakeConnection()
-    fallback.send.mockRejectedValueOnce(new Error('replay admission failed'))
+    // DSH reports a rejected submission in-stream and throws it; both must reach the wrapper.
+    fallback.send.mockImplementationOnce(async () => {
+      fallback.events.push({ type: 'error', error: new Error('replay admission failed') })
+      throw new Error('replay admission failed')
+    })
     const driver = { connect: vi.fn(async () => fallback) }
     const wrapper = new AgentSessionFallbackConnection(
       driver as unknown as AgentSessionRuntimeDriver,
@@ -112,6 +116,29 @@ describe('Pi/DSH connection fallback', () => {
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
     )
     expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+    // A rejected replay owns no slot in the wrapper: it must not outlive the failed attempt.
+    expect(fallback.close).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
+  it('reports a rejected submission in-stream instead of rejecting the host send', async () => {
+    const primary = fakeConnection()
+    primary.send.mockImplementationOnce(async () => {
+      primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+      throw new Error('HTTP 429 rate limit')
+    })
+    mocks.getAgent.mockReturnValueOnce({ configuration: {} } as never)
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+
+    // The error event is the host's single failure channel; a rejecting send would double-report.
+    await expect(wrapper.send({ message: { id: 'u1' } } as never)).resolves.toBeUndefined()
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
     await wrapper.close()
   })
 
