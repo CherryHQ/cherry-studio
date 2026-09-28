@@ -749,7 +749,7 @@ function deriveRouteFacts(
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
   const modelKeyBindings = [primaryRef, opusRef, sonnetRef, haikuRef]
-    .map((ref) => `${ref.providerId}/${ref.modelId}:${ref.model.apiKeyId ?? ''}`)
+    .map((ref) => `${ref.providerId}/${ref.modelId}:${ref.model?.apiKeyId ?? ''}`)
     .join(';')
   return {
     branch: 'direct',
