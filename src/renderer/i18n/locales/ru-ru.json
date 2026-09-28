@@ -2405,7 +2405,6 @@
   "message.tools.sessionCreate.untitled": "Сессия без названия",
   "message.tools.sessionRead.read": "Диалог прочитан",
   "message.tools.sessionSearch.found": "Сессия найдена",
-  "message.tools.sessionSend.open": "Открыть сессию",
   "message.tools.sessionSend.sending": "Отправляется в",
   "message.tools.sessionSend.sent": "Отправлено в",
   "message.tools.sessionSend.to": "Кому",

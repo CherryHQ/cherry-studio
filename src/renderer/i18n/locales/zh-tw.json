@@ -2405,7 +2405,6 @@
   "message.tools.sessionCreate.untitled": "未命名工作階段",
   "message.tools.sessionRead.read": "已讀取工作階段",
   "message.tools.sessionSearch.found": "找到工作階段",
-  "message.tools.sessionSend.open": "開啟工作階段",
   "message.tools.sessionSend.sending": "正在傳送至",
   "message.tools.sessionSend.sent": "已傳送至",
   "message.tools.sessionSend.to": "傳送至",

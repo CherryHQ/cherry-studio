@@ -2405,7 +2405,6 @@
   "message.tools.sessionCreate.untitled": "Sesiune fără titlu",
   "message.tools.sessionRead.read": "Conversație citită",
   "message.tools.sessionSearch.found": "Sesiune găsită",
-  "message.tools.sessionSend.open": "Deschide sesiunea",
   "message.tools.sessionSend.sending": "Se trimite către",
   "message.tools.sessionSend.sent": "Trimis către",
   "message.tools.sessionSend.to": "Către",

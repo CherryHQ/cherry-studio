@@ -17,7 +17,6 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionCreate.untitled': 'Untitled session',
         'message.tools.sessionRead.read': 'Read conversation',
         'message.tools.sessionSearch.found': 'Found session',
-        'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to'
       })[key] ?? key
   })

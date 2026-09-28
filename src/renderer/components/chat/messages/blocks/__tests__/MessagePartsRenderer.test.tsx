@@ -116,7 +116,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       if (key === 'message.tools.sessionCreate.created') return 'Session created'
       if (key === 'message.tools.sessionCreate.open') return 'Open session'
-      if (key === 'message.tools.sessionSend.open') return 'Open session'
       if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'

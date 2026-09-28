@@ -2405,7 +2405,6 @@
   "message.tools.sessionCreate.untitled": "Session sans titre",
   "message.tools.sessionRead.read": "Conversation lue",
   "message.tools.sessionSearch.found": "Session trouvée",
-  "message.tools.sessionSend.open": "Ouvrir la session",
   "message.tools.sessionSend.sending": "Envoi vers",
   "message.tools.sessionSend.sent": "Envoyé à",
   "message.tools.sessionSend.to": "À",

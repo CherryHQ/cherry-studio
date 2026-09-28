@@ -2405,7 +2405,6 @@
   "message.tools.sessionCreate.untitled": "Adsız oturum",
   "message.tools.sessionRead.read": "Sohbet okundu",
   "message.tools.sessionSearch.found": "Oturum bulundu",
-  "message.tools.sessionSend.open": "Oturumu aç",
   "message.tools.sessionSend.sending": "Şuraya gönderiliyor:",
   "message.tools.sessionSend.sent": "Şuraya gönderildi:",
   "message.tools.sessionSend.to": "Alıcı",
