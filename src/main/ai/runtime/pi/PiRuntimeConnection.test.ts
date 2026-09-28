@@ -31,6 +31,7 @@ const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__config',
   'mcp__agent-memory__memory'
 ]
+const PI_COMPACTION_SETTINGS = { enabled: true, reserveTokens: 24_576, keepRecentTokens: 8_192 }
 
 interface FakeSpan {
   name: string
@@ -235,7 +236,10 @@ const fakeSession = {
 const fakePi = {
   AuthStorage: { inMemory: () => ({ setRuntimeApiKey: mocks.setRuntimeApiKey }) },
   ModelRegistry: {
-    inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
+    inMemory: () => ({
+      registerProvider: mocks.registerProvider,
+      find: () => ({ id: 'm', provider: 'p', contextWindow: 49_152, maxTokens: 8_192 })
+    })
   },
   SettingsManager: {
     inMemory: (...args: unknown[]) => {
@@ -1576,7 +1580,7 @@ describe('PiRuntimeConnection', () => {
 
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
-    expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toEqual([{ compaction: PI_COMPACTION_SETTINGS }, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
       noSkills: true,
@@ -1602,7 +1606,7 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toEqual([{ shellPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toEqual([{ shellPath, compaction: PI_COMPACTION_SETTINGS }, { projectTrusted: true }])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath })
     expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
   })
@@ -1646,7 +1650,10 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toEqual([{ shellPath: fallbackPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toEqual([
+      { shellPath: fallbackPath, compaction: PI_COMPACTION_SETTINGS },
+      { projectTrusted: true }
+    ])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath: fallbackPath })
   })
 
