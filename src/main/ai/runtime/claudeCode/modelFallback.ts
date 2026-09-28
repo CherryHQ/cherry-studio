@@ -1,6 +1,7 @@
+import { agentService } from '@data/services/AgentService'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import type { RetryPolicy } from '../aiSdk'
+import { readRetryPolicy, type RetryPolicy } from '../aiSdk'
 import { ClaudeCodeResultError } from './streamAdapter'
 
 /** Provider statuses that justify leaving the primary model for this turn. */
@@ -43,6 +44,13 @@ export function classifyFallbackEligibleError(error: unknown): string | undefine
 export function selectFallbackModelId(policy: RetryPolicy, currentModelId: UniqueModelId): UniqueModelId | undefined {
   if (!policy.enabled) return undefined
   return policy.fallbackModelIds.find((candidate) => isUniqueModelId(candidate) && candidate !== currentModelId)
+}
+
+/** The global retry policy widened to the agent's own fallback models whenever it configures any. */
+export function resolveAgentFallbackPolicy(agentId: string): RetryPolicy {
+  const global = readRetryPolicy()
+  const configured = agentService.getAgent(agentId)?.configuration?.fallback_model_ids
+  return configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
 }
 
 export function resolveAgentSessionFallback(
