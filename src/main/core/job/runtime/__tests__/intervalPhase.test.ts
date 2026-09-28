@@ -4,9 +4,10 @@
  * restarts and resumes cannot slide the cadence forward.
  */
 
+import { describe, expect, it } from 'vitest'
+
 import { intervalFirstDelay } from '@main/core/job/runtime/intervalPhase'
 import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
-import { describe, expect, it } from 'vitest'
 
 const CREATED_AT = 1_700_000_000_000 // 2023-11-14T22:13:20Z
 const HOUR = 3_600_000

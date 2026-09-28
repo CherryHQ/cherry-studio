@@ -306,6 +306,7 @@ describe('JobManager pause / drainInFlight', () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.interval', makeCountingHandler(counter)]],
+        fakeDate: true,
         keepFakeTimers: true
       })
 
