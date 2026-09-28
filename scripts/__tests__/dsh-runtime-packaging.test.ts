@@ -41,26 +41,38 @@ describe('DSH runtime packaging', () => {
     expect(Object.keys(lock.packages).some((key) => key.startsWith('@deepseek-ai/dsh-web-frontend@'))).toBe(false)
   })
 
-  it('unpacks only the JS bundles and native runtime packages', () => {
-    const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
-      asarUnpack: string[]
+  it.each(['@deepseek-ai/dsh-lazy-require', '@deepseek-ai/dsh-subprocess/control'])(
+    'loads the Windows ACL dependency %s using only unpacked files',
+    (specifier) => {
+      const entry = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-sandbox-local')).href
+      const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+        asarUnpack: string[]
+      }
+      const script = `
+        import { registerHooks } from 'node:module';
+        import { fileURLToPath } from 'node:url';
+        import { matchesGlob, sep } from 'node:path';
+        import assert from 'node:assert/strict';
+        const patterns = ${JSON.stringify(config.asarUnpack)}.filter(pattern => !pattern.startsWith('!'));
+        registerHooks({ resolve(specifier, context, nextResolve) {
+          const result = nextResolve(specifier, context);
+          if (result.url.startsWith('file:')) {
+            const filename = fileURLToPath(result.url).split(sep).join('/');
+            const packagePath = filename.slice(filename.lastIndexOf('/node_modules/') + 1);
+            assert(patterns.some(pattern => matchesGlob(packagePath, pattern)), 'Not unpacked: ' + packagePath);
+          }
+          return result;
+        }});
+        const runner = import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/runner', ${JSON.stringify(entry)});
+        await import(import.meta.resolve(${JSON.stringify(specifier)}, runner));
+      `
+      expect(() =>
+        execFileSync(process.execPath, ['--experimental-import-meta-resolve', '--input-type=module', '-e', script], {
+          timeout: 30_000
+        })
+      ).not.toThrow()
     }
-    const requiredPatterns = [
-      'node_modules/@cherrystudio/dsh-bridge/dist/runtime/**',
-      'node_modules/sharp/**',
-      'node_modules/node-pty/**',
-      'node_modules/koffi/**',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**',
-      'node_modules/@deepseek-ai/dsh-win32-process/**',
-      'node_modules/@deepseek-ai/node-addon-landlock-run*/**'
-    ]
-
-    expect(config.asarUnpack).toEqual(expect.arrayContaining(requiredPatterns))
-    expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**',
-      'node_modules/@deepseek-ai/dsh-win32-process/**'
-    ])
-  })
+  )
 
   it.each(['darwin', 'linux'])('loads the %s sandbox without resolving Windows-only packages', (platform) => {
     const entry = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-sandbox-local')).href
