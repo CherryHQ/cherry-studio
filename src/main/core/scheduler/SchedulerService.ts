@@ -309,9 +309,7 @@ export class SchedulerService extends BaseService {
       if (this.intervalHandles.get(id) !== entry) return
       const now = Date.now()
       const nextRunAt =
-        entry.intervalAnchorMs !== undefined
-          ? nextIntervalFireAt(entry.intervalAnchorMs, ms, now)
-          : now + ms
+        entry.intervalAnchorMs !== undefined ? nextIntervalFireAt(entry.intervalAnchorMs, ms, now) : now + ms
       const nextDelay = Math.max(0, nextRunAt - now)
       const nextHandle = setTimeout(fire, nextDelay)
       nextHandle.unref?.()
@@ -321,9 +319,7 @@ export class SchedulerService extends BaseService {
     }
 
     const nextRunAt =
-      intervalAnchorMs !== undefined
-        ? nextIntervalFireAt(intervalAnchorMs, ms, Date.now())
-        : Date.now() + initialDelay
+      intervalAnchorMs !== undefined ? nextIntervalFireAt(intervalAnchorMs, ms, Date.now()) : Date.now() + initialDelay
     const handle = setTimeout(fire, initialDelay)
     handle.unref?.()
     this.intervalHandles.set(id, {
