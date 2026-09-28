@@ -17,6 +17,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
@@ -159,6 +160,8 @@ interface UseAgentChatRuntimeStateParams {
    * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
    */
   onPlanModelHandoff?: (modelId: string) => void
+  /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
+  modelFilter?: ModelSelectorFilter
 }
 
 export function useAgentChatRuntimeState({
@@ -168,7 +171,8 @@ export function useAgentChatRuntimeState({
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages,
-  onPlanModelHandoff
+  onPlanModelHandoff,
+  modelFilter
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
@@ -417,7 +421,8 @@ export function useAgentChatRuntimeState({
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    modelFilter
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
