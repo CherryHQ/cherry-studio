@@ -248,6 +248,13 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({
+    createAgent: vi.fn(),
+    isCreatingAgent: false
+  })
+}))
+
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
     useUpdateSession: () => ({
@@ -645,15 +652,23 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   }
 }))
 
-vi.mock('../components/AgentCreateDialog', () => ({
-  AgentCreateDialog: ({ open, onCreated }: { open?: boolean; onCreated?: (agentId: string) => void }) =>
+vi.mock('../components/AgentConversationPickerDialog', () => ({
+  AgentConversationPickerDialog: ({
+    open,
+    onSelect
+  }: {
+    open?: boolean
+    onSelect?: (selection: { type: 'agent'; agentId: string }) => void
+  }) =>
     open ? (
       <div data-testid="agent-create-dialog">
-        <button type="button" onClick={() => onCreated?.('agent-b')}>
+        <button type="button" onClick={() => onSelect?.({ type: 'agent', agentId: 'agent-b' })}>
           Create resource agent
         </button>
       </div>
-    ) : null
+    ) : null,
+  resolveAgentIdFromConversationSelection: async (selection: { type: 'agent'; agentId: string }) =>
+    selection.type === 'agent' ? selection.agentId : null
 }))
 
 vi.mock('../components/Sessions', () => ({

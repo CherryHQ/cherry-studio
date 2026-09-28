@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 
-import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
+import {
+  buildCreateAgentCommand,
+  buildCreateAssistantDto,
+  resolveCatalogPresetModelId,
+  toCreateAgentCommandFromCatalogPreset
+} from '../resourceCreate'
 
 const values: ResourceCreateValues = {
   agentType: 'claude-code',
@@ -63,5 +68,41 @@ describe('resource create DTO mapping', () => {
     expect(
       buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'plan' }).configuration?.permission_mode
     ).toBe('auto')
+  })
+
+  it('maps a catalog preset to a claude-code agent create command', () => {
+    expect(
+      toCreateAgentCommandFromCatalogPreset(
+        {
+          id: 'preset-1',
+          name: ' Product Manager ',
+          prompt: ' You are a PM. ',
+          description: ' Plans work ',
+          emoji: ' PM ',
+          defaultModel: { id: 'gpt-4o', provider: 'openai' }
+        },
+        'fallback::model'
+      )
+    ).toEqual({
+      type: 'claude-code',
+      name: 'Product Manager',
+      model: 'fallback::model',
+      planModel: 'fallback::model',
+      smallModel: 'fallback::model',
+      description: 'Plans work',
+      instructions: 'You are a PM.',
+      configuration: { avatar: 'PM', permission_mode: 'auto' }
+    })
+  })
+
+  it('prefers the preset default model over the chat default', () => {
+    expect(
+      resolveCatalogPresetModelId(
+        { id: 'p', name: 'N', defaultModel: { id: 'sonnet', provider: 'anthropic' } },
+        'openai::gpt-4o'
+      )
+    ).toBe('anthropic::sonnet')
+    expect(resolveCatalogPresetModelId({ id: 'p', name: 'N' }, 'openai::gpt-4o')).toBe('openai::gpt-4o')
+    expect(resolveCatalogPresetModelId({ id: 'p', name: 'N' }, null)).toBeNull()
   })
 })

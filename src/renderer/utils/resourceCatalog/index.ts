@@ -22,4 +22,9 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
-export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'
+export {
+  buildCreateAgentCommand,
+  buildCreateAssistantDto,
+  resolveCatalogPresetModelId,
+  toCreateAgentCommandFromCatalogPreset
+} from './resourceCreate'
