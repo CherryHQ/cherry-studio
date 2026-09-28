@@ -104,7 +104,7 @@ describe('ErrorBlock', () => {
         }}
         message={{
           ...message,
-          model: { id: 'ollama::qwen3:32b', name: 'qwen3:32b', provider: 'ollama', contextWindow: 131_072 }
+          model: { id: 'ollama::qwen3:32b', name: 'qwen3:32b', provider: 'ollama' }
         }}
       />
     )

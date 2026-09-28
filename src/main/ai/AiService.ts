@@ -85,6 +85,7 @@ import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
+import type { RequestContext } from './tools/adapters/aiSdk/context'
 import type {
   AiChatRequest,
   AiRequest,
@@ -590,6 +591,12 @@ export class AiService extends BaseService {
       nativeFileSupport,
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    if (request.streamErrorSerialization) {
+      const requestContext = options.context as RequestContext | undefined
+      if (requestContext?.ollamaNumCtx) {
+        request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+      }
+    }
     const usageContext = createCaptureContext({
       provider,
       model,

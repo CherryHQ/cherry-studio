@@ -220,8 +220,8 @@ const MessageErrorInfo: React.FC<{
           ? bag.ollamaEffectiveNumCtx
           : typeof bag?.ollamaTrainedNumCtx === 'number'
             ? bag.ollamaTrainedNumCtx
-            : modelForRetry?.contextWindow
-      if (!current) return
+            : undefined
+      if (current == null) return
       const cap = suggestReducedOllamaNumCtx(current)
       const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY) ?? {}
       cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [modelId]: cap })
@@ -245,7 +245,6 @@ const MessageErrorInfo: React.FC<{
     [
       error,
       message.id,
-      modelForRetry?.contextWindow,
       modelForRetry?.id,
       notifyError,
       notifyInfo,
