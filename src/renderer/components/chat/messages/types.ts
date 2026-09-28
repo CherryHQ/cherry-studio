@@ -27,6 +27,7 @@ import type {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { DocumentFormat } from '@shared/types/documentConversion'
 import type { FileUrlString } from '@shared/types/file'
 
 import type { ActionAvailabilityInput } from '../actions/actionTypes'
@@ -369,6 +370,7 @@ export interface MessageListActions {
   exportMessageAsMarkdown?: (message: MessageExportView, includeReasoning?: boolean) => void | Promise<void>
   exportToNotes?: (message: MessageExportView) => void | Promise<void>
   exportToWord?: (markdown: string, title: string) => void | Promise<void>
+  exportToDocument?: (markdown: string, title: string, format: DocumentFormat) => void | Promise<void>
   exportToNotion?: (message: MessageExportView) => void | Promise<void>
   exportToYuque?: (message: MessageExportView) => void | Promise<void>
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>

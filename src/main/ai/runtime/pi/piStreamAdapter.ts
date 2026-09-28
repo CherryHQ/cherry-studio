@@ -22,6 +22,8 @@ import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAM
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
+import type { PiChildToolResult } from './piCodeMode'
+
 export interface PiStreamSink {
   enqueue(chunk: CherryUIMessageChunk): void
 }
@@ -29,11 +31,12 @@ export interface PiStreamSink {
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
-function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}, parentToolCallId?: string) {
   const parsed = parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: PI_TRANSPORT,
+      ...(parentToolCallId ? { parentToolCallId } : {}),
       tool: parsed
         ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
         : { type: 'builtin' as const, name: toolName }
@@ -48,6 +51,7 @@ export class PiStreamAdapter {
    *  (pi resets `contentIndex` to 0 per message). */
   private messageSeq = 0
   private readonly startedTools = new Set<string>()
+  private readonly completedChildTools = new Set<string>()
   /** Running token totals for the current turn (`agent_start` → `agent_end`).
    *  pi's `Usage` is per-assistant-message, but a Cherry turn spans N `turn_end`s
    *  (one per LLM response in the tool loop) that accumulate into a single message
@@ -78,11 +82,22 @@ export class PiStreamAdapter {
       case 'tool_execution_end':
         this.handleToolEnd(event.toolCallId, event.toolName, event.result, event.isError)
         return
+      case 'tool_execution_update': {
+        if (event.toolName !== PI_TOOL_EXEC_TOOL_NAME) return
+        const details = asToolResult(event.partialResult)?.details as
+          | { childToolResult?: PiChildToolResult }
+          | undefined
+        const child = details?.childToolResult
+        if (!child || this.completedChildTools.has(child.toolCallId)) return
+        this.completedChildTools.add(child.toolCallId)
+        this.handleToolStart(child.toolCallId, child.toolName, child.input, event.toolCallId)
+        this.handleToolEnd(child.toolCallId, child.toolName, child.output, false, event.toolCallId)
+        return
+      }
       case 'turn_end':
         this.handleTurnEnd(event.message)
         return
       default:
-        // tool_execution_update (no standard partial-output chunk in v1),
         // agent_end, compaction_*, retry, queue_update, etc. are lifecycle
         // events handled by the connection or intentionally ignored.
         return
@@ -124,7 +139,7 @@ export class PiStreamAdapter {
     }
   }
 
-  private handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
+  private handleToolStart(toolCallId: string, toolName: string, args: unknown, parentToolCallId?: string): void {
     if (this.startedTools.has(toolCallId)) return
     this.startedTools.add(toolCallId)
     this.sink.enqueue({
@@ -133,7 +148,7 @@ export class PiStreamAdapter {
       toolName,
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, {}, parentToolCallId)
     })
     this.sink.enqueue({
       type: 'tool-input-available',
@@ -142,11 +157,17 @@ export class PiStreamAdapter {
       input: args ?? {},
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, {}, parentToolCallId)
     })
   }
 
-  private handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  private handleToolEnd(
+    toolCallId: string,
+    toolName: string,
+    result: unknown,
+    isError: boolean,
+    parentToolCallId?: string
+  ): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
     if (isError) {
@@ -156,7 +177,7 @@ export class PiStreamAdapter {
         errorText: stringifyResult(result),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName)
+        providerMetadata: toolProviderMetadata(toolName, {}, parentToolCallId)
       })
       return
     }
@@ -166,7 +187,7 @@ export class PiStreamAdapter {
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, {}, parentToolCallId)
     })
   }
 

@@ -16,6 +16,13 @@ type ToolResult = Awaited<ReturnType<ToolDefinition['execute']>>
 type InvokedToolResult = { raw: ToolResult; value: unknown }
 type SerializedAuthorizer = (request: PiToolAuthorizationRequest) => ReturnType<PiToolAuthorizer>
 
+export interface PiChildToolResult {
+  toolCallId: string
+  toolName: string
+  input: Record<string, unknown>
+  output: ToolResult
+}
+
 const SEARCH_RESULT_LIMIT = 20
 const BM25_K1 = 1.2
 const BM25_B = 0.75
@@ -74,7 +81,8 @@ export function createPiCodeModeTools(
     input: Record<string, unknown>,
     signal: AbortSignal | undefined,
     onApprovalPending?: () => () => void,
-    authorizer: SerializedAuthorizer = authorizeTool
+    authorizer: SerializedAuthorizer = authorizeTool,
+    onResult?: (result: ToolResult) => void
   ): Promise<InvokedToolResult> => {
     const tool = catalog.get(name)
     if (!tool) throw new Error(`Tool not found: ${name}`)
@@ -87,6 +95,7 @@ export function createPiCodeModeTools(
     })
     if (decision?.block) throw new Error(decision.reason)
     const raw = await tool.execute(executionToolCallId, input, signal, undefined, {} as never)
+    onResult?.(raw)
     return { raw, value: decodeToolResult(raw, tool.outputSchema, name) }
   }
 
@@ -185,7 +194,7 @@ export function createPiCodeModeTools(
       'tool_exec runs JavaScript, not TypeScript syntax. Explicitly return the final value.'
     ],
     parameters: execParameters,
-    async execute(toolCallId, params, signal) {
+    async execute(toolCallId, params, signal, onUpdate) {
       const input = params as Record<string, unknown>
       const code = typeof input.code === 'string' ? input.code : ''
       let pauseExecutionTimeout: (() => void) | undefined
@@ -199,20 +208,32 @@ export function createPiCodeModeTools(
         },
         async executeTool(name, input, requestId, childSignal) {
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
-          return (
-            await invokeTargetTool(
-              nestedToolCallId,
-              toolCallId,
-              name,
-              input,
-              childSignal,
-              () => {
-                pauseExecutionTimeout?.()
-                return () => resumeExecutionTimeout?.()
-              },
-              serializeAuthorization
-            )
-          ).value
+          const invoked = await invokeTargetTool(
+            nestedToolCallId,
+            toolCallId,
+            name,
+            input,
+            childSignal,
+            () => {
+              pauseExecutionTimeout?.()
+              return () => resumeExecutionTimeout?.()
+            },
+            serializeAuthorization,
+            (output) => {
+              onUpdate?.({
+                content: [],
+                details: {
+                  childToolResult: {
+                    toolCallId: nestedToolCallId,
+                    toolName: name,
+                    input,
+                    output
+                  } satisfies PiChildToolResult
+                }
+              })
+            }
+          )
+          return invoked.value
         }
       })
 
@@ -324,7 +345,10 @@ function toPiResult(result: { result: unknown; logs?: string[]; error?: string; 
   }
   return {
     content: [{ type: 'text', text: output }],
-    details: { result: JSON.parse(output), logs: result.logs }
+    details: {
+      result: JSON.parse(output),
+      logs: result.logs
+    }
   }
 }
 

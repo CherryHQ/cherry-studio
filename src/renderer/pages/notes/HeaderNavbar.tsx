@@ -28,9 +28,11 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
+import { exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
+import type { DocumentFormat } from '@shared/types/documentConversion'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
@@ -62,7 +64,7 @@ const HeaderNavbar = ({
   const [titleValue, setTitleValue] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const { settings, updateSettings } = useNotesSettings()
+  const { settings, updateSettings, notesPath } = useNotesSettings()
   const isActiveTab = useIsActiveTab()
   const printCommand = useResolvedCommand('app.print')
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
@@ -92,25 +94,6 @@ const HeaderNavbar = ({
     }
   }, [getCurrentNoteContent])
 
-  const handleExportToWord = useCallback(async () => {
-    try {
-      const content = getCurrentNoteContent?.()
-      if (!content) {
-        toast.warning(t('notes.no_content_to_export'))
-        return
-      }
-      if (!activeNode) {
-        toast.warning(t('notes.no_note_selected'))
-        return
-      }
-      const fileName = activeNode.name.replace('.md', '')
-      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
-    } catch (error) {
-      logger.error('Failed to export to Word:', error as Error)
-      toast.error(t('notes.export_to_word_failed'))
-    }
-  }, [getCurrentNoteContent, activeNode])
-
   const getPrintableDocumentPayload = useCallback(() => {
     const content = getCurrentNoteContent?.()
     if (!content) {
@@ -128,20 +111,20 @@ const HeaderNavbar = ({
     }
   }, [activeNode, getCurrentNoteContent])
 
-  const handleExportToPdf = useCallback(async () => {
-    const payload = getPrintableDocumentPayload()
-    if (!payload) return
-
-    try {
-      const saved = await ipcApi.request('print.export_pdf', payload)
-      if (saved) {
-        toast.success(t('notes.export_to_pdf_success'))
-      }
-    } catch (error) {
-      logger.error('Failed to export note to PDF:', error as Error)
-      toast.error(t('notes.export_to_pdf_failed'))
-    }
-  }, [getPrintableDocumentPayload])
+  const handleExportDocument = useCallback(
+    async (format: DocumentFormat) => {
+      const payload = getPrintableDocumentPayload()
+      if (!payload) return
+      await exportDocument({
+        markdown: payload.markdown,
+        sourcePath: payload.sourcePath,
+        assetRoot: notesPath || undefined,
+        defaultName: payload.title,
+        format
+      })
+    },
+    [getPrintableDocumentPayload, notesPath]
+  )
 
   const handlePrint = useCallback(async () => {
     const payload = getPrintableDocumentPayload()
@@ -244,17 +227,15 @@ const HeaderNavbar = ({
     return (
       <MenuItem
         key={item.key}
-        label={t(item.labelKey)}
+        label={item.documentFormat ? getDocumentExportLabel(item.documentFormat) : t(item.labelKey)}
         icon={IconComponent ? <IconComponent size={16} /> : undefined}
         active={isActive}
         suffix={suffix}
         onClick={() => {
           if (item.copyAction) {
             void handleCopyContent()
-          } else if (item.exportToWordAction) {
-            void handleExportToWord()
-          } else if (item.exportToPdfAction) {
-            void handleExportToPdf()
+          } else if (item.documentFormat) {
+            void handleExportDocument(item.documentFormat)
           } else if (item.printAction) {
             void handlePrint()
           } else if (item.showSettingsPopup) {

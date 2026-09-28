@@ -387,32 +387,7 @@ export class ExportService {
         return
       }
 
-      const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
-      const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
-
-      const doc = new docx.Document({
-        styles: {
-          paragraphStyles: [
-            {
-              id: 'Normal',
-              name: 'Normal',
-              run: {
-                size: 24,
-                font: 'Arial'
-              }
-            }
-          ]
-        },
-        sections: [
-          {
-            properties: {},
-            children: elements
-          }
-        ]
-      })
-
-      const buffer = await docx.Packer.toBuffer(doc)
-
+      const buffer = await this.toWordBuffer(markdown)
       await fs.promises.writeFile(filePath, buffer)
       logger.debug('Document exported successfully')
     } catch (error) {
@@ -420,4 +395,33 @@ export class ExportService {
       throw error
     }
   }
+
+  async toWordBuffer(markdown: string): Promise<Buffer> {
+    const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
+    const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
+    const doc = new docx.Document({
+      styles: {
+        paragraphStyles: [
+          {
+            id: 'Normal',
+            name: 'Normal',
+            run: {
+              size: 24,
+              font: 'Arial'
+            }
+          }
+        ]
+      },
+      sections: [
+        {
+          properties: {},
+          children: elements
+        }
+      ]
+    })
+
+    return docx.Packer.toBuffer(doc)
+  }
 }
+
+export const exportService = new ExportService()

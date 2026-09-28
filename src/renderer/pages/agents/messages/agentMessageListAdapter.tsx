@@ -267,6 +267,7 @@ export function useAgentMessageListProviderValue({
   } = useMessageListAdapterCapabilities({
     topicId: topic.id,
     topicName: topic.name,
+    workspacePath,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,

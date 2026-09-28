@@ -277,7 +277,8 @@ export default defineConfig({
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
-          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html'),
+          documentPrint: resolve(__dirname, 'src/renderer/windows/documentPrint/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
