@@ -356,6 +356,30 @@ describe('JobManager schedule control APIs', () => {
       expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThanOrEqual(Date.parse(initialNextRun ?? '') + 20)
     })
 
+    it('persists the next grid point when markFired runs after a later grid point elapsed', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0)
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'slow-grid-interval',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const enqueueSpy = vi.spyOn(jobManager, 'enqueue')
+      enqueueSpy.mockImplementation((type, input, opts) => {
+        nowSpy.mockReturnValue(125_000)
+        enqueueSpy.mockRestore()
+        jobManager.enqueue(type, input, opts)
+      })
+      nowSpy.mockReturnValue(60_000)
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(Date.parse(jobScheduleService.getById(schedule.id)?.nextRun ?? '')).toBe(180_000)
+      nowSpy.mockRestore()
+      vi.useRealTimers()
+    })
+
     it('unregisterJobSchedule(type, name) deletes the row', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,

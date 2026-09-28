@@ -21,7 +21,7 @@ import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
-import { intervalFirstDelay } from './runtime/intervalPhase'
+import { intervalFirstDelay, nextIntervalFire } from './runtime/intervalPhase'
 import { runStartupRecovery } from './runtime/recovery'
 import {
   type EnqueueOptions,
@@ -2170,7 +2170,10 @@ export class JobManager extends BaseService {
         })
       } finally {
         try {
-          const nextRun = scheduler.getNextRun(scheduleKey)
+          const nextRun =
+            currentSchedule.trigger.kind === 'interval'
+              ? new Date(nextIntervalFire(currentSchedule, currentSchedule.trigger.ms, Date.now()))
+              : scheduler.getNextRun(scheduleKey)
           // Persist a once fire at no earlier than its `at`: the once timer
           // elapses on the monotonic clock while `firedAt` reads the wall
           // clock, so a natural fire can observe firedAt === at - 1 (see

@@ -98,6 +98,37 @@ describe('interval trigger', () => {
     vi.useRealTimers()
   })
 
+  it('reports first nextRun at the actual first fire when firstDelay differs from the grid gap', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(25)
+    scheduler.registerSchedule('i-report', { kind: 'interval', ms: 30 }, () => undefined, 20, 0)
+    expect(scheduler.getNextRun('i-report')?.getTime()).toBe(45)
+    vi.useRealTimers()
+  })
+
+  it('projects the next grid point while a slow interval callback is still running', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    scheduler.registerSchedule(
+      'i-slow',
+      { kind: 'interval', ms: 60_000 },
+      () => gate,
+      60_000,
+      0
+    )
+    await vi.advanceTimersByTimeAsync(60_000)
+    vi.setSystemTime(125_000)
+    expect(scheduler.getNextRun('i-slow')?.getTime()).toBe(180_000)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(scheduler.getNextRun('i-slow')?.getTime()).toBe(180_000)
+    vi.useRealTimers()
+  })
+
   it('reports the next chained fire and advances it after a tick', async () => {
     const beforeRegister = Date.now()
     scheduler.registerSchedule('i-next', { kind: 'interval', ms: 30 }, () => undefined)
