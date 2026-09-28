@@ -36,9 +36,9 @@ const disp = scheduler.registerSchedule(
 // Interval — chained setTimeout (handles slow callbacks without overlap)
 scheduler.registerSchedule('my.poll', { kind: 'interval', ms: 30_000 }, async () => poll())
 
-// Interval anchored elsewhere — 4th arg overrides only the FIRST delay, so the
-// cadence can follow a wall-clock grid instead of restarting on every re-arm
-scheduler.registerSchedule('my.poll', { kind: 'interval', ms: 30_000 }, async () => poll(), 12_000)
+// Interval anchored elsewhere — pass `firstDelayMs` and `intervalAnchorMs` so every
+// fire (not just the first) stays on the `anchorMs + k × ms` wall-clock grid
+scheduler.registerSchedule('my.poll', { kind: 'interval', ms: 30_000 }, async () => poll(), 12_000, createdAtMs)
 
 // One-shot — fires once at the given epoch ms
 scheduler.registerSchedule('my.delayed', { kind: 'once', at: Date.now() + 60_000 }, () => fire())

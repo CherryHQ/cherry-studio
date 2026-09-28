@@ -77,7 +77,7 @@ If you need "fire once, then maybe fire again later" semantics this is the path.
 
 ### `interval`: first delay vs. cadence
 
-`registerSchedule` takes an optional 4th argument, `firstDelayMs`, that governs only the first fire; every later tick uses `trigger.ms`. Without it the cadence restarts from the moment of registration, which means a schedule re-armed on every app launch never reaches its first fire if its period exceeds the app's uptime. `JobManager.armSchedule` therefore anchors job schedules to a wall-clock grid at `createdAt + k × ms` (`runtime/intervalPhase.ts`): a restart or resume lands on the next grid point rather than a full period out.
+`registerSchedule` accepts optional `firstDelayMs` (4th argument) and `intervalAnchorMs` (5th). When `intervalAnchorMs` is set, every re-arm targets the next point on the `anchorMs + k × ms` wall-clock grid (`intervalGrid.ts`), not `Date.now() + ms`. Without an anchor, the cadence restarts from each registration, so a schedule re-armed on every app launch never reaches its first fire if its period exceeds the app's uptime. `JobManager.armSchedule` passes `createdAt` as the anchor and derives `firstDelayMs` from `runtime/intervalPhase.ts`, so a restart or resume lands on the next grid point rather than a full period out.
 
 The armed timer itself never replays a grid point that elapsed while the app was closed. Whether that elapsed point produces a make-up job is the schedule's `catchUpPolicy`, decided separately during startup recovery: `skip-missed` (what agent tasks use) drops it, `after-startup` enqueues one make-up. `computeCatchUpAction` reads the same grid, so both paths agree on which point was missed.
 

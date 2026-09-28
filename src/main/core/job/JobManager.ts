@@ -2186,7 +2186,13 @@ export class JobManager extends BaseService {
         }
       }
     }
-    const disp = scheduler.registerSchedule(scheduleKey, trigger, onFire, intervalFirstDelay(schedule, Date.now()))
+    const disp = scheduler.registerSchedule(
+      scheduleKey,
+      trigger,
+      onFire,
+      intervalFirstDelay(schedule, Date.now()),
+      trigger.kind === 'interval' ? Date.parse(schedule.createdAt) : undefined
+    )
     this.scheduleDisposables.set(schedule.id, disp)
     try {
       const nextRun = scheduler.getNextRun(scheduleKey)?.getTime() ?? null

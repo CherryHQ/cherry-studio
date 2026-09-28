@@ -220,7 +220,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'interval-grid',
         trigger: baseTrigger, // every 60s
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       await jobManager.pauseJobScheduleById(snap.id)

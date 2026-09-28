@@ -8,7 +8,7 @@
  * very short delays.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -77,17 +77,25 @@ describe('interval trigger', () => {
     expect(count).toBeGreaterThanOrEqual(1)
   })
 
-  it('honors firstDelayMs for the initial fire only', async () => {
+  it('honors firstDelayMs on the initial fire and keeps the anchor grid on re-arm', async () => {
+    vi.useFakeTimers()
+    const anchorMs = 0
+    vi.setSystemTime(25)
     let count = 0
-    const beforeRegister = Date.now()
-    scheduler.registerSchedule('i-first-delay', { kind: 'interval', ms: 30 }, () => {
-      count++
-    }, 5)
-    const initialNextRun = scheduler.getNextRun('i-first-delay')
-    expect(initialNextRun?.getTime()).toBeGreaterThanOrEqual(beforeRegister + 5)
-    expect(initialNextRun?.getTime()).toBeLessThan(beforeRegister + 30)
-    await tick(15)
-    expect(count).toBeGreaterThanOrEqual(1)
+    scheduler.registerSchedule(
+      'i-first-delay',
+      { kind: 'interval', ms: 30 },
+      () => {
+        count++
+      },
+      5,
+      anchorMs
+    )
+    expect(scheduler.getNextRun('i-first-delay')?.getTime()).toBe(30)
+    await vi.advanceTimersByTimeAsync(5)
+    expect(count).toBe(1)
+    expect(scheduler.getNextRun('i-first-delay')?.getTime()).toBe(60)
+    vi.useRealTimers()
   })
 
   it('reports the next chained fire and advances it after a tick', async () => {

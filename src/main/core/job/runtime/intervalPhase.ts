@@ -1,3 +1,4 @@
+import { nextIntervalFireAt } from '@main/core/scheduler/intervalGrid'
 import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 
 /**
@@ -34,8 +35,5 @@ export function intervalFirstDelay(schedule: JobScheduleSnapshot, nowMs: number)
  * @returns Timestamp of the next fire, always `> afterMs`
  */
 export function nextIntervalFire(schedule: JobScheduleSnapshot, ms: number, afterMs: number): number {
-  const elapsed = afterMs - Date.parse(schedule.createdAt)
-  // Double modulo keeps the phase positive when createdAt sits in the future
-  // (clock moved backwards between creation and arming).
-  return afterMs + ms - (((elapsed % ms) + ms) % ms)
+  return nextIntervalFireAt(Date.parse(schedule.createdAt), ms, afterMs)
 }

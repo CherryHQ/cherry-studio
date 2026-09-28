@@ -4,6 +4,8 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 
+import { nextIntervalFireAt } from './intervalGrid'
+
 const logger = loggerService.withContext('SchedulerService')
 
 /**
@@ -22,6 +24,8 @@ interface TimeoutEntry {
   callback: ScheduleCallback
   nextRunAt: number
   running: boolean
+  /** When set, every re-arm targets the next point on this wall-clock grid. */
+  intervalAnchorMs?: number
 }
 
 /**
@@ -106,10 +110,17 @@ export class SchedulerService extends BaseService {
    * @param id - Unique identifier for this schedule; reused for `pause` / `resume` / `unregister` / `triggerNow`
    * @param trigger - Cron expression, repeating interval, or one-shot delay
    * @param callback - Function invoked on each fire; async callbacks are awaited (cron uses `protect: true` to block overlap)
-   * @param firstDelayMs - `interval` only: delay before the FIRST fire, when the caller anchors the cadence to something other than "now" (defaults to `trigger.ms`). Later fires keep using `trigger.ms`.
+   * @param firstDelayMs - `interval` only: delay before the first fire (defaults to `trigger.ms`)
+   * @param intervalAnchorMs - `interval` only: when set, every re-arm lands on the `anchorMs + k × ms` grid (see `intervalGrid.ts`)
    * @returns Disposable that unregisters when disposed; the service also auto-cleans on `onStop`
    */
-  registerSchedule(id: string, trigger: Trigger, callback: ScheduleCallback, firstDelayMs?: number): Disposable {
+  registerSchedule(
+    id: string,
+    trigger: Trigger,
+    callback: ScheduleCallback,
+    firstDelayMs?: number,
+    intervalAnchorMs?: number
+  ): Disposable {
     if (this.has(id)) this.unregister(id)
 
     if (trigger.kind === 'cron') {
@@ -117,7 +128,7 @@ export class SchedulerService extends BaseService {
     } else if (trigger.kind === 'once') {
       this.scheduleOnce(id, trigger.at, callback)
     } else {
-      this.scheduleInterval(id, trigger.ms, callback, firstDelayMs)
+      this.scheduleInterval(id, trigger.ms, callback, firstDelayMs, intervalAnchorMs)
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
@@ -223,7 +234,14 @@ export class SchedulerService extends BaseService {
     if (cron) return cron.nextRun() ?? null
     const timeout = this.intervalHandles.get(id)
     if (timeout) {
-      const nextRunAt = timeout.kind === 'interval' && timeout.running ? Date.now() + timeout.ms : timeout.nextRunAt
+      const now = Date.now()
+      let nextRunAt = timeout.nextRunAt
+      if (timeout.kind === 'interval' && timeout.running) {
+        nextRunAt =
+          timeout.intervalAnchorMs !== undefined
+            ? nextIntervalFireAt(timeout.intervalAnchorMs, timeout.ms, now)
+            : now + timeout.ms
+      }
       return new Date(nextRunAt)
     }
     return null
@@ -269,7 +287,13 @@ export class SchedulerService extends BaseService {
     this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
 
-  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback, firstDelayMs = ms): void {
+  private scheduleInterval(
+    id: string,
+    ms: number,
+    callback: ScheduleCallback,
+    firstDelayMs = ms,
+    intervalAnchorMs?: number
+  ): void {
     const initialDelay = Math.max(0, firstDelayMs)
     const fire = async (): Promise<void> => {
       const entry = this.intervalHandles.get(id)
@@ -283,18 +307,34 @@ export class SchedulerService extends BaseService {
       // Re-arm only when this exact entry still owns the id. unregister()
       // removes it, while a re-entrant registerSchedule(id, ...) replaces it.
       if (this.intervalHandles.get(id) !== entry) return
-      const nextRunAt = Date.now() + ms
-      const nextHandle = setTimeout(fire, ms)
+      const now = Date.now()
+      const nextRunAt =
+        entry.intervalAnchorMs !== undefined
+          ? nextIntervalFireAt(entry.intervalAnchorMs, ms, now)
+          : now + ms
+      const nextDelay = Math.max(0, nextRunAt - now)
+      const nextHandle = setTimeout(fire, nextDelay)
       nextHandle.unref?.()
       entry.handle = nextHandle
       entry.nextRunAt = nextRunAt
       entry.running = false
     }
 
-    const nextRunAt = Date.now() + initialDelay
+    const nextRunAt =
+      intervalAnchorMs !== undefined
+        ? nextIntervalFireAt(intervalAnchorMs, ms, Date.now())
+        : Date.now() + initialDelay
     const handle = setTimeout(fire, initialDelay)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
+    this.intervalHandles.set(id, {
+      handle,
+      kind: 'interval',
+      ms,
+      callback,
+      nextRunAt,
+      running: false,
+      intervalAnchorMs
+    })
   }
 
   private clearAll(): void {
