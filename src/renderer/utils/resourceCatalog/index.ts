@@ -25,6 +25,8 @@ export {
 export {
   buildCreateAgentCommand,
   buildCreateAssistantDto,
+  isUniqueModelIdSelectable,
   resolveCatalogPresetModelId,
-  toCreateAgentCommandFromCatalogPreset
+  toCreateAgentCommandFromCatalogPreset,
+  type SelectableModelContext
 } from './resourceCreate'

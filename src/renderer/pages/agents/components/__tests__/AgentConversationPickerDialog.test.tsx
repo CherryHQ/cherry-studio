@@ -18,10 +18,6 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => ['openai::gpt-4o']
-}))
-
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   ConversationPickerDialog: (props: any) => {
     mocks.pickerProps = props
@@ -109,9 +105,7 @@ describe('AgentConversationPickerDialog', () => {
   it('opens the agent create wizard from the create row', () => {
     const onOpenChange = vi.fn()
 
-    render(
-      <AgentConversationPickerDialog open onOpenChange={onOpenChange} agents={[]} onSelect={vi.fn()} />
-    )
+    render(<AgentConversationPickerDialog open onOpenChange={onOpenChange} agents={[]} onSelect={vi.fn()} />)
 
     fireEvent.click(screen.getByText('create-new'))
 

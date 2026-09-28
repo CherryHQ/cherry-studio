@@ -10,9 +10,8 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
-import { usePreference } from '@data/hooks/usePreference'
-import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
+import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import {
   buildCreateAgentCommand,
@@ -54,7 +53,6 @@ export function AgentConversationPickerDialog({
 }: AgentConversationPickerDialogProps) {
   const { t } = useTranslation()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
-  const [defaultModelId] = usePreference('chat.default_model_id')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createInitialName, setCreateInitialName] = useState('')
   const [activeTab, setActiveTab] = useState<AgentPickerTab | null>(null)
@@ -66,9 +64,7 @@ export function AgentConversationPickerDialog({
       agents.map((agent) => ({
         id: `agent:${agent.id}`,
         name: agent.name,
-        icon: (
-          <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={24} />
-        ),
+        icon: <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={24} />,
         searchText: getAgentDescriptionForDisplay(agent, t),
         selection: { type: 'agent' as const, agentId: agent.id }
       })),
@@ -219,6 +215,7 @@ export async function resolveAgentIdFromConversationSelection(
   options: {
     defaultModelId: UniqueModelId | null | undefined
     createAgent: (command: ReturnType<typeof toCreateAgentCommandFromCatalogPreset>) => Promise<AgentEntity>
+    isModelIdSelectable?: (modelId: UniqueModelId) => boolean
     onMissingModel?: () => void
   }
 ): Promise<string | null> {
@@ -228,7 +225,7 @@ export async function resolveAgentIdFromConversationSelection(
   const existing = agents.find((agent) => agent.name === presetName)
   if (existing) return existing.id
 
-  const modelId = resolveCatalogPresetModelId(selection.preset, options.defaultModelId)
+  const modelId = resolveCatalogPresetModelId(selection.preset, options.defaultModelId, options.isModelIdSelectable)
   if (!modelId) {
     options.onMissingModel?.()
     return null

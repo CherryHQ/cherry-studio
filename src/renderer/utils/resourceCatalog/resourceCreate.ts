@@ -1,8 +1,9 @@
-import type { AssistantCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
+import type { AssistantCatalogPreset } from '@renderer/types/assistantCatalog'
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 const DEFAULT_AGENT_CREATE_TYPE = 'claude-code' as const
@@ -46,14 +47,36 @@ export function toCreateAgentCommandFromCatalogPreset(
   }
 }
 
+export type SelectableModelContext = {
+  models: readonly Model[]
+  getProvider: (providerId: string) => Provider | undefined
+  isModelSelectable: (model: Model, provider?: Provider) => boolean
+}
+
+export function isUniqueModelIdSelectable(modelId: UniqueModelId, context: SelectableModelContext): boolean {
+  const model = context.models.find((candidate) => candidate.id === modelId)
+  if (!model?.isEnabled) return false
+  const provider = context.getProvider(model.providerId)
+  if (!provider?.isEnabled) return false
+  return context.isModelSelectable(model, provider)
+}
+
 export function resolveCatalogPresetModelId(
   preset: AssistantCatalogPreset,
-  fallbackModelId: UniqueModelId | null | undefined
+  fallbackModelId: UniqueModelId | null | undefined,
+  isModelIdSelectable?: (modelId: UniqueModelId) => boolean
 ): UniqueModelId | null {
+  const candidates: (UniqueModelId | null | undefined)[] = []
   if (preset.defaultModel?.provider && preset.defaultModel.id) {
-    return createUniqueModelId(preset.defaultModel.provider, preset.defaultModel.id)
+    candidates.push(createUniqueModelId(preset.defaultModel.provider, preset.defaultModel.id))
   }
-  return fallbackModelId ?? null
+  candidates.push(fallbackModelId)
+
+  for (const modelId of candidates) {
+    if (!modelId) continue
+    if (!isModelIdSelectable || isModelIdSelectable(modelId)) return modelId
+  }
+  return null
 }
 
 export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
