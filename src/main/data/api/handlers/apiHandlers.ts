@@ -23,6 +23,7 @@ import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
 import { archiveHandlers } from './archives'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
+import { diagnosticReportHandlers } from './diagnosticReports'
 import { externalKnowledgeHandlers } from './externalKnowledge'
 import { externalKnowledgeConnectionHandlers } from './externalKnowledgeConnections'
 import { fileHandlers } from './files'
@@ -59,6 +60,7 @@ export const apiHandlers: ApiImplementation = {
   ...assistantHandlers,
   ...agentChannelHandlers,
   ...browserVisitHandlers,
+  ...diagnosticReportHandlers,
   ...externalKnowledgeConnectionHandlers,
   ...externalKnowledgeHandlers,
   ...topicHandlers,
