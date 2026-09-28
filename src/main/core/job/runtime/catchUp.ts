@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { JobHandler, JobMissEvent } from '../types'
+import { nextIntervalFire } from './intervalPhase'
 
 const logger = loggerService.withContext('JobCatchUp')
 
@@ -29,7 +30,9 @@ export interface CatchUpAction {
  * "Overdue" depends on trigger kind:
  *   - cron: `schedule.nextRun <= now` (Scheduler / JobManager keep this updated)
  *   - interval: persisted `nextRun <= now`; rows created before interval due
- *     times were persisted fall back to `(lastRun ?? createdAt) + ms <= now`.
+ *     times were persisted fall back to the first `createdAt + k × ms` grid
+ *     point after `lastRun` (`createdAt` when never fired) — the same grid
+ *     `armSchedule` targets via `nextIntervalFire`.
  *   - once: never overdue here. A `once` trigger that already fired
  *     consumed itself; if it never fired, the SchedulerService timer will.
  *
@@ -84,7 +87,7 @@ function isScheduleOverdue(schedule: JobScheduleSnapshot, lastRunMs: number | nu
     if (nextRunMs !== null) return nextRunMs <= nowMs
     // Compatibility for rows written before interval nextRun was persisted.
     const anchorMs = lastRunMs ?? Date.parse(schedule.createdAt)
-    return anchorMs + trigger.ms <= nowMs
+    return nextIntervalFire(schedule, trigger.ms, anchorMs) <= nowMs
   }
   // once: armed in SchedulerService via setTimeout. If it hasn't fired by now,
   // the timer is still pending — not overdue from catch-up's perspective.

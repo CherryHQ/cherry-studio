@@ -77,6 +77,19 @@ describe('interval trigger', () => {
     expect(count).toBeGreaterThanOrEqual(1)
   })
 
+  it('honors firstDelayMs for the initial fire only', async () => {
+    let count = 0
+    const beforeRegister = Date.now()
+    scheduler.registerSchedule('i-first-delay', { kind: 'interval', ms: 30 }, () => {
+      count++
+    }, 5)
+    const initialNextRun = scheduler.getNextRun('i-first-delay')
+    expect(initialNextRun?.getTime()).toBeGreaterThanOrEqual(beforeRegister + 5)
+    expect(initialNextRun?.getTime()).toBeLessThan(beforeRegister + 30)
+    await tick(15)
+    expect(count).toBeGreaterThanOrEqual(1)
+  })
+
   it('reports the next chained fire and advances it after a tick', async () => {
     const beforeRegister = Date.now()
     scheduler.registerSchedule('i-next', { kind: 'interval', ms: 30 }, () => undefined)

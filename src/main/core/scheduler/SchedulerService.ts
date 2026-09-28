@@ -106,9 +106,10 @@ export class SchedulerService extends BaseService {
    * @param id - Unique identifier for this schedule; reused for `pause` / `resume` / `unregister` / `triggerNow`
    * @param trigger - Cron expression, repeating interval, or one-shot delay
    * @param callback - Function invoked on each fire; async callbacks are awaited (cron uses `protect: true` to block overlap)
+   * @param firstDelayMs - `interval` only: delay before the FIRST fire, when the caller anchors the cadence to something other than "now" (defaults to `trigger.ms`). Later fires keep using `trigger.ms`.
    * @returns Disposable that unregisters when disposed; the service also auto-cleans on `onStop`
    */
-  registerSchedule(id: string, trigger: Trigger, callback: ScheduleCallback): Disposable {
+  registerSchedule(id: string, trigger: Trigger, callback: ScheduleCallback, firstDelayMs?: number): Disposable {
     if (this.has(id)) this.unregister(id)
 
     if (trigger.kind === 'cron') {
@@ -116,7 +117,7 @@ export class SchedulerService extends BaseService {
     } else if (trigger.kind === 'once') {
       this.scheduleOnce(id, trigger.at, callback)
     } else {
-      this.scheduleInterval(id, trigger.ms, callback)
+      this.scheduleInterval(id, trigger.ms, callback, firstDelayMs)
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
@@ -268,7 +269,8 @@ export class SchedulerService extends BaseService {
     this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
 
-  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
+  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback, firstDelayMs = ms): void {
+    const initialDelay = Math.max(0, firstDelayMs)
     const fire = async (): Promise<void> => {
       const entry = this.intervalHandles.get(id)
       if (!entry || entry.kind !== 'interval') return
@@ -289,8 +291,8 @@ export class SchedulerService extends BaseService {
       entry.running = false
     }
 
-    const nextRunAt = Date.now() + ms
-    const handle = setTimeout(fire, ms)
+    const nextRunAt = Date.now() + initialDelay
+    const handle = setTimeout(fire, initialDelay)
     handle.unref?.()
     this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
   }
