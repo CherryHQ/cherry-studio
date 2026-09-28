@@ -29,6 +29,7 @@ import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
 import type { ArchiveSchemas } from './archives'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
+import type { DiagnosticReportSchemas } from './diagnosticReports'
 import type { ExternalKnowledgeConnectionSchemas } from './externalKnowledgeConnections'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
@@ -92,5 +93,6 @@ export type ApiSchemas = AssertValidSchemas<
     AgentChannelSchemas &
     JobSchemas &
     SearchSchemas &
+    DiagnosticReportSchemas &
     AiUsageRecordSchemas
 >

@@ -70,6 +70,34 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('adds diagnostic history to a populated database and retains it after reopening', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0026_clammy_the_renegades'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        'INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run('existing', 'Existing', 'a0', now, now)
+
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT name FROM user_provider WHERE provider_id = ?').get('existing')).toEqual({
+      name: 'Existing'
+    })
+    sqlite
+      .prepare('INSERT INTO diagnostic_report (report_id, submitted_at, processing_status) VALUES (?, ?, ?)')
+      .run('report-1', now, 'pending')
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    expect(sqlite.prepare('SELECT report_id, submitted_at, processing_status FROM diagnostic_report').all()).toEqual([
+      { report_id: 'report-1', submitted_at: now, processing_status: 'pending' }
+    ])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
+  })
+
   it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
     sqlite.pragma('foreign_keys = ON')
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
@@ -1303,13 +1331,16 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds External Knowledge connections without changing populated business data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0027_sloppy_wolverine'))
     sqlite
       .prepare(
         `INSERT INTO preference (scope, key, value, created_at, updated_at)
          VALUES ('default', 'phase0.survives', '"kept"', 100, 200)`
       )
       .run()
+    sqlite
+      .prepare('INSERT INTO diagnostic_report (report_id, submitted_at, processing_status) VALUES (?, ?, ?)')
+      .run('existing-report', 150, 'pending')
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -1320,6 +1351,9 @@ describe('applyMigrations over a populated database', () => {
       created_at: 100,
       updated_at: 200
     })
+    expect(sqlite.prepare('SELECT report_id, submitted_at, processing_status FROM diagnostic_report').all()).toEqual([
+      { report_id: 'existing-report', submitted_at: 150, processing_status: 'pending' }
+    ])
 
     const insertConnection = sqlite.prepare(
       `INSERT INTO external_knowledge_connection
