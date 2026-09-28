@@ -128,6 +128,41 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('does not report the session closed while a rebuild is still being created', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    let closed = false
+    const closing = wrapper.close().then(() => {
+      closed = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The rebuild is not even created yet: reporting completion here hands the host a session whose
+    // replacement runtime is still starting, and it holds resources that close() was asked to release.
+    expect(closed).toBe(false)
+
+    releaseConnect()
+    await closing
+    expect(fallback.close).toHaveBeenCalled()
+  })
+
   it('tears down the rebuilt connection when the session closes during its slow replay submission', async () => {
     const primary = fakeConnection('primary capture')
     const fallback = fakeConnection('fallback capture')
