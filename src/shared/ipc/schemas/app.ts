@@ -18,6 +18,7 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
 
 const notesDirectoryStatsSchema = z.object({
   markdownFileCount: z.number().int().nonnegative(),
+  fileCount: z.number().int().nonnegative(),
   folderCount: z.number().int().nonnegative(),
   totalBytes: z.number().int().nonnegative()
 })
@@ -27,7 +28,8 @@ const notesRelocationInspectionSchema = z.discriminatedUnion('valid', [
     valid: z.literal(true),
     source: notesDirectoryStatsSchema,
     target: notesDirectoryStatsSchema,
-    targetHasMarkdown: z.boolean()
+    targetHasMarkdown: z.boolean(),
+    targetHasFiles: z.boolean()
   }),
   z.object({ valid: z.literal(false), reason: z.enum(NOTES_RELOCATION_VALIDATION_REASONS) })
 ])
