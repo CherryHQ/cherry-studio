@@ -39,6 +39,8 @@ export const appRequestSchemas = {
       appPath: z.string(),
       homePath: z.string(),
       notesPath: z.string(),
+      /** Where automatic local backups land when the user has not chosen a folder. */
+      defaultBackupPath: z.string(),
       configPath: z.string(),
       appDataPath: z.string(),
       resourcesPath: z.string(),

@@ -1,4 +1,4 @@
-import { Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
+import { ChevronRight, Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -123,9 +123,12 @@ export default function ApiKey({
                     <span className="min-w-0 truncate font-mono text-foreground text-sm">
                       {showApiKey ? primaryApiKey.key : maskStoredApiKey(primaryApiKey.key)}
                     </span>
-                    {apiKeys.length > 1 ? (
-                      <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
-                    ) : null}
+                    {/* Always shown: a provider takes any number of keys, but the only way in is
+                        clicking this row, and with one key there was nothing saying so. */}
+                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                      {t('settings.provider.api_key.count', { count: apiKeys.length })}
+                      <ChevronRight size={12} aria-hidden />
+                    </span>
                   </button>
                   <div className="pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/api-key:pointer-events-auto group-focus-within/api-key:opacity-100 group-hover/api-key:pointer-events-auto group-hover/api-key:opacity-100">
                     <Tooltip content={t('settings.provider.api_key.copy')}>

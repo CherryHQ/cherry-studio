@@ -50,6 +50,24 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+// HealthOverview's data hooks — this suite exercises the rest of the page, not the health
+// section, so empty lists are enough to keep it from rendering with API-shaped mock defaults.
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [] })
+}))
+
+vi.mock('@renderer/hooks/useMcpServer', () => ({
+  useMcpServers: () => ({ mcpServers: [] })
+}))
+
+vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
+  useMcpRuntimeStatusMap: () => ({})
+}))
+
 vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: vi.fn() }
 }))

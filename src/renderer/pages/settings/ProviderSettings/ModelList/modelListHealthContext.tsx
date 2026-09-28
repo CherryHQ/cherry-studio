@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,6 +29,7 @@ interface ModelListHealthRunContextValue {
   isSingleModelChecking: boolean
   isModelChecking: boolean
   singleModelResult: ModelWithStatus | null
+  lastCheckResults: ModelWithStatus[] | null
   savingKeyId: string | null
   openModelCheck: () => void
   closeModelCheck: () => void
@@ -53,6 +54,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
   const single = useProviderConnectionCheck(providerId, credentials)
   const all = useHealthCheck(providerId, credentials)
   const isHealthChecking = all.isChecking
+  const lastCheckResults = all.lastCheckResults
   const runAllModels = all.startHealthCheck
   const runSingleModel = single.startSingleModelCheck
   const isSingleModelChecking = single.isSingleModelChecking
@@ -117,6 +119,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       isSingleModelChecking,
       isModelChecking,
       singleModelResult: single.singleModelResult,
+      lastCheckResults,
       savingKeyId,
       openModelCheck,
       closeModelCheck,
@@ -132,6 +135,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       isHealthChecking,
       closeModelCheck,
       isModelChecking,
+      lastCheckResults,
       modelCheckOpen,
       openModelCheck,
       providerId,

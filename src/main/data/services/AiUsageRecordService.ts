@@ -402,6 +402,8 @@ function groupIdentityColumns(groupBy: GroupDimension) {
       ]
     case 'model':
       return [aiUsageRecordTable.providerId, aiUsageRecordTable.modelId]
+    case 'apiKeyModel':
+      return [aiUsageRecordTable.providerId, aiUsageRecordTable.apiKeyId, aiUsageRecordTable.modelId]
     case 'source':
       return [aiUsageRecordTable.sourceType, aiUsageRecordTable.sourceId]
     default:
@@ -412,7 +414,8 @@ function groupIdentityColumns(groupBy: GroupDimension) {
 function groupIdentitySelect(groupBy: GroupDimension) {
   const bySource = groupBy === 'source'
   const byProvider = groupBy !== undefined && !bySource
-  const byApiKey = groupBy === 'apiKey'
+  const byApiKey = groupBy === 'apiKey' || groupBy === 'apiKeyModel'
+  const byModel = groupBy === 'model' || groupBy === 'apiKeyModel'
 
   return {
     providerId: byProvider ? aiUsageRecordTable.providerId : sql<string | null>`NULL`,
@@ -422,7 +425,7 @@ function groupIdentitySelect(groupBy: GroupDimension) {
     sourceName: bySource ? sql<string | null>`max(${aiUsageRecordTable.sourceName})` : sql<string | null>`NULL`,
     sourceIcon: bySource ? sql<string | null>`max(${aiUsageRecordTable.sourceIcon})` : sql<string | null>`NULL`,
     apiKeyId: byApiKey ? aiUsageRecordTable.apiKeyId : sql<string | null>`NULL`,
-    modelId: groupBy === 'model' ? aiUsageRecordTable.modelId : sql<string | null>`NULL`,
+    modelId: byModel ? aiUsageRecordTable.modelId : sql<string | null>`NULL`,
     apiKeyLabel: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyLabel})` : sql<string | null>`NULL`,
     apiKeyMasked: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyMasked})` : sql<string | null>`NULL`,
     apiKeyAttribution: byApiKey ? aiUsageRecordTable.apiKeyAttribution : sql<string | null>`NULL`,
@@ -451,7 +454,7 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
           providerId: row.providerId,
           providerName: row.providerName
         }),
-    ...(groupBy === 'apiKey'
+    ...(groupBy === 'apiKey' || groupBy === 'apiKeyModel'
       ? {
           apiKeyId: row.apiKeyId,
           apiKeyLabel: row.apiKeyLabel,
@@ -460,7 +463,7 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
           authMethod: row.authMethod as AiUsageRecordEntry['authMethod']
         }
       : {}),
-    ...(groupBy === 'model' ? { modelId: row.modelId } : {})
+    ...(groupBy === 'model' || groupBy === 'apiKeyModel' ? { modelId: row.modelId } : {})
   }
 }
 
@@ -488,6 +491,15 @@ function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: AiUsageRecordGroup
         groupBy,
         providerId: row.providerId,
         providerName: row.providerName,
+        modelId: row.modelId
+      }
+    case 'apiKeyModel':
+      return {
+        groupBy,
+        providerId: row.providerId,
+        providerName: row.providerName,
+        apiKeyId: row.apiKeyId,
+        apiKeyLabel: row.apiKeyLabel,
         modelId: row.modelId
       }
     case 'source':
@@ -760,6 +772,14 @@ function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecord
             nullableIdentity(aiUsageRecordTable.apiKeyId, bucket.apiKeyId),
             eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution),
             nullableIdentity(aiUsageRecordTable.authMethod, bucket.authMethod)
+          )!
+        ]
+      case 'apiKeyModel':
+        return [
+          and(
+            nullableIdentity(aiUsageRecordTable.providerId, bucket.providerId),
+            nullableIdentity(aiUsageRecordTable.apiKeyId, bucket.apiKeyId),
+            nullableIdentity(aiUsageRecordTable.modelId, bucket.modelId)
           )!
         ]
     }

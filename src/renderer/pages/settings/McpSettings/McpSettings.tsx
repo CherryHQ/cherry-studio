@@ -441,7 +441,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     registryState,
     isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server),
     builtinRequiresEnv:
-      (server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)) && Boolean(server.shouldConfig)
+      (server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)) && Boolean(server.shouldConfig),
+    serverName: server.name
   }
 
   const tabs: McpTabItem[] = [

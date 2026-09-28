@@ -75,6 +75,14 @@ const SIDEBAR_APP_DEFINITIONS = [
     resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`
   },
   {
+    id: 'videos',
+    routePrefix: '/app/videos'
+  },
+  {
+    id: 'tutor',
+    routePrefix: '/app/tutor'
+  },
+  {
     id: 'translate',
     routePrefix: '/app/translate'
   },

@@ -195,6 +195,19 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
+/**
+ * Whether a provider can actually serve a request right now: a keyless local/authOptional
+ * provider or a login-based one always can, everyone else needs at least one enabled API key.
+ * The `isEnabled` toggle only says the user wants this provider considered — it says nothing
+ * about whether it has a credential to try, so a provider flipped on with every key disabled (or
+ * none added yet) still passes `enabled: true` filters without this check.
+ */
+export function hasUsableCredential(provider: Pick<Provider, 'authOptional' | 'authMethods' | 'apiKeys'>): boolean {
+  if (provider.authOptional === true) return true
+  if (isLoginBasedProvider(provider)) return true
+  return provider.apiKeys.some((key) => key.isEnabled)
+}
+
 /** Effective Fast support belongs to the provider-model pair, not either side alone. */
 export function isSupportFastMode(
   provider: Pick<Provider, 'fastMode'>,

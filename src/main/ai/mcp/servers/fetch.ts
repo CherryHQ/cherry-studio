@@ -105,6 +105,11 @@ export class Fetcher {
       const html = await this._fetchText(requestPayload)
       const { default: TurndownService } = await import('turndown')
       const turndownService = applyTableRules(new TurndownService())
+      // Turndown keeps the *text* inside these, so a page's stylesheet and inline scripts land in
+      // the markdown verbatim. That is pure cost: the caller asked for the page's prose, and on a
+      // free tier a stylesheet's worth of tokens per fetched link is what ends the day's quota.
+      // `txt` already strips them with jsdom; markdown had been the only path that did not.
+      turndownService.remove(['style', 'script', 'noscript'])
       const markdown = turndownService.turndown(html)
       return { content: [{ type: 'text', text: markdown }], isError: false }
     } catch (error) {

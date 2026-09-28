@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -157,6 +158,22 @@ describe('ProviderService API keys', () => {
     expect(keys.find((entry) => entry.id === 'key-b')).toMatchObject({ label: 'B', isEnabled: false })
   })
 
+  it('round-trips a key note to the database and clears it on an empty update', async () => {
+    await seedProvider()
+
+    const updated = providerService.updateApiKey('openai', 'key-a', { note: 'Signed up with throwaway@mail.com' })
+    expect(updated.apiKeys.find((entry) => entry.id === 'key-a')).toMatchObject({
+      note: 'Signed up with throwaway@mail.com'
+    })
+
+    const storedKeys = await readApiKeys()
+    expect(storedKeys.find((entry) => entry.id === 'key-a')?.note).toBe('Signed up with throwaway@mail.com')
+
+    providerService.updateApiKey('openai', 'key-a', { note: '' })
+    const clearedKeys = await readApiKeys()
+    expect(clearedKeys.find((entry) => entry.id === 'key-a')?.note).toBeUndefined()
+  })
+
   it('deletes API keys by id and persists the updated list', async () => {
     await seedProvider()
 
@@ -218,6 +235,46 @@ describe('ProviderService API keys', () => {
     expect(storedKeys).toEqual([
       { id: 'key-new', key: 'sk-new', label: 'New label', isEnabled: true },
       { id: 'key-disabled', key: 'sk-disabled', isEnabled: false }
+    ])
+  })
+
+  it('carries tier, renewal anchor/timezone, and note through a bulk replace', async () => {
+    await seedProvider()
+
+    const replacement = [
+      {
+        id: 'key-new',
+        key: 'sk-new',
+        isEnabled: true,
+        tier: 'paid' as const,
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
+    ]
+    const updated = providerService.replaceApiKeys('openai', replacement)
+
+    expect(updated.apiKeys).toEqual([
+      {
+        id: 'key-new',
+        isEnabled: true,
+        tier: 'paid',
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
+    ])
+    const storedKeys = await readApiKeys()
+    expect(storedKeys).toEqual([
+      {
+        id: 'key-new',
+        key: 'sk-new',
+        isEnabled: true,
+        tier: 'paid',
+        renewalAnchor: '2024-01-15',
+        renewalTimezone: 'America/New_York',
+        note: 'Team account'
+      }
     ])
   })
 
@@ -341,6 +398,24 @@ describe('ProviderService API keys', () => {
     expect(await readManagedApiKeys()).toEqual([
       { id: 'managed-key', key: 'sk-managed', label: 'Managed', isEnabled: true }
     ])
+  })
+
+  it('keeps spending one key when the provider is set to sequential, so the rest stay whole', async () => {
+    // Daily-reset free allowances: draining one key leaves the others ready, where taking turns
+    // ends the day with every key half-used and none able to finish anything.
+    await seedProvider()
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.key_rotation', { openai: 'sequential' })
+
+    expect(providerService.resolveApiKey('openai').value).toBe('sk-a')
+    expect(providerService.resolveApiKey('openai').value).toBe('sk-a')
+    expect(providerService.resolveApiKey('openai').value).toBe('sk-a')
+  })
+
+  it('takes turns for a provider with no policy set, which is what it did before the setting existed', async () => {
+    await seedProvider()
+
+    expect(providerService.resolveApiKey('openai').value).toBe('sk-a')
+    expect(providerService.resolveApiKey('openai').value).toBe('sk-b')
   })
 
   it('rotates enabled API keys while returning the exact safe identity selected for each request', async () => {

@@ -48,7 +48,7 @@ import type { Model } from '@shared/data/types/model'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
-import { AgentChatNavbar } from './components/AgentChatNavbar'
+import { AgentCheckpointUndo, AgentChatNavbar, AgentWorkspaceFolderPickerButton } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
 import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
@@ -467,6 +467,12 @@ const AgentChat = ({
               onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
             />
           ) : undefined
+        }
+        tools={
+          <>
+            <AgentWorkspaceFolderPickerButton />
+            <AgentCheckpointUndo sessionId={sessionSnapshot.id} />
+          </>
         }
         showSidebarControls={showResourceListControls}
         sidebarOpen={sidebarOpen}

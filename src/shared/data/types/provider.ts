@@ -55,6 +55,9 @@ const ProviderWebsiteSchema = z.object({
   })
 })
 
+export const ApiKeyTierSchema = z.enum(['free', 'paid', 'trial'])
+export type ApiKeyTier = z.infer<typeof ApiKeyTierSchema>
+
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
   id: z.string().min(1),
@@ -63,7 +66,15 @@ export const ApiKeyEntrySchema = z.object({
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
-  isEnabled: z.boolean()
+  isEnabled: z.boolean(),
+  /** Billing tier: free (default), paid, or trial (one-time allowance). */
+  tier: ApiKeyTierSchema.optional(),
+  /** ISO date anchor for renewal (e.g. signup date); period resets relative to this. */
+  renewalAnchor: z.string().optional(),
+  /** IANA timezone for renewal calculation (e.g. "America/New_York"); defaults to UTC. */
+  renewalTimezone: z.string().optional(),
+  /** Free-text note (e.g. which account this came from) — the renewal link itself is derived from the provider preset. */
+  note: z.string().optional()
 })
 
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
@@ -154,6 +165,26 @@ export const ANTHROPIC_CACHE_TTL_OPTIONS = ['5m', '1h'] as const
 const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
+export const ProxyModeSchema = z.enum(['system', 'direct', 'custom'])
+export type ProxyMode = z.infer<typeof ProxyModeSchema>
+
+export const ProviderProxyConfigSchema = z
+  .discriminatedUnion('mode', [
+    z.object({
+      mode: z.literal('system')
+    }),
+    z.object({
+      mode: z.literal('direct')
+    }),
+    z.object({
+      mode: z.literal('custom'),
+      url: z.string().min(1)
+    })
+  ])
+  .optional()
+
+export type ProviderProxyConfig = z.infer<typeof ProviderProxyConfigSchema>
+
 export const ProviderSettingsSchema = z.object({
   streamOptions: z
     .object({
@@ -182,6 +213,9 @@ export const ProviderSettingsSchema = z.object({
   rateLimit: z.number().optional(),
   timeout: z.number().optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
+
+  // Proxy configuration for this provider
+  proxy: ProviderProxyConfigSchema,
 
   // User notes
   notes: z.string().optional(),

@@ -27,6 +27,7 @@ import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+import { TaskRoutingSettings } from './TaskRoutingSettings'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -45,6 +46,7 @@ const GeneralSettings: FC = () => {
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
   )
+  const [liteMode, setLiteMode] = usePreference('BootConfig.app.lite_mode')
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
@@ -60,6 +62,9 @@ const GeneralSettings: FC = () => {
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
+  const [healthPriorityEnabled, setHealthPriorityEnabled] = usePreference('chat.retry.health_priority_enabled')
+  const [backgroundScanEnabled, setBackgroundScanEnabled] = usePreference('chat.retry.background_scan_enabled')
+  const [autoContinueTruncated, setAutoContinueTruncated] = usePreference('chat.retry.auto_continue_truncated')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
@@ -127,6 +132,27 @@ const GeneralSettings: FC = () => {
       },
       500
     )
+  }
+
+  // Services are excluded at registration, so the change only lands on the next boot.
+  const handleLiteModeChange = async (checked: boolean) => {
+    const confirmed = await popup.confirm({
+      title: t('settings.lite_mode.confirm.title'),
+      content: t('settings.lite_mode.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true
+    })
+    if (!confirmed) return
+
+    try {
+      await setLiteMode(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+      throw error
+    }
+
+    setTimeoutTimer('handleLiteModeChange', () => void window.api.application.relaunch(), 500)
   }
 
   return (
@@ -223,6 +249,18 @@ const GeneralSettings: FC = () => {
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-lite-mode" className="scroll-mt-6">
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.lite_mode.title')}</span>
+            <InfoTooltip
+              content={t('settings.lite_mode.tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch checked={liteMode} onCheckedChange={handleLiteModeChange} />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
@@ -242,6 +280,8 @@ const GeneralSettings: FC = () => {
       </SettingGroup>
 
       <ContextManagementSettings />
+
+      <TaskRoutingSettings />
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.agent.language.title')}</SettingTitle>
@@ -342,6 +382,48 @@ const GeneralSettings: FC = () => {
                   }
                 />
               </div>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.health_priority')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.health_priority_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={healthPriorityEnabled}
+                onCheckedChange={(checked) => void setHealthPriorityEnabled(checked)}
+                aria-label={t('settings.models.retry.health_priority')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.background_scan')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.background_scan_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={backgroundScanEnabled}
+                onCheckedChange={(checked) => void setBackgroundScanEnabled(checked)}
+                aria-label={t('settings.models.retry.background_scan')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.auto_continue')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.auto_continue_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={autoContinueTruncated}
+                onCheckedChange={(checked) => void setAutoContinueTruncated(checked)}
+                aria-label={t('settings.models.retry.auto_continue')}
+              />
             </SettingRow>
           </>
         )}

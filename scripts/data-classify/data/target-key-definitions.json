@@ -271,9 +271,9 @@
     {
       "targetKey": "chat.retry.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
-      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+      "description": "Enable model call retry/fallback (v2 新增，非迁移). Default on: health-ordered automatic fallbacks are useless while retry is off."
     },
     {
       "targetKey": "chat.retry.fallback_model_ids",
@@ -297,6 +297,118 @@
       "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
     },
     {
+      "targetKey": "chat.retry.model_health",
+      "type": "PreferenceTypes.ModelHealthMemory",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Last health-probe outcome per model, persisted so routing survives a restart"
+    },
+    {
+      "targetKey": "chat.retry.health_priority_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Order retry fallbacks by probed health then quality score instead of the manual order"
+    },
+    {
+      "targetKey": "chat.retry.background_scan_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "When idle, occasionally probe a provider API key to detect revocation or credit depletion before a user interacts with it"
+    },
+    {
+      "targetKey": "chat.retry.auto_continue_truncated",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "When a reply stops due to the provider's output token cap, automatically ask the model to carry on in the same message, up to 3 times per reply"
+    },
+    {
+      "targetKey": "chat.routing.auto_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Route each request to the best model for its detected task category"
+    },
+    {
+      "targetKey": "chat.routing.auto_switch_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow a failing or quota-exhausted model to fall back to a different model automatically; off by default so the answering model never changes without being asked"
+    },
+    {
+      "targetKey": "chat.routing.category_models",
+      "type": "PreferenceTypes.CategoryModelMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Models pinned per task category, tried ahead of the derived ranking"
+    },
+    {
+      "targetKey": "chat.routing.api_key_limits",
+      "type": "PreferenceTypes.ApiKeyLimitMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "User-declared request ceiling per credential, for free tiers the provider never reports"
+    },
+    {
+      "targetKey": "chat.routing.key_rotation",
+      "type": "PreferenceTypes.ApiKeyRotationMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Per-provider policy for choosing among several API keys — round-robin spreads requests across keys, sequential drains one before touching the next; keyed by providerId, absent means round-robin"
+    },
+    {
+      "targetKey": "chat.routing.service_usage",
+      "type": "PreferenceTypes.ServiceUsageMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Usage counter per web/URL service, keyed by web::providerId"
+    },
+    {
+      "targetKey": "chat.routing.quota_notice_state",
+      "type": "PreferenceTypes.QuotaNoticeMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Which quota renewal/trial-exhaustion reminders have already been shown, keyed like chat.routing.api_key_limits, so a reminder fires once and never repeats across restarts"
+    },
+    {
+      "targetKey": "chat.routing.pinned_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "UniqueModelId to use for every new conversation, overriding category routing; empty string means no pin"
+    },
+    {
+      "targetKey": "chat.routing.controller_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "UniqueModelId of the model that coordinates the other selected models — it splits the user request among them and merges their answers; empty string means no coordinator"
+    },
+    {
+      "targetKey": "chat.routing.local_worker_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "UniqueModelId of a local model used by default for background work (history compression, topic naming); empty string means use the remote defaults"
+    },
+    {
+      "targetKey": "chat.routing.lm_studio_embedding_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "LM Studio model ID used for text embeddings in local mode (empty = use default)"
+    },
+    {
+      "targetKey": "chat.routing.escalation_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable automatic escalation from cheap/free models to expensive ones on failure (quota protection benefit)"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -313,9 +425,10 @@
     {
       "targetKey": "chat.context_settings.max_messages",
       "type": "number",
-      "defaultValue": null,
+      "nullable": true,
+      "defaultValue": 10,
       "status": "classified",
-      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow. Defaults to 10 so an unbounded history does not burn a free-tier quota on every turn"
     },
     {
       "targetKey": "chat.context_settings.compress.enabled",
@@ -337,6 +450,13 @@
       "defaultValue": 80,
       "status": "classified",
       "description": "Percent of the model input room at which history is compacted (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.context_settings.excluded_messages",
+      "type": "PreferenceTypes.ExcludedContextMessageMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Message ids currently excluded from the history sent to the model, keyed by message id (presence means excluded); toggled per message in the chat UI and does not affect the persisted message content"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -915,6 +1035,13 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.privacy.local_only_knowledge_bases",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Knowledge base IDs marked for local-only processing (never sent to remote providers, always use local model)"
     }
   ]
 }

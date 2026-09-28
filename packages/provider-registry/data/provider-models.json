@@ -40831,6 +40831,11 @@
       },
       "modelId": "glm-image",
       "providerId": "zhipu"
+    },
+    {
+      "modelId": "auto",
+      "name": "OmniRoute Auto",
+      "providerId": "omniroute"
     }
   ],
   "version": "0f625b8aa0504dca"

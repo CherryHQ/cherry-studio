@@ -3,6 +3,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
+import ProviderProxySettings from './ProviderProxySettings'
 
 export interface AuthenticationSectionContentProps {
   providerId: string
@@ -35,6 +36,7 @@ export function AuthenticationSectionContent({
         onContinueApiSetup={onContinueApiSetup}
       />
       <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
+      <ProviderProxySettings providerId={providerId} />
     </>
   )
 }

@@ -414,6 +414,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.precise': 'Precise',
+          'library.config.basic.reply_language': 'Reply language',
+          'library.config.basic.reply_language_auto': 'Auto',
+          'library.config.basic.field.reply_language.hint': 'Always reply in this language.',
           'library.config.basic.stream_output': 'Stream output',
           'library.config.basic.group': 'Group',
           'library.config.basic.group_empty': 'No groups',
@@ -1326,6 +1329,7 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
     expectHelpTrigger('Max tokens', 'Caps response length.')
     expectHelpTrigger('Stream output', 'Stream responses.')
+    expectHelpTrigger('Reply language', 'Always reply in this language.')
     expectHelpTrigger('Max tool call rounds', 'Caps tool-call rounds at 100.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
@@ -1338,6 +1342,48 @@ describe('edit dialogs', () => {
             enableTemperature: true,
             mcpMode: 'manual'
           })
+        })
+      })
+    )
+  })
+
+  it('locks the assistant to a specific reply language (R11)', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+    const select = await screen.findByRole('combobox', { name: 'Reply language' })
+    fireEvent.pointerDown(select)
+    fireEvent.click(select)
+    fireEvent.click(await screen.findByRole('option', { name: 'Türkçe' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({ replyLanguage: 'tr-TR' })
+        })
+      })
+    )
+  })
+
+  it('clears a stored reply language back to Auto (R11)', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, replyLanguage: 'tr-TR' } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    const select = await screen.findByRole('combobox', { name: 'Reply language' })
+    fireEvent.pointerDown(select)
+    fireEvent.click(select)
+    fireEvent.click(await screen.findByRole('option', { name: 'Auto' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({ replyLanguage: null })
         })
       })
     )

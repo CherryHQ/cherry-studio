@@ -3,6 +3,7 @@ import type { CacheChatComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import { isUniqueModelId } from '@shared/data/types/model'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
+const DRAFT_SNAPSHOT_KEY = 'chat.composer_draft_snapshot' as const
 
 export const getChatDraftCacheKey = (topicId: string) => `chat.composer_draft.${topicId}` as const
 
@@ -21,8 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
-  const cached = cacheService.get(getChatDraftCacheKey(topicId))
+function normalizeDraftCache(cached: unknown): ChatComposerDraftCache {
   if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
 
   return {
@@ -35,6 +35,18 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
     mentionedModelIds: Array.isArray(cached.mentionedModelIds) ? cached.mentionedModelIds.filter(isUniqueModelId) : [],
     modelMultiSelectMode: cached.modelMultiSelectMode === true
   }
+}
+
+// Renderer memory is empty for this topic right after an app restart; fall back to the
+// persisted crash-recovery snapshot written by writeChatDraftCache. The snapshot honours
+// the same TTL, so an expired draft stays expired instead of being resurrected here.
+export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
+  const cached = cacheService.get(getChatDraftCacheKey(topicId))
+  if (cached !== undefined) return normalizeDraftCache(cached)
+
+  const snapshot = cacheService.getPersist(DRAFT_SNAPSHOT_KEY)[topicId]
+  if (!snapshot || Date.now() - snapshot.savedAt > DRAFT_CACHE_TTL) return EMPTY_DRAFT_CACHE
+  return normalizeDraftCache(snapshot.draft)
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
@@ -55,17 +67,28 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
   return cacheService.subscribe(getChatDraftCacheKey(topicId), listener)
 }
 
+// Mirrors the draft into a persisted snapshot keyed by topic id so unsent text survives an
+// app restart; the entry is dropped once the draft empties (sent or cleared). Every write
+// also sweeps expired entries — nothing else prunes this record, so a draft left behind by
+// a deleted topic would otherwise sit in storage forever.
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
-  cacheService.set(
-    getChatDraftCacheKey(topicId),
-    {
-      text: draft.text,
-      tokens: [...draft.tokens],
-      files: [...draft.files],
-      knowledgeBaseIds: [...draft.knowledgeBaseIds],
-      mentionedModelIds: [...draft.mentionedModelIds],
-      modelMultiSelectMode: draft.modelMultiSelectMode
-    },
-    DRAFT_CACHE_TTL
-  )
+  const normalized: ChatComposerDraftCache = {
+    text: draft.text,
+    tokens: [...draft.tokens],
+    files: [...draft.files],
+    knowledgeBaseIds: [...draft.knowledgeBaseIds],
+    mentionedModelIds: [...draft.mentionedModelIds],
+    modelMultiSelectMode: draft.modelMultiSelectMode
+  }
+  cacheService.set(getChatDraftCacheKey(topicId), normalized, DRAFT_CACHE_TTL)
+  cacheService.setPersist(DRAFT_SNAPSHOT_KEY, (prev) => {
+    const now = Date.now()
+    const kept = Object.entries(prev).filter(([id, entry]) => id !== topicId && now - entry.savedAt <= DRAFT_CACHE_TTL)
+    const hasContent = hasChatDraftContent(draft)
+    if (!hasContent && kept.length === Object.keys(prev).length) return prev
+
+    const next = Object.fromEntries(kept)
+    if (hasContent) next[topicId] = { draft: normalized, savedAt: now }
+    return next
+  })
 }

@@ -400,6 +400,55 @@ describe('context-management override (P2-D)', () => {
   })
 })
 
+describe('reply language lock (R11)', () => {
+  it('defaults to Auto (null) when no reply language is stored', () => {
+    const form = initialAssistantFormState(createAssistant())
+    expect(form.replyLanguage).toBeNull()
+  })
+
+  it('reads a stored reply language', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, replyLanguage: 'tr-TR' }
+    })
+    expect(initialAssistantFormState(assistant).replyLanguage).toBe('tr-TR')
+  })
+
+  it('emits the language when locking a previously-unset assistant', () => {
+    const assistant = createAssistant()
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, replyLanguage: 'tr-TR' as const }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto).toEqual({ settings: { replyLanguage: 'tr-TR' } })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
+  it('writes null when clearing a stored reply language back to Auto', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, replyLanguage: 'tr-TR' }
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, replyLanguage: null }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto).toEqual({ settings: { replyLanguage: null } })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
+  it('does not resend the reply language during an unrelated edit', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, replyLanguage: 'tr-TR' }
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, description: 'edited' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.dto).toEqual({ description: 'edited' })
+  })
+})
+
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })

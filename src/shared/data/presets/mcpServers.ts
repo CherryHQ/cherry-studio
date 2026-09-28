@@ -152,6 +152,25 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.browser,
+    type: 'inMemory',
+    isActive: false,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    // On by default and needs no configuring: it holds no key, spends no quota, and is the only
+    // way an image request gets an image instead of a paragraph describing one.
+    name: BuiltinMcpServerNames.pollinations,
+    reference: 'https://pollinations.ai',
+    type: 'inMemory',
+    isActive: true,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.nowledgeMem,
     reference: 'https://mem.nowledge.co/',
     type: 'streamableHttp',

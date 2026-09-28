@@ -16,6 +16,24 @@ const path = require('path')
  */
 const MANUAL_BOOT_CONFIG_ITEMS = [
   {
+    source: 'manual',
+    sourceCategory: 'performance',
+    originalKey: 'liteMode',
+    targetKey: 'app.lite_mode',
+    zodType: 'z.boolean()',
+    defaultValue: false,
+    jsdoc: [
+      'Skip services that cost startup time and memory but are not needed to use',
+      'the app: main-process network devtools, analytics, Cherry Cloud, and the',
+      'pre-warmed sub-window.',
+      '',
+      'BootConfig rather than Preference because @Conditional is evaluated',
+      'synchronously at service registration, before PreferenceService exists.',
+      '',
+      'Consumers: the @Conditional guards on the services listed above.'
+    ]
+  },
+  {
     source: 'configfile',
     sourceCategory: 'legacy-home',
     originalKey: 'appDataPath',

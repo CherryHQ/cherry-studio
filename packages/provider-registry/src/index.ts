@@ -146,3 +146,6 @@ export {
 } from './patterns/reasoning-heuristics'
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
+// The declared presets, so callers can ask which providers exist without going through the
+// filesystem loader (`/node`), which needs paths only the main process has.
+export { PROVIDERS } from './providers'

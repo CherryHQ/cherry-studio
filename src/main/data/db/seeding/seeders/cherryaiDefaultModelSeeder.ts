@@ -54,7 +54,7 @@ function createCherryAiProviderRow(): ManagedCherryProviderRow {
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     authConfig: null,
     providerSettings: null,
-    isEnabled: true
+    isEnabled: false
   }
 }
 
@@ -67,7 +67,7 @@ function createCherryCloudProviderRow(): ManagedCherryProviderRow {
     defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
     authConfig: null,
     providerSettings: null,
-    isEnabled: true
+    isEnabled: false
   }
 }
 

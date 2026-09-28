@@ -35,6 +35,12 @@ const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = 
   nutstore: ['data.backup.nutstore.auto_sync', 'data.backup.nutstore.token', 'data.backup.nutstore.sync_interval']
 }
 
+/** An unset backup folder falls back to the app-owned one rather than disabling backups. */
+export function resolveLocalBackupDir(configured: string): string {
+  const trimmed = configured.trim()
+  return trimmed ? path.resolve(untildify(trimmed)) : application.getPath('feature.backup.auto_local')
+}
+
 type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow'
 
 interface ScheduleState {
@@ -321,7 +327,7 @@ export class AutoBackupService extends BaseService {
     }
 
     if (type === 'local') {
-      const directory = path.resolve(untildify(preferenceService.get('data.backup.local.dir')))
+      const directory = resolveLocalBackupDir(preferenceService.get('data.backup.local.dir'))
       await this.validateLocalBackupDirectory(directory)
       const { cleanupError } = await legacyBackupManager.backupToLocalDir(
         null,
@@ -384,10 +390,10 @@ export class AutoBackupService extends BaseService {
       }
     }
     if (type === 'local') {
+      // No folder chosen still backs up — to the app's own Backups dir. Losing work because a
+      // setting was never opened is the failure this service exists to prevent.
       return {
-        enabled:
-          preferenceService.get('data.backup.local.auto_sync') &&
-          Boolean(preferenceService.get('data.backup.local.dir')),
+        enabled: preferenceService.get('data.backup.local.auto_sync'),
         intervalMs: preferenceService.get('data.backup.local.sync_interval') * 60_000
       }
     }

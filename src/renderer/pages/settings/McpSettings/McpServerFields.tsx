@@ -301,6 +301,8 @@ interface FieldsProps {
   includeArgs?: boolean
   /** Render the runtime toggles as bordered cards (detail page) instead of plain rows (dialog). */
   inlineCards?: boolean
+  /** MCP server name — used to show server-specific fields (e.g. base dir for filesystem). */
+  serverName?: string
 }
 
 /** Name / type / description — always visible. */
@@ -452,6 +454,41 @@ export function McpArgsField({ form }: Pick<FieldsProps, 'form'>) {
   )
 }
 
+/** Base directory picker for the @cherry/filesystem built-in MCP server. */
+function FilesystemBaseDirField({ form }: Pick<FieldsProps, 'form'>) {
+  const { t } = useTranslation()
+
+  const handleBrowse = async () => {
+    const result = await window.api.select({ properties: ['openDirectory'] })
+    if (!result.canceled && result.filePaths.length > 0) {
+      form.setValue('args', result.filePaths[0], { shouldDirty: true })
+    }
+  }
+
+  return (
+    <FormField
+      control={form.control}
+      name="args"
+      render={({ field }) => (
+        <FormItem className="min-w-0 gap-3">
+          <FormLabel>{t('settings.mcp.filesystem.baseDir')}</FormLabel>
+          <FormControl>
+            <div className="flex gap-2">
+              <Input placeholder={t('settings.mcp.filesystem.baseDirPlaceholder')} className="flex-1" {...field} />
+              <button
+                type="button"
+                onClick={() => void handleBrowse()}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent">
+                {t('common.browse')}
+              </button>
+            </div>
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+}
+
 /** Transport details: headers for remote servers, registry / args for stdio, env where credentials live. */
 export function McpTransportFields({
   form,
@@ -459,7 +496,8 @@ export function McpTransportFields({
   registryState,
   builtinRequiresEnv,
   singleColumn,
-  includeArgs = true
+  includeArgs = true,
+  serverName
 }: FieldsProps) {
   const { t } = useTranslation()
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
@@ -527,7 +565,13 @@ export function McpTransportFields({
           )}
         />
       )}
-      {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
+      {(serverType === 'stdio' || serverType === 'inMemory') &&
+        includeArgs &&
+        (serverName === BuiltinMcpServerNames.filesystem ? (
+          <FilesystemBaseDirField form={form} />
+        ) : (
+          <McpArgsField form={form} />
+        ))}
       {showsEnvEditor(serverType, builtinRequiresEnv) && (
         <>
           <FormField

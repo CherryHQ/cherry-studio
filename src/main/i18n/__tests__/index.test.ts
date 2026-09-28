@@ -21,6 +21,19 @@ describe('main i18n', () => {
       expect(getAppLanguage()).toBe('en-US')
     })
 
+    it('accepts a stored tag whose case differs from the catalog key', () => {
+      // i18next normalizes 'tr-tr' to 'tr-TR' in the renderer, so the window can be
+      // Turkish while a raw lookup here finds no catalog and every t() call throws.
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'tr-tr' as 'tr-TR')
+      expect(getAppLanguage()).toBe('tr-TR')
+      expect(t('dialog.save_file')).toBe('Dosyayı Kaydet')
+    })
+
+    it('falls back to the system locale when the stored language has no catalog', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ko-KR' as 'en-US')
+      expect(getAppLanguage()).toBe('en-US')
+    })
+
     it.each([
       ['de', 'de-DE'],
       ['fr', 'fr-FR'],

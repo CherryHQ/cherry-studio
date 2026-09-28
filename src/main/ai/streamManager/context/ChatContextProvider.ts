@@ -51,6 +51,15 @@ export interface PreparedDispatch {
   pendingSteerServiceTier?: ServiceTierSelection
   /** Fast selection captured alongside the pending steer. */
   pendingSteerFastMode?: boolean
+  /**
+   * Set when a head controller divided this turn: once every worker settles cleanly, the manager
+   * opens one more reply on the controller's model that folds theirs together.
+   */
+  pendingControllerMerge?: {
+    parentAnchorId: string
+    controllerModelId: UniqueModelId
+    workers: Array<{ messageId: string; name: string; instruction: string }>
+  }
   /** Persisted user/assistant skeletons created for this dispatch. */
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */

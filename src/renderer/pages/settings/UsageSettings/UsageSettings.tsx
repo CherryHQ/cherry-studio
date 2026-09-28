@@ -24,6 +24,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { QuotaOverviewTable } from './QuotaOverviewTable'
 import {
   type BoundedTimeRange,
   CHART_TYPE_KEYS,
@@ -65,6 +66,7 @@ import {
   UsageSectionHeader,
   UsageSectionTitle
 } from './UsageSettingsPrimitives'
+import { UsageSourceBreakdown } from './UsageSourceBreakdown'
 import { useUsageData, useUsageEntriesData } from './useUsageData'
 
 type UsageApiKeyStatsBucket = Extract<AiUsageRecordStatsBucket, { groupBy: 'apiKey' }>
@@ -382,6 +384,9 @@ function UsageSettings() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <UsageResponsiveShell>
+        <QuotaOverviewTable />
+        <UsageSourceBreakdown />
+
         <div className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
           <div className="min-w-0">
             <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>

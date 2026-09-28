@@ -7,7 +7,9 @@
 
 import * as z from 'zod'
 
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
@@ -34,6 +36,13 @@ export const DEFAULT_MCP_MODE: McpMode = 'manual'
  *  falls back to the default at request time. */
 export const MIN_TOOL_CALLS = 1
 export const MAX_TOOL_CALLS = 1000
+
+/** Languages an assistant can be locked to — reuses the app's own supported-language
+ *  list ({@link languageEnglishNameMap}) rather than a separate hardcoded set. */
+export const AssistantReplyLanguageSchema = z.enum(
+  Object.keys(languageEnglishNameMap) as [LanguageVarious, ...LanguageVarious[]]
+)
+export type AssistantReplyLanguage = z.infer<typeof AssistantReplyLanguageSchema>
 
 /**
  * Assistant settings — inference parameters + context source toggles.
@@ -96,7 +105,13 @@ export const AssistantSettingsSchema = z.object({
    *  `null` = inherit the global `chat.context_settings.*` preferences. `null`
    *  is the wire form for "clear the override" — JSON drops `undefined` keys,
    *  and the resolver's `??` chain treats null/undefined alike. */
-  contextSettings: ContextSettingsOverrideSchema.nullable().optional()
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional(),
+
+  /** Per-assistant "always reply in this language" instruction (R11), injected
+   *  into the system prompt. Absent or `null` = Auto — no instruction added,
+   *  i.e. today's behavior. Never defaulted to a language in
+   *  {@link DEFAULT_ASSISTANT_SETTINGS}. */
+  replyLanguage: AssistantReplyLanguageSchema.nullable().optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -113,7 +128,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   mcpMode: DEFAULT_MCP_MODE,
   maxToolCalls: 100,
   enableMaxToolCalls: true,
-  enableWebSearch: false,
+  enableWebSearch: true,
   enableGenerateImage: false,
   customParameters: []
 }

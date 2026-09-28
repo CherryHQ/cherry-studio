@@ -41,6 +41,8 @@ import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 
+import { HealthOverview } from './HealthOverview'
+
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
@@ -336,6 +338,8 @@ const AboutSettings: FC = () => {
           </Scrollbar>
         </SettingGroup>
       )}
+
+      <HealthOverview />
 
       <SettingGroup theme={theme}>
         <AboutActionRow

@@ -66,7 +66,9 @@ const ONBOARDING_PREFERENCE_KEYS = {
 
 function OnboardingProviderSettings() {
   const router = useMemo(() => {
-    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage /> })
+    // Sixty providers with nothing to guide the pick; defaulting to the free/local
+    // filter surfaces the ones this fork is built around (see onboarding.provider_setup.free_hint).
+    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage filterModeHint="free" /> })
     const history = createMemoryHistory({ initialEntries: ['/'] })
     return createRouter({ routeTree, history })
   }, [])
@@ -496,6 +498,9 @@ export default function OnboardingPage({
                   onBack={() => setStep('welcome')}
                   padded
                 />
+                <p className="m-0 px-5 pb-3 text-muted-foreground text-xs">
+                  {t('onboarding.provider_setup.free_hint')}
+                </p>
                 <div className="min-h-0 flex-1 border-border border-y">
                   <OnboardingProviderSettings />
                 </div>

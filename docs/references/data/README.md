@@ -223,7 +223,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 ## Edge Cases
 
 - **Recently used items** (e.g., recent files, recent searches): Use `usePersistCache` - nice to have but not critical if lost
-- **Composer drafts**: Use the existing window-local `useCache` template keys (`chat.composer_draft.${topicId}` / `agent.composer_draft.${sessionId}`); move to a broader owner only when recovery or cross-window editing is a real requirement
+- **Composer drafts**: Use the existing window-local `useCache` template keys (`chat.composer_draft.${topicId}` / `agent.composer_draft.${sessionId}`); `chat.composer_draft.*` additionally mirrors into a persist-tier snapshot (`chat.composer_draft_snapshot`) so an in-flight draft survives an app restart. Move to a broader owner only when cross-window editing is a real requirement
 - **Computed statistics**: Use `useCache` with TTL - regenerate when expired
 - **User-created templates/presets**: Use **DataApiService** - user-generated content that can grow
 

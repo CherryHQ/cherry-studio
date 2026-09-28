@@ -18,5 +18,6 @@ export type {
   UseModelSelectorDataOptions,
   UseModelSelectorDataResult
 } from './types'
+export { getRemainingQuota } from './modelAvailability'
 export { useModelSelectorData } from './useModelSelectorData'
 export { getProviderDisplayName } from './utils'

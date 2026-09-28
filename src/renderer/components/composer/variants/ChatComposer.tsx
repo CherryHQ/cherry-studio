@@ -77,6 +77,7 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { AutoSwitchToggle } from './chat/AutoSwitchToggle'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import {
@@ -84,6 +85,7 @@ import {
   getEditableKnowledgeBases,
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
+import { RoutingDestinationHint } from './chat/RoutingDestinationHint'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -1845,6 +1847,13 @@ const ChatComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
+      <AutoSwitchToggle />
+      <RoutingDestinationHint
+        promptText={text}
+        fallbackModel={runtimeModel}
+        hasMentionedModels={mentionedModels.length > 0}
+        providers={providers}
+      />
       <ChatComposerContextUsage usage={contextUsage} />
     </>
   )

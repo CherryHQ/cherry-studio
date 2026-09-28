@@ -50,6 +50,7 @@ import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
 const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
+const KNOWLEDGE_SEARCH_MAX_RESULTS = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
 /**
  * Max concurrent `listRootItems` reads behind one bounded kb_list page. Eight in-flight keeps the
@@ -213,7 +214,9 @@ export async function searchKnowledge(
   const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
   const prefix = newCitePrefix()
-  return sorted.map(({ result, baseId }, index) => ({
+  // L6: Cap search results to top N most relevant before sending to remote model
+  const capped = sorted.slice(0, KNOWLEDGE_SEARCH_MAX_RESULTS)
+  return capped.map(({ result, baseId }, index) => ({
     id: citeId(prefix, index),
     // Provenance so the model can follow a hit with kb_read. baseId pairs with
     // conceptId to identify the document (conceptId is base-relative). conceptId

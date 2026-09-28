@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +37,7 @@ const SiyuanSettings = lazy(() => import('./SiyuanSettings'))
 const WebDavSettings = lazy(() => import('./WebDavSettings'))
 const YuqueSettings = lazy(() => import('./YuqueSettings'))
 const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
+const TopicTrashSettings = lazy(() => import('./TopicTrashSettings'))
 
 type DataMenuItem =
   | { key: DataPanelKey; title: string; icon: ReactNode; isDivider?: undefined }
@@ -83,7 +84,13 @@ const DataSettings: FC = () => {
     { key: 'yuque', title: t('settings.data.yuque.title'), icon: <BookOpen size={16} /> },
     { key: 'joplin', title: t('settings.data.joplin.title'), icon: <JoplinIcon /> },
     { key: 'obsidian', title: t('settings.data.obsidian.title'), icon: <i className="iconfont icon-obsidian" /> },
-    { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> }
+    { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> },
+    { key: 'divider_topic_trash', isDivider: true, text: t('settings.data.divider.topic_trash') },
+    {
+      key: 'topic_trash',
+      title: t('settings.data.topic_trash.title'),
+      icon: <Trash2 size={16} />
+    }
   ]
 
   return (
@@ -131,6 +138,7 @@ const DataSettings: FC = () => {
             {menu === 'joplin' && <JoplinSettings />}
             {menu === 'obsidian' && <ObsidianSettings />}
             {menu === 'siyuan' && <SiyuanSettings />}
+            {menu === 'topic_trash' && <TopicTrashSettings />}
           </Suspense>
         )}
       </SettingsContentColumn>

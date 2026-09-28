@@ -39,6 +39,7 @@ import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provi
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
+import { lastUserPromptText, routeMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/categoryToolRouting'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import {
   resolveAssistantMcpToolIds,
@@ -374,7 +375,12 @@ async function resolveRequestToolSignals(
 }> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
-    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+    // Only the derived set is budgeted: an explicit `mcpToolIds` is a caller's deliberate pick and
+    // is passed through whole, the same way an @-mentioned model outranks category routing.
+    mcpIdList = routeMcpToolIds(
+      await resolveAssistantMcpToolIds(request.assistantId),
+      lastUserPromptText(request.messages)
+    )
   }
   return {
     mcpToolIds: new Set(mcpIdList ?? []),

@@ -78,8 +78,25 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/**
+ * The SDK reports the stop reason either as a plain string or as a `{ unified }` pair depending on
+ * the layer, and a provider may send something neither shape covers.
+ */
+function normalizeFinishReason(reason: unknown): string | undefined {
+  if (typeof reason === 'string') return reason
+  if (reason && typeof reason === 'object' && 'unified' in reason) {
+    const unified = (reason as { unified: unknown }).unified
+    if (typeof unified === 'string') return unified
+  }
+  return undefined
+}
+
 /** Project cumulative AI SDK usage into the live `MessageStats` UI shape. */
-function usageToStats(total: LanguageModelUsage, contextTokens: number | undefined): MessageStats {
+function usageToStats(
+  total: LanguageModelUsage,
+  contextTokens: number | undefined,
+  finishReason: string | undefined
+): MessageStats {
   const inputTokenDetails = compact({
     noCacheTokens: total.inputTokenDetails?.noCacheTokens,
     cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,
@@ -95,7 +112,8 @@ function usageToStats(total: LanguageModelUsage, contextTokens: number | undefin
     ...(total.totalTokens !== undefined ? { totalTokens: total.totalTokens } : {}),
     contextTokens,
     ...(inputTokenDetails ? { inputTokenDetails } : {}),
-    ...(outputTokenDetails ? { outputTokenDetails } : {})
+    ...(outputTokenDetails ? { outputTokenDetails } : {}),
+    ...(finishReason ? { finishReason } : {})
   }
 }
 
@@ -111,6 +129,8 @@ export function attachUsageObserver(agent: Agent): void {
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
+    // Each step overwrites the metadata, so the final step's reason is the one that survives.
+    const finishReason = normalizeFinishReason((step as { finishReason?: unknown }).finishReason)
     // contextTokens is the real end-of-turn context size; trust it only when the
     // provider reported inputTokens. Otherwise totalTokens collapses to output-only
     // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
@@ -119,7 +139,7 @@ export function attachUsageObserver(agent: Agent): void {
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        stats: usageToStats(total, lastStepTotalTokens)
+        stats: usageToStats(total, lastStepTotalTokens, finishReason)
       }
     })
   })

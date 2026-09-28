@@ -26,9 +26,10 @@ vi.mock('../hooks/useProviderDeepLinkImport', () => ({
 }))
 
 vi.mock('../ProviderList', () => ({
-  ProviderList: ({ selectedProviderId, onSelectProvider, onCustomProviderCreated }: any) => (
+  ProviderList: ({ selectedProviderId, filterModeHint, onSelectProvider, onCustomProviderCreated }: any) => (
     <div>
       <div data-testid="selected-provider-id">{selectedProviderId ?? ''}</div>
+      <div data-testid="filter-mode-hint">{filterModeHint ?? ''}</div>
       <button type="button" onClick={() => onSelectProvider('openai')}>
         select-openai
       </button>
@@ -253,6 +254,14 @@ describe('ProviderSettingsPage', () => {
 
     expect(await screen.findByText('provider-setting-zhipu')).toBeInTheDocument()
     expect(screen.queryByText('provider-setting-openai')).not.toBeInTheDocument()
+  })
+
+  it('forwards an explicit filter hint to the provider list without changing the default', () => {
+    const { rerender } = render(<ProviderSettingsPage />)
+    expect(screen.getByTestId('filter-mode-hint')).toHaveTextContent('')
+
+    rerender(<ProviderSettingsPage filterModeHint="free" />)
+    expect(screen.getByTestId('filter-mode-hint')).toHaveTextContent('free')
   })
 
   it('passes a stable provider selector to deep-link import across rerenders', () => {

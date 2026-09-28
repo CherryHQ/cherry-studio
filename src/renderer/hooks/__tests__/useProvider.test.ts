@@ -554,6 +554,28 @@ describe('useProviderMutations', () => {
     })
   })
 
+  it('returns the newly created key entry, so a caller can patch metadata the create endpoint does not accept', async () => {
+    const createdEntry = { id: 'key-new', key: 'sk-test-key', label: 'My Key', isEnabled: true }
+    const addKeyTrigger = vi.fn().mockResolvedValue({ apiKeys: [{ id: 'key-old', key: 'sk-other' }, createdEntry] })
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'POST' && path === '/providers/:providerId/api-keys'
+          ? addKeyTrigger
+          : vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    let created: unknown
+    await act(async () => {
+      created = await result.current.addApiKey('sk-test-key', 'My Key')
+    })
+
+    expect(created).toEqual(createdEntry)
+  })
+
   it('should build correct addApiKey params for hyphenated provider IDs', async () => {
     const addKeyTrigger = vi.fn().mockResolvedValue({})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({

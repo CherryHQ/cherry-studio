@@ -14,7 +14,8 @@ export const DATA_PANEL_KEYS = [
   'yuque',
   'joplin',
   'obsidian',
-  'siyuan'
+  'siyuan',
+  'topic_trash'
 ] as const
 
 export type DataPanelKey = (typeof DATA_PANEL_KEYS)[number]

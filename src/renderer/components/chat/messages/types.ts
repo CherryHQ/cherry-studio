@@ -229,6 +229,8 @@ export interface MessageListItem {
   }>
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
+  /** Ticked out of the history sent to the model; stored in a preference keyed by message id, not on this message's own parts. */
+  isExcludedFromContext?: boolean
 }
 
 /**
@@ -362,6 +364,7 @@ export interface MessageListActions {
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
+  setMessageContextExclusion?: (messageId: string, excluded: boolean) => void | Promise<void>
   saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
@@ -444,6 +447,8 @@ export interface MessageListActions {
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Extend a reply the provider cut off at its token cap, in the same message. */
+  continueTruncatedMessage?: (messageId: string) => void | Promise<void>
 }
 
 export interface MessageListMeta {

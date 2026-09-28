@@ -5,6 +5,9 @@ import {
   Check,
   CirclePause,
   CopyPlus,
+  CornerDownRight,
+  Eye,
+  EyeOff,
   FilePenLine,
   Languages,
   ListChecks,
@@ -218,6 +221,14 @@ registerCommand('message.regenerate', async ({ actions, message }) => {
   await actions.regenerateMessage?.(message.id)
 })
 
+registerCommand('message.continueTruncated', async ({ actions, message }) => {
+  await actions.continueTruncatedMessage?.(message.id)
+})
+
+registerCommand('message.toggleContextExclusion', async ({ actions, message }) => {
+  await actions.setMessageContextExclusion?.(message.id, !message.isExcludedFromContext)
+})
+
 registerCommand('message.delete', async ({ actions, message }) => {
   await actions.abortMessageTranslation?.(message.id)
   await actions.deleteMessage?.(message.id, {
@@ -363,6 +374,20 @@ registerToolbarAction({
   )
 })
 
+// Free tiers cap output low enough that long answers stop mid-sentence. Regenerate would
+// throw the written half away, so the cut-off case gets its own button — and only then.
+registerToolbarAction({
+  id: 'assistant-continue',
+  commandId: 'message.continueTruncated',
+  label: ({ t }) => t('message.continue_truncated.label'),
+  icon: <CornerDownRight size={15} />,
+  availability: toolbarAvailability(
+    'assistant-continue',
+    ({ actions, isAssistantMessage, message }) =>
+      isAssistantMessage && message.stats?.finishReason === 'length' && !!actions.continueTruncatedMessage
+  )
+})
+
 registerToolbarAction({
   id: 'assistant-mention-model',
   renderToolbar: renderModelPickerToolbarAction,
@@ -420,6 +445,15 @@ registerToolbarAction({
     'notes',
     ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
   )
+})
+
+registerToolbarAction({
+  id: 'exclude-context',
+  commandId: 'message.toggleContextExclusion',
+  label: ({ t, message }) =>
+    t(message.isExcludedFromContext ? 'chat.message.exclude_context.include' : 'chat.message.exclude_context.exclude'),
+  icon: ({ message }) => (message.isExcludedFromContext ? <Eye size={15} /> : <EyeOff size={15} />),
+  availability: toolbarAvailability('exclude-context', ({ actions }) => !!actions.setMessageContextExclusion)
 })
 
 registerToolbarAction({

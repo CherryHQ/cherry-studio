@@ -10,6 +10,7 @@ import type { ProviderFilterMode } from './providerFilterMode'
 
 const FILTER_MENU_OPTIONS: { mode: ProviderFilterMode; labelKey: string }[] = [
   { mode: 'all', labelKey: 'settings.provider.filter.all' },
+  { mode: 'free', labelKey: 'settings.provider.filter.free' },
   { mode: 'agent', labelKey: 'settings.provider.filter.agent' },
   { mode: 'enabled', labelKey: 'settings.provider.filter.enabled' },
   { mode: 'disabled', labelKey: 'settings.provider.filter.disabled' }

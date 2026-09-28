@@ -6,15 +6,19 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { CheckpointService } from '@main/ai/agentSession/CheckpointService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { ErrorSummarizerService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
+import { ModelRoutingService } from '@main/ai/routing/ModelRoutingService'
+import { ProviderKeyScanService } from '@main/ai/routing/ProviderKeyScanService'
 import {
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
@@ -161,14 +165,18 @@ export const services = {
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
+  CheckpointService,
   AgentJobsService,
   AgentLifecycleService,
   ChannelManager,
   AiService,
+  ModelRoutingService,
+  ProviderKeyScanService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
   EmbeddingInferenceService,
+  ErrorSummarizerService,
   OcrInferenceService,
   LocalModelService,
   KnowledgeService,

@@ -191,4 +191,38 @@ describe('assembleSystemPrompt', () => {
 
     expect(out).toBe('base')
   })
+
+  it('appends a reply-language instruction when the assistant has one locked in (R11)', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({
+        prompt: 'base',
+        settings: { ...makeAssistant().settings, replyLanguage: 'tr-TR' }
+      }),
+      model
+    })
+
+    expect(out).toContain('base')
+    expect(out).toContain('Always reply in Turkish')
+  })
+
+  it('does not add a reply-language instruction when unset (Auto)', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model
+    })
+
+    expect(out).toBe('base')
+  })
+
+  it('does not add a reply-language instruction when explicitly cleared back to Auto', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({
+        prompt: 'base',
+        settings: { ...makeAssistant().settings, replyLanguage: null }
+      }),
+      model
+    })
+
+    expect(out).toBe('base')
+  })
 })

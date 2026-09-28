@@ -1,9 +1,10 @@
 import dayjs from 'dayjs'
+import { EyeOff } from 'lucide-react'
 import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { Scrollbar, Tooltip } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -352,6 +353,7 @@ const UserBubbleMessage = ({
   fontSize: number
   isEditing: boolean
 }) => {
+  const { t } = useTranslation()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const avatar = meta.userProfile?.avatar ?? ''
@@ -369,6 +371,13 @@ const UserBubbleMessage = ({
           {message.delivery && (
             <div className="mb-1 max-w-full">
               <AgentSessionDeliveryBadge delivery={message.delivery} />
+            </div>
+          )}
+          {message.isExcludedFromContext && (
+            <div className="mb-1 max-w-full">
+              <Tooltip content={t('chat.message.exclude_context.badge_tip')}>
+                <EyeOff className="shrink-0 text-foreground-tertiary" size={14} />
+              </Tooltip>
             </div>
           )}
           {(attachments.images.length > 0 || attachments.files.length > 0) && (

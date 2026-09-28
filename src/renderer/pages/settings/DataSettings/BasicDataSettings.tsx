@@ -35,6 +35,7 @@ import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
 import BackupPopup from './BackupPopup'
+import { BackupProtectionSummary } from './BackupProtectionSummary'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
 import {
   beginLegacyV1Cleanup,
@@ -304,6 +305,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
+      <BackupProtectionSummary />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />

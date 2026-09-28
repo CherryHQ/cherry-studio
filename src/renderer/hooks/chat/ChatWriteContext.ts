@@ -58,6 +58,12 @@ export interface ChatWriteActions {
     turnOptions?: AssistantTurnOptions
   ) => Promise<void>
   /**
+   * Extend an assistant reply the provider cut off at its token cap, in place:
+   * the model sees its own half-written answer and writes on from there, so the
+   * result reads as one message rather than a sequel beside it.
+   */
+  continueTruncated: (messageId: string) => Promise<void>
+  /**
    * Pin `messageId` as the topic's active node. The scroll view truncates
    * there; the user's next message becomes the new leaf and the tree forks.
    */
