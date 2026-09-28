@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 export class NotesRelocationValidationError extends Error {
@@ -20,20 +20,50 @@ function invalid(reason: NotesRelocationValidationReason, message: string): neve
 }
 
 function normalizeForCompare(value: string): string {
-  return path.normalize(path.resolve(value))
+  const resolved = path.resolve(value)
+  return isWin || isMac ? resolved.toLowerCase() : resolved
 }
 
 function isPathInside(child: string, parent: string): boolean {
   const relative = path.relative(normalizeForCompare(parent), normalizeForCompare(child))
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  if (relative === '' || relative === '..' || path.isAbsolute(relative)) {
+    return false
+  }
+  return !relative.startsWith(`..${path.sep}`)
 }
 
-function resolvePhysicalPath(dirPath: string): string {
+function realPath(value: string): string {
   try {
-    return fs.realpathSync.native ? fs.realpathSync.native(dirPath) : fs.realpathSync(dirPath)
+    return fs.realpathSync.native?.(value) ?? fs.realpathSync(value)
   } catch {
-    return path.resolve(dirPath)
+    return path.resolve(value)
   }
+}
+
+function pathEntryExists(value: string): boolean {
+  try {
+    fs.lstatSync(value)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
+function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
+  let cursor = path.resolve(value)
+  const missingParts: string[] = []
+  while (!pathEntryExists(cursor)) {
+    const parent = path.dirname(cursor)
+    if (parent === cursor) {
+      invalid('invalid_target', `no existing ancestor for target: ${value}`)
+    }
+    missingParts.unshift(path.basename(cursor))
+    cursor = parent
+  }
+  return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
 function assertNotesTargetDirectory(dirPath: string): void {
@@ -51,22 +81,22 @@ function assertNotesTargetDirectory(dirPath: string): void {
     invalid('invalid_target', `target is not a directory: ${dirPath}`)
   }
 
-  const physicalPath = resolvePhysicalPath(normalizedPath)
-  const appDataPath = path.resolve(application.getPath('sys.appdata'))
-  const filesDir = path.resolve(application.getPath('feature.files.data'))
-  const defaultNotesDir = path.resolve(application.getPath('feature.notes.data'))
+  const physicalPath = normalizeForCompare(resolveExistingAncestor(dirPath).effectivePath)
+  const appDataPath = normalizeForCompare(realPath(application.getPath('sys.appdata')))
+  const filesDir = normalizeForCompare(realPath(application.getPath('feature.files.data')))
+  const defaultNotesDir = normalizeForCompare(realPath(application.getPath('feature.notes.data')))
 
-  if (
-    isPathInside(physicalPath, filesDir) ||
-    isPathInside(physicalPath, appDataPath) ||
-    normalizeForCompare(physicalPath) === normalizeForCompare(defaultNotesDir)
-  ) {
+  if (isPathInside(physicalPath, filesDir) || physicalPath === defaultNotesDir || physicalPath === appDataPath) {
     invalid('invalid_target', `target is a protected directory: ${dirPath}`)
   }
 
   const isSystemRoot = isWin
     ? /^[a-zA-Z]:[\\/]?$/.test(physicalPath)
-    : physicalPath === '/' || physicalPath === '/usr' || physicalPath === '/etc' || physicalPath === '/System'
+    : physicalPath === '/' ||
+      physicalPath === '/usr' ||
+      physicalPath === '/etc' ||
+      physicalPath === '/system' ||
+      (isLinux && (physicalPath === '/bin' || physicalPath === '/sbin' || physicalPath === '/var'))
 
   if (isSystemRoot) {
     invalid('invalid_target', `target is a system root directory: ${dirPath}`)
@@ -80,8 +110,8 @@ function assertNotesTargetDirectory(dirPath: string): void {
 }
 
 export function assertNotesRelocationPaths(sourcePath: string, targetPath: string): void {
-  const source = normalizeForCompare(resolvePhysicalPath(sourcePath))
-  const target = normalizeForCompare(resolvePhysicalPath(targetPath))
+  const sourceReal = normalizeForCompare(realPath(sourcePath))
+  const targetEffective = normalizeForCompare(resolveExistingAncestor(targetPath).effectivePath)
 
   if (!fs.existsSync(sourcePath)) {
     invalid('source_missing', `source does not exist: ${sourcePath}`)
@@ -95,13 +125,13 @@ export function assertNotesRelocationPaths(sourcePath: string, targetPath: strin
     invalid('source_missing', `source is not readable: ${sourcePath}`)
   }
 
-  if (source === target) {
+  if (sourceReal === targetEffective) {
     invalid('same_path', `source and target are the same path: ${targetPath}`)
   }
-  if (isPathInside(target, source)) {
+  if (isPathInside(targetEffective, sourceReal)) {
     invalid('target_inside_source', `target is inside source: ${targetPath}`)
   }
-  if (isPathInside(source, target)) {
+  if (isPathInside(sourceReal, targetEffective)) {
     invalid('target_contains_source', `target contains source: ${targetPath}`)
   }
 
