@@ -1951,13 +1951,14 @@ describe('CherryAutonomyTools', () => {
       // A killed detached child releases its log fd and cwd handle a beat after the kill lands
       // (pid liveness is not handle liveness), so removal retries through that window.
       for (const dir of [agentsDataDir, workspaceDir]) {
-        for (let attempt = 0; ; attempt++) {
+        const deadline = Date.now() + 5_000
+        for (;;) {
           try {
             await rm(dir, { recursive: true, force: true })
             break
           } catch (error) {
             const code = (error as NodeJS.ErrnoException).code
-            if (attempt >= 20 || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+            if (Date.now() >= deadline || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
             await new Promise((resolve) => setTimeout(resolve, 50))
           }
         }

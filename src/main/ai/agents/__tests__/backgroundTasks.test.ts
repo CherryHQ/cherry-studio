@@ -33,15 +33,16 @@ describe('backgroundTasks', () => {
   })
 
   afterEach(async () => {
-    // A force-killed detached child releases its log fd and cwd handle a beat
-    // after taskkill returns, which surfaces as EBUSY on Windows.
-    for (let attempt = 0; ; attempt++) {
+    // A force-killed detached child releases its log fd and cwd handle a beat after taskkill
+    // returns — Windows can take over a second on a loaded runner, which surfaces as EBUSY.
+    const deadline = Date.now() + 5_000
+    for (;;) {
       try {
         await rm(storageDir, { recursive: true, force: true })
         break
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code
-        if (attempt >= 20 || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+        if (Date.now() >= deadline || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
     }
