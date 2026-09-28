@@ -11,12 +11,11 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { ZONEFOUNDRY_SETUP_GUIDE_URL } from '@shared/data/presets/zonefoundryMcp'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
-
-const ZONEFOUNDRY_SETUP_GUIDE_URL = 'https://zonefoundry.dev/guides/ai-agent-control/'
 import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
