@@ -59,6 +59,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -139,6 +140,10 @@ export interface ClaudeCodeSessionOptions {
   }
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
+  /** Effective connection model; defaults to `session.model ?? agent.model`. */
+  effectiveModelId?: UniqueModelId
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -184,9 +189,10 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
+  const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
-    buildEnvironment(provider, agent),
+    buildEnvironment(provider, agent, effectiveModelId),
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
@@ -237,7 +243,8 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     agentsMdContext,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.promptModelName
   )
 
   // 6. MCP servers (session + built-in)
@@ -611,7 +618,9 @@ export async function buildSystemPrompt(
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
   agentsMdContext?: string,
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -634,7 +643,8 @@ export async function buildSystemPrompt(
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
     customBaseContext,
-    effectiveLanguage
+    effectiveLanguage,
+    modelName: promptModelName
   })
 
   // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.

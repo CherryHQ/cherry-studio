@@ -44,7 +44,7 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
 
-  async validateSession(session: AgentSessionEntity): Promise<void> {
+  async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new Error(`dsh agent session ${session.id} has no workspace configured`)
@@ -53,13 +53,16 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`dsh agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
+    // Headless runs execute the agent default, so a stale session override
+    // must not fail (or pass) preflight for them.
+    const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
+    if (!effectiveModel) {
       throw new Error(`dsh agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
     // Side-effect free: dispatch validation must not consume API-key rotation;
     // the concrete key is selected only when the runtime connection starts.
-    await assertDshProviderUsable(agent.model)
+    await assertDshProviderUsable(effectiveModel)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

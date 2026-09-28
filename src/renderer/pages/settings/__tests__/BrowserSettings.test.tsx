@@ -104,7 +104,16 @@ beforeAll(async () => {
     interpolation: { escapeValue: false }
   })
 })
-afterEach(cleanup)
+afterEach(async () => {
+  // The mocked `usePreference` setter notifies subscribers (so `waitFor` on the
+  // store or on the switch can already pass) and only then resolves on a 10ms
+  // timer, leaving the switch handler's `finally { setSaving(false) }` in
+  // flight. Drain that timer before unmounting: if it fired after jsdom
+  // teardown, React's `setState` would throw `ReferenceError: window is not
+  // defined` and fail the whole shard as an unhandled rejection.
+  await new Promise((resolve) => setTimeout(resolve, 25))
+  cleanup()
+})
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)

@@ -39,6 +39,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -102,6 +103,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    model: (row.session.model ?? null) as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -286,6 +288,9 @@ export class AgentSessionService {
     createdAt = Date.now()
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
+      throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
+    }
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -319,6 +324,7 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      model: dto.model,
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -817,6 +823,7 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.model !== undefined) patch.model = dto.model
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
@@ -842,6 +849,9 @@ export class AgentSessionService {
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+    if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
+      throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
+    }
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
@@ -935,6 +945,7 @@ export class AgentSessionService {
       agentId: string
       name: string
       description?: string
+      model?: UniqueModelId | null
       workspaceId: string
       createdAt: number
       updatedAt: number

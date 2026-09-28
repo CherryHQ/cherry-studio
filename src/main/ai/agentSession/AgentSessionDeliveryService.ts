@@ -302,7 +302,7 @@ export class AgentSessionDeliveryService extends BaseService {
           const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
             id: validated.agentId,
             updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
+            model: validated.agentDefaultModel,
             type: validated.agentType
           })
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(

@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpTool } from '@shared/types/mcp'
 
 const mocks = vi.hoisted(() => ({
+  getAgent: vi.fn(),
   findByIdOrName: vi.fn(),
-  listTools: vi.fn()
+  listTools: vi.fn(),
+  prepareWorkspace: vi.fn(),
+  assertProviderUsable: vi.fn()
 }))
 
-vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
+vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findByIdOrName }
 }))
@@ -20,9 +24,9 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
-  prepareAgentSessionWorkspaceDirectory: vi.fn()
+  prepareAgentSessionWorkspaceDirectory: mocks.prepareWorkspace
 }))
-vi.mock('./modelInjection', () => ({ assertDshProviderUsable: vi.fn() }))
+vi.mock('./modelInjection', () => ({ assertDshProviderUsable: mocks.assertProviderUsable }))
 vi.mock('./DshRuntimeConnection', () => ({ DshRuntimeConnection: vi.fn() }))
 
 const { DshRuntimeDriver } = await import('./DshRuntimeDriver')
@@ -30,6 +34,53 @@ const { DshRuntimeDriver } = await import('./DshRuntimeDriver')
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.listTools.mockReturnValue([])
+  mocks.prepareWorkspace.mockResolvedValue(undefined)
+  mocks.assertProviderUsable.mockResolvedValue(undefined)
+})
+
+describe('DshRuntimeDriver.validateSession', () => {
+  it('prefers the session model override for interactive turns', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+
+    await new DshRuntimeDriver().validateSession(session)
+
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('other::model-x')
+  })
+
+  it('validates the agent default for headless runs even when an override is set', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+
+    await new DshRuntimeDriver().validateSession(session, { headless: true })
+
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
+  })
+
+  it('rejects headless runs when the agent default is cleared even when an override is set', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: null })
+
+    await expect(new DshRuntimeDriver().validateSession(session, { headless: true })).rejects.toThrow(
+      'has no model configured'
+    )
+    expect(mocks.assertProviderUsable).not.toHaveBeenCalled()
+  })
 })
 
 describe('DshRuntimeDriver.listAvailableTools', () => {

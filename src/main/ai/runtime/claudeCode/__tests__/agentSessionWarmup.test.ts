@@ -251,6 +251,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it('prewarms the agent default model when the session carries an override', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId,
+      contextWindow: 128_000
+    }))
+
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const agentDefaultRequest = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-1'
+    )
+    const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(warmRequest?.connectionRebuildSignature).toBe(agentDefaultRequest?.connectionConfig.rebuildSignature)
+    expect(overrideRequest?.connectionConfig.rebuildSignature).not.toBe(
+      agentDefaultRequest?.connectionConfig.rebuildSignature
+    )
+  })
+
   it('passes native image support from the captured connection model into settings', async () => {
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',
@@ -1515,6 +1542,30 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  it('fingerprints the session override model name instead of the parent agent default', async () => {
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      model: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      name: modelId === 'model-2' ? 'Override Model' : 'Default Model',
+      apiModelId: `${modelId}-api`
+    }))
+
+    const withOverride = await deriveConnectionConfig('session-1')
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    const agentDefault = await deriveConnectionConfig('session-1')
+
+    if (!withOverride.ok || !agentDefault.ok) throw new Error('expected ok derive')
+    expect(withOverride.config.rebuildSignature).not.toBe(agentDefault.config.rebuildSignature)
+    const changedFacts = Object.keys(agentDefault.config.rebuildFactFingerprints).filter(
+      (name) => agentDefault.config.rebuildFactFingerprints[name] !== withOverride.config.rebuildFactFingerprints[name]
+    )
+    expect(changedFacts).toContain('modelId')
+    expect(changedFacts).toContain('promptModelName')
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()
@@ -1854,5 +1905,53 @@ describe('deriveConnectionConfig', () => {
       throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+
+  it('serves a session model override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, model: 'provider-1::model-1' })
+
+    const result = await deriveConnectionConfig('session-1')
+    expect(result.ok).toBe(true)
+  })
+
+  it('still reports unroutable when neither session override nor agent default provides a model', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+
+    expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+
+  it('builds a query request from the session override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      model: 'provider-1::model-1'
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
+    mocks.isRegistryProvider.mockReturnValue(false)
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
+    mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
+      'x-cherry-agent-session-id': 'session-1',
+      'x-cherry-internal-usage-token': 'internal-token'
+    })
+    mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
+    mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.sdkModelId).toBe('model-1-api')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'provider-1::model-1' }),
+      expect.anything(),
+      expect.objectContaining({ effectiveModelId: 'provider-1::model-1' }),
+      expect.anything()
+    )
   })
 })

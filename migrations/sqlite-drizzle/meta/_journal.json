@@ -189,6 +189,13 @@
       "when": 1790242863366,
       "tag": "0026_clammy_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790456852291,
+      "tag": "0027_funny_the_executioner",
+      "breakpoints": true
     }
   ],
   "version": "7"
