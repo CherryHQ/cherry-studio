@@ -18,6 +18,15 @@ import {
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
 
+const { resolveOllamaRequestNumCtxMock } = vi.hoisted(() => ({
+  resolveOllamaRequestNumCtxMock: vi.fn()
+}))
+
+vi.mock('../ollamaRequestNumCtx', () => ({
+  resolveOllamaRequestNumCtx: resolveOllamaRequestNumCtxMock,
+  trackOllamaRequestNumCtx: vi.fn()
+}))
+
 describe('applyFastModeToProviderOptions', () => {
   const provider = {
     fastMode: { transport: 'openai-priority' }
@@ -616,6 +625,12 @@ describe('buildCapabilityProviderOptions', () => {
   )
 
   it('forwards the configured contextWindow as num_ctx for Ollama models', () => {
+    resolveOllamaRequestNumCtxMock.mockReturnValue({
+      trainedContextWindow: 32_768,
+      freeMemoryBytes: 16 * 1024 ** 3,
+      totalMemoryBytes: 32 * 1024 ** 3,
+      numCtx: 32_768
+    })
     const result = buildCapabilityProviderOptions(
       {
         id: 'ollama::qwen3:32b',
@@ -651,6 +666,7 @@ describe('buildCapabilityProviderOptions', () => {
   })
 
   it('omits num_ctx for an Ollama model whose contextWindow could not be read', () => {
+    resolveOllamaRequestNumCtxMock.mockReturnValue(undefined)
     const result = buildCapabilityProviderOptions(
       {
         id: 'ollama::qwen3:32b',
@@ -684,5 +700,46 @@ describe('buildCapabilityProviderOptions', () => {
     // Not a fixed floor: Ollama sizes by available VRAM (4k / 32k / 256k) when num_ctx is
     // absent, so substituting a guess would shrink the window on a well-provisioned machine.
     expect(result.ollama).not.toHaveProperty('options')
+  })
+
+  it('forwards a memory-capped num_ctx when the trained window exceeds available RAM', () => {
+    resolveOllamaRequestNumCtxMock.mockReturnValue({
+      trainedContextWindow: 131_072,
+      freeMemoryBytes: 8 * 1024 ** 3,
+      totalMemoryBytes: 16 * 1024 ** 3,
+      numCtx: 32_768
+    })
+    const result = buildCapabilityProviderOptions(
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        name: 'qwen3:32b',
+        capabilities: [],
+        contextWindow: 131_072
+      } as unknown as Model,
+      {
+        id: 'ollama',
+        settings: {},
+        reportsActualCost: false
+      } as Provider,
+      {
+        enableReasoning: false,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'ollama',
+        runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
+        endpointType: undefined,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ ollama: { options: { num_ctx: 32_768 } } })
   })
 })
