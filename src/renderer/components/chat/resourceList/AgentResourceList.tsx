@@ -18,8 +18,8 @@ import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -93,7 +93,7 @@ export function AgentResourceList({
   onShowMissingAgentSelection,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')

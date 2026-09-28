@@ -10,7 +10,7 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadCatalog } from '@renderer/hooks/useLaunchpadCatalog'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
@@ -28,7 +28,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
     ? 'grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] justify-items-center gap-2'
     : LAUNCHPAD_GRID_CLASS
   const itemClassName = compact ? 'w-full min-w-0' : LAUNCHPAD_ITEM_CLASS
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const {
     pinned,

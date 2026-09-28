@@ -20,8 +20,8 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import {
@@ -96,7 +96,7 @@ export function AssistantResourceList({
   onCreateTopic,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')

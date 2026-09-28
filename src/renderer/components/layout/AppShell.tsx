@@ -5,7 +5,6 @@ import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
@@ -27,9 +26,14 @@ import { TabRouter } from './TabRouter'
 const isCompactMinWidthRoute = (url?: string): boolean =>
   !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
-export const AppShell = ({ minimalToolbar }: { minimalToolbar?: (detachTab: (id: string) => void) => ReactNode }) => {
-  const minimalMode = useMinimalMode()
-  const isMinimal = minimalMode?.enabled ?? false
+export const AppShell = ({
+  minimalMode,
+  minimalToolbar
+}: {
+  minimalMode?: { isHome: boolean; returnHome: () => void }
+  minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
+}) => {
+  const isMinimal = !!minimalMode
   const isMacTransparentWindow = useMacTransparentWindow()
   const {
     tabs,

@@ -182,10 +182,10 @@ describe('topic context menu actions', () => {
 })
 
 it('hides sidebar shortcuts when the sidebar is unavailable without hiding local pin actions', () => {
-  const context = createTopicActionFixture({ onToggleSidebar: vi.fn(), sidebarAvailable: false })
+  const context = createTopicActionFixture({ onToggleSidebar: undefined })
   const actions = resolveTopicMenuActions(context)
   expect(actions.some((action) => action.id === 'topic.toggle-sidebar')).toBe(false)
-  const availableActions = resolveTopicMenuActions({ ...context, sidebarAvailable: true })
+  const availableActions = resolveTopicMenuActions({ ...context, onToggleSidebar: vi.fn() })
   expect(availableActions.some((action) => action.id === 'topic.toggle-sidebar')).toBe(true)
   expect(actions.map((action) => action.id)).toEqual(
     availableActions.filter((action) => action.id !== 'topic.toggle-sidebar').map((action) => action.id)

@@ -41,10 +41,10 @@ import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
@@ -192,9 +192,8 @@ function AgentGroupMoreMenu({
   onToggleSidebar: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const actionContext: AgentGroupActionContext = {
-    sidebarAvailable,
     agentId,
     assistantIconType,
     deleteAgentDisabled,
@@ -203,7 +202,7 @@ function AgentGroupMoreMenu({
     onEdit,
     onSetAgentIconType,
     onTogglePin,
-    onToggleSidebar,
+    onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
     pinDisabled,
     pinned,
     sidebarPinned,
@@ -367,7 +366,7 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
@@ -1974,7 +1973,6 @@ const Sessions = ({
         if (!agentId || !agentById.has(agentId)) return null
 
         const actionContext: AgentGroupActionContext = {
-          sidebarAvailable,
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
@@ -1983,7 +1981,7 @@ const Sessions = ({
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
-          onToggleSidebar: handleToggleAgentSidebar,
+          onToggleSidebar: sidebarAvailable ? handleToggleAgentSidebar : undefined,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
           sidebarPinned: sidebarAgentFavoriteIdSet.has(agentId),

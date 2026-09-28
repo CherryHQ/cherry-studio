@@ -13,7 +13,7 @@ import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPe
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -61,7 +61,7 @@ const MiniApp: FC<Props> = ({
   variant = 'default',
   disabled = false
 }) => {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)

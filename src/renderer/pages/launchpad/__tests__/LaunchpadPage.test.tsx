@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUI from '@cherrystudio/ui'
+import { SidebarAvailableContext } from '@renderer/hooks/useSidebarAvailable'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   createSidebarShortcutId,
@@ -218,6 +219,21 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  })
+
+  it('hides sidebar shortcuts when unavailable and restores them without a host override', () => {
+    const { rerender } = render(
+      <SidebarAvailableContext value={false}>
+        <LaunchpadPage />
+      </SidebarAvailableContext>
+    )
+    expect(screen.queryByRole('button', { name: 'Add to Sidebar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove from Sidebar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Translate' })).toBeVisible()
+
+    rerender(<LaunchpadPage />)
+    expect(screen.getAllByRole('button', { name: 'Add to Sidebar' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Remove from Sidebar' })).toBeVisible()
   })
 
   it('renders the launchpad page chrome and app grid', () => {

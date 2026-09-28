@@ -12,6 +12,7 @@ import { WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
 import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { SidebarAvailableContext } from '@renderer/hooks/useSidebarAvailable'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
@@ -99,22 +100,25 @@ export function MainWindowShell() {
         ),
         sidebarFooter: <MinimalSidebarFooter />
       }}>
-      <AppShell
-        minimalToolbar={(detachTab) =>
-          navigation.isHome
-            ? null
-            : renderToolbar(
-                false,
-                undefined,
-                activeTab
-                  ? () => {
-                      detachTab(activeTab.id)
-                      navigation.returnHome()
-                    }
-                  : undefined
-              )
-        }
-      />
+      <SidebarAvailableContext value={!navigation.enabled}>
+        <AppShell
+          minimalMode={navigation.enabled ? navigation : undefined}
+          minimalToolbar={(detachTab) =>
+            navigation.isHome
+              ? null
+              : renderToolbar(
+                  false,
+                  undefined,
+                  activeTab
+                    ? () => {
+                        detachTab(activeTab.id)
+                        navigation.returnHome()
+                      }
+                    : undefined
+                )
+          }
+        />
+      </SidebarAvailableContext>
     </MinimalModeContext>
   )
 }

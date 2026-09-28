@@ -15,7 +15,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({ default: () => <span /> }))
 
-import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
+import { SidebarAvailableContext } from '@renderer/hooks/useSidebarAvailable'
 
 import { MiniLaunchpad } from '../MiniLaunchpad'
 
@@ -23,17 +23,9 @@ function Harness() {
   const [destination, setDestination] = useState('home')
   return (
     <>
-      <MinimalModeContext
-        value={{
-          enabled: true,
-          isHome: true,
-          homeKind: 'agent',
-          switchHome: () => {},
-          returnHome: () => {},
-          openFeature: setDestination
-        }}>
+      <SidebarAvailableContext value={false}>
         <MiniLaunchpad onOpen={setDestination} />
-      </MinimalModeContext>
+      </SidebarAvailableContext>
       <output aria-label="destination">{destination}</output>
     </>
   )

@@ -10,7 +10,7 @@ import {
   ContextMenuTrigger
 } from '@cherrystudio/ui'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 
 import type { FileItem } from './fileDisplay'
 
@@ -62,7 +62,7 @@ function FileContextMenuContent({
   showRename: boolean
   deleteDisabled: boolean
 }) {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const canUseFileActions = !file.isMissing
   const canRename = canUseFileActions && showRename

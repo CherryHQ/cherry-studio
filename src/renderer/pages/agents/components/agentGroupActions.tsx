@@ -21,10 +21,9 @@ export interface AgentGroupActionContext {
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
-  onToggleSidebar: (agentId: string) => void
+  onToggleSidebar?: (agentId: string) => void
   pinDisabled?: boolean
   pinned: boolean
-  sidebarAvailable?: boolean
   sidebarPinned: boolean
   t: TFunction
 }
@@ -48,8 +47,8 @@ agentGroupActionRegistry.registerCommand({
 
 agentGroupActionRegistry.registerCommand({
   id: 'agent-group.toggle-sidebar',
-  availability: ({ sidebarAvailable }) => sidebarAvailable !== false,
-  run: ({ agentId, onToggleSidebar }) => onToggleSidebar(agentId)
+  availability: ({ onToggleSidebar }) => !!onToggleSidebar,
+  run: ({ agentId, onToggleSidebar }) => onToggleSidebar?.(agentId)
 })
 
 for (const type of RESOURCE_ICON_TYPE_OPTIONS) {

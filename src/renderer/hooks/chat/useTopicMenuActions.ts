@@ -9,7 +9,7 @@ import {
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
@@ -184,13 +184,12 @@ export function useTopicMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => TopicActionContext
 }): TopicMenuPreset<TItem> {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const getActionContextWithOverride = useCallback(
-    (item: TItem, contextOverride?: TopicMenuActionContextOverride) => ({
-      ...getActionContext(item),
-      ...contextOverride,
-      sidebarAvailable
-    }),
+    (item: TItem, contextOverride?: TopicMenuActionContextOverride) => {
+      const context = { ...getActionContext(item), ...contextOverride }
+      return { ...context, onToggleSidebar: sidebarAvailable ? context.onToggleSidebar : undefined }
+    },
     [getActionContext, sidebarAvailable]
   )
   const getActions = useCallback(
@@ -209,7 +208,7 @@ export function useTopicMenuPreset<TItem>({
 }
 
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const {
     exportMenuOptions,
     isArchiveBlocked,
@@ -253,7 +252,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
-        onToggleSidebar,
+        onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
         onSetPanePosition,
         onStartRename,
         panePosition,
@@ -283,15 +282,13 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onStartRename,
       panePosition,
       sidebarPinned,
+      sidebarAvailable,
       t,
       topic,
       topicsLength
     ]
   )
-  const getMenuActions = useCallback(
-    () => getTopicMenuActions({ ...actionContext, sidebarAvailable }),
-    [actionContext, sidebarAvailable]
-  )
+  const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)

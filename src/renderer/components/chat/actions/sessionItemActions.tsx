@@ -63,7 +63,6 @@ export interface SessionActionContext {
   onToggleSidebar?: () => void
   panePosition?: TopicTabPosition
   pinned?: boolean
-  sidebarAvailable?: boolean
   sidebarPinned?: boolean
   sessionName: string
   startEdit: (value: string) => void
@@ -122,8 +121,8 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.toggle-sidebar',
-  availability: ({ onToggleSidebar, sidebarAvailable }) => ({
-    visible: sidebarAvailable !== false && !!onToggleSidebar,
+  availability: ({ onToggleSidebar }) => ({
+    visible: !!onToggleSidebar,
     enabled: !!onToggleSidebar
   }),
   run: ({ onToggleSidebar }) => onToggleSidebar?.()

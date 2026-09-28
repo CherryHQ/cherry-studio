@@ -6,7 +6,7 @@ import {
   resolveSessionMenuActions,
   type SessionActionContext
 } from '@renderer/components/chat/actions/sessionItemActions'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 
 export function createSessionActionContext(context: SessionActionContext): SessionActionContext {
   return context
@@ -39,13 +39,12 @@ export function useSessionMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => SessionActionContext
 }): SessionMenuPreset<TItem> {
-  const sidebarAvailable = !useMinimalMode()?.enabled
+  const sidebarAvailable = useSidebarAvailable()
   const getActionContextWithOverride = useCallback(
-    (item: TItem, contextOverride?: SessionMenuActionContextOverride) => ({
-      ...getActionContext(item),
-      ...contextOverride,
-      sidebarAvailable
-    }),
+    (item: TItem, contextOverride?: SessionMenuActionContextOverride) => {
+      const context = { ...getActionContext(item), ...contextOverride }
+      return { ...context, onToggleSidebar: sidebarAvailable ? context.onToggleSidebar : undefined }
+    },
     [getActionContext, sidebarAvailable]
   )
   const getActions = useCallback(
@@ -64,16 +63,17 @@ export function useSessionMenuPreset<TItem>({
 }
 
 export function useSessionMenuActions(actionContext: SessionActionContext) {
-  const sidebarAvailable = !useMinimalMode()?.enabled
-  const getActions = useCallback(
-    () => getSessionMenuActions({ ...actionContext, sidebarAvailable }),
+  const sidebarAvailable = useSidebarAvailable()
+  const context = useMemo(
+    () => ({ ...actionContext, onToggleSidebar: sidebarAvailable ? actionContext.onToggleSidebar : undefined }),
     [actionContext, sidebarAvailable]
   )
+  const getActions = useCallback(() => getSessionMenuActions(context), [context])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<SessionActionContext>) => {
-      await runSessionMenuAction(action, actionContext)
+      await runSessionMenuAction(action, context)
     },
-    [actionContext]
+    [context]
   )
 
   return { getActions, handleMenuAction }
