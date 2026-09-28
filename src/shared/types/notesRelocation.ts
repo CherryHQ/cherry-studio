@@ -12,6 +12,7 @@ export type NotesRelocationValidationReason = (typeof NOTES_RELOCATION_VALIDATIO
 
 export interface NotesDirectoryStats {
   markdownFileCount: number
+  fileCount: number
   folderCount: number
   totalBytes: number
 }
@@ -22,6 +23,7 @@ export type NotesRelocationInspection =
       source: NotesDirectoryStats
       target: NotesDirectoryStats
       targetHasMarkdown: boolean
+      targetHasFiles: boolean
     }
   | { valid: false; reason: NotesRelocationValidationReason }
 

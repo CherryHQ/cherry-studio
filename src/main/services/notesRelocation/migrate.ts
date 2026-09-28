@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type {
-  NotesDirectoryStats,
   NotesRelocationInspection,
   NotesRelocationResult
 } from '@shared/types/notesRelocation'
@@ -24,7 +23,8 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
       valid: true,
       source,
       target,
-      targetHasMarkdown: target.markdownFileCount > 0
+      targetHasMarkdown: target.markdownFileCount > 0,
+      targetHasFiles: target.fileCount > 0
     }
   } catch (error) {
     if (error instanceof NotesRelocationValidationError) {
@@ -93,8 +93,8 @@ export async function migrateNotesDirectory(
     throw new IpcError('NOTES_RELOCATION_INVALID', inspection.reason)
   }
 
-  if (!options.merge && inspection.targetHasMarkdown) {
-    throw new IpcError('NOTES_RELOCATION_TARGET_NOT_EMPTY', 'target already contains notes')
+  if (!options.merge && inspection.targetHasFiles) {
+    throw new IpcError('NOTES_RELOCATION_TARGET_NOT_EMPTY', 'target already contains files')
   }
 
   const source = inspection.source
@@ -115,8 +115,14 @@ export async function migrateNotesDirectory(
       if (entry.isDirectory()) {
         await copyDirectoryRecursive(from, to, copyOptions)
       } else if (entry.isFile()) {
-        if (copyOptions?.skipExistingFiles && fs.existsSync(to)) {
-          continue
+        if (fs.existsSync(to)) {
+          const targetEntry = fs.lstatSync(to)
+          if (targetEntry.isSymbolicLink()) {
+            throw new IpcError('NOTES_RELOCATION_INVALID', 'target contains a symlink')
+          }
+          if (copyOptions?.skipExistingFiles) {
+            continue
+          }
         }
         await fs.promises.copyFile(from, to)
       }
