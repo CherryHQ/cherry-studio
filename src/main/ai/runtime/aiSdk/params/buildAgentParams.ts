@@ -29,9 +29,11 @@ import {
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
+import { resolveOllamaRequestNumCtx } from '../../../utils/ollamaRequestNumCtx'
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
@@ -249,6 +251,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
+  const ollamaNumCtxResolution =
+    sdkConfig.providerId === SystemProviderIds.ollama ? resolveOllamaRequestNumCtx(model) : undefined
+  const ollamaNumCtx = ollamaNumCtxResolution
+    ? { trainedContextWindow: ollamaNumCtxResolution.trainedContextWindow, numCtx: ollamaNumCtxResolution.numCtx }
+    : undefined
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -266,7 +274,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
     mcpResourceServerIds,
     mcpToolResources: collectMcpToolResources(request.messages ?? []),
-    toolOutputCharCap: contextSettings.truncateThreshold
+    toolOutputCharCap: contextSettings.truncateThreshold,
+    ollamaNumCtx
   }
 
   const scope: RequestScope = {
@@ -604,7 +613,8 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning,
+      ollamaNumCtx: requestContext.ollamaNumCtx
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}

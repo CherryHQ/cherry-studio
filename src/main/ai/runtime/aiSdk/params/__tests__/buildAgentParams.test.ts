@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -11,6 +12,7 @@ import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { resolveOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
@@ -1683,7 +1685,16 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+    const expectedNumCtx = resolveOllamaNumCtx({
+      trainedContextWindow: 131072,
+      freeMemoryBytes: os.freemem(),
+      totalMemoryBytes: os.totalmem()
+    })
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
+    expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
+      trainedContextWindow: 131072,
+      numCtx: expectedNumCtx
+    })
   })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {

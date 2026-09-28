@@ -15,13 +15,14 @@ import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
 import { isReasoningModel } from '@shared/utils/model'
 import { isSupportFastMode } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
+import { resolveOllamaRequestNumCtx } from './ollamaRequestNumCtx'
 import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './reasoningSerializers'
-import { resolveOllamaRequestNumCtx, trackOllamaRequestNumCtx } from './ollamaRequestNumCtx'
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
@@ -120,6 +121,7 @@ export function buildCapabilityProviderOptions(
     providerOptionsKey: string
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
+    ollamaNumCtx?: OllamaNumCtxRequestSnapshot
   }
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = context.runtimeProviderId
@@ -168,7 +170,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
+      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options, context.ollamaNumCtx)
       break
     case 'cherryin':
     case 'cherryin-chat':
@@ -421,16 +423,16 @@ function buildBedrockProviderOptions(
 
 function buildOllamaProviderOptions(
   model: Model,
-  reasoningOptions: Record<string, unknown>
+  reasoningOptions: Record<string, unknown>,
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot
 ): Record<string, Record<string, unknown>> {
-  const resolved = resolveOllamaRequestNumCtx(model)
-  if (resolved) trackOllamaRequestNumCtx(model, resolved)
+  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model)?.numCtx
   return {
     ollama: {
       ...reasoningOptions,
       // Forward a memory-feasible context window (#19864). Omitting num_ctx when unknown
       // is deliberate: Ollama then sizes by available VRAM (4k / 32k / 256k).
-      ...(resolved ? { options: { num_ctx: resolved.numCtx } } : {})
+      ...(numCtx != null ? { options: { num_ctx: numCtx } } : {})
     }
   }
 }
