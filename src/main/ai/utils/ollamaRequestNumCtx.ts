@@ -1,12 +1,12 @@
 import os from 'node:os'
 
 import { application } from '@application'
-import type { Model } from '@shared/data/types/model'
 import {
   OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
   resolveOllamaNumCtx,
   type ResolveOllamaNumCtxInput
 } from '@shared/ai/ollamaNumCtx'
+import type { Model } from '@shared/data/types/model'
 
 export interface OllamaNumCtxResolution extends ResolveOllamaNumCtxInput {
   numCtx: number

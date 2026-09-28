@@ -2,8 +2,8 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
-import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 

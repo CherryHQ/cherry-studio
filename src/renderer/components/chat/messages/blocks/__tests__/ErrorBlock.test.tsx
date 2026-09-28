@@ -4,6 +4,8 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -11,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
   language: 'en',
+  sharedCache: {} as Record<string, unknown>,
   translations: new Map<string, string>()
 }))
 
@@ -56,6 +59,15 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => mocks.actions
 }))
 
+vi.mock('@data/CacheService', () => ({
+  cacheService: {
+    getShared: (key: string) => mocks.sharedCache[key],
+    setShared: (key: string, value: unknown) => {
+      mocks.sharedCache[key] = value
+    }
+  }
+}))
+
 import ErrorBlock from '../ErrorBlock'
 
 const message: MessageListItem = {
@@ -76,6 +88,7 @@ describe('ErrorBlock', () => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
     mocks.language = 'en'
+    mocks.sharedCache = {}
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
@@ -91,6 +104,8 @@ describe('ErrorBlock', () => {
     const regenerateMessage = vi.fn().mockResolvedValue(undefined)
     mocks.actions = { removeMessageErrorPart, regenerateMessage }
 
+    const uniqueModelId = createUniqueModelId('ollama', 'qwen3:32b')
+
     render(
       <ErrorBlock
         partId="message-1-part-0"
@@ -104,7 +119,8 @@ describe('ErrorBlock', () => {
         }}
         message={{
           ...message,
-          model: { id: 'ollama::qwen3:32b', name: 'qwen3:32b', provider: 'ollama' }
+          modelId: uniqueModelId,
+          model: { id: 'qwen3:32b', name: 'qwen3:32b', provider: 'ollama' }
         }}
       />
     )
@@ -112,6 +128,31 @@ describe('ErrorBlock', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
     await waitFor(() => expect(removeMessageErrorPart).toHaveBeenCalled())
     expect(regenerateMessage).toHaveBeenCalledWith('message-1')
+    const caps = mocks.sharedCache[OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY] as Record<string, number>
+    expect(caps[uniqueModelId]).toBe(32_768)
+  })
+
+  it('hides the reduced-context retry when context is already at the minimum', () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaEffectiveNumCtx: 4_096
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Retry smaller' })).not.toBeInTheDocument()
   })
 
   it('renders a known app-owned i18nKey without AI diagnosis', () => {

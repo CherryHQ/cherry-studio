@@ -27,11 +27,10 @@ import {
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
-import { resolveOllamaRequestNumCtx } from '../../../utils/ollamaRequestNumCtx'
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
@@ -57,6 +56,7 @@ import {
   getTemperature,
   getTopP
 } from '../../../utils/modelParameters'
+import { resolveOllamaRequestNumCtx } from '../../../utils/ollamaRequestNumCtx'
 import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
