@@ -171,8 +171,8 @@ describe('AgentJobsService', () => {
           return { kick: () => {}, drainSessionQueues: async () => {}, pause: () => ({ dispose() {} }) }
         case 'ChannelManager':
           return { reconcileAgent: () => {} }
-        case 'PowerService':
-          return { preventSleep: () => ({ dispose: () => {} }) }
+        case 'RuntimeActivityService':
+          return { begin: () => ({ dispose: () => {} }) }
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
