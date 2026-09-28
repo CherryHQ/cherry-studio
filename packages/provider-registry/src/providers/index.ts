@@ -15,6 +15,7 @@ import p_comfyui from './comfyui'
 import p_copilot from './copilot'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
+import p_demonroute from './demonroute'
 import p_dmxapi from './dmxapi'
 import p_doubao from './doubao'
 import p_fireworks from './fireworks'
@@ -131,5 +132,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_demonroute
 ]

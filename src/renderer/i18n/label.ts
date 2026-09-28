@@ -35,6 +35,7 @@ const providerKeyMap = {
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
+  demonroute: 'provider.demonroute',
   dmxapi: 'provider.dmxapi',
   doubao: 'provider.doubao',
   fireworks: 'provider.fireworks',

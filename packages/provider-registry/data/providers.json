@@ -2674,7 +2674,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "DemonRoute - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.demonroute.com/v1"
+        }
+      },
+      "id": "demonroute",
+      "metadata": {
+        "website": {
+          "apiKey": "https://demonroute.com/",
+          "docs": "https://demonroute.com/integrations",
+          "models": "https://demonroute.com/models",
+          "official": "https://demonroute.com/"
+        }
+      },
+      "name": "DemonRoute"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "e7798ebb7a096b91"
 }
