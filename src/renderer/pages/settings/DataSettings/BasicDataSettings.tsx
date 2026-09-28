@@ -361,7 +361,9 @@ const BasicDataSettings: React.FC = () => {
                   void startNotesDirectoryMigration({
                     t,
                     sourcePath: resolvedNotesPath,
-                    onSuccess: (path) => updateNotesPath(path)
+                    onSuccess: async (path) => {
+                      await updateNotesPath(path)
+                    }
                   })
                 }}
                 variant="outline">
