@@ -593,7 +593,7 @@ export class SessionJournal {
     }
   }
 
-  private publishSession(): void {
+  publishSession(): void {
     const session = toSessionSummary(getSession(this.sessionId), this.execution?.executionId)
     if (session)
       this.append({
@@ -813,6 +813,10 @@ class RemoteAgentListener implements StreamListener {
 /** Shared journals: one per session regardless of how many devices subscribe. */
 export class RemoteAgentHub {
   private readonly journals = new Map<string, SessionJournal>()
+
+  publishSession(sessionId: string): void {
+    this.journals.get(sessionId)?.publishSession()
+  }
 
   journal(sessionId: string): SessionJournal {
     let journal = this.journals.get(sessionId)

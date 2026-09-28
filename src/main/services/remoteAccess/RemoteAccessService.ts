@@ -9,6 +9,7 @@ import {
   type RemoteSocket,
   RemoteSocketStream
 } from '@cherrystudio/remote-transport'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -52,6 +53,7 @@ export class RemoteAccessService extends BaseService {
 
   protected async onInit(): Promise<void> {
     remoteCommandService.interruptPending()
+    this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
     const refreshAdvertisement = () => {
       if (this.endpoint?.identity) this.advertisement.update(this.endpoint.identity, this.endpoint.port)
     }
