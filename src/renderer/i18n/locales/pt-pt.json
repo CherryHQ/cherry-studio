@@ -2403,6 +2403,8 @@
   "message.tools.sessionCreate.open": "Abrir sessão",
   "message.tools.sessionCreate.sessionId": "ID da sessão",
   "message.tools.sessionCreate.untitled": "Sessão sem título",
+  "message.tools.sessionRead.read": "Conversação lida",
+  "message.tools.sessionSearch.found": "Sessão encontrada",
   "message.tools.sessionSend.open": "Abrir sessão",
   "message.tools.sessionSend.sending": "A enviar para",
   "message.tools.sessionSend.sent": "Enviado para",

@@ -2403,6 +2403,8 @@
   "message.tools.sessionCreate.open": "セッションを開く",
   "message.tools.sessionCreate.sessionId": "セッション ID",
   "message.tools.sessionCreate.untitled": "無題のセッション",
+  "message.tools.sessionRead.read": "セッションを読み取りました",
+  "message.tools.sessionSearch.found": "セッションが見つかりました",
   "message.tools.sessionSend.open": "セッションを開く",
   "message.tools.sessionSend.sending": "送信先",
   "message.tools.sessionSend.sent": "送信済み",

@@ -2403,6 +2403,8 @@
   "message.tools.sessionCreate.open": "Mở phiên",
   "message.tools.sessionCreate.sessionId": "ID phiên",
   "message.tools.sessionCreate.untitled": "Phiên chưa đặt tên",
+  "message.tools.sessionRead.read": "Đã đọc cuộc hội thoại",
+  "message.tools.sessionSearch.found": "Đã tìm thấy phiên",
   "message.tools.sessionSend.open": "Mở phiên",
   "message.tools.sessionSend.sending": "Đang gửi đến",
   "message.tools.sessionSend.sent": "Đã gửi đến",

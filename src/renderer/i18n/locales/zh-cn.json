@@ -2403,6 +2403,8 @@
   "message.tools.sessionCreate.open": "打开会话",
   "message.tools.sessionCreate.sessionId": "会话 ID",
   "message.tools.sessionCreate.untitled": "未命名会话",
+  "message.tools.sessionRead.read": "已读取会话",
+  "message.tools.sessionSearch.found": "找到会话",
   "message.tools.sessionSend.open": "打开会话",
   "message.tools.sessionSend.sending": "正在发送至",
   "message.tools.sessionSend.sent": "已发送至",

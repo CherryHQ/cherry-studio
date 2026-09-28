@@ -15,6 +15,8 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionCreate.created': 'Session created',
         'message.tools.sessionCreate.open': 'Open session',
         'message.tools.sessionCreate.untitled': 'Untitled session',
+        'message.tools.sessionRead.read': 'Read conversation',
+        'message.tools.sessionSearch.found': 'Found session',
         'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to'
       })[key] ?? key
@@ -34,6 +36,7 @@ describe('SessionResultCards', () => {
       <SessionResultCards
         targets={[
           {
+            conversationType: 'agent',
             kind: 'create',
             renderKey: 'create-call',
             sessionId: 'session-created',
@@ -41,6 +44,7 @@ describe('SessionResultCards', () => {
           },
           {
             agentName: 'Builder',
+            conversationType: 'agent',
             kind: 'send',
             renderKey: 'send-call',
             sessionId: 'session-build',
@@ -70,10 +74,51 @@ describe('SessionResultCards', () => {
     })
   })
 
+  it('opens a searched agent session and a read chat topic on their own surfaces', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionResultCards
+        targets={[
+          {
+            conversationType: 'agent',
+            kind: 'search',
+            renderKey: 'search-call:session-found',
+            sessionId: 'session-found',
+            sessionName: 'Deep research chat'
+          },
+          {
+            conversationType: 'assistant',
+            kind: 'read',
+            renderKey: 'read-call',
+            sessionId: 'topic-read',
+            sessionName: ''
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByText('Found session')).toBeInTheDocument()
+    expect(screen.getByText('Read conversation')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open session: Deep research chat' }))
+    expect(navigateToRoute).toHaveBeenLastCalledWith({
+      path: '/app/agents',
+      query: { sessionId: 'session-found' }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open session: Untitled session' }))
+    expect(navigateToRoute).toHaveBeenLastCalledWith({
+      path: '/app/chat',
+      query: { topicId: 'topic-read' }
+    })
+  })
+
   it.each(['create', 'send'] as const)('labels an untitled %s target without exposing its id', (kind) => {
     render(
       <SessionResultCards
-        targets={[{ kind, renderKey: `${kind}-untitled`, sessionId: 'opaque-id', sessionName: '' }]}
+        targets={[
+          { conversationType: 'agent', kind, renderKey: `${kind}-untitled`, sessionId: 'opaque-id', sessionName: '' }
+        ]}
       />
     )
 

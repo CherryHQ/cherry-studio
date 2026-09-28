@@ -2403,6 +2403,8 @@
   "message.tools.sessionCreate.open": "Άνοιγμα συνεδρίας",
   "message.tools.sessionCreate.sessionId": "Αναγνωριστικό συνεδρίας",
   "message.tools.sessionCreate.untitled": "Συνεδρία χωρίς τίτλο",
+  "message.tools.sessionRead.read": "Διαβάστηκε συνομιλία",
+  "message.tools.sessionSearch.found": "Βρέθηκε συνεδρία",
   "message.tools.sessionSend.open": "Άνοιγμα συνεδρίας",
   "message.tools.sessionSend.sending": "Αποστολή προς",
   "message.tools.sessionSend.sent": "Στάλθηκε προς",

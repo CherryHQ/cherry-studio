@@ -56,7 +56,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import {
-  getSessionToolTarget,
+  getSessionToolTargets,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
   SessionResultCards,
@@ -1524,10 +1524,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () =>
       isActiveTurnProcessing
         ? []
-        : buildToolRenderItems(partEntries, message.id, true).flatMap((item) => {
-            const target = getSessionToolTarget(item.toolResponse)
-            return target ? [target] : []
-          }),
+        : buildToolRenderItems(partEntries, message.id, true).flatMap((item) =>
+            getSessionToolTargets(item.toolResponse)
+          ),
     [isActiveTurnProcessing, message.id, partEntries]
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
