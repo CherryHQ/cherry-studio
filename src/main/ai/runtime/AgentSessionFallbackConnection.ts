@@ -37,6 +37,11 @@ export function classifyRuntimeFallbackError(error: unknown): string | undefined
  */
 const NON_CONTENT_CHUNK_TYPES = new Set(['start', 'start-step', 'finish-step', 'finish', 'message-metadata', 'abort'])
 
+/** Teardown is best-effort: a failing close must never reject the close that ordered it. */
+function closeQuietly(connection?: AgentRuntimeConnection): Promise<void> {
+  return Promise.resolve(connection?.close()).catch(() => undefined)
+}
+
 /**
  * Rebuilds a Pi/DSH connection once when a provider fails before producing turn content. It owns
  * one stable event stream, so the host keeps its existing turn, persistence listener, and renderer
@@ -54,6 +59,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private backgroundWorkActive = false
   private attempted = false
   private closed = false
+  private pendingConnection?: AgentRuntimeConnection
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -118,8 +124,19 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    await this.current.close()
+    // A rebuild between connect() and its swap is not `current` yet, but it is already running this
+    // session's work and must not outlive the close.
+    const pending = this.pendingConnection
+    this.pendingConnection = undefined
+    await Promise.all([this.current.close(), closeQuietly(pending)])
     this.queue.close()
+  }
+
+  /** Closes a rebuilt connection that the swap never took over. */
+  private async discard(connection: AgentRuntimeConnection): Promise<void> {
+    if (this.pendingConnection !== connection) return
+    this.pendingConnection = undefined
+    await closeQuietly(connection)
   }
 
   private async pump(): Promise<void> {
@@ -181,8 +198,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
           ? { trace: { ...this.input.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } }
           : {})
       })
+      this.pendingConnection = connection
       if (this.closed) {
-        await connection.close()
+        await this.discard(connection)
         return false
       }
       this.hasActivity = false
@@ -190,8 +208,15 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       // marker — and no live connection — claiming a swap that never happened. The new connection's
       // events are not pumped until this returns, so the marker still precedes them.
       await connection.send(this.lastInput)
+      // A close() landing during that slow submission owns the teardown: it must not be handed a
+      // live connection, nor a notice of one, after the session is already gone.
+      if (this.closed) {
+        await this.discard(connection)
+        return false
+      }
       const previousModelId = this.currentModelId
       this.current = connection
+      this.pendingConnection = undefined
       this.currentModelId = fallbackModelId
       this.queue.push({
         type: 'chunk',
@@ -204,7 +229,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       return true
     } catch (cause) {
       logger.warn('Pi/DSH fallback connection failed', { sessionId: this.input.sessionId, fallbackModelId, cause })
-      if (connection) await Promise.resolve(connection.close()).catch(() => undefined)
+      if (connection) await this.discard(connection)
       return false
     }
   }
