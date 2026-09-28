@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { flushAllNotesEdits } from '@renderer/services/notesEditFlush'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
@@ -122,6 +123,8 @@ export async function migrateNotesDirectoryWithUi(options: {
     if (!confirmed) {
       return
     }
+
+    await flushAllNotesEdits()
 
     await ipcApi.request('app.notes_relocation.migrate', {
       sourcePath,

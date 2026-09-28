@@ -4,10 +4,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type {
-  NotesRelocationInspection,
-  NotesRelocationResult
-} from '@shared/types/notesRelocation'
+import type { NotesRelocationInspection, NotesRelocationResult } from '@shared/types/notesRelocation'
 
 import { scanNotesDirectory } from './stats'
 import { assertNotesRelocationPaths, NotesRelocationValidationError } from './validation'
@@ -34,7 +31,28 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
   }
 }
 
-function verifySourceCopied(sourceRoot: string, targetRoot: string, options?: { skipExistingFiles?: boolean }): void {
+function listRelativeFilePaths(root: string, relativePrefix = ''): string[] {
+  const paths: string[] = []
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) {
+      continue
+    }
+    const relativePath = relativePrefix ? path.join(relativePrefix, entry.name) : entry.name
+    const entryPath = path.join(root, entry.name)
+    if (entry.isDirectory()) {
+      paths.push(...listRelativeFilePaths(entryPath, relativePath))
+    } else if (entry.isFile()) {
+      paths.push(relativePath)
+    }
+  }
+  return paths
+}
+
+function verifySourceCopied(
+  sourceRoot: string,
+  targetRoot: string,
+  options?: { skipExistingFiles?: boolean; preExistingRelativePaths?: Set<string> }
+): void {
   const unresolved: string[] = []
 
   const walk = (currentSource: string, relativePrefix: string) => {
@@ -66,11 +84,10 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string, options?: { 
       }
 
       const targetSize = fs.statSync(targetEntryPath).size
-      if (options?.skipExistingFiles && targetSize !== sourceSize) {
-        continue
-      }
-
       if (targetSize !== sourceSize) {
+        if (options?.skipExistingFiles && options.preExistingRelativePaths?.has(relativePath)) {
+          continue
+        }
         unresolved.push(relativePath)
       }
     }
@@ -103,7 +120,8 @@ export async function migrateNotesDirectory(
   const resolvedTarget = path.resolve(targetPath)
   const entries = fs.readdirSync(resolvedSource, { withFileTypes: true })
 
-  const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
+  const preExistingRelativePaths = options.merge ? new Set(listRelativeFilePaths(resolvedTarget)) : undefined
+  const copyOptions = options.merge ? { skipExistingFiles: true as const, preExistingRelativePaths } : undefined
 
   try {
     for (const entry of entries) {
@@ -128,7 +146,10 @@ export async function migrateNotesDirectory(
       }
     }
 
-    verifySourceCopied(resolvedSource, resolvedTarget, copyOptions)
+    verifySourceCopied(resolvedSource, resolvedTarget, {
+      skipExistingFiles: copyOptions?.skipExistingFiles,
+      preExistingRelativePaths
+    })
     const targetAfter = scanNotesDirectory(resolvedTarget)
 
     logger.info('Notes directory migrated', {
