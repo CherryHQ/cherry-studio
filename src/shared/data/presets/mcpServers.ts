@@ -56,6 +56,21 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.zonefoundry,
+    reference: 'https://zonefoundry.dev/guides/ai-agent-control/',
+    type: 'streamableHttp',
+    baseUrl: 'https://relay.zonefoundry.dev/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    env: {
+      ZONEFOUNDRY_API_KEY: ''
+    },
+    shouldConfig: true,
+    provider: 'ZoneFoundry',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',

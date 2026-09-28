@@ -15,6 +15,8 @@ import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
+
+const ZONEFOUNDRY_SETUP_GUIDE_URL = 'https://zonefoundry.dev/guides/ai-agent-control/'
 import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
@@ -117,6 +119,15 @@ const BuiltinMcpServerList: FC = () => {
                           rel="noopener noreferrer"
                           className="wrap-break-word mt-2 block text-link hover:underline">
                           {t('settings.mcp.qveris.get_api_key')}
+                        </a>
+                      )}
+                      {server.name === BuiltinMcpServerNames.zonefoundry && (
+                        <a
+                          href={ZONEFOUNDRY_SETUP_GUIDE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wrap-break-word mt-2 block text-link hover:underline">
+                          {t('settings.mcp.zonefoundry.setup_guide')}
                         </a>
                       )}
                     </div>

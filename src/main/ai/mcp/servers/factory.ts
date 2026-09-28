@@ -71,17 +71,26 @@ export async function createInMemoryMcpServer(
 }
 
 /**
- * Headers a builtin HTTP server derives from its own config: QVeris authenticates with the
- * API key the user configures as an env var, so it cannot be stored as a static header.
+ * Headers a builtin HTTP server derives from its own config. QVeris always uses an API key env
+ * var; ZoneFoundry can use the same or fall back to OAuth when the key is unset.
  */
 export function getBuiltinHttpHeaders(server: McpServer): Record<string, string> {
-  if (server.installSource !== 'builtin' || server.name !== BuiltinMcpServerNames.qveris) return {}
+  if (server.installSource !== 'builtin') return {}
 
-  const apiKey = server.env?.QVERIS_API_KEY?.trim()
-  if (!apiKey) {
-    throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+  if (server.name === BuiltinMcpServerNames.qveris) {
+    const apiKey = server.env?.QVERIS_API_KEY?.trim()
+    if (!apiKey) {
+      throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+    }
+    return { Authorization: `Bearer ${apiKey}` }
   }
-  return { Authorization: `Bearer ${apiKey}` }
+
+  if (server.name === BuiltinMcpServerNames.zonefoundry) {
+    const apiKey = server.env?.ZONEFOUNDRY_API_KEY?.trim()
+    return apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
+  }
+
+  return {}
 }
 
 /**
