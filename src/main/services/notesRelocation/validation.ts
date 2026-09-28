@@ -28,6 +28,14 @@ function isPathInside(child: string, parent: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
+function resolvePhysicalPath(dirPath: string): string {
+  try {
+    return fs.realpathSync.native ? fs.realpathSync.native(dirPath) : fs.realpathSync(dirPath)
+  } catch {
+    return path.resolve(dirPath)
+  }
+}
+
 function assertNotesTargetDirectory(dirPath: string): void {
   if (!dirPath || typeof dirPath !== 'string') {
     invalid('invalid_target', 'target path is required')
@@ -43,21 +51,22 @@ function assertNotesTargetDirectory(dirPath: string): void {
     invalid('invalid_target', `target is not a directory: ${dirPath}`)
   }
 
+  const physicalPath = resolvePhysicalPath(normalizedPath)
   const appDataPath = path.resolve(application.getPath('sys.appdata'))
   const filesDir = path.resolve(application.getPath('feature.files.data'))
   const defaultNotesDir = path.resolve(application.getPath('feature.notes.data'))
 
   if (
-    normalizedPath.startsWith(filesDir) ||
-    normalizedPath.startsWith(appDataPath) ||
-    normalizedPath === defaultNotesDir
+    isPathInside(physicalPath, filesDir) ||
+    isPathInside(physicalPath, appDataPath) ||
+    normalizeForCompare(physicalPath) === normalizeForCompare(defaultNotesDir)
   ) {
     invalid('invalid_target', `target is a protected directory: ${dirPath}`)
   }
 
   const isSystemRoot = isWin
-    ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
-    : normalizedPath === '/' || normalizedPath === '/usr' || normalizedPath === '/etc' || normalizedPath === '/System'
+    ? /^[a-zA-Z]:[\\/]?$/.test(physicalPath)
+    : physicalPath === '/' || physicalPath === '/usr' || physicalPath === '/etc' || physicalPath === '/System'
 
   if (isSystemRoot) {
     invalid('invalid_target', `target is a system root directory: ${dirPath}`)
@@ -71,8 +80,8 @@ function assertNotesTargetDirectory(dirPath: string): void {
 }
 
 export function assertNotesRelocationPaths(sourcePath: string, targetPath: string): void {
-  const source = normalizeForCompare(sourcePath)
-  const target = normalizeForCompare(targetPath)
+  const source = normalizeForCompare(resolvePhysicalPath(sourcePath))
+  const target = normalizeForCompare(resolvePhysicalPath(targetPath))
 
   if (!fs.existsSync(sourcePath)) {
     invalid('source_missing', `source does not exist: ${sourcePath}`)

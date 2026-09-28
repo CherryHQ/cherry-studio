@@ -79,51 +79,51 @@ export async function migrateNotesDirectoryWithUi(options: {
   t: TFunction
   sourcePath: string
   targetPath: string
-  onSuccess: (targetPath: string) => void
+  onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
   const { t, sourcePath, targetPath, onSuccess } = options
 
-  const inspection = await ipcApi.request('app.notes_relocation.inspect', {
-    sourcePath,
-    targetPath
-  })
+  try {
+    const inspection = await ipcApi.request('app.notes_relocation.inspect', {
+      sourcePath,
+      targetPath
+    })
 
-  if (!inspection.valid) {
-    showValidationError(t, inspection.reason)
-    return
-  }
-
-  let merge = false
-  if (inspection.targetHasMarkdown) {
-    const mergeConfirmed = await confirmMerge(t, inspection.target.markdownFileCount)
-    if (!mergeConfirmed) {
+    if (!inspection.valid) {
+      showValidationError(t, inspection.reason)
       return
     }
-    merge = true
-  }
 
-  const confirmed = await confirmMigration(
-    t,
-    sourcePath,
-    targetPath,
-    formatMigrationSummary(
+    let merge = false
+    if (inspection.targetHasMarkdown) {
+      const mergeConfirmed = await confirmMerge(t, inspection.target.markdownFileCount)
+      if (!mergeConfirmed) {
+        return
+      }
+      merge = true
+    }
+
+    const confirmed = await confirmMigration(
       t,
-      inspection.source.markdownFileCount,
-      inspection.source.folderCount,
-      inspection.source.totalBytes
+      sourcePath,
+      targetPath,
+      formatMigrationSummary(
+        t,
+        inspection.source.markdownFileCount,
+        inspection.source.folderCount,
+        inspection.source.totalBytes
+      )
     )
-  )
-  if (!confirmed) {
-    return
-  }
+    if (!confirmed) {
+      return
+    }
 
-  try {
     await ipcApi.request('app.notes_relocation.migrate', {
       sourcePath,
       targetPath,
       merge
     })
-    onSuccess(targetPath)
+    await onSuccess(targetPath)
     toast.success(t('settings.data.notes_relocation.success'))
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)
@@ -142,7 +142,7 @@ export async function pickNotesTargetDirectory(t: TFunction): Promise<string> {
 export async function startNotesDirectoryMigration(options: {
   t: TFunction
   sourcePath: string
-  onSuccess: (targetPath: string) => void
+  onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
   const targetPath = await pickNotesTargetDirectory(options.t)
   if (!targetPath) {

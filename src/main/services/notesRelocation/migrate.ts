@@ -34,7 +34,7 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
   }
 }
 
-function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
+function verifySourceCopied(sourceRoot: string, targetRoot: string, options?: { skipExistingFiles?: boolean }): void {
   const unresolved: string[] = []
 
   const walk = (currentSource: string, relativePrefix: string) => {
@@ -60,7 +60,17 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
       }
 
       const sourceSize = fs.statSync(sourceEntryPath).size
-      if (!fs.existsSync(targetEntryPath) || fs.statSync(targetEntryPath).size !== sourceSize) {
+      if (!fs.existsSync(targetEntryPath)) {
+        unresolved.push(relativePath)
+        continue
+      }
+
+      const targetSize = fs.statSync(targetEntryPath).size
+      if (options?.skipExistingFiles && targetSize !== sourceSize) {
+        continue
+      }
+
+      if (targetSize !== sourceSize) {
         unresolved.push(relativePath)
       }
     }
@@ -93,6 +103,8 @@ export async function migrateNotesDirectory(
   const resolvedTarget = path.resolve(targetPath)
   const entries = fs.readdirSync(resolvedSource, { withFileTypes: true })
 
+  const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
+
   try {
     for (const entry of entries) {
       if (entry.isSymbolicLink()) {
@@ -101,13 +113,16 @@ export async function migrateNotesDirectory(
       const from = path.join(resolvedSource, entry.name)
       const to = path.join(resolvedTarget, entry.name)
       if (entry.isDirectory()) {
-        await copyDirectoryRecursive(from, to)
+        await copyDirectoryRecursive(from, to, copyOptions)
       } else if (entry.isFile()) {
+        if (copyOptions?.skipExistingFiles && fs.existsSync(to)) {
+          continue
+        }
         await fs.promises.copyFile(from, to)
       }
     }
 
-    verifySourceCopied(resolvedSource, resolvedTarget)
+    verifySourceCopied(resolvedSource, resolvedTarget, copyOptions)
     const targetAfter = scanNotesDirectory(resolvedTarget)
 
     logger.info('Notes directory migrated', {

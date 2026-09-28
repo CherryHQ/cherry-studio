@@ -20,7 +20,7 @@ const MAX_RECURSION_DEPTH = 1000
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string },
+  options?: { allowedBasePath?: string; skipExistingFiles?: boolean },
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -78,6 +78,17 @@ export async function copyDirectoryRecursive(
         // Recursively copy subdirectory
         await copyDirectoryRecursive(sourcePath, destPath, options, depth + 1)
       } else if (entryStats.isFile()) {
+        if (options?.skipExistingFiles) {
+          try {
+            await fs.promises.lstat(destPath)
+            logger.debug('Skipping existing file during merge', { path: destPath })
+            continue
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+              throw error
+            }
+          }
+        }
         // Copy file with error handling for race conditions
         try {
           await fs.promises.copyFile(sourcePath, destPath)
