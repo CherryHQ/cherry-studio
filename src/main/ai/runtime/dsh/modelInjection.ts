@@ -198,7 +198,7 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = toAgentProviderHeaders(getExtraHeaders(provider))
+  const headers = toAgentProviderHeaders(getExtraHeaders(provider, resolvedEndpoint.baseUrl))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {

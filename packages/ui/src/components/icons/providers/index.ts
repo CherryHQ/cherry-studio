@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 162
+ * Total icons: 163
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -13,6 +13,7 @@ export { AiOnlyIcon as AiOnly } from './ai-only'
 export { AiStudioIcon as AiStudio } from './ai-studio'
 export { Ai21Icon as Ai21 } from './ai21'
 export { AihubmixIcon as Aihubmix } from './aihubmix'
+export { AimlapiIcon as Aimlapi } from './aimlapi/aimlapi'
 export { AionlabsIcon as Aionlabs } from './aionlabs'
 export { AlayanewIcon as Alayanew } from './alayanew'
 export { AllenaiIcon as Allenai } from './allenai'
