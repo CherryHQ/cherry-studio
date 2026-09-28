@@ -35,6 +35,7 @@ import {
   revisionOf,
   sha256,
   toSessionSummary,
+  toMessage,
   toMessageModel,
   utf8
 } from './agentQueries'
@@ -492,8 +493,7 @@ export class SessionJournal {
     const anchor = saved?.messageId ?? result.finalMessage?.id ?? result.anchorMessageId ?? execution.messageId
     if (!anchor) throw new Error('Terminal execution has no assistant message identity')
     const messageId = this.ensureMessage(execution, anchor)
-    const failure =
-      result.status === 'error' ? (result.failure ?? toExecutionFailure(result.error, result.modelId)) : undefined
+    const terminalStatus = result.persistedAssistantStatus ?? result.status
     const persistenceFailure =
       result.persistence?.status === 'failed'
         ? result.persistence.failure
@@ -505,6 +505,12 @@ export class SessionJournal {
               'host'
             )
     const stored = saved ? agentSessionMessageService.getSessionMessage(this.sessionId, messageId) : undefined
+    const failure =
+      result.status === 'error'
+        ? (result.failure ?? toExecutionFailure(result.error, result.modelId))
+        : terminalStatus === 'error' && stored
+          ? toMessage(stored).failure
+          : undefined
     const stats = stored
       ? stored.stats
       : {
@@ -518,7 +524,7 @@ export class SessionJournal {
       }
     )
     const usage = toMessageUsage(stats)
-    const status = result.status === 'success' ? 'completed' : result.status === 'paused' ? 'cancelled' : 'failed'
+    const status = terminalStatus === 'success' ? 'completed' : terminalStatus === 'paused' ? 'cancelled' : 'failed'
     const message = this.projection.messages[messageId]
     if (message)
       this.append({
@@ -530,7 +536,7 @@ export class SessionJournal {
             revision: this.next(),
             ...(usage ? { usage } : {}),
             ...(model ? { model } : {}),
-            status: result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success',
+            status: terminalStatus,
             ...(failure ? { failure } : {})
           }
         }
