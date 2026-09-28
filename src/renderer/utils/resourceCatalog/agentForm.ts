@@ -102,7 +102,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
-    knowledgeBaseAccess: { ...(agent?.knowledgeBaseAccess ?? {}) },
+    knowledgeBaseAccess: { ...agent?.knowledgeBaseAccess },
     skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
