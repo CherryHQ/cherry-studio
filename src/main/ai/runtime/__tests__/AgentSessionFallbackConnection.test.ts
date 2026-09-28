@@ -13,11 +13,18 @@ import { AgentSessionFallbackConnection, classifyRuntimeFallbackError } from '..
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentSessionRuntimeDriver } from '../types'
 
-function fakeConnection() {
+function fakeConnection(usageCapture = 'capture') {
   const events = new AsyncEventQueue<AgentRuntimeEvent>()
   const close = vi.fn(async () => events.close())
   const send = vi.fn()
-  return { events, close, send, redirect: vi.fn(() => false), reconcile: vi.fn(async () => 'current' as const) }
+  return {
+    events,
+    close,
+    send,
+    usageCapture,
+    redirect: vi.fn(() => false),
+    reconcile: vi.fn(async () => 'current' as const)
+  }
 }
 
 describe('Pi/DSH connection fallback', () => {
@@ -119,6 +126,41 @@ describe('Pi/DSH connection fallback', () => {
     // A rejected replay owns no slot in the wrapper: it must not outlive the failed attempt.
     expect(fallback.close).toHaveBeenCalled()
     await wrapper.close()
+  })
+
+  it('tears down the rebuilt connection when the session closes during its slow replay submission', async () => {
+    const primary = fakeConnection('primary capture')
+    const fallback = fakeConnection('fallback capture')
+    let releaseSend!: () => void
+    fallback.send.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseSend = resolve
+      })
+    })
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
+
+    await wrapper.close()
+
+    // The rebuilt connection is already doing this session's work but is not `current` yet, so a
+    // close that only tears down `current` would leak it — and a late swap would revive it.
+    expect(fallback.close).toHaveBeenCalled()
+    expect(wrapper.usageCapture).toBe('primary capture')
+    releaseSend()
+
+    const seen: AgentRuntimeEvent[] = []
+    for await (const event of wrapper.events) seen.push(event)
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(wrapper.usageCapture).toBe('primary capture')
   })
 
   it('reports a rejected submission in-stream instead of rejecting the host send', async () => {
