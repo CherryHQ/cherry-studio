@@ -535,7 +535,11 @@ export function replaceWithFuzzyMatch(
       if (index === -1) continue
       notFound = false
       if (replaceAll) {
-        return content.replaceAll(search, newString)
+        // split/join keeps newString literal. String.prototype.replaceAll
+        // expands `$`-patterns ($&, $', $`, $$) in its replacement argument, so
+        // a replacement that legitimately contains one would be rewritten to
+        // the matched or surrounding text instead of being written verbatim.
+        return content.split(search).join(newString)
       }
       const lastIndex = content.lastIndexOf(search)
       if (index !== lastIndex) continue
