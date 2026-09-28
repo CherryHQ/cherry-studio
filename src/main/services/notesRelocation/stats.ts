@@ -8,6 +8,7 @@ const MARKDOWN_EXT = '.md'
 export function scanNotesDirectory(dirPath: string): NotesDirectoryStats {
   const stats: NotesDirectoryStats = {
     markdownFileCount: 0,
+    fileCount: 0,
     folderCount: 0,
     totalBytes: 0
   }
@@ -31,6 +32,7 @@ function walk(currentPath: string, stats: NotesDirectoryStats): void {
     if (!entry.isFile()) {
       continue
     }
+    stats.fileCount += 1
     const fileStats = fs.statSync(entryPath)
     stats.totalBytes += fileStats.size
     if (entry.name.toLowerCase().endsWith(MARKDOWN_EXT)) {

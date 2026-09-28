@@ -61,11 +61,16 @@ async function confirmMigration(
 }
 
 async function confirmMerge(t: TFunction, markdownFileCount: number): Promise<boolean> {
+  const mergeMessage =
+    markdownFileCount > 0
+      ? t('settings.data.notes_relocation.merge.content', { count: markdownFileCount })
+      : t('settings.data.notes_relocation.merge.content_other_files')
+
   return popup.confirm({
     title: t('settings.data.notes_relocation.merge.title'),
     content: (
       <div className="flex flex-col gap-2 text-sm">
-        <p>{t('settings.data.notes_relocation.merge.content', { count: markdownFileCount })}</p>
+        <p>{mergeMessage}</p>
         <p className="text-foreground-tertiary">{t('settings.data.notes_relocation.merge.choose_another_hint')}</p>
       </div>
     ),
@@ -95,7 +100,7 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     let merge = false
-    if (inspection.targetHasMarkdown) {
+    if (inspection.targetHasFiles) {
       const mergeConfirmed = await confirmMerge(t, inspection.target.markdownFileCount)
       if (!mergeConfirmed) {
         return
@@ -144,9 +149,14 @@ export async function startNotesDirectoryMigration(options: {
   sourcePath: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
-  const targetPath = await pickNotesTargetDirectory(options.t)
-  if (!targetPath) {
-    return
+  try {
+    const targetPath = await pickNotesTargetDirectory(options.t)
+    if (!targetPath) {
+      return
+    }
+    await migrateNotesDirectoryWithUi({ ...options, targetPath })
+  } catch (error) {
+    logger.error('Failed to start notes directory migration', error as Error)
+    toast.error(options.t('settings.data.notes_relocation.error.generic'))
   }
-  await migrateNotesDirectoryWithUi({ ...options, targetPath })
 }
