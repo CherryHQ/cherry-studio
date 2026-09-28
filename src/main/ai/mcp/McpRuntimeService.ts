@@ -20,14 +20,12 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { clampImageForModel } from '@main/utils/image'
-import { regionService } from '@main/services/RegionService'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
-import { resolveBuiltinMcpConnectBaseUrl } from '@shared/utils/mcpBuiltinConnect'
 import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -476,11 +474,6 @@ export class McpRuntimeService extends BaseService {
 
     this.setServerStatus(server.id, 'connecting')
 
-    const inChina = await regionService.isInChina().catch(() => false)
-    const resolvedBaseUrl = resolveBuiltinMcpConnectBaseUrl(server, inChina)
-    const connectServer =
-      resolvedBaseUrl && resolvedBaseUrl !== server.baseUrl ? { ...server, baseUrl: resolvedBaseUrl } : server
-
     const sdk = await loadMcpClientSdk()
     // Create new client instance for each connection
     const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
@@ -488,7 +481,7 @@ export class McpRuntimeService extends BaseService {
     const authProvider = new McpOAuthClientProvider({
       serverUrlHash: crypto
         .createHash('md5')
-        .update(connectServer.baseUrl || '')
+        .update(server.baseUrl || '')
         .digest('hex')
     })
 
@@ -496,7 +489,7 @@ export class McpRuntimeService extends BaseService {
     const createServerTransport = (typeOverride?: McpServerType) =>
       createTransport({
         sdk,
-        server: connectServer,
+        server,
         args,
         typeOverride,
         authProvider,
