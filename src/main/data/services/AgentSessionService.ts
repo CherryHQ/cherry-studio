@@ -788,6 +788,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
@@ -815,7 +816,15 @@ export class AgentSessionService {
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
         .where(
-          and(conversationFilter, agentFilter, idFilter, activeAgentFilter, isNull(sessionsTable.deletedAt), pinAfter)
+          and(
+            conversationFilter,
+            agentFilter,
+            workspaceFilter,
+            idFilter,
+            activeAgentFilter,
+            isNull(sessionsTable.deletedAt),
+            pinAfter
+          )
         )
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
@@ -865,6 +874,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           agentFilter,
+          workspaceFilter,
           idFilter,
           activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),

@@ -134,6 +134,13 @@ export type UseCacheSchema = {
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
+  // Detached Chat/Agent windows keep pane state within their renderer process. These values are
+  // seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.sidebar.width': number
+  'ui.window.chat.artifact_pane.width': number
+  'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.right_pane_open_override': boolean | null
+  'ui.window.agent.right_pane_open_override': boolean | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -230,6 +237,11 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.scroll_anchor.${topicId}': null,
+  'ui.window.chat.sidebar.width': 275,
+  'ui.window.chat.artifact_pane.width': 460,
+  'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.right_pane_open_override': null,
+  'ui.window.agent.right_pane_open_override': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
@@ -313,6 +325,7 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
@@ -375,6 +388,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
   'feature.binary.latest_versions': {},
@@ -474,7 +488,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
-  'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,

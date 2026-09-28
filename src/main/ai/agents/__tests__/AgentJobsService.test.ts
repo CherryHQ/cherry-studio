@@ -440,6 +440,21 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
       expect(dbh.db.select().from(agentChannelTaskTable).all()).toHaveLength(0)
     })
+
+    it('rejects a cron without a future occurrence before creating a task', () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+
+      expect(() =>
+        service.createTask(AGENT_ID, {
+          ...form,
+          trigger: { kind: 'cron', expr: '0 0 31 2 *' },
+          channelIds: [CHANNEL_ID]
+        })
+      ).toThrow(JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID)
+
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+      expect(dbh.db.select().from(agentChannelTaskTable).all()).toHaveLength(0)
+    })
   })
 
   // ---------------------------------------------------------------- update
@@ -891,6 +906,11 @@ describe('AgentJobsService', () => {
       // bad-workspace row armed on a deleted agent until the next restart.
       seedAgent(OTHER_AGENT_ID)
       const own = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create(
+        { agentId: AGENT_ID, name: 'Historical task run', workspace: { type: 'system' } },
+        'conversation',
+        { taskId: own.id }
+      )
       const malformed = jobManager.registerJobSchedule({
         type: 'agent.task',
         name: 'task_malformed_template',
@@ -900,16 +920,20 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
+      notifyDataApiDataChangeMock.mockClear()
       expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
 
       expect(jobScheduleService.getById(own.id)).toBeNull()
       expect(jobScheduleService.getById(malformed.id)).toBeNull()
+      expect(agentSessionService.getById(session.id).source).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
     })
 
-    it('continues the sweep when one schedule fails to unregister (transient failure)', async () => {
-      // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
-      // abort the whole pass: the remaining schedules and the heartbeat
-      // workspace cleanup are independent of the failed row.
+    it('rolls back the Agent, schedules and workspace together before retrying a failed deletion', async () => {
       dbh.db
         .insert(agentWorkspaceTable)
         .values({
@@ -936,29 +960,31 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById')
-      spy.mockImplementationOnce(async () => {
-        throw new Error('SQLITE_BUSY')
+      const spy = vi.spyOn(agentWorkspaceService, 'deleteIfUnreferencedTx').mockImplementationOnce(() => {
+        throw new Error('workspace cleanup failed')
       })
       try {
-        expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+        await expect(lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).rejects.toThrow(
+          'workspace cleanup failed'
+        )
       } finally {
         spy.mockRestore()
       }
 
-      // The failed row survives but is paused, so it cannot sit armed (and be
-      // re-armed after every restart) firing for a dead agent.
-      const survived = jobScheduleService.getById(first.id)
-      expect(survived).not.toBeNull()
-      expect(survived?.enabled).toBe(false)
-      expect(jobScheduleService.getById(second.id)).toBeNull()
-      expect(
-        dbh.db
-          .select()
-          .from(agentWorkspaceTable)
-          .all()
-          .map((row) => row.id)
-      ).toEqual([])
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, AGENT_ID)).get()).toBeDefined()
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(3)
+      expect(jobScheduleService.getById(first.id)?.enabled).toBe(true)
+      expect(jobScheduleService.getById(second.id)?.enabled).toBe(true)
+      expect(scheduler.has(`schedule:${first.id}`)).toBe(true)
+      expect(scheduler.has(`schedule:${second.id}`)).toBe(true)
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+
+      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, AGENT_ID)).get()).toBeUndefined()
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toEqual([])
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      expect(scheduler.has(`schedule:${first.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${second.id}`)).toBe(false)
     })
 
     it('deleting an agent also removes the heartbeat workspace row its schedule referenced', async () => {
@@ -990,7 +1016,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
 
       // Only the heartbeat workspace goes; an unrelated user workspace stays.
       expect(
