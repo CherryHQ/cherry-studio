@@ -82,6 +82,38 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('offers a reduced-context retry for Ollama memory failures', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessage = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { removeMessageErrorPart, regenerateMessage }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaTrainedNumCtx: 131_072,
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          model: { id: 'ollama::qwen3:32b', name: 'qwen3:32b', provider: 'ollama', contextWindow: 131_072 }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() => expect(removeMessageErrorPart).toHaveBeenCalled())
+    expect(regenerateMessage).toHaveBeenCalledWith('message-1')
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')

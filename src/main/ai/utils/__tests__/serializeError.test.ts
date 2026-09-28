@@ -3,6 +3,14 @@ import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../serializeError'
 
+const { getLastTrackedOllamaRequestNumCtxMock } = vi.hoisted(() => ({
+  getLastTrackedOllamaRequestNumCtxMock: vi.fn()
+}))
+
+vi.mock('../ollamaRequestNumCtx', () => ({
+  getLastTrackedOllamaRequestNumCtx: getLastTrackedOllamaRequestNumCtxMock
+}))
+
 describe('serializeError', () => {
   describe('unknown thrown values', () => {
     it('serializes only the safe message from a structured provider event', () => {
@@ -127,7 +135,32 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
+    it('tags Ollama KV-cache allocation failures with context metadata', () => {
+      getLastTrackedOllamaRequestNumCtxMock.mockReturnValue({
+        trainedContextWindow: 131_072,
+        freeMemoryBytes: 8 * 1024 ** 3,
+        totalMemoryBytes: 16 * 1024 ** 3,
+        numCtx: 65_536
+      })
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError)
+
+      expect(result.i18nKey).toBe('ollama_context_memory')
+      expect(result.ollamaTrainedNumCtx).toBe(131_072)
+      expect(result.ollamaEffectiveNumCtx).toBe(65_536)
+    })
+
     it('preserves only safe details from a direct APICallError', () => {
+      getLastTrackedOllamaRequestNumCtxMock.mockReturnValue(undefined)
       const providerError = new APICallError({
         message: 'Forbidden',
         url: 'https://api.example.com/chat/completions?token=url-secret',

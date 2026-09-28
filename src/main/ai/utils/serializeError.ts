@@ -1,9 +1,12 @@
 import { APICallError, RetryError } from 'ai'
 
+import { enrichOllamaContextAllocationSerializedError, isOllamaKvCacheAllocationError } from '@shared/ai/ollamaNumCtx'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+
+import { getLastTrackedOllamaRequestNumCtx } from './ollamaRequestNumCtx'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -34,8 +37,30 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
+function enrichOllamaAllocationError(serialized: SerializedError, providerText?: string): void {
+  const tracked = getLastTrackedOllamaRequestNumCtx()
+  enrichOllamaContextAllocationSerializedError(
+    serialized,
+    {
+      trainedContextWindow: tracked?.trainedContextWindow,
+      effectiveNumCtx: tracked?.numCtx
+    },
+    providerText
+  )
+}
+
 export function serializeError(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+  if (APICallError.isInstance(error)) {
+    const serialized = serializeNestedProviderError(error) as SerializedError
+    const allocationHint = [
+      typeof error.message === 'string' ? error.message : '',
+      typeof error.responseBody === 'string' ? error.responseBody : ''
+    ].join('\n')
+    if (isOllamaKvCacheAllocationError(allocationHint)) {
+      enrichOllamaAllocationError(serialized, allocationHint)
+    }
+    return serialized
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)
@@ -93,6 +118,7 @@ export function serializeError(error: unknown): SerializedError {
       serialized.processExitSignal = e.processExitSignal
     }
 
+    enrichOllamaAllocationError(serialized)
     return serialized
   }
   const safeMessage = getSafeProviderErrorMessage({ data: error })
