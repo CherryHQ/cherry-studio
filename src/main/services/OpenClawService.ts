@@ -1144,7 +1144,6 @@ export class OpenClawService extends BaseService {
     const provider = providerService.getByProviderId(providerId)
     const primaryModel = modelService.getByKey(providerId, modelId)
     const models = modelService.list({ providerId, enabled: true })
-    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {
@@ -1158,7 +1157,8 @@ export class OpenClawService extends BaseService {
       throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
     }
 
-    const apiKey = this.resolveSyncApiKey(provider, apiKeys.map((entry) => entry.key).join(','))
+    const resolvedApiKey = providerService.resolveApiKey(providerId, undefined, primaryModel.apiKeyId)
+    const apiKey = this.resolveSyncApiKey(provider, resolvedApiKey.value)
 
     return {
       provider: {

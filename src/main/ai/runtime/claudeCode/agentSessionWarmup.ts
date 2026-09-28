@@ -748,11 +748,15 @@ function deriveRouteFacts(
     sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
+  const modelKeyBindings = [primaryRef, opusRef, sonnetRef, haikuRef]
+    .map((ref) => `${ref.providerId}/${ref.modelId}:${ref.model.apiKeyId ?? ''}`)
+    .join(';')
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
     credentialsFingerprint: fingerprintCredentials([
       ...enabledKeys.map((key) => `api-key:${key}`),
+      `model-api-key-bindings:${modelKeyBindings}`,
       ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
     ]),
     toolSearchCompatible,

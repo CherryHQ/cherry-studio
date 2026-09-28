@@ -584,6 +584,39 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
   })
 
+  it('changes the credentials fingerprint when the primary model api key binding changes', async () => {
+    mocks.getApiKeys.mockReturnValue([
+      { id: 'key-a', key: 'key-a', isEnabled: true },
+      { id: 'key-b', key: 'key-b', isEnabled: true }
+    ])
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      apiKeyId: 'key-a'
+    })
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'key-a',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'key-****-a' }
+    })
+
+    const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      apiKeyId: 'key-b'
+    })
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'key-b',
+      apiKeySelection: { attribution: 'explicit', id: 'key-b', masked: 'key-****-b' }
+    })
+    const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(first?.credentialsFingerprint).not.toBe(second?.credentialsFingerprint)
+  })
+
   it('passes explicit provider headers to direct SDK requests with case-insensitive overrides', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',

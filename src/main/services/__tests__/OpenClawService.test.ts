@@ -124,7 +124,8 @@ vi.mock('@data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getApiKeys: vi.fn(),
-    getByProviderId: vi.fn()
+    getByProviderId: vi.fn(),
+    resolveApiKey: vi.fn()
   }
 }))
 
@@ -1356,6 +1357,39 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── syncConfig ─────────────────────────────────────────────
 
   describe('syncConfig', () => {
+    beforeEach(async () => {
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.resolveApiKey).mockImplementation((providerId, override, preferredKeyId) => {
+        const keys = providerService.getApiKeys(providerId, { enabled: true })
+        if (override !== undefined) {
+          const matched = keys.find((entry) => entry.key === override)
+          return {
+            value: override,
+            apiKeySelection: matched
+              ? { attribution: 'matched', id: matched.id, masked: matched.key }
+              : { attribution: 'unknown' }
+          }
+        }
+        if (preferredKeyId) {
+          const preferred = keys.find((entry) => entry.id === preferredKeyId)
+          if (preferred?.isEnabled) {
+            return {
+              value: preferred.key,
+              apiKeySelection: { attribution: 'explicit', id: preferred.id, masked: preferred.key }
+            }
+          }
+        }
+        const enabled = keys.filter((entry) => entry.isEnabled)
+        if (enabled.length === 0) {
+          return { value: '', apiKeySelection: { attribution: 'unknown' } }
+        }
+        return {
+          value: enabled[0].key,
+          apiKeySelection: { attribution: 'explicit', id: enabled[0].id, masked: enabled[0].key }
+        }
+      })
+    })
+
     it('maps input-token pricing tiers to OpenClaw whole-request ranges', () => {
       const model = createModel({
         pricing: {
@@ -1425,6 +1459,29 @@ describe('OpenClawService gateway status state machine', () => {
       await service.syncConfig('openai::gpt-4o')
 
       expect((service as any).gatewayPort).toBe(12345)
+    })
+
+    it('uses the selected model api key binding when syncing OpenClaw config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel({ apiKeyId: 'key-2' })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([
+        { id: 'key-1', key: 'sk-primary', isEnabled: true },
+        { id: 'key-2', key: 'sk-bound', isEnabled: true }
+      ])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(providerService.resolveApiKey).toHaveBeenCalledWith('openai', undefined, 'key-2')
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: 'sk-bound' }),
+        expect.objectContaining({ id: 'gpt-4o' })
+      )
     })
 
     it('resolves a unique model id before syncing OpenClaw config', async () => {
