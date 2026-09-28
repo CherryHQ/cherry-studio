@@ -13,6 +13,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -31,9 +32,10 @@ import {
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
-import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
+import { applyScopedMoves, insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
@@ -277,6 +279,20 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
     foreignKey: () =>
       DataApiErrorFactory.invalidOperation(`delete model ${identifier}`, 'model is in use by a knowledge base')
   } satisfies SqliteErrorHandlers
+}
+
+/**
+ * Broadcast an order write so every renderer window converges. Other windows
+ * hold their own `GET /models` cache, and the initiating window's `refresh` is
+ * local to it — without this a second window keeps showing the old order.
+ * Mirrors `PinService`'s order notification.
+ */
+function notifyModelOrderChange(entityIds: readonly string[]): void {
+  if (entityIds.length === 0) return
+
+  notifyDataApiDataChange([
+    { endpoint: '/models', kind: 'order', dimension: 'orderKey', entityIds: [...new Set(entityIds)] }
+  ])
 }
 
 /**
@@ -1298,6 +1314,84 @@ class ModelService {
       count: ids.length,
       providers: [...new Set([...uniqueItems.values()].map((item) => item.providerId))]
     })
+  }
+
+  /**
+   * Move a single model relative to an anchor, inside its own provider.
+   *
+   * `user_model.order_key` is partitioned by `provider_id`, so the scope is
+   * inferred from the target row — callers pass only the `UniqueModelId` and
+   * never name the provider. Reordering touches no model content, so the
+   * managed-default and default-in-use guards that gate `create` / `update` /
+   * `delete` deliberately do not apply here.
+   */
+  reorder(uniqueModelId: string, anchor: OrderRequest): void {
+    this.applyReorder([{ id: uniqueModelId, anchor }], uniqueModelId)
+
+    logger.info('Reordered model', { uniqueModelId })
+  }
+
+  /**
+   * Apply a batch of moves atomically. `applyScopedMoves` rejects a batch
+   * spanning more than one provider with a VALIDATION_ERROR, and reports a
+   * missing id as NOT_FOUND before the scope check.
+   */
+  reorderBatch(moves: OrderBatchRequest['moves']): void {
+    if (moves.length === 0) return
+
+    this.applyReorder(moves, `batch(${moves.length} items)`)
+
+    logger.info('Reordered models', {
+      count: moves.length,
+      ids: moves.map((move) => move.id)
+    })
+  }
+
+  /**
+   * The one write path both entry points share: validate the scope, move the
+   * rows in a single transaction, then broadcast the partition whose order
+   * changed. A single move and a group block move differ only in the moves
+   * they hand over, so the orchestration lives here rather than twice.
+   */
+  private applyReorder(moves: OrderBatchRequest['moves'], identifier: string): void {
+    const orderedIds = withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          applyScopedMoves(tx, userModelTable, moves, {
+            pkColumn: userModelTable.id,
+            scopeColumn: userModelTable.providerId
+          })
+          // A block move changes the partition's relative order, not just the
+          // moved rows, so the whole partition is reported.
+          return this.selectProviderModelIdsTx(tx, moves[0].id)
+        }),
+      defaultHandlersFor('Model', identifier)
+    )
+
+    notifyModelOrderChange(orderedIds)
+  }
+
+  /**
+   * Every model id in the partition that owns `uniqueModelId`, which is the
+   * set whose order a move can change.
+   */
+  private selectProviderModelIdsTx(tx: Pick<DbType, 'select'>, uniqueModelId: string): string[] {
+    const [target] = tx
+      .select({ providerId: userModelTable.providerId })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, uniqueModelId))
+      .all()
+
+    if (!target) {
+      throw DataApiErrorFactory.notFound('Model', uniqueModelId)
+    }
+
+    return tx
+      .select({ id: userModelTable.id })
+      .from(userModelTable)
+      .where(eq(userModelTable.providerId, target.providerId))
+      .all()
+      .map((row) => row.id)
   }
 }
 

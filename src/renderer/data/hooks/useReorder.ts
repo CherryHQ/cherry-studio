@@ -25,7 +25,7 @@ import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWr
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
+import type { ApiPath, ConcreteApiPaths, QueryParamsForPath, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 const logger = loggerService.withContext('useReorder')
@@ -76,6 +76,15 @@ export interface UseReorderOptions {
    * Defaults to `true`. Failure always revalidates regardless of this flag.
    */
   revalidateOnSuccess?: boolean
+  /**
+   * Param token used for the single-item order path, e.g. `'uniqueModelId*'`.
+   *
+   * Defaults to `'id'`, which yields the canonical `/{res}/:id/order`. Resources
+   * whose item id can contain `/` (a `UniqueModelId` is `providerId::modelId`)
+   * must declare a greedy tail so the server can route the id back as one
+   * value — the matcher splits on path segments and never decodes.
+   */
+  itemIdParam?: string
   /**
    * Name of the item field used as identity. Defaults to `'id'`.
    *
@@ -143,6 +152,23 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
     : never
 
 /**
+ * Query the collection is read under, when the collection is query-scoped.
+ *
+ * `GET /models?providerId=…` caches under `[path, query]`, so a path-only
+ * lookup misses the entry and the hook degrades to a silent no-op. Pass the
+ * same query object the sibling `useQuery` call uses and the optimistic
+ * overlay lands on the right key.
+ *
+ * The type comes from the collection's own declared query: a mistyped field
+ * compiles fine under `Record<string, unknown>` and then misses the sibling
+ * `useQuery` entry, so the hook silently stops reordering instead of failing
+ * where the mistake is.
+ */
+type ReorderQueryOption<TCollection extends string> = {
+  query?: QueryParamsForPath<TCollection, 'GET'>
+}
+
+/**
  * Build optimistic drag-and-drop reorder handlers on top of `useMutation`.
  *
  * The hook assumes the collection under `collectionUrl` is reachable via
@@ -179,8 +205,9 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  *
  * Known bounded tech debt: the single-item and batch endpoints are typed via
  * `as TemplateApiPaths` / `as ConcreteApiPaths` casts. Each consumer resource
- * must register `/{res}/:id/order` and `/{res}/order:batch` in `ApiSchemas`
- * to eventually remove the casts; the cast surface is confined to this hook.
+ * must register `/{res}/:id/order` (or `/{res}/:{itemIdParam}/order`) and
+ * `/{res}/order:batch` in `ApiSchemas` to eventually remove the casts; the
+ * cast surface is confined to this hook.
  *
  * @example Flat-array collection
  * const { data } = useQuery('/pins')
@@ -200,18 +227,28 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  *     return { ...c, groups: [{ ...c.groups[0], items }, ...c.groups.slice(1)] }
  *   }
  * })
+ *
+ * @example Query-scoped collection whose item id can contain `/`
+ * // `GET /models?providerId=…` caches under `[path, query]`, and a
+ * // `UniqueModelId` (`providerId::modelId`) may contain slashes.
+ * const { applyReorderedList } = useReorder('/models', {
+ *   query: { providerId },
+ *   itemIdParam: 'uniqueModelId*'
+ * })
  */
 export function useReorder<TCollection extends TemplateApiPaths>(
   collectionUrl: TCollection,
-  options: UseReorderOptions & ReorderParamsOption<TCollection>
+  options: UseReorderOptions & ReorderParamsOption<TCollection> & ReorderQueryOption<TCollection>
 ): UseReorderResult
 export function useReorder<TCollection extends ConcreteApiPaths>(
   collectionUrl: TCollection,
-  options?: UseReorderOptions
+  options?: UseReorderOptions & ReorderQueryOption<TCollection>
 ): UseReorderResult
 export function useReorder(
   collectionUrl: ApiPath,
-  options?: UseReorderOptions & { params?: unknown }
+  // The implementation sees the widest shape; the overloads above are what
+  // callers see, and they carry the per-collection `query` type.
+  options?: UseReorderOptions & { query?: unknown; params?: unknown }
 ): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
@@ -236,19 +273,27 @@ export function useReorder(
   const revalidate = options?.revalidateOnSuccess !== false
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
+  // Safe because the only shape any overload admits is that collection's own
+  // declared query object; the cast is what the wider implementation signature
+  // gives up, not an unchecked caller value.
+  const cacheQuery = options?.query as Record<string, unknown> | undefined
+  // `:name*` is the greedy-tail token; the request param itself is `name`.
+  const itemIdParam = options?.itemIdParam ?? 'id'
+  const itemParamName = itemIdParam.endsWith('*') ? itemIdParam.slice(0, -1) : itemIdParam
   const mutationParams = options?.params as Record<string, string | number> | undefined
   if (mutationParams && Object.hasOwn(mutationParams, 'id')) {
     throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
   }
   const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
 
-  // Template path `${collectionUrl}/:id/order` is not yet registered in
-  // ApiSchemas for arbitrary resources, so we widen via `TemplateApiPaths`.
-  // The cast is confined to this hook — callers receive the strict
-  // `OrderRequest` / `OrderBatchRequest` types from the public surface.
+  // Template path `${collectionUrl}/:${itemIdParam}/order` is not necessarily
+  // registered in ApiSchemas for arbitrary resources, so we widen via
+  // `TemplateApiPaths`. The cast is confined to this hook — callers receive
+  // the strict `OrderRequest` / `OrderBatchRequest` types from the public
+  // surface.
   const { trigger: patchOrder } = useMutation(
     'PATCH',
-    `${collectionUrl}/:id/order` as TemplateApiPaths,
+    `${collectionUrl}/:${itemIdParam}/order` as TemplateApiPaths,
     revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
@@ -264,8 +309,8 @@ export function useReorder(
    * caller distinguishes this from an unrecognized shape.
    */
   const readCurrent = useCallback(
-    (): unknown => readCache<unknown>(resolvedCollectionUrl),
-    [readCache, resolvedCollectionUrl]
+    (): unknown => readCache<unknown>(resolvedCollectionUrl, cacheQuery),
+    [readCache, resolvedCollectionUrl, cacheQuery]
   )
 
   const warnUnrecognizedShape = useCallback(
@@ -296,9 +341,12 @@ export function useReorder(
 
       try {
         if (optimistic !== undefined) {
-          await writeCache(resolvedCollectionUrl, optimistic)
+          await writeCache(resolvedCollectionUrl, optimistic, cacheQuery)
         }
-        await patchOrder({ params: { ...mutationParams, id }, body: anchor })
+        await patchOrder({
+          params: { ...mutationParams, [itemParamName]: id },
+          body: anchor
+        } as Parameters<typeof patchOrder>[0])
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic
@@ -319,6 +367,8 @@ export function useReorder(
       invalidateCache,
       collectionUrl,
       mutationParams,
+      itemParamName,
+      cacheQuery,
       patchOrder,
       resolvedCollectionUrl,
       warnUnrecognizedShape
@@ -337,7 +387,7 @@ export function useReorder(
       const optimistic = updateItems(current, next)
 
       try {
-        await writeCache(resolvedCollectionUrl, optimistic)
+        await writeCache(resolvedCollectionUrl, optimistic, cacheQuery)
         await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
@@ -355,6 +405,7 @@ export function useReorder(
       invalidateCache,
       collectionUrl,
       mutationParams,
+      cacheQuery,
       patchBatch,
       resolvedCollectionUrl
     ]

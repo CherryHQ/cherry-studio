@@ -19,6 +19,7 @@ import {
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 /** Query parameters for listing models */
 export const ListModelsQuerySchema = z.object({
@@ -283,4 +284,23 @@ export type ModelSchemas = {
       response: ImageGenerationSupport | null
     }
   }
-}
+  /**
+   * Reorder a model inside its provider.
+   *
+   * `user_model.order_key` is scoped by `provider_id`, so moves never cross a
+   * provider partition — a batch spanning two providers is rejected. The
+   * greedy `:uniqueModelId*` token is required: a `UniqueModelId` is
+   * `providerId::modelId` and `modelId` may contain `/`, which a single-segment
+   * `:id` param cannot carry. The batch endpoint keeps ids in the request
+   * body, so it needs no greedy token.
+   *
+   * Model groups are not a persisted resource: the group a row appears under
+   * comes from its own `group` value. Group order is therefore derived from
+   * `order_key` — reordering a group is a block move of its members through
+   * the batch endpoint — rather than stored separately.
+   *
+   * @see docs/references/data/data-ordering-guide.md
+   * @example PATCH /models/qwen::qwen/qwen3-vl/order { "position": "first" }
+   * @example PATCH /models/order:batch { "moves": [{ "id": "openai::gpt-5", "anchor": { "after": "openai::o3" } }] }
+   */
+} & OrderEndpoints<'/models', 'uniqueModelId*'>

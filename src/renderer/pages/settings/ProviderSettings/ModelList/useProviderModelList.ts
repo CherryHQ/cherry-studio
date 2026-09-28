@@ -41,6 +41,13 @@ export interface ProviderModelListSectionsSurface {
   hasVisibleModels: boolean
   displayEnabledModelCount: number
   enabledSections: ModelListGroupSection[]
+  /**
+   * The provider's full model list in persisted order, exactly as cached.
+   * Group reordering needs it to move a whole group as a block: the reorder
+   * hook diffs the list it is given against this one, so anything shorter —
+   * such as the filtered sections — would produce wrong moves.
+   */
+  orderedModels: readonly Model[]
   disabled: boolean
   pendingModelIds: Set<string>
   defaultModelIds: Set<UniqueModelId>
@@ -133,14 +140,18 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   }, [models])
 
   const displayState = useMemo<DisplayedSectionState>(() => {
-    const preserveGroupOrder = Boolean(searchText.trim())
-    const groups = groupModels(derivedState.filteredModels, preserveGroupOrder, { preferModelGroup: true })
+    // Group order follows model order rather than the group name, so a group
+    // can be moved by reordering its models. Alphabetical group order would
+    // make a manual group arrangement meaningless, and the alternative — a
+    // persisted group order that only applies once the user has touched it —
+    // is the dual-mode sort the ordering guide explicitly rules out.
+    const groups = groupModels(derivedState.filteredModels, true, { preferModelGroup: true })
 
     return {
       groups,
       displayEnabledModelCount: countModelsInGroups(groups)
     }
-  }, [derivedState.filteredModels, searchText])
+  }, [derivedState.filteredModels])
 
   const openEditModelDrawer = useCallback(
     (model: Model) => {
@@ -282,6 +293,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     hasVisibleModels: derivedState.hasVisibleModels,
     displayEnabledModelCount: displayState.displayEnabledModelCount,
     enabledSections,
+    orderedModels: models,
     disabled,
     pendingModelIds,
     defaultModelIds,
