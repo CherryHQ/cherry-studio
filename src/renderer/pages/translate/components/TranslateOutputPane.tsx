@@ -3,7 +3,7 @@ import type { Ref } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { defaultMarkdownPlugins, Scrollbar, StreamingMarkdown, withMath } from '@cherrystudio/ui'
+import { Scrollbar, StreamingMarkdown, withFullMarkdown } from '@cherrystudio/ui'
 
 import IconButton from './IconButton'
 
@@ -29,7 +29,7 @@ const TranslateOutputPane = ({
   onScroll
 }: Props) => {
   const { t } = useTranslation()
-  const markdownPlugins = useMemo(() => ({ ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) }), [])
+  const markdownPlugins = useMemo(() => withFullMarkdown({ singleDollarMath: true }), [])
 
   return (
     <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

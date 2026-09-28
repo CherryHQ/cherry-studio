@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
@@ -11,6 +11,17 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@streamdown/mermaid', () => ({
+  mermaid: {
+    name: 'mermaid',
+    type: 'diagram',
+    language: 'mermaid',
+    getMermaid: () => ({
+      render: async () => ({ svg: '<svg aria-hidden="true"><text>diagram</text></svg>' })
+    })
+  }
 }))
 
 // The renderer-wide setup substitutes a text-echo StreamingMarkdown, which is
@@ -25,6 +36,35 @@ const baseProps = () => ({
   onCopy: vi.fn(),
   onExportToNotes: vi.fn(),
   onScroll: vi.fn()
+})
+
+class ImmediateIntersectionObserver implements IntersectionObserver {
+  readonly root = null
+  readonly rootMargin = '0px'
+  readonly scrollMargin = '0px'
+  readonly thresholds = [0]
+
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+
+  disconnect() {}
+
+  observe(target: Element) {
+    this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this)
+  }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
+
+  unobserve() {}
+}
+
+beforeAll(() => {
+  vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver)
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('TranslateOutputPane', () => {
@@ -61,6 +101,17 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByText('**bold** pick')).toBeInTheDocument()
     expect(container.querySelector('.markdown')).toBeNull()
     expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
+  })
+
+  it('renders a fenced Mermaid translation as a diagram', async () => {
+    const props = baseProps()
+    props.enableMarkdown = true
+    props.translatedContent = '```mermaid theme={null}\ngraph TB\n  A["Translated label"]\n```'
+
+    render(<TranslateOutputPane {...props} />)
+
+    expect(await screen.findByRole('img', { name: 'Mermaid chart' })).toBeInTheDocument()
+    expect(screen.queryByText(/graph TB/)).not.toBeInTheDocument()
   })
 
   it('shows the processing indicator while waiting for output', () => {
