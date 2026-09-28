@@ -79,22 +79,22 @@ describe('getSessionToolTargets', () => {
   })
 
   it(`caps session_search cards at ${MAX_SESSION_SEARCH_RESULT_CARDS}`, () => {
-    expect(
-      parseSessionSearchResult({
-        sessions: Array.from({ length: 6 }, (_, index) => ({
-          sessionId: `session-${index}`,
-          sessionName: `Session ${index}`
-        }))
-      })
-    ).toHaveLength(6)
-    expect(
-      parseSessionSearchResult({
-        sessions: Array.from({ length: 6 }, (_, index) => ({
-          sessionId: `session-${index}`,
-          sessionName: `Session ${index}`
-        }))
-      }).slice(0, MAX_SESSION_SEARCH_RESULT_CARDS)
-    ).toHaveLength(MAX_SESSION_SEARCH_RESULT_CARDS)
+    const response = toolResponse('session_search', 'cherry-tools') as any
+    response.response = JSON.stringify({
+      sessions: Array.from({ length: 6 }, (_, index) => ({
+        sessionId: `session-${index}`,
+        sessionName: `Session ${index}`
+      }))
+    })
+
+    // The parser keeps every match so the agent's text reply can still list them all.
+    expect(parseSessionSearchResult(JSON.parse(response.response))).toHaveLength(6)
+    // Only the first few may become cards, or a busy search floods the reply.
+    expect(getSessionToolTargets(response).map((target) => target.sessionId)).toEqual([
+      'session-0',
+      'session-1',
+      'session-2'
+    ])
   })
 
   it('maps session_read onto the matching conversation surface', () => {
