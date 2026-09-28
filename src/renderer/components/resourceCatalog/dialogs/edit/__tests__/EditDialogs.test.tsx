@@ -462,6 +462,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'library.config.dialogs.edit.tools_tab': 'Tools',
+          'agent.knowledge.access.label': 'access',
+          'agent.knowledge.access.read': 'Read only',
+          'agent.knowledge.access.read_write': 'Read and write',
           'library.config.knowledge.add': 'Add knowledge base',
           'library.config.knowledge.doc_count': '{{count}} docs',
           'library.config.knowledge.empty_desc': 'No knowledge description',
@@ -1694,6 +1697,27 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
     expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a read-only Agent binding and saves an explicit write grant', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read' } }}
+        onOpenChange={vi.fn()}
+        initialTab="tools.knowledge"
+      />
+    )
+
+    const access = screen.getByRole('combobox', { name: 'Knowledge One access' })
+    expect(access).toHaveTextContent('Read only')
+    await user.click(access)
+    await user.click(screen.getByRole('option', { name: 'Read and write' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: { knowledgeBaseAccess: { 'kb-1': 'read-write' } } })
+    )
   })
 
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {

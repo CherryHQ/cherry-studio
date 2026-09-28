@@ -28,6 +28,7 @@ export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 export const AgentKnowledgeBaseIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentKnowledgeBaseAccessSchema = z.record(z.string().min(1), z.enum(['read', 'read-write']))
 export const AgentSkillUpdateSchema = z.strictObject({
   skillId: z.string().min(1),
   isEnabled: z.boolean()
@@ -122,6 +123,8 @@ export const AgentBaseSchema = z.strictObject({
   mcps: z.array(z.string()).optional(),
   /** Knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
   knowledgeBaseIds: AgentKnowledgeBaseIdSetSchema.optional(),
+  /** Access for each bound base; omitted entries on new bindings default to read. */
+  knowledgeBaseAccess: AgentKnowledgeBaseAccessSchema.optional(),
   /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
@@ -138,6 +141,7 @@ export const AGENT_MUTABLE_FIELDS = {
   smallModel: true,
   mcps: true,
   knowledgeBaseIds: true,
+  knowledgeBaseAccess: true,
   disabledTools: true,
   configuration: true
 } as const

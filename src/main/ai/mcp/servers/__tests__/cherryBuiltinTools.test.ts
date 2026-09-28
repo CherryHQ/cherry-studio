@@ -509,6 +509,27 @@ describe('cherryBuiltinTools', () => {
     })
   })
 
+  it('enforces the live read-only binding on the MCP path', async () => {
+    const access = { b1: 'read' as const }
+    const tools = new CherryKnowledgeTools({
+      agentId: 'agent_test',
+      workspaceSource: { type: 'system' },
+      workspacePath: '/tmp/workspace',
+      getKnowledgeBaseIds: () => ['b1'],
+      getKnowledgeBaseAccess: () => access
+    })
+    for (const action of ['add', 'delete', 'refresh'] as const) {
+      const args =
+        action === 'add'
+          ? { baseId: 'b1', action, type: 'note', content: 'hello' }
+          : { baseId: 'b1', action, conceptIds: ['docs/a.md'] }
+      expect(textOf(await tools.call('kb_manage', args))).toContain('read-only')
+    }
+    expect(kbAddItems).not.toHaveBeenCalled()
+    expect(kbDeleteConcepts).not.toHaveBeenCalled()
+    expect(kbRefreshConcepts).not.toHaveBeenCalled()
+  })
+
   it('rejects kb_manage outside the bound scope without mutating the base', async () => {
     const result = await callCherryBuiltinTool(
       'kb_manage',

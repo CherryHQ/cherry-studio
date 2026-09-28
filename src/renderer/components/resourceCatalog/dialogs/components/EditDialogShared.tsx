@@ -23,6 +23,11 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -277,6 +282,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   formLabel = true,
   labelClassName,
   disabled = false,
+  accessById,
+  onAccessChange,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
@@ -284,6 +291,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   formLabel?: boolean
   labelClassName?: string
   disabled?: boolean
+  accessById?: Readonly<Record<string, 'read' | 'read-write'>>
+  onAccessChange?: (id: string, access: 'read' | 'read-write') => void
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
@@ -374,6 +383,23 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                       {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
                     </div>
                   </div>
+                  {onAccessChange && (
+                    <Select
+                      value={accessById?.[kb.id] ?? 'read'}
+                      disabled={disabled}
+                      onValueChange={(access) => onAccessChange(kb.id, access as 'read' | 'read-write')}>
+                      <SelectTrigger
+                        size="sm"
+                        className="w-[142px]"
+                        aria-label={`${kb.name} ${t('agent.knowledge.access.label')}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent portalContainer={portalContainer ?? undefined}>
+                        <SelectItem value="read">{t('agent.knowledge.access.read')}</SelectItem>
+                        <SelectItem value="read-write">{t('agent.knowledge.access.read_write')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

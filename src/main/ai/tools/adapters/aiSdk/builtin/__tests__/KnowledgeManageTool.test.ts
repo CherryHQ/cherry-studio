@@ -43,7 +43,13 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
-function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
+function callExecute(
+  args: ManageArgs,
+  ctx: {
+    knowledgeBaseIds?: string[]
+    knowledgeBaseAccess?: Record<string, 'read' | 'read-write'>
+  } = {}
+): Promise<unknown> {
   const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(
     // Fields the action does not use are omitted, not sentinel-valued — kb_manage runs without
@@ -55,6 +61,7 @@ function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}
       experimental_context: {
         requestId: 'req-1',
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        knowledgeBaseAccess: ctx.knowledgeBaseAccess,
         abortSignal: new AbortController().signal
       }
     }
@@ -91,6 +98,30 @@ describe('kb_manage', () => {
 
     expect(result.error).toContain('kb-other')
     expect(deleteConcepts).not.toHaveBeenCalled()
+  })
+
+  it.each(['add', 'delete', 'refresh'] as const)('denies %s on a read-only Agent binding', async (action) => {
+    const input =
+      action === 'add'
+        ? { baseId: 'kb-1', action, type: 'note' as const, content: 'hello' }
+        : { baseId: 'kb-1', action, conceptIds: ['docs/a.md'] }
+    const result = (await callExecute(input, {
+      knowledgeBaseIds: ['kb-1'],
+      knowledgeBaseAccess: { 'kb-1': 'read' }
+    })) as { error: string }
+    expect(result.error).toContain('read-only')
+    expect(addItems).not.toHaveBeenCalled()
+    expect(deleteConcepts).not.toHaveBeenCalled()
+    expect(refreshConcepts).not.toHaveBeenCalled()
+  })
+
+  it('allows a read-write Agent binding through the same shared core', async () => {
+    const result = await callExecute(
+      { baseId: 'kb-1', action: 'delete', conceptIds: ['docs/a.md'] },
+      { knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read-write' } }
+    )
+    expect(deleteConcepts).toHaveBeenCalledWith('kb-1', ['docs/a.md'])
+    expect(result).toMatchObject({ action: 'delete' })
   })
 
   it('adds a file by absolute path, storing the full path as source (REGRESSION #19954)', async () => {

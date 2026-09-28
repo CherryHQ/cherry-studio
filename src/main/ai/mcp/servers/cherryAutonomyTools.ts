@@ -76,6 +76,8 @@ export interface CherryAgentContext {
    * granted access. The autonomy tools ignore this field.
    */
   getKnowledgeBaseIds: () => string[]
+  /** Live binding policy. Unspecified for legacy/internal contexts with unrestricted write access. */
+  getKnowledgeBaseAccess?: () => Record<string, 'read' | 'read-write'>
 }
 
 type CherryAutonomyContext = CherryAgentContext & {

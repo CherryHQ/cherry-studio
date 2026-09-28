@@ -97,6 +97,7 @@ type AgentEditFormValues = {
   instructions: string
   mcps: string[]
   knowledgeBaseIds: string[]
+  knowledgeBaseAccess: Record<string, 'read' | 'read-write'>
   skillIds: string[]
   disabledTools: string[]
   permissionMode: string
@@ -154,6 +155,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     instructions: form.instructions,
     mcps: [...form.mcps],
     knowledgeBaseIds: [...form.knowledgeBaseIds],
+    knowledgeBaseAccess: { ...form.knowledgeBaseAccess },
     skillIds: [...form.skillIds],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
@@ -186,6 +188,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     instructions: values.instructions,
     mcps: [...values.mcps],
     knowledgeBaseIds: [...values.knowledgeBaseIds],
+    knowledgeBaseAccess: { ...values.knowledgeBaseAccess },
     skillIds: [...values.skillIds],
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
@@ -217,6 +220,7 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
   if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
+  if (hasOwn(payload, 'knowledgeBaseAccess')) next.knowledgeBaseAccess = { ...submitted.knowledgeBaseAccess }
   if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
   if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 
@@ -242,6 +246,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
+  form.setValue('knowledgeBaseAccess', next.knowledgeBaseAccess, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
@@ -1134,7 +1139,21 @@ function AgentToolsFields({
         </div>
       ) : null}
       {activeToolTab === 'tools.knowledge' ? (
-        <KnowledgeBaseField form={form} portalContainer={portalContainer} />
+        <KnowledgeBaseField
+          form={form}
+          portalContainer={portalContainer}
+          accessById={form.watch('knowledgeBaseAccess')}
+          onAccessChange={(id, access) =>
+            form.setValue(
+              'knowledgeBaseAccess',
+              {
+                ...form.getValues('knowledgeBaseAccess'),
+                [id]: access
+              },
+              { shouldDirty: true }
+            )
+          }
+        />
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
         <McpServerCatalogGrid

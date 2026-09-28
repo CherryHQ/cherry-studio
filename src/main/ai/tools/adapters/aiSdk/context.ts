@@ -32,6 +32,8 @@ export interface RequestContext {
    * Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
+  /** Per-binding write grants for Agent calls; undefined preserves the legacy Assistant tool path. */
+  readonly knowledgeBaseAccess?: Readonly<Record<string, 'read' | 'read-write'>>
 
   /**
    * MCP servers whose resources this request may read, frozen when the request was built (same set

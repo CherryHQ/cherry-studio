@@ -8,6 +8,7 @@ sources:
   - src/shared/ipc/schemas/knowledge.ts
   - src/main/ipc/handlers/knowledge.ts
   - src/main/ai/tools/knowledgeLookup.ts
+  - src/main/data/services/AgentService.ts
 ---
 
 # Knowledge Service
@@ -366,6 +367,13 @@ Claude Code in-process MCP bridge.
 The assistant or agent's configured Knowledge bindings form the scope ceiling;
 a per-turn composer selection may narrow that scope but cannot widen it. The
 tool layer enforces scope before delegating to `KnowledgeService`.
+
+Each Agent binding also has `read` or `read-write` access, shown in the Agent's
+Knowledge panel. New bindings default to `read`; an Agent must be granted
+`read-write` for `kb_manage` to add, delete, or refresh content in that base.
+The shared tool rejects those mutations before calling `KnowledgeService`.
+Existing bindings retain write access when the permission column is migrated,
+so upgrading does not silently revoke an Agent's previous capability.
 
 ### Current Retrieval Cost Assumption
 
