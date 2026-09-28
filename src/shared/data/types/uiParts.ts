@@ -30,6 +30,7 @@ import { type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
+import type { UniqueModelId } from './model'
 
 // ============================================================================
 // Custom DataUIPart data shapes
@@ -106,11 +107,11 @@ export type ConversationResetPartData = Record<string, never>
 
 /**
  * A turn failed over to a fallback model before producing content. Persisted with the turn so
- * history shows the swap; ids are UniqueModelId strings (`providerId::modelId`).
+ * history shows the swap.
  */
 export interface ModelFallbackPartData {
-  from: string
-  to: string
+  from: UniqueModelId
+  to: UniqueModelId
   /** Short technical cause, e.g. "http 429". */
   reason: string
 }
