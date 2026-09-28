@@ -2674,7 +2674,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "OceanToken - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.oceantoken.ai/v1"
+        }
+      },
+      "id": "oceantoken",
+      "metadata": {
+        "website": {
+          "apiKey": "https://app.oceantoken.ai/ui/?page=api-keys",
+          "docs": "https://docs.oceantoken.ai/",
+          "models": "https://app.oceantoken.ai/ui/model_hub/",
+          "official": "https://oceantoken.ai/"
+        }
+      },
+      "name": "OceanToken"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "e9f013927f54d9dd"
 }

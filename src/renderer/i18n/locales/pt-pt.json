@@ -3102,6 +3102,7 @@
   "provider.new-api": "New API",
   "provider.nvidia": "Nvidia",
   "provider.o3": "O3",
+  "provider.oceantoken": "OceanToken",
   "provider.ocoolai": "ocoolAI",
   "provider.ollama": "Ollama",
   "provider.omlx": "oMLX",
