@@ -319,7 +319,12 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
     // the stream manager is CHAINING the next turn (keeping the stream alive so the queued follow-up
     // can carry the renderer listeners) — which still needs markTurnTerminal to open that next turn.
     const status: AgentSessionRuntimeTerminalStatus = result?.persistedAssistantStatus === 'error' ? 'error' : 'success'
-    this.service.markTurnTerminal(this.sessionId, status, this.turnId)
+    this.service.markTurnTerminal(
+      this.sessionId,
+      status,
+      this.turnId,
+      result?.status === 'success' && result.isTopicDone === false && result.persistedAssistantStatus === 'error'
+    )
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -1011,7 +1016,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
+  markTurnTerminal(
+    sessionId: string,
+    status: AgentSessionRuntimeTerminalStatus,
+    expectedTurnId?: string,
+    continueSteer = false
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) {
       // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
@@ -1023,7 +1033,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.sourceTurn === completedTurn &&
-      status === 'success'
+      (status === 'success' || continueSteer)
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
       const executionOwnsTurn =
@@ -1035,7 +1045,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
-      this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+      this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status, continueSteer })
       this._onTurnTerminal.fire({
         sessionId: entry.sessionId,
         assistantMessageId: completedTurn.assistantMessageId,
