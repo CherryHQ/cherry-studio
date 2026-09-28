@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 
-import { LaunchpadContent } from '@renderer/components/LaunchpadContent'
+import { LaunchpadContent } from './LaunchpadContent'
 
 export default function LaunchpadPage() {
   const navigate = useNavigate()

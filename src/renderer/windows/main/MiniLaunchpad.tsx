@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/
 import NavbarIcon from '@renderer/components/NavbarIcon'
 
 const LaunchpadContent = lazy(() =>
-  import('@renderer/components/LaunchpadContent').then((module) => ({ default: module.LaunchpadContent }))
+  import('@renderer/pages/launchpad/LaunchpadContent').then((module) => ({ default: module.LaunchpadContent }))
 )
 
 export function MiniLaunchpad({ onOpen }: { onOpen: (url: string) => void }) {
