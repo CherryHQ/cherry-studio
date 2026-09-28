@@ -4530,6 +4530,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
   "settings.mcp.builtinServersDescriptions.qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht",
+  "settings.mcp.builtinServersDescriptions.zonefoundry": "Steuern Sie Ihre Sonos-Lautsprecher über ZoneFoundry: Musik abspielen, Lautstärke anpassen, Räume gruppieren und Durchsagen machen. Erfordert die ZoneFoundry-iOS-App mit angemeldetem Sonos-Konto; die Verbindung wird in der App bestätigt.",
   "settings.mcp.command": "Befehl",
   "settings.mcp.copyLogs": "Logs kopieren",
   "settings.mcp.customRegistryPlaceholder": "Privates Repository-Adresse eingeben, z. B. https://npm.company.com",

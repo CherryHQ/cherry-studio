@@ -4530,6 +4530,7 @@
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
   "settings.mcp.builtinServersDescriptions.qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。需要設定 QVERIS_API_KEY 環境變數。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具",
+  "settings.mcp.builtinServersDescriptions.zonefoundry": "透過 ZoneFoundry 控制 Sonos 喇叭：播放音樂、調整音量、房間分組與語音廣播。需要已登入 Sonos 帳號的 ZoneFoundry iOS App，連線時在 App 中確認授權。",
   "settings.mcp.command": "指令",
   "settings.mcp.copyLogs": "複製日誌",
   "settings.mcp.customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",

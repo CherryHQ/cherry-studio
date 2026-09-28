@@ -34,6 +34,20 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('models ZoneFoundry as an OAuth hosted server that needs no key before enabling', () => {
+    const zoneFoundry = preset(BuiltinMcpServerNames.zoneFoundry)
+    expect(zoneFoundry).toEqual(
+      expect.objectContaining({
+        type: 'streamableHttp',
+        baseUrl: 'https://relay.zonefoundry.dev/mcp',
+        isActive: false
+      })
+    )
+    // Auth happens through OAuth on first connect, so enabling must not be gated on config.
+    expect(zoneFoundry?.env).toBeUndefined()
+    expect(zoneFoundry?.shouldConfig).toBeFalsy()
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.
