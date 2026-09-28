@@ -1,9 +1,9 @@
 import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { useProviderMeta } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderMeta'
 import { cn } from '@renderer/utils/style'
 
-import { useProviderMeta } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderMeta'
 import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 
 interface DoubaoSetupGuideProps {

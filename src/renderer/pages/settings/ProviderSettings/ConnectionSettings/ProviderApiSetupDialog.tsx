@@ -41,8 +41,8 @@ import {
   useModelListSyncView,
   useProviderModelPullReconcile
 } from '../ModelList'
-import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
+import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
@@ -547,9 +547,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
           {step === 'api-key' ? (
             <div className="space-y-4">
-              {provider && matchesPreset(provider, 'doubao') ? (
-                <DoubaoSetupGuide providerId={providerId} />
-              ) : null}
+              {provider && matchesPreset(provider, 'doubao') ? <DoubaoSetupGuide providerId={providerId} /> : null}
               <div className="space-y-2">
                 <div className="relative">
                   <Input
