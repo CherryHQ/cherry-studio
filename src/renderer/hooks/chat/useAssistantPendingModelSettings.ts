@@ -26,9 +26,7 @@ function buildPatchFromFields(
   fields: CacheAssistantSettingsPatchPending['fields'] | undefined
 ): AssistantModelSettingsPatch {
   if (!fields) return {}
-  return Object.fromEntries(
-    Object.entries(fields).flatMap(([key, entry]) => (entry ? [[key, entry.value]] : []))
-  )
+  return Object.fromEntries(Object.entries(fields).flatMap(([key, entry]) => (entry ? [[key, entry.value]] : [])))
 }
 
 function mergePatchFields(
