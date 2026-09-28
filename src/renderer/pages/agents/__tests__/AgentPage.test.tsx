@@ -255,6 +255,19 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/hooks/useModel')>()
+  return {
+    ...actual,
+    useModels: () => ({ models: [] }),
+    useDefaultModel: () => ({ defaultModel: undefined })
+  }
+})
+
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
     useUpdateSession: () => ({
