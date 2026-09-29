@@ -694,6 +694,30 @@ describe('ClaudeCodeStreamAdapter', () => {
     ).toBe(thinking)
   })
 
+  it('does not duplicate buffered text when an assistant message arrives before the result', () => {
+    const { adapter, parts } = createAdapter()
+    const answer = 'aggregate assistant text'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'text', text: answer }] }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    expect(
+      parts
+        .filter((part) => part.type === 'text-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    ).toBe(answer)
+  })
+
   it('keeps buffered deltas when block stop precedes block start', () => {
     const { adapter, parts } = createAdapter()
     const prefix = 'early relay prefix'

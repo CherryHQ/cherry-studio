@@ -149,6 +149,7 @@ type StreamContext = {
   reasoningBlocksByIndex: Map<number, string>
   activeBlockTypeByIndex: Map<number, ContentBlockType>
   pendingContentDeltasByIndex: Map<number, PendingContentDelta[]>
+  pendingContentDeltaCharCountByIndex: Map<number, number>
   currentReasoningPartId: string | undefined
   textPartId: string | undefined
   accumulatedText: string
@@ -553,6 +554,7 @@ export class ClaudeCodeStreamAdapter {
       reasoningBlocksByIndex: new Map(),
       activeBlockTypeByIndex: new Map(),
       pendingContentDeltasByIndex: new Map(),
+      pendingContentDeltaCharCountByIndex: new Map(),
       currentReasoningPartId: undefined,
       textPartId: undefined,
       accumulatedText: '',
@@ -862,6 +864,7 @@ export class ClaudeCodeStreamAdapter {
 
     ctx.activeBlockTypeByIndex.set(blockIndex, 'tool')
     ctx.pendingContentDeltasByIndex.delete(blockIndex)
+    ctx.pendingContentDeltaCharCountByIndex.delete(blockIndex)
     ctx.toolBlocksByIndex.set(blockIndex, toolId)
     ctx.toolInputAccumulators.set(toolId, '')
 
@@ -963,6 +966,14 @@ export class ClaudeCodeStreamAdapter {
 
     const blockType = ctx.activeBlockTypeByIndex.get(blockIndex)
     if (!blockType) {
+      if (ctx.reasoningBlocksByIndex.has(blockIndex)) {
+        this.handleThinkingDelta(text, blockIndex, ctx)
+        return
+      }
+      if (ctx.textBlocksByIndex.has(blockIndex)) {
+        this.handleTextDelta(text, blockIndex, ctx)
+        return
+      }
       this.bufferContentDelta(blockIndex, 'text', text, ctx)
       return
     }
@@ -979,6 +990,10 @@ export class ClaudeCodeStreamAdapter {
 
     const blockType = ctx.activeBlockTypeByIndex.get(blockIndex)
     if (!blockType) {
+      if (ctx.reasoningBlocksByIndex.has(blockIndex)) {
+        this.handleThinkingDelta(thinking, blockIndex, ctx)
+        return
+      }
       this.bufferContentDelta(blockIndex, 'thinking', thinking, ctx)
       return
     }
@@ -1099,6 +1114,8 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (!message.message?.content) return
+
+    this.flushAllPendingContentDeltas(ctx)
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
@@ -1992,16 +2009,12 @@ export class ClaudeCodeStreamAdapter {
     const pending = ctx.pendingContentDeltasByIndex.get(blockIndex) ?? []
     pending.push({ kind, value })
     ctx.pendingContentDeltasByIndex.set(blockIndex, pending)
+    const charCount = (ctx.pendingContentDeltaCharCountByIndex.get(blockIndex) ?? 0) + value.length
+    ctx.pendingContentDeltaCharCountByIndex.set(blockIndex, charCount)
     this.turnHasActivity = true
-    if (this.getPendingContentDeltaCharCount(pending) > MAX_PENDING_CONTENT_DELTA_CHARS) {
+    if (charCount > MAX_PENDING_CONTENT_DELTA_CHARS) {
       this.flushPendingContentDeltas(blockIndex, ctx)
     }
-  }
-
-  private getPendingContentDeltaCharCount(pending: PendingContentDelta[]): number {
-    let chars = 0
-    for (const item of pending) chars += item.value.length
-    return chars
   }
 
   private getUnflushedTextBuffer(ctx: StreamContext): string {
@@ -2018,6 +2031,7 @@ export class ClaudeCodeStreamAdapter {
     const pending = ctx.pendingContentDeltasByIndex.get(blockIndex)
     if (!pending?.length) return
     ctx.pendingContentDeltasByIndex.delete(blockIndex)
+    ctx.pendingContentDeltaCharCountByIndex.delete(blockIndex)
 
     const blockType = ctx.activeBlockTypeByIndex.get(blockIndex)
     for (const item of pending) {
@@ -2048,7 +2062,6 @@ export class ClaudeCodeStreamAdapter {
 
   private ensureTextPartForBlockIndex(blockIndex: number, ctx: StreamContext): void {
     if (ctx.textBlocksByIndex.has(blockIndex)) return
-    ctx.activeBlockTypeByIndex.set(blockIndex, 'text')
     const partId = generateId()
     ctx.textBlocksByIndex.set(blockIndex, partId)
     ctx.sink.enqueue({ type: 'text-start', id: partId })
