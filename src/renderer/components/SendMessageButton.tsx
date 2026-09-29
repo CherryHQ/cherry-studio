@@ -2,12 +2,13 @@ import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
+  label?: string
   disabled: boolean
   onDisabledClick?: () => void
   sendMessage: () => void
 }
 
-const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }) => {
+const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, label }) => {
   const { t } = useTranslation()
 
   const handleClick = () => {
@@ -41,7 +42,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       role="button"
-      aria-label={t('chat.input.send')}
+      aria-label={label ?? t('chat.input.send')}
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
       style={{

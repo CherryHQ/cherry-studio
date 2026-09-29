@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
 
+import { applyTableRules } from '@main/utils/htmlToMarkdown'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 
 export const RequestPayloadSchema = z.object({
@@ -103,7 +104,7 @@ export class Fetcher {
     try {
       const html = await this._fetchText(requestPayload)
       const { default: TurndownService } = await import('turndown')
-      const turndownService = new TurndownService()
+      const turndownService = applyTableRules(new TurndownService())
       const markdown = turndownService.turndown(html)
       return { content: [{ type: 'text', text: markdown }], isError: false }
     } catch (error) {

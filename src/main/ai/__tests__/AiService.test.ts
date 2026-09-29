@@ -104,6 +104,8 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
+  // Model listing issues its HTTP through the same fetch, so tests that exercise the
+  // real listing path stub this mock with the response they expect.
   customFetch: vi.fn()
 }))
 
@@ -815,12 +817,28 @@ describe('AiService', () => {
         model: {
           id: 'test-provider::test-embedding-model',
           providerId: 'test-provider',
+          apiModelId: 'test-embedding-model',
           name: 'Test Embedding Model'
         },
         assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
       })
       mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
     }
+
+    it('returns embedding usage without reporting tokens to analytics', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      const trackTokenUsage = vi.fn()
+      mockApplicationGet.mockReturnValue({ trackTokenUsage })
+
+      const result = await service.embedMany({
+        uniqueModelId: 'test-provider::test-embedding-model',
+        values: ['hello']
+      })
+
+      expect(result).toEqual({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+      expect(trackTokenUsage).not.toHaveBeenCalled()
+    })
 
     it('records the usage entry with modality "embedding" and the token count', async () => {
       const service = createService()
@@ -1779,7 +1797,10 @@ describe('AiService tool approval', () => {
         [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
       }
     })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    // Listing runs on the provider fetch (`customFetch` → Electron `net.fetch`), which the
+    // module mock above stubs — feed it the `/models` payload directly.
+    const { customFetch } = await import('../utils/customFetch')
+    vi.mocked(customFetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           data: [
@@ -1794,7 +1815,9 @@ describe('AiService tool approval', () => {
     )
 
     try {
-      const [listedModel] = await listModelsFromProviderActual(provider)
+      const {
+        models: [listedModel]
+      } = await listModelsFromProviderActual(provider)
       expect(listedModel).toMatchObject({
         apiModelId: 'deepseek-v4-flash',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
@@ -1815,7 +1838,7 @@ describe('AiService tool approval', () => {
       expect(embedSpy).not.toHaveBeenCalled()
       expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
     } finally {
-      fetchSpy.mockRestore()
+      vi.mocked(customFetch).mockReset()
     }
   })
 
@@ -2030,6 +2053,40 @@ describe('AiService tool approval', () => {
         files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
       })
     )
+  })
+
+  it('cancels the job an image probe queued', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit',
+      name: 'Qwen Image Edit',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: false }
+        }
+      }
+    })
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const submit = vi.fn().mockResolvedValue({ taskId: 'queued-1' })
+    mockResolveImageTransport.mockReturnValueOnce({ submit, cancel })
+
+    await service.checkModel({
+      uniqueModelId: 'ppio::qwen-image-edit',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(cancel).toHaveBeenCalledWith('queued-1')
   })
 
   it('keeps generate-capable image probes mode-less', async () => {
@@ -2604,7 +2661,7 @@ describe('AiService.listModels', () => {
 
     const result = await service.listModels({ providerId: 'claude-code' })
 
-    expect(result).toBe(registryModels)
+    expect(result).toEqual({ models: registryModels })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'claude-code',
       presetProviderId: null
@@ -2612,24 +2669,33 @@ describe('AiService.listModels', () => {
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
-  it('pulls the model list over the API for an api-sourced provider, returning it as-is when the registry adds nothing', async () => {
+  it.each([
+    { id: 'openai' },
+    { id: 'custom', modelListSource: 'api', supplementModelsFromRegistry: false },
+    { id: 'deepseek', modelListSource: 'api' },
+    { id: 'custom-deepseek', presetProviderId: 'deepseek', modelListSource: 'api' }
+  ])('uses the API catalog without resurrecting registry-only models for $id', async (provider) => {
     const service = createService()
-    const provider = { id: 'openai', modelListSource: 'api' }
-    const apiModels = [{ id: 'openai::gpt-4o-mini', apiModelId: 'gpt-4o-mini' }]
+    const apiModels = ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-future'].map((apiModelId) => ({
+      id: `${provider.id}::${apiModelId}`,
+      apiModelId
+    }))
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
-    mockListProviderRegistryModels.mockReturnValue([])
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
+    mockListProviderRegistryModels.mockReturnValue(
+      ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].map((apiModelId) => ({
+        id: `${provider.id}::${apiModelId}`,
+        apiModelId
+      }))
+    )
 
-    const result = await service.listModels({ providerId: 'openai' })
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: apiModels })
 
-    expect(result).toBe(apiModels)
-    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
-      throwOnError: undefined
-    })
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
-      providerId: 'openai',
-      presetProviderId: null
-    })
+    mockListModelsFromProvider.mockResolvedValue({ models: [] })
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: [] })
+
+    mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
+    await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
   })
 
   it('does not impose a service-level timeout on model listing', async () => {
@@ -2639,25 +2705,25 @@ describe('AiService.listModels', () => {
     const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+      () => new Promise((resolve) => setTimeout(() => resolve({ models: apiModels }), 31_000))
     )
     mockListProviderRegistryModels.mockReturnValue([])
 
-    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual({
+      models: apiModels
+    })
 
     await vi.advanceTimersByTimeAsync(31_000)
     await result
-
-    expect(mockListProviderRegistryModels).toHaveBeenCalledTimes(1)
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
     const service = createService()
-    const provider = { id: 'ppio', modelListSource: 'api' }
+    const provider = { id: 'ppio', modelListSource: 'api', supplementModelsFromRegistry: true }
     // Live /models returns the chat model with a flat id.
     const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
     mockListProviderRegistryModels.mockReturnValue([
       // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
       { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
@@ -2665,8 +2731,12 @@ describe('AiService.listModels', () => {
       { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
     ])
 
-    const result = await service.listModels({ providerId: 'ppio' })
+    const { models } = await service.listModels({ providerId: 'ppio' })
 
-    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+    expect(models[0]).toEqual(apiModels[0])
+
+    mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
+    await expect(service.listModels({ providerId: 'ppio', throwOnError: true })).rejects.toThrow('Unauthorized')
   })
 })

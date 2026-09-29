@@ -32,6 +32,11 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import {
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
   Button,
   CircularProgress,
   ConfirmDialog,
@@ -246,10 +251,12 @@ type AgentFileEditorMode = 'preview' | 'edit'
 export type AgentFileNavigationRequest = (transition: () => void) => void
 
 interface AgentRightPaneActions {
+  isAgentToolFlowActive: (toolCallId: string) => boolean
   canOpenAgentToolFlow: boolean
   canOpenArtifactFile: boolean
-  openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
+  openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
   openArtifactFile: (path: string) => void
+  openBrowserUrl?: (url: string) => void
   openExternalUrl: (url: string) => void
   closeFilePreview: () => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
@@ -264,6 +271,8 @@ interface AgentRightPanelScope {
   hasSystemWorkspaceFiles: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
+  previousFlowTab: AgentFlowTab | null
+  goBackFlow: () => void
   meta: AgentRightPaneMeta
   resourcePane: ResourcePaneConfig | null
   statusTitle: string
@@ -329,7 +338,7 @@ interface AgentRightPaneActionsProviderProps {
   conversationState: AgentConversationState
   sessionId?: string
   workspacePath?: string
-  replaceFlowTab: (input: AgentToolFlowOpenInput) => void
+  replaceFlowTab: (input: AgentToolFlowOpenInput, nested?: boolean) => void
   openBrowserUrl: (url: string) => void
   closeFilePreview: () => void
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
@@ -359,16 +368,28 @@ function AgentRightPaneActionsProvider({
   const { t } = useTranslation()
   const [openLinksInBrowser] = usePreference('app.browser.open_links_in_browser')
   const panelActions = useRightPanelActions()
+  const panelState = useRightPanelState()
+  const isAgentToolFlowActive = useCallback(
+    (toolCallId: string) => panelState.isActive(getFlowTabValue(toolCallId)),
+    [panelState.isActive]
+  )
+  const canOpenBrowser = panelActions.canOpen(BROWSER_PANE_ID)
+  const openBrowserPanel = useCallback(
+    (url: string) => {
+      openBrowserUrl(url)
+      panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+    },
+    [openBrowserUrl, panelActions]
+  )
   const openExternalUrl = useCallback(
     (url: string) => {
-      if (openLinksInBrowser && /^https?:\/\//i.test(url) && panelActions.canOpen(BROWSER_PANE_ID)) {
-        openBrowserUrl(url)
-        panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+      if (openLinksInBrowser && /^https?:\/\//i.test(url) && canOpenBrowser) {
+        openBrowserPanel(url)
         return
       }
       window.open(url, '_blank', 'noopener,noreferrer')
     },
-    [openBrowserUrl, openLinksInBrowser, panelActions]
+    [canOpenBrowser, openBrowserPanel, openLinksInBrowser]
   )
   useIpcOn('browser.pane.open_requested', (request) => {
     if (request.sessionId !== sessionId) return
@@ -387,9 +408,9 @@ function AgentRightPaneActionsProvider({
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
-    (input: AgentToolFlowOpenInput) => {
+    (input: AgentToolFlowOpenInput, nested = false) => {
       if (!canOpenAgentToolFlow) return
-      replaceFlowTab(input)
+      replaceFlowTab(input, nested)
       panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
@@ -444,10 +465,12 @@ function AgentRightPaneActionsProvider({
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
+      isAgentToolFlowActive,
       canOpenAgentToolFlow,
       canOpenArtifactFile,
       openAgentToolFlow,
       openArtifactFile,
+      openBrowserUrl: canOpenBrowser ? openBrowserPanel : undefined,
       openExternalUrl,
       closeFilePreview,
       setFileEditMode,
@@ -456,8 +479,11 @@ function AgentRightPaneActionsProvider({
       setFileTreeSearchKeyword
     }),
     [
+      isAgentToolFlowActive,
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canOpenBrowser,
+      openBrowserPanel,
       closeFilePreview,
       openAgentToolFlow,
       openArtifactFile,
@@ -499,9 +525,9 @@ function AgentRightPaneStateProvider({
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tab: AgentFlowTab | null }>(() => ({
+  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tabs: AgentFlowTab[] }>(() => ({
     sessionId,
-    tab: null
+    tabs: []
   }))
   const [browserUrlState, setBrowserUrlState] = useState<{
     sessionId?: string
@@ -529,7 +555,12 @@ function AgentRightPaneStateProvider({
   // chance to confirm. Keep the file tree and editor on one committed workspace
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
-  const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
+  const flowTabs = flowTabState.sessionId === sessionId ? flowTabState.tabs : []
+  const flowTab = flowTabs.at(-1) ?? null
+  const previousFlowTab = flowTabs.at(-2) ?? null
+  const goBackFlow = useCallback(() => {
+    setFlowTabState((state) => ({ ...state, tabs: state.tabs.slice(0, -1) }))
+  }, [])
   const previewUrlFrontier = useMemo(
     () => getAgentPreviewUrlFrontier(messages, partsByMessageId),
     [messages, partsByMessageId]
@@ -654,7 +685,7 @@ function AgentRightPaneStateProvider({
   }, [systemWorkspaceRoot, systemWorkspaceTreeVersion])
 
   useEffect(() => {
-    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
+    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tabs: [] }))
   }, [sessionId])
 
   const requestFileTransition = useCallback(
@@ -715,13 +746,16 @@ function AgentRightPaneStateProvider({
   )
 
   const replaceFlowTab = useCallback(
-    (input: AgentToolFlowOpenInput) => {
+    (input: AgentToolFlowOpenInput, nested = false) => {
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
         title: getFlowTabTitle(input)
       }
-      setFlowTabState({ sessionId, tab: nextTab })
+      setFlowTabState((state) => ({
+        sessionId,
+        tabs: nested && state.sessionId === sessionId ? [...state.tabs, nextTab] : [nextTab]
+      }))
     },
     [sessionId]
   )
@@ -809,12 +843,14 @@ function AgentRightPaneStateProvider({
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
+      previousFlowTab,
+      goBackFlow,
       meta,
       resourcePane,
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, previousFlowTab, goBackFlow, hasSystemWorkspaceFiles, meta, resourcePane, t]
   )
 
   return (
@@ -1009,12 +1045,17 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 
 const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   messages,
-  partsByMessageId
+  partsByMessageId,
+  title,
+  toolCallId
 }: {
+  toolCallId: string
+  title: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }) {
   const actions = useAgentRightPaneActions()
+  const { t } = useTranslation()
   const meta = useAgentRightPaneMeta()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const topic = useMemo<Topic>(
@@ -1030,21 +1071,22 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     }),
     [meta.agentId, meta.sessionId, meta.sessionName]
   )
+  const openNestedFlow = useCallback(
+    (input: AgentToolFlowOpenInput) => actions.openAgentToolFlow(input, true),
+    [actions.openAgentToolFlow]
+  )
   const providerValue = useAgentMessageListProviderValue({
     topic,
     messages,
     partsByMessageId,
-    assistantProfile: meta.agentName
-      ? {
-          name: meta.agentName,
-          avatar: meta.agentAvatar
-        }
-      : undefined,
+    assistantProfile: { name: title },
     assistantId: meta.agentId,
     isLoading: false,
     hasOlder: false,
-    openAgentToolFlow: actions.openAgentToolFlow,
+    openAgentToolFlow: openNestedFlow,
+    isAgentToolFlowActive: actions.isAgentToolFlowActive,
     openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
+    openBrowserUrl: actions.openBrowserUrl,
     openExternalUrl: actions.openExternalUrl,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
@@ -1060,17 +1102,19 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         renderConfig: {
           ...providerValue.state.renderConfig,
           collapseCompletedToolHistory: true,
+          subagentListTitle: t('agent.right_pane.flow.child_subtasks'),
+          fontSize: 14,
           messageStyle: 'bubble' as const
         }
       }
     }),
-    [providerValue]
+    [providerValue, t]
   )
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
-        <MessageList />
+      <div className="h-full min-h-0 [&_.narrow-mode]:px-4! [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden [&_.message-user>div>div]:max-w-full [&_.message-user_.message-content-container]:rounded-lg [&_.message-user_.message-content-container]:bg-background-subtle [&_.message-user_.message-content-container]:text-muted-foreground [&_.message-header-info-wrap]:hidden">
+        <MessageList scrollPositionKey={`${topic.id}:flow:${toolCallId}`} />
       </div>
     </MessageListProvider>
   )
@@ -1078,6 +1122,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
+  const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const deferredToolResult = useMemo(
@@ -1109,14 +1154,72 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     )
   }
 
+  const taskPath = [tab.title]
+  const visited = new Set([tab.toolCallId])
+  let parentId = flow.selectedTool?.parentToolCallId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = flow.toolNodes.find((node) => node.toolCallId === parentId)
+    if (!parent) break
+    taskPath.unshift(parent.title ?? parent.toolName)
+    parentId = parent.parentToolCallId
+  }
+  taskPath.unshift(t('agent.right_pane.flow.main_task'))
+  const pathLabel = taskPath.join(' › ')
+  const task = status.runTasks.find((task) => task.toolUseId === tab.toolCallId)
+  const statusLabels = {
+    pending: t('message.tools.pending'),
+    in_progress: t('message.tools.status.running'),
+    completed: t('common.completed'),
+    error: t('message.tools.status.error'),
+    stopped: t('message.tools.cancelled')
+  }
+
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5 text-sm text-muted-foreground">
+          <span className="flex size-5 shrink-0 items-center justify-center">
+            <Bot size={16} aria-hidden="true" />
+          </span>
+          <Tooltip content={pathLabel} asChild>
+            <Breadcrumb className="min-w-0" aria-label={t('agent.right_pane.flow.main_task')}>
+              <BreadcrumbList className="min-w-0 flex-nowrap">
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage className="truncate font-normal text-muted-foreground">{pathLabel}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </Tooltip>
+        </div>
+        {task && (
+          <Badge variant="outline" className="gap-1 border-border-subtle font-normal" role="status">
+            <TaskStatusIcon status={task.status} />
+            {statusLabels[task.status]}
+          </Badge>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        <AgentToolFlowMessageList
+          toolCallId={tab.toolCallId}
+          title={tab.title}
+          messages={flow.messages}
+          partsByMessageId={flow.partsByMessageId}
+        />
+      </div>
     </div>
   )
 }
 
-function AgentFlowPanelTitle({ title }: { title: string }) {
+function AgentFlowPanelTitle({
+  title,
+  previousTab,
+  goBack
+}: {
+  title: string
+  previousTab: AgentFlowTab | null
+  goBack: () => void
+}) {
   const panelActions = useRightPanelActions()
   const { t } = useTranslation()
 
@@ -1127,9 +1230,16 @@ function AgentFlowPanelTitle({ title }: { title: string }) {
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="text-muted-foreground shrink-0 hover:bg-accent hover:text-foreground"
           aria-label={t('common.back')}
-          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
+          onClick={() => {
+            if (previousTab) {
+              goBack()
+              panelActions.requestOpen(getFlowTabValue(previousTab.toolCallId), { userInitiated: true })
+            } else {
+              panelActions.tryOpen(STATUS_PANE_ID)
+            }
+          }}>
           <ArrowLeft size={16} />
         </Button>
       </Tooltip>
@@ -1158,7 +1268,7 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
         variant="ghost"
         disabled={stopping}
         aria-label={label}
-        className="-mt-0.5 shrink-0 text-muted-foreground"
+        className="text-muted-foreground -mt-0.5 shrink-0"
         onClick={async () => {
           setStopping(true)
           try {
@@ -1205,10 +1315,10 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
               {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
               </div>
-              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground mt-0.5 truncate text-[11px]">
                 {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
                   .filter(Boolean)
                   .join(' · ')}
@@ -1255,20 +1365,20 @@ function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sess
             className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.workflowName ?? task.title}
               </div>
               {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word">
                   {task.summary}
                 </div>
               ) : null}
               {activity && activity !== task.title && activity !== task.summary ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word">
                   {activity}
                 </div>
               ) : null}
-              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
+              {metadata ? <div className="text-muted-foreground mt-0.5 truncate text-[11px]">{metadata}</div> : null}
             </div>
             {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
           </div>
@@ -1425,7 +1535,7 @@ export function AgentTaskProgressCapsule() {
                     <TaskStatusIcon status={displayStatus} />
                     <span
                       className={cn(
-                        'wrap-break-word min-w-0 flex-1 whitespace-normal text-xs leading-5',
+                        'min-w-0 flex-1 text-xs leading-5 wrap-break-word whitespace-normal',
                         displayStatus === 'completed' ? 'text-muted-foreground' : 'text-foreground'
                       )}>
                       {displayStatus === 'in_progress' && task.activeText ? task.activeText : task.title}
@@ -1548,7 +1658,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: <AgentFlowPanelTitle title={tab.title} />,
+        title: <AgentFlowPanelTitle title={tab.title} previousTab={scope.previousFlowTab} goBack={scope.goBackFlow} />,
         readiness: scope.meta.conversationState
       }
     }
@@ -1575,10 +1685,10 @@ function AgentRightPaneHighlightSection({
       className={cn(
         'space-y-1.5',
         compact
-          ? 'border-border-subtle border-t pt-2.5 first:border-t-0 first:pt-0'
+          ? 'border-t border-border-subtle pt-2.5 first:border-t-0 first:pt-0'
           : 'rounded-md border border-border-subtle px-3 py-2'
       )}>
-      <h3 className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+      <h3 className="flex items-center gap-1.5 text-xs font-medium text-foreground">
         {icon}
         {title}
       </h3>
@@ -1603,7 +1713,7 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
               type="button"
               onClick={() => actions.openArtifactFile(artifact.path)}
               title={artifact.path}
-              className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+              className="text-muted-foreground flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-accent hover:text-accent-foreground">
               <FileText size={14} className="shrink-0" />
               <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
             </button>

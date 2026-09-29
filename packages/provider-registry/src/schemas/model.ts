@@ -6,6 +6,7 @@
 import * as z from 'zod'
 
 import {
+  EndpointTypeSchema,
   MetadataSchema,
   ModelIdSchema,
   NumericRangeSchema,
@@ -15,7 +16,6 @@ import {
 } from './common'
 import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 import { looseArray } from './forwardCompat'
-import { EndpointTypeSchema } from './provider'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>

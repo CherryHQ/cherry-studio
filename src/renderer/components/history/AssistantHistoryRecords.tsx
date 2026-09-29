@@ -226,7 +226,7 @@ const AssistantHistoryRecords = ({
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
+        else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
         return
       }
 
@@ -538,7 +538,7 @@ const AssistantHistoryRecords = ({
       loadingDescription: t('history.records.loading.description'),
       pinLabel: t('chat.topics.pin'),
       unpinLabel: t('chat.topics.unpin'),
-      deleteLabel: t('common.delete'),
+      deleteLabel: t('common.archive'),
       renameDialogTitle: t('chat.topics.edit.title')
     }
   }

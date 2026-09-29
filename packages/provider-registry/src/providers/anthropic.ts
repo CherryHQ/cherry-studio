@@ -1,6 +1,7 @@
 import { defineProvider } from './types'
 
 const webToolModels = [
+  'claude-opus-5-5',
   'claude-opus-4',
   'claude-sonnet-4',
   'claude-haiku-4',
