@@ -275,6 +275,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
           })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
+          if (error.reason === 'unsupported_checkpoint') {
+            throw new AgentSessionEditError('checkpoint_unsupported')
+          }
           const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
           throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
         }

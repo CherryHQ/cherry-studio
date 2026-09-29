@@ -193,6 +193,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // meta
   { pattern: '^muse-spark' },
   // minimax
+  { pattern: '^minimax-m3[.-]1-flash-preview$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },

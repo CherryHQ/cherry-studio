@@ -304,12 +304,15 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Composer selection overrides only failed retries; successful regeneration stays Main-resolved.
+      // Composer selection only overrides failed retries.
       const regenerateModelId = options?.modelId ?? (isFailedAssistant ? composerModelId : undefined)
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : regenerateModelId
+      // Only a persisted explicit selection pins the model; sibling history cannot establish intent.
+      const effectiveRegenerateModelId =
+        target?.metadata?.modelSelection === 'explicit' ? retryModelId : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const canRetryInPlace =
         isFailedAssistant &&
@@ -335,13 +338,13 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       // Main decides atomically whether the chosen model can join a still-live reply group.
-      if (target?.role === 'assistant' && parentAnchorId && regenerateModelId) {
+      if (target?.role === 'assistant' && parentAnchorId && effectiveRegenerateModelId) {
         const ack = await ipcApi.request('ai.stream.open', {
           trigger: 'regenerate-message',
           topicId: topic.id,
           parentAnchorId,
           appendToLiveGroupMessageId: target.id,
-          mentionedModelIds: [regenerateModelId],
+          mentionedModelIds: [effectiveRegenerateModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))

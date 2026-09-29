@@ -3562,6 +3562,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-fable-5-1",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-haiku-4-5",
       "providerId": "claude-code"
     },
@@ -3618,6 +3622,11 @@
       "apiModelId": "claude-opus-5[1m]",
       "modelId": "claude-opus-5",
       "name": "Claude Opus 5 (1M context)",
+      "providerId": "claude-code",
+      "supportsFastMode": true
+    },
+    {
+      "modelId": "claude-opus-5-5",
       "providerId": "claude-code",
       "supportsFastMode": true
     },
@@ -18454,6 +18463,28 @@
       "providerId": "minimax"
     },
     {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18633,6 +18664,28 @@
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "minimax-m3",
       "providerId": "minimax-global"
+    },
+    {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax-global",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "ZhipuAI/GLM-4.5",
@@ -40789,5 +40842,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5948b27b1d472351"
+  "version": "e547e04102ba88ef"
 }
