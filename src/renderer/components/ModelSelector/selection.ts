@@ -77,7 +77,7 @@ export function hasStaleSelectedModelIds(
   rawSelectedModelIds: readonly UniqueModelId[],
   resolvedSelectedModelIds: readonly UniqueModelId[]
 ): boolean {
-  return !areSelectedIdsEqual(rawSelectedModelIds, resolvedSelectedModelIds)
+  return countStaleSelectedModelIds(rawSelectedModelIds, resolvedSelectedModelIds) > 0
 }
 
 /**

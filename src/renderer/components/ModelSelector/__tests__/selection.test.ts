@@ -31,6 +31,10 @@ describe('stale selected model ids', () => {
     expect(hasStaleSelectedModelIds([ID_STALE], [])).toBe(true)
     expect(hasStaleSelectedModelIds([ID_A], [ID_A])).toBe(false)
   })
+
+  it('does not treat duplicate persisted ids as stale when the model is still available', () => {
+    expect(hasStaleSelectedModelIds([ID_A, ID_A], [ID_A])).toBe(false)
+  })
 })
 
 describe('computeCollapsedSelection', () => {

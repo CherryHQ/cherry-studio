@@ -12,7 +12,7 @@ import {
   hasStaleSelectedModelIds,
   ModelSelector,
   type ModelSelectorFilter,
-  resolveSelectedModelIds
+  useModelSelectorData
 } from '@renderer/components/ModelSelector'
 import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
@@ -25,7 +25,6 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useModels } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { popup } from '@renderer/services/popup'
@@ -96,32 +95,31 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
-  const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
-
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
-  const selectableFallbackModelIds = useMemo(() => {
-    const ids = new Set<UniqueModelId>()
-    for (const model of models) {
-      if (chatModelFilter(model)) {
-        ids.add(model.id)
-      }
-    }
-    return ids
-  }, [chatModelFilter, models])
   const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
-  const resolvedRetryFallbackModelIds = useMemo(
-    () => resolveSelectedModelIds(configuredRetryFallbackModelIds, selectableFallbackModelIds),
-    [configuredRetryFallbackModelIds, selectableFallbackModelIds]
-  )
+  const {
+    resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
+    isLoading: isFallbackSelectorDataLoading,
+    modelsError: fallbackModelsCatalogError
+  } = useModelSelectorData({
+    filter: chatModelFilter,
+    selectedModelIds: configuredRetryFallbackModelIds,
+    searchText: '',
+    showTagFilter: false,
+    showPinnedModels: false
+  })
+  const canEvaluateFallbackStale =
+    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null
   const hasInvalidRetryFallbackModels =
-    !isModelsLoading && hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
-  const retryFallbackModelsTriggerLabel = isModelsLoading
-    ? configuredRetryFallbackModelIds.length > 0
+    canEvaluateFallbackStale &&
+    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
+  const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
+    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds, t)
+    : configuredRetryFallbackModelIds.length > 0
       ? t('settings.models.retry.fallback_models_count', { count: configuredRetryFallbackModelIds.length })
       : t('settings.models.empty')
-    : getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds, t)
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },

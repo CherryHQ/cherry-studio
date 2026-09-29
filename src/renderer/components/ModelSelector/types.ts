@@ -113,6 +113,7 @@ export interface UseModelSelectorDataOptions {
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
   isLoading: boolean
+  modelsError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]

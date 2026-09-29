@@ -100,6 +100,7 @@ export function useModelSelectorData({
   const {
     models,
     isLoading: isModelsLoading,
+    error: modelsError,
     refetch: refetchModels
   } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const {
@@ -352,6 +353,7 @@ export function useModelSelectorData({
   return {
     availableTags,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
+    modelsError,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
     modelItems,
