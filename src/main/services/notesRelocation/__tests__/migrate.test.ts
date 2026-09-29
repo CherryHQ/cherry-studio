@@ -12,6 +12,7 @@ vi.mock('@application', async () => {
 import { application } from '@application'
 
 import { inspectNotesRelocation, migrateNotesDirectory } from '../migrate'
+import { assertNotesRelocationPaths } from '../validation'
 
 describe('notesRelocation', () => {
   let tempRoot: string
@@ -133,7 +134,7 @@ describe('notesRelocation', () => {
     copyFileSpy.mockRestore()
   })
 
-  it('does not overwrite existing target files when merging', async () => {
+  it('rejects merge when the same relative path exists with different content', async () => {
     const source = path.join(tempRoot, 'source-notes-4')
     const target = path.join(tempRoot, 'target-notes-4')
     fs.mkdirSync(source)
@@ -142,9 +143,17 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(target, 'conflict.md'), '# Existing')
     fs.writeFileSync(path.join(source, 'added.md'), '# Added')
 
-    await migrateNotesDirectory(source, target, { merge: true })
+    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_MERGE_CONFLICT'
+    })
+  })
 
-    expect(fs.readFileSync(path.join(target, 'conflict.md'), 'utf8')).toBe('# Existing')
-    expect(fs.readFileSync(path.join(target, 'added.md'), 'utf8')).toBe('# Added')
+  it('rejects the managed files root as a notes target', () => {
+    const source = path.join(tempRoot, 'source-notes-protected')
+    const filesRoot = path.join(tempRoot, 'files')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    expect(() => assertNotesRelocationPaths(source, filesRoot)).toThrow()
   })
 })

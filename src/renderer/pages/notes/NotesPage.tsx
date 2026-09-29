@@ -8,14 +8,13 @@ import { loggerService } from '@logger'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
-import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { useNotesFileEditSession } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { registerNotesEditFlush } from '@renderer/services/notesEditFlush'
 import {
   addDir,
   addNote,
@@ -38,7 +37,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle, type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
+import { type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
 
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor, { NotesEditorLoading } from './NotesEditor'
@@ -76,11 +75,7 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
-  const activeFileHandle = useMemo(
-    () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
-    [activeFilePath]
-  )
-  const fileSession = useFileEditSession(activeFileHandle)
+  const fileSession = useNotesFileEditSession()
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
@@ -289,8 +284,6 @@ const NotesPage: FC = () => {
       // The session keeps the current draft and error visible.
     }
   }, [flushFileDraft])
-
-  useEffect(() => registerNotesEditFlush(flushFileDraft), [flushFileDraft])
 
   useEffect(() => {
     if (contentLoadError) {
