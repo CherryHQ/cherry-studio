@@ -1495,6 +1495,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (typeof executionModelId !== 'string' || !decision.approved)
       return { dispatched: true, handoff: 'not-requested' }
     if (!PLAN_EXIT_TOOL_NAMES.has(dispatched.toolName.trim())) return { dispatched: true, handoff: 'refused' }
+    // A `message` presentation is the requesting agent outliving its parent turn (background work or
+    // subagents); its session entry also carries unrelated turns, so a handoff would stop them too.
+    if (dispatched.presentation !== 'stream') return { dispatched: true, handoff: 'refused' }
     return { dispatched: true, handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId) }
   }
 
@@ -1504,13 +1507,16 @@ export class AgentSessionRuntimeService extends BaseService {
    * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
    * Stop performs — and the renderer completes it by switching the agent model and sending the
    * execution follow-up, which starts a fresh turn on the new model with the session resumed.
-   * `already-current` when the turn runs that model already; `refused` when there is no session
-   * entry to stop — the caller must not report a handoff that cannot happen.
+   * `already-current` when the turn runs that model already; `refused` when there is no live turn
+   * to stop — the caller must not report a handoff that cannot happen.
    */
   private stopTurnForModelHandoff(sessionId: string, executionModelId: string): PlanModelHandoffResult {
     const entry = this.entries.get(sessionId)
-    if (!entry) return 'refused'
-    const runningModelId = this.liveTurn(entry)?.modelId ?? entry.modelId
+    // Without a live turn nothing can be restarted, and closing the session would tear down
+    // unrelated work for a handoff that can never happen.
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!entry || !turn) return 'refused'
+    const runningModelId = turn.modelId
     if (runningModelId === executionModelId) return 'already-current'
 
     logger.info('Stopping approved plan turn for execution-model handoff', {

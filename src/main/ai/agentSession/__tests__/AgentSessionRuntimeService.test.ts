@@ -738,6 +738,57 @@ describe('AgentSessionRuntimeService', () => {
       // A handoff the runtime cannot perform must not be reported as one.
       expect(result).toEqual({ dispatched: true, handoff: 'refused' })
     })
+
+    it('refuses the handoff for a plan approved by an agent that outlived its turn', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-background',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-background',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        presentation: 'message',
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const closeSession = vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-background' })
+
+      const result = service.respondToolApproval('approval-plan-background', { approved: true }, 'approval-message-1', {
+        executionModelId: switchedModelId
+      })
+      // The waiting agent still gets its approval...
+      expect(result).toEqual({ dispatched: true, handoff: 'refused' })
+      expect(resolve).toHaveBeenCalledWith({ approved: true })
+      // ...but the host session's unrelated live turn must survive it.
+      expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+      expect(closeSession).not.toHaveBeenCalled()
+    })
+
+    it('refuses the handoff when the approved plan has no live turn left to restart', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-settled',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-settled',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const closeSession = vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-settled' })
+      service.markTurnTerminal('session-1', 'success')
+
+      const result = service.respondToolApproval('approval-plan-settled', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'refused' })
+      expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+      expect(closeSession).not.toHaveBeenCalled()
+    })
   })
 
   it('exposes the current output identity without retaining a completed turn identity', () => {
