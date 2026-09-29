@@ -1,4 +1,4 @@
-module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en-US') {
+module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en-US', mode = 'apple-round-trip') {
   const evidence = { schemaVersion: 1, passed: false, stage: 'target', cleanupSucceeded: true, sessionsDiscarded: 0 }
   const sessions = []
   const safeCodes = new Set([
@@ -17,9 +17,11 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     'TARGET_MISMATCH',
     'PRELOAD_UNAVAILABLE',
     'INVALID_LANGUAGE',
+    'INVALID_MODE',
     'VOICE_NOT_INSTALLED',
     'ASR_NOT_READY',
     'FUNASR_NOT_READY',
+    'TTS_NOT_READY',
     'AUDIO_UNSUPPORTED',
     'INVALID_TTS_AUDIO',
     'RECORDING_FAILED',
@@ -35,7 +37,11 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
   try {
     if (location.href !== expectedUrl) throw { code: 'TARGET_MISMATCH' }
     if (language !== 'en-US' && language !== 'zh-CN') throw { code: 'INVALID_LANGUAGE' }
+    if (mode !== 'apple-round-trip' && mode !== 'windows-tts') throw { code: 'INVALID_MODE' }
     evidence.language = language
+    evidence.mode = mode
+    const windowsTts = mode === 'windows-tts'
+    const speechModelId = windowsTts ? 'local-voice::windows-system-tts' : 'local-voice::apple-system-tts'
     if (typeof window.api?.ipcApi?.request !== 'function') throw { code: 'PRELOAD_UNAVAILABLE' }
     request = async (route, input) => {
       const envelope = await window.api.ipcApi.request(route, input)
@@ -49,20 +55,21 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     if (!voice) throw { code: 'VOICE_NOT_INSTALLED' }
     evidence.installedVoiceCount = voices.length
     evidence.selectedVoice = { id: voice.id, language: voice.language }
-    evidence.stage = 'asr_status'
+    evidence.stage = windowsTts ? 'tts_status' : 'asr_status'
     const status = await request('ai.voice.model.status', {
-      modelId: 'local-voice::apple-system-asr',
-      language
+      modelId: windowsTts ? speechModelId : 'local-voice::apple-system-asr',
+      language,
+      ...(windowsTts && { voice: voice.id })
     })
-    evidence.appleStatus = { status: status.status }
-    if (status.status !== 'ready') throw { code: 'ASR_NOT_READY' }
-    evidence.stage = 'funasr_status'
-    const funasrStatus = await request('ai.voice.model.status', {
-      modelId: 'local-voice::funasr-nano'
-    })
-    evidence.funasrStatus = { status: funasrStatus.status }
-    if (funasrStatus.status !== 'ready') throw { code: 'FUNASR_NOT_READY' }
-    if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) throw { code: 'AUDIO_UNSUPPORTED' }
+    if (!windowsTts) evidence.appleStatus = { status: status.status }
+    if (status.status !== 'ready') throw { code: windowsTts ? 'TTS_NOT_READY' : 'ASR_NOT_READY' }
+    if (!windowsTts) {
+      evidence.stage = 'funasr_status'
+      const funasrStatus = await request('ai.voice.model.status', { modelId: 'local-voice::funasr-nano' })
+      evidence.funasrStatus = { status: funasrStatus.status }
+      if (funasrStatus.status !== 'ready') throw { code: 'FUNASR_NOT_READY' }
+      if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) throw { code: 'AUDIO_UNSUPPORTED' }
+    }
 
     evidence.stage = 'speech'
     const speechSession = crypto.randomUUID()
@@ -71,9 +78,10 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       sessionId: speechSession,
       requestId: crypto.randomUUID(),
       source: 'automation',
-      modelId: 'local-voice::apple-system-tts',
+      modelId: speechModelId,
       language,
       voice: voice.id,
+      speed: 1,
       text:
         language === 'zh-CN'
           ? '这是樱桃工作室的本地语音验证。今天天空晴朗，我们正在检查离线语音转写功能。'
@@ -92,10 +100,17 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     if (!Number.isFinite(audio.duration) || audio.duration <= 0 || audio.duration > 60)
       throw { code: 'INVALID_TTS_AUDIO' }
     evidence.tts = {
+      modelId: speechModelId,
       bytes: file.content.byteLength,
       sampleRate: audio.sampleRate,
       channels: audio.numberOfChannels,
       durationSeconds: audio.duration
+    }
+
+    if (windowsTts) {
+      evidence.passed = true
+      evidence.stage = 'complete'
+      return evidence
     }
 
     evidence.stage = 'record_webm'

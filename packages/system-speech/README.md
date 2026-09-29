@@ -1,14 +1,17 @@
-# Apple system speech
+# System speech helpers
 
 Private native boundary for Cherry Studio's local Voice Runtime. The production
 Main adapters own platform checks, temporary paths and cancellation; this package
-owns the Apple frameworks and its typed subprocess protocol. It is selectively
+owns the Apple frameworks, Windows SAPI and their typed subprocess protocol. It is selectively
 rebuilt from validation PR #20733, not a validation application.
 
-`capabilities` and `transcribe` never request asset installation. Only the explicit
-`install_asr_assets` command with `confirmDownload: true` installs Apple ASR assets.
-ASR requires macOS 26 or later. TTS requires a supported macOS and the exact
-installed voice identifier; missing voices are never substituted.
+`capabilities` and `transcribe` never request asset installation. On macOS 26 or
+later, only the explicit `install_asr_assets` command with `confirmDownload: true`
+installs Apple ASR assets. On macOS 13–15, ASR uses `SFSpeechRecognizer` only when
+the requested language supports on-device recognition; it never falls back to
+Apple's network recognition. The older API requests speech authorization at first
+transcription and does not offer asset installation. TTS requires macOS 13 or later
+and the exact installed voice identifier; missing voices are never substituted.
 
 Native requests travel over stdin, never command-line arguments. Protocol failures
 discard stderr and arbitrary errors. Aborting or timing out waits for helper exit
@@ -37,3 +40,11 @@ the absence of helper entitlements, matching helper/app Mach-O architectures, th
 app's deep strict signature, and a capabilities round trip. The helper is signed with
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
+
+Windows x64 system TTS uses the SAPI helper under `windows/`. Its build and
+packaging are architecture-gated; Windows ARM64 system speech is unsupported
+without blocking ARM64 application packages. See the [Windows helper guide](./windows/README.md)
+for build prerequisites, independent protocol and real TTS smokes, packaged
+helper signature checks, and the remaining NSIS/portable device acceptance.
+The native synthesis protocol requires an explicit `speed` from 0.5 to 2;
+Apple and Windows adapters both forward the selected speed.

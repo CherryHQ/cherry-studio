@@ -5539,6 +5539,7 @@
   "settings.voice.model.apple_tts": "Apple 系统语音",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "约 1 GB · 在此设备上本地处理 · 来源：FunAudioLLM / ModelScope · 许可证：Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows 系统语音",
   "settings.voice.playback.error.aborted": "语音播放已取消。",
   "settings.voice.playback.error.busy": "语音功能正被另一项本地操作占用。",
   "settings.voice.playback.long_text.description": "此回复包含 {{count}} 个可朗读字符。是否继续使用本地语音播放？",

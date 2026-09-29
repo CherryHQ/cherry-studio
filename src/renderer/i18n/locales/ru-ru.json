@@ -5539,6 +5539,7 @@
   "settings.voice.model.apple_tts": "Системный голос Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Около 1 ГБ · Локальная обработка на этом устройстве · Источник: FunAudioLLM / ModelScope · Лицензия: Apache-2.0",
+  "settings.voice.model.windows_tts": "Системный голос Windows",
   "settings.voice.playback.error.aborted": "Воспроизведение речи отменено.",
   "settings.voice.playback.error.busy": "Голосовая функция занята другой локальной операцией.",
   "settings.voice.playback.long_text.description": "В этом ответе {{count}} символов для чтения. Продолжить локальное воспроизведение?",

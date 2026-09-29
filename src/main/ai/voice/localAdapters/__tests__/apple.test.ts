@@ -12,7 +12,8 @@ import {
   createLocalSpeechModel,
   createLocalTranscriptionModel,
   getLocalVoiceStatus,
-  installAppleAsrAsset
+  installAppleAsrAsset,
+  listAppleAsrLocales
 } from '../../localAdapters'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
@@ -86,6 +87,44 @@ afterEach(async () => {
 })
 
 describe('local Apple adapters', () => {
+  it('uses the installed offline Apple recognizer on macOS 15', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        getSystemVersion: { value: () => '15.7' },
+        platform: { value: 'darwin' }
+      })
+    )
+
+    expect(await getLocalVoiceStatus(APPLE_ASR_MODEL_ID, { language: 'en-US' })).toEqual({ status: 'ready' })
+    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+      audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+      mediaType: 'audio/webm;codecs=opus'
+    })
+    expect(result.text).toBe('private transcript')
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('lists recognition locales reported by the native helper', async () => {
+    mocks.nativeRequest.mockResolvedValueOnce({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
+    await expect(listAppleAsrLocales()).resolves.toEqual({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+  })
+
+  it('does not install an Apple recognition asset on macOS 15', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        getSystemVersion: { value: () => '15.7' },
+        platform: { value: 'darwin' }
+      })
+    )
+    await expect(installAppleAsrAsset('en-US')).rejects.toMatchObject({ reason: 'unsupported' })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+  })
+
   it('returns WAV bytes and releases synthesis scratch before completion', async () => {
     const model = createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact' })
     const result = await model.doGenerate({ text: 'private TTS text', voice: 'voice.exact', outputFormat: 'wav' })

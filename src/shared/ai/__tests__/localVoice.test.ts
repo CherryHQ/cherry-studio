@@ -7,7 +7,9 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODELS,
-  resolveDefaultAsrModel
+  resolveDefaultAsrModel,
+  resolveDefaultSpeechModel,
+  WINDOWS_TTS_MODEL_ID
 } from '../localVoice'
 import * as localVoice from '../localVoice'
 
@@ -20,13 +22,18 @@ describe('local voice model facts and default resolution', () => {
     })
   })
 
-  it('recommends Apple ASR only on macOS 26 and newer', () => {
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 26 })).toBe(APPLE_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'x64', majorVersion: 27 })).toBe(APPLE_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 25 })).toBe(FUNASR_MODEL_ID)
+  it('recommends Apple ASR on supported macOS releases', () => {
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 13 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 15 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 26 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 27 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 25 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 12 })).toBeUndefined()
   })
 
   it('recommends FunASR on every platform its verified native artifact supports', () => {
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 12 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'arm64' })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
@@ -63,5 +70,15 @@ describe('local voice model facts and default resolution', () => {
       expect(model.outputModalities).toEqual([MODALITY.TEXT])
       expect(model.supportsStreaming).toBe(false)
     }
+  })
+})
+
+describe('default system speech model', () => {
+  it('selects Windows only for x64 and preserves supported Apple versions', () => {
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64' })).toBe(WINDOWS_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'arm64', majorVersion: 13 })).toBe(APPLE_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'x64' })).toBeUndefined()
   })
 })

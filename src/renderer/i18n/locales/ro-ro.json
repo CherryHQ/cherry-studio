@@ -5539,6 +5539,7 @@
   "settings.voice.model.apple_tts": "Voce de sistem Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Aproximativ 1 GB · Procesat local pe acest dispozitiv · Sursă: FunAudioLLM / ModelScope · Licență: Apache-2.0",
+  "settings.voice.model.windows_tts": "Voce de sistem Windows",
   "settings.voice.playback.error.aborted": "Redarea vocală a fost anulată.",
   "settings.voice.playback.error.busy": "Funcția vocală este ocupată cu o altă operațiune locală.",
   "settings.voice.playback.long_text.description": "Acest răspuns are {{count}} caractere care pot fi citite. Continui cu redarea locală?",
