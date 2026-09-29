@@ -162,6 +162,17 @@ describe('MarkdownFilePreview', () => {
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
   })
 
+  it('renders the plain fallback in a viewer with a bounded scroll viewport', async () => {
+    mocks.readText.mockResolvedValueOnce('# File preview')
+
+    renderPreview({ size: 1024 * 1024 + 1, type: 'artifact' })
+
+    await screen.findByTestId('code-viewer')
+    // The viewer's virtualizer windows rows against its own scroller, so it must own a bounded
+    // viewport — an unbounded wrapper hands it the whole document and materializes every row.
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ expanded: false, height: '100%' }))
+  })
+
   it('locks the view switch so a plain-text document cannot be forced through rendering', async () => {
     mocks.readText.mockResolvedValueOnce('# File preview')
 
