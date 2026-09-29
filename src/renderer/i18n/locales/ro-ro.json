@@ -3883,6 +3883,7 @@
   "settings.data.notes_relocation.error.generic": "Migrarea directorului de notițe a eșuat",
   "settings.data.notes_relocation.error.invalid_target": "Directorul selectat este invalid sau accesul a fost refuzat",
   "settings.data.notes_relocation.error.same_path": "Noul director este același cu directorul actual de notițe",
+  "settings.data.notes_relocation.error.source_contains_symlinks": "Folderul actual de notițe conține legături simbolice și nu poate fi migrat",
   "settings.data.notes_relocation.error.source_missing": "Directorul actual de notițe nu a putut fi citit",
   "settings.data.notes_relocation.error.source_not_directory": "Calea actuală de notițe nu este un director",
   "settings.data.notes_relocation.error.target_contains_source": "Noul director conține folderul actual de notițe",

@@ -8,12 +8,12 @@ import { loggerService } from '@logger'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
-import { useNotesFileEditSession } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
+import { useNotesFileEditSession } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   addDir,

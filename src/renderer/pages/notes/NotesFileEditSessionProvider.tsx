@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, type FC, type ReactNode } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
+import { registerNotesEditFlush } from '@renderer/hooks/notesFileEditFlush'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
-import { registerNotesEditFlush } from '@renderer/services/notesEditFlush'
 import { createFilePathHandle } from '@shared/utils/file'
 
 const NotesFileEditSessionContext = createContext<FileEditSession | null>(null)
@@ -17,9 +17,7 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
 
-  return (
-    <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
-  )
+  return <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
 }
 
 export function useNotesFileEditSession(): FileEditSession {

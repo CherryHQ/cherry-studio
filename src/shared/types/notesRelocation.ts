@@ -1,6 +1,7 @@
 export const NOTES_RELOCATION_VALIDATION_REASONS = [
   'source_missing',
   'source_not_directory',
+  'source_contains_symlinks',
   'same_path',
   'target_inside_source',
   'target_contains_source',
