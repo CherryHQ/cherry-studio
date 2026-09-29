@@ -26,7 +26,7 @@ function response(value: unknown): string {
   return `process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(JSON.stringify(value))}))`
 }
 
-describe('SystemSpeechNativeClient', () => {
+describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POSIX executable fixtures', () => {
   it('writes the exact speech speed only to the helper stdin protocol', async () => {
     const setup = await helper('')
     const capture = join(setup.directory, 'stdin.json')
@@ -45,6 +45,20 @@ describe('SystemSpeechNativeClient', () => {
     await new SystemSpeechNativeClient(setup).request(request)
 
     expect(JSON.parse(await readFile(capture, 'utf8'))).toEqual(request)
+  })
+
+  it('returns installed and supported recognition locales through the protocol', async () => {
+    const setup = await helper(
+      response({
+        ok: true,
+        value: { operation: 'list_asr_locales', result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] } }
+      })
+    )
+    const client = new SystemSpeechNativeClient(setup)
+    await expect(client.request({ operation: 'list_asr_locales' })).resolves.toEqual({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
   })
 
   it('returns the transcript through the protocol without logging diagnostics', async () => {

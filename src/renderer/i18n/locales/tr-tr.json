@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Apple Sistem Sesi",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Yaklaşık 1 GB · Bu cihazda yerel olarak işlenir · Kaynak: FunAudioLLM / ModelScope · Lisans: Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows Sistem Sesi",
   "settings.voice.playback.source": "Sesli oynatma",
   "settings.voice.playback.state.failed": "Oynatma başarısız oldu",
   "settings.voice.playback.state.generating": "Ses hazırlanıyor",

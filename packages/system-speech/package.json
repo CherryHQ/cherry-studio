@@ -22,6 +22,9 @@
     "build": "tsdown",
     "build:native": "node scripts/build-native.cjs",
     "smoke:packaged": "node scripts/smoke-packaged.cjs",
+    "smoke:packaged:windows": "node scripts/smoke-windows.cjs --tts --packaged",
+    "smoke:windows": "node scripts/smoke-windows.cjs",
+    "smoke:windows:tts": "node scripts/smoke-windows.cjs --tts",
     "test": "vitest run",
     "test:native": "swift test --package-path native",
     "typecheck": "tsc --noEmit -p tsconfig.json"

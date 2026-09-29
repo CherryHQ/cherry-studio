@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+
 import type { EventPayload } from '../../types'
 import { type VoiceSessionEvent, voiceRequestSchemas } from '../voice'
 
@@ -216,5 +218,26 @@ describe('Voice IPC contract', () => {
       expect(input.safeParse({ ...recording, durationMs }).success).toBe(false)
     }
     expect(input.safeParse(recording).success).toBe(false)
+  })
+})
+
+describe('voice speech IPC', () => {
+  it('accepts explicit Apple and Windows speech model selection and a platform default', () => {
+    for (const modelId of [APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, undefined]) {
+      expect(voiceRequestSchemas['ai.speech.generate'].input.safeParse({ ...base, modelId }).success).toBe(true)
+    }
+    expect(
+      voiceRequestSchemas['ai.speech.generate'].input.safeParse({ ...base, modelId: APPLE_ASR_MODEL_ID }).success
+    ).toBe(false)
+    expect(
+      voiceRequestSchemas['ai.voice.model.status'].input.safeParse({ modelId: WINDOWS_TTS_MODEL_ID }).success
+    ).toBe(true)
+  })
+
+  it('accepts supported speech speeds and rejects out-of-range values', () => {
+    for (const speed of [0.5, 1, 1.5, 2])
+      expect(voiceRequestSchemas['ai.speech.generate'].input.safeParse({ ...base, speed }).success).toBe(true)
+    for (const speed of [0, 0.49, 2.01, Infinity, NaN])
+      expect(voiceRequestSchemas['ai.speech.generate'].input.safeParse({ ...base, speed }).success).toBe(false)
   })
 })

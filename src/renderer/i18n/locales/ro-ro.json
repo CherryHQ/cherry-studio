@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Voce de sistem Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Aproximativ 1 GB · Procesat local pe acest dispozitiv · Sursă: FunAudioLLM / ModelScope · Licență: Apache-2.0",
+  "settings.voice.model.windows_tts": "Voce de sistem Windows",
   "settings.voice.playback.source": "Redare vocală",
   "settings.voice.playback.state.failed": "Redarea a eșuat",
   "settings.voice.playback.state.generating": "Se pregătește sunetul",

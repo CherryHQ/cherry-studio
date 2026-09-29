@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Apple-Systemsprache",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Etwa 1 GB · Wird lokal auf diesem Gerät verarbeitet · Quelle: FunAudioLLM / ModelScope · Lizenz: Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows-Systemsprache",
   "settings.voice.playback.source": "Sprachwiedergabe",
   "settings.voice.playback.state.failed": "Wiedergabe fehlgeschlagen",
   "settings.voice.playback.state.generating": "Audio wird vorbereitet",

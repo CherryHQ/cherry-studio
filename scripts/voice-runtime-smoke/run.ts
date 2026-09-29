@@ -57,13 +57,16 @@ async function main(): Promise<void> {
     options: {
       'cdp-endpoint': { type: 'string' },
       'expected-url': { type: 'string' },
-      language: { type: 'string', default: 'en-US' }
+      language: { type: 'string', default: 'en-US' },
+      mode: { type: 'string', default: 'apple-round-trip' }
     }
   })
   const endpoint = values['cdp-endpoint']
   const expectedUrl = values['expected-url']
   const language = values.language
+  const mode = values.mode
   if (language !== 'en-US' && language !== 'zh-CN') throw new Error('INVALID_LANGUAGE')
+  if (mode !== 'apple-round-trip' && mode !== 'windows-tts') throw new Error('INVALID_MODE')
   if (!endpoint || !expectedUrl) throw new Error('EXPLICIT_TARGET_REQUIRED')
   validateConnection(endpoint, expectedUrl)
   const response = await fetch(new URL('/json/list', endpoint), {
@@ -72,7 +75,7 @@ async function main(): Promise<void> {
   })
   if (!response.ok) throw new Error('CDP_DISCOVERY_FAILED')
   const socketUrl = selectMainTarget(await response.json(), endpoint, expectedUrl)
-  const result = await evaluate(socketUrl, createVoiceRuntimeSmokeExpression(expectedUrl, language))
+  const result = await evaluate(socketUrl, createVoiceRuntimeSmokeExpression(expectedUrl, language, mode))
   if (typeof result !== 'object' || result === null || !('passed' in result) || typeof result.passed !== 'boolean') {
     throw new Error('INVALID_SMOKE_RESULT')
   }

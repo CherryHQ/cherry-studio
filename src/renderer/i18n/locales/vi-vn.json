@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Giọng nói hệ thống Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Khoảng 1 GB · Xử lý cục bộ trên thiết bị này · Nguồn: FunAudioLLM / ModelScope · Giấy phép: Apache-2.0",
+  "settings.voice.model.windows_tts": "Giọng nói hệ thống Windows",
   "settings.voice.playback.source": "Phát giọng nói",
   "settings.voice.playback.state.failed": "Phát thất bại",
   "settings.voice.playback.state.generating": "Đang chuẩn bị âm thanh",

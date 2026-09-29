@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Apple 系統語音",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "約 1 GB · 在此裝置上本機處理 · 來源：FunAudioLLM / ModelScope · 授權：Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows 系統語音",
   "settings.voice.playback.source": "語音播放",
   "settings.voice.playback.state.failed": "播放失敗",
   "settings.voice.playback.state.generating": "正在準備音訊",

@@ -38,6 +38,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  WINDOWS_TTS_MODEL_ID,
   type LocalVoiceModelFacts,
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
@@ -61,7 +62,8 @@ const RECOGNITION_PREFERENCE_KEYS = {
 const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
-  [FUNASR_MODEL_ID]: 'settings.voice.model.funasr'
+  [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
 }
 const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   failed: 'settings.voice.dictation.phase.failed',
@@ -223,6 +225,8 @@ function VoiceSettings() {
           : funAsrModel.status === 'ready'
             ? 'remove'
             : undefined
+  const configuredSpeechModel =
+    speechModel === APPLE_TTS_MODEL_ID || speechModel === WINDOWS_TTS_MODEL_ID ? speechModel : undefined
 
   useEffect(() => {
     if (
@@ -253,10 +257,14 @@ function VoiceSettings() {
       setSpeechStatus({ status: 'unconfigured' })
       return
     }
+    if (!configuredSpeechModel) {
+      setSpeechStatus({ status: 'unsupported', reason: 'unsupported' })
+      return
+    }
     let current = true
     void voiceService
       .getModelStatus({
-        modelId: speechModel as LocalVoiceModelId,
+        modelId: configuredSpeechModel,
         ...(languageValue(speechLanguage) && { language: languageValue(speechLanguage) }),
         ...(optionalValue(speechVoice) && { voice: optionalValue(speechVoice) })
       })
@@ -269,7 +277,7 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [speechLanguage, speechModel, speechVoice])
+  }, [configuredSpeechModel, speechLanguage, speechModel, speechVoice])
 
   useEffect(() => {
     if (dictation.error !== 'microphone_permission') return
@@ -326,7 +334,7 @@ function VoiceSettings() {
   )
 
   const transcriptionModels = models.filter((model) => model.id === APPLE_ASR_MODEL_ID || model.id === FUNASR_MODEL_ID)
-  const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID)
+  const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID || model.id === WINDOWS_TTS_MODEL_ID)
   const canInstallApple =
     recognitionModel === APPLE_ASR_MODEL_ID &&
     Boolean(languageValue(recognitionLanguage)) &&
@@ -712,7 +720,8 @@ function VoiceSettings() {
           />
           <Button
             disabled={
-              !speechBusy && (!speechModel || !speechVoice || !previewText.trim() || speechStatus.status !== 'ready')
+              !speechBusy &&
+              (!configuredSpeechModel || !speechVoice || !previewText.trim() || speechStatus.status !== 'ready')
             }
             onClick={togglePreview}>
             {speechBusy ? <Square className="size-4" /> : <Play className="size-4" />}

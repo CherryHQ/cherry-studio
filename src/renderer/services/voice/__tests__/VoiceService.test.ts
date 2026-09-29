@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { VoiceDomainError, VoiceService } from '../VoiceService'
@@ -45,9 +45,9 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
-  it('resolves exact speech parameters from the shared Preference store', async () => {
+  it.each([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID])('resolves exact speech parameters for %s', async (modelId) => {
     const readSpeechPreferences = vi.fn(async () => ({
-      modelId: APPLE_TTS_MODEL_ID,
+      modelId,
       voice: 'voice.exact',
       language: 'zh-CN',
       speed: 1.25
@@ -60,11 +60,27 @@ describe('VoiceService state ownership', () => {
     })
 
     await expect(service.resolveSpeechPreferences()).resolves.toEqual({
-      modelId: APPLE_TTS_MODEL_ID,
+      modelId,
       voice: 'voice.exact',
       language: 'zh-CN',
       speed: 1.25
     })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing Windows speech voice without choosing a system default', async () => {
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readSpeechPreferences: async () => ({
+        modelId: WINDOWS_TTS_MODEL_ID,
+        voice: ' ',
+        language: 'en-US',
+        speed: 1
+      })
+    })
+
+    await expect(service.resolveSpeechPreferences()).rejects.toMatchObject({ reason: 'voice_unavailable' })
     expect(request).not.toHaveBeenCalled()
   })
 

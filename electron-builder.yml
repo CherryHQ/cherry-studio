@@ -77,8 +77,8 @@ files:
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
-  - "!node_modules/@cherrystudio/system-speech/{native,src,tests,scripts}/**"
-  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through mac.extraResources
+  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform extraResources
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -117,6 +117,7 @@ win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   extraResources:
+    # before-pack adds system-speech only for x64; extraResources .exe files use signtoolOptions below.
     - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
       to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
@@ -151,10 +152,11 @@ mac:
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
     - target: zip

@@ -29,6 +29,8 @@ enum SystemSpeechHelper {
                 voices: AppleTts.installedVoices()
             )
             write(SuccessEnvelope(value: CapabilitiesSuccess(result: result)))
+        case .listAsrLocales:
+            write(SuccessEnvelope(value: AsrLocalesSuccess(result: await AppleAsr.listLocales())))
         case let .installAsrAssets(locale):
             let installedLocale = try await AppleAsr.installAssets(locale: locale)
             write(

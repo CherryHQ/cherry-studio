@@ -5533,6 +5533,7 @@
   "settings.voice.model.apple_tts": "Ομιλία συστήματος Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Περίπου 1 GB · Τοπική επεξεργασία σε αυτή τη συσκευή · Πηγή: FunAudioLLM / ModelScope · Άδεια: Apache-2.0",
+  "settings.voice.model.windows_tts": "Ομιλία συστήματος Windows",
   "settings.voice.playback.source": "Αναπαραγωγή φωνής",
   "settings.voice.playback.state.failed": "Η αναπαραγωγή απέτυχε",
   "settings.voice.playback.state.generating": "Προετοιμασία ήχου",
