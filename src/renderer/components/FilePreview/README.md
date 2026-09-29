@@ -286,6 +286,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, images 64 MiB.
   PDF keeps a 16 MiB assembled-range cap, not a whole-file size cap, and delegates its external
   fallback to the host.
+- Markdown and text previews drop their expensive pass — the Markdown pipeline, and shiki highlighting — for documents over
+  1 MiB or with very long lines, and show the virtualized plain-text source instead. Those passes run over the whole
+  document on the renderer main thread, and past that budget they block the UI until they finish. Markdown then locks its
+  preview/source switch and says so through `file_preview.markdown.plain_fallback.description`.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.

@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+  default: (props: { language: string; options?: { highlight?: boolean }; value: string; wrapped: boolean }) => {
     mocks.codeViewer(props)
     return <div data-testid="code-viewer">{props.value}</div>
   }
@@ -67,6 +67,34 @@ describe('TextFilePreview', () => {
       // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
       expect.not.objectContaining({ wrapped: false })
     )
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
+  })
+
+  // Shiki tokenization runs over the whole document on the renderer main thread, so a big
+  // text preview drops highlighting instead of blocking the UI until it finishes.
+  it('drops syntax highlighting for a file over the rich render budget', async () => {
+    mocks.readText.mockResolvedValueOnce('const answer = 42')
+
+    renderPreview(0, 1024 * 1024 + 1)
+
+    await screen.findByTestId('code-viewer')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
+  })
+
+  it('drops syntax highlighting for a file dominated by very long lines', async () => {
+    mocks.readText.mockResolvedValueOnce('a'.repeat(60_000))
+
+    renderPreview(0, 60_000)
+
+    await screen.findByTestId('code-viewer')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
+  })
+
+  it('keeps syntax highlighting for a file that fits the render budget', async () => {
+    renderPreview(0, 1024 * 1024)
+
+    await screen.findByTestId('code-viewer')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
