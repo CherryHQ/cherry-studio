@@ -1033,7 +1033,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(stagedLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
     }
 
-    it('quiesces Chromium storage after aside, before staging move on Windows', async () => {
+    it('quiesces Chromium storage before aside, before staging move on Windows', async () => {
       if (process.platform !== 'win32') {
         return
       }
@@ -1052,7 +1052,7 @@ describe('runRestorePromotion', () => {
 
       expect(quiesceSpy).toHaveBeenCalledOnce()
       expect(quiesceSpy).toHaveBeenCalledWith('Local Storage')
-      expect(asideExistedBeforeQuiesce).toBe(true)
+      expect(asideExistedBeforeQuiesce).toBe(false)
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
       expect(journalState()).toBe('completed')
       expect(existsSync(stagingDir())).toBe(false)
@@ -1067,15 +1067,21 @@ describe('runRestorePromotion', () => {
       makeDb(livePath(), 'old')
       makeDb(workPath(), 'new')
       seedLocalStorageFixtures()
-      const journal = await buildJournal({ fileResources: localStorageManifest() })
-      renameSync(livePath(), asidePath())
-      renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
-      vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
+      const electron = await import('electron')
+      const clearData = vi.fn(async () => {})
+      Object.assign(electron.session.defaultSession, { clearData })
+      vi.spyOn(electron.app, 'whenReady').mockResolvedValue()
+      let asideExistedWhenClearDataRan = false
+      clearData.mockImplementation(async () => {
+        asideExistedWhenClearDataRan = existsSync(join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live'))
+      })
       renameFailure.injectPermanentFailureFor = stagedLocalStorageDir()
 
       await runRestorePromotion()
 
+      expect(clearData).toHaveBeenCalledOnce()
+      expect(asideExistedWhenClearDataRan).toBe(false)
       expect(readMarker(livePath())).toBe('old')
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
       expect(existsSync(join(liveLocalStorageDir(), 'leveldb-restored'))).toBe(false)
