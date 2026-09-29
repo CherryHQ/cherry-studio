@@ -12,6 +12,7 @@ const logger = loggerService.withContext('useTopicStreamStatus')
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
+  lastCompletedAt: number | null
   activeExecutions: ActiveExecution[]
   /**
    * Survives the exec's own terminal status — MCP `needsApproval` ends the
@@ -54,7 +55,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, lastCompletedAt, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
