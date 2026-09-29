@@ -93,12 +93,14 @@ function TextPreviewContent({ filePath, highlight, loadState }: TextPreviewConte
   if (loadState.status === 'error') return <TextPreviewError />
 
   return (
-    <div className="flex min-h-full w-full">
+    <div className="flex h-full min-h-0 w-full">
       {/* The composer inset pads inside the viewer, whose shiki theme paints an opaque
           background — the code surface then runs to the container bottom under the composer. */}
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
+        expanded={false}
+        height="100%"
         options={{ highlight }}
         className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
       />
