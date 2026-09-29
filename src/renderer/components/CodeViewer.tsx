@@ -120,6 +120,8 @@ const CodeViewer = ({
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
+  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
+  const lineHeight = useMemo(() => Math.round(fontSize * 1.6), [fontSize])
   const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
@@ -374,17 +376,15 @@ const CodeViewer = ({
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
-  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
   const estimateSize = useCallback(
     (index: number) => {
-      const lineHeight = Math.round(fontSize * 1.6)
       if (!wrapped) return lineHeight
       const line = rawLines[index] ?? ''
       if (line.length === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
       return lineHeight * Math.max(1, Math.ceil(line.length / 96))
     },
-    [fontSize, rawLines, wrapped]
+    [lineHeight, rawLines, wrapped]
   )
 
   // 创建 virtualizer 实例
@@ -507,11 +507,11 @@ const CodeViewer = ({
   // Report scrollHeight when it might change
   useLayoutEffect(() => {
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
-  }, [rawLines.length, onHeightChange])
+  }, [rawLines.length, totalSize, onHeightChange])
 
   useLayoutEffect(() => {
     virtualizer.measure()
-  }, [expanded, wrapped, fontSize, rawLines.length, virtualizer])
+  }, [expanded, wrapped, fontSize, lineNumbers, rawLines.length, virtualizer])
 
   useLayoutEffect(() => {
     if (!expanded) return
@@ -537,7 +537,7 @@ const CodeViewer = ({
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${Math.round(fontSize * 1.6)}px`,
+            '--line-height': `${lineHeight}px`,
             fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,

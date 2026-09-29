@@ -6,23 +6,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeViewer from '../CodeViewer'
 
-const mocks = vi.hoisted(() => ({
-  highlightLines: vi.fn(),
-  resetHighlight: vi.fn(),
-  measureElement: vi.fn(),
-  measure: vi.fn(),
-  useVirtualizer: vi.fn((options: { count: number }) => ({
-    getTotalSize: () => options.count * 20,
-    getVirtualItems: () =>
-      Array.from({ length: options.count }, (_, index) => ({
-        index,
-        key: `row-${index}`,
-        start: index * 20
-      })),
+const mocks = vi.hoisted(() => {
+  const measure = vi.fn()
+  return {
+    highlightLines: vi.fn(),
+    resetHighlight: vi.fn(),
     measureElement: vi.fn(),
-    measure: vi.fn()
-  }))
-}))
+    measure,
+    useVirtualizer: vi.fn((options: { count: number }) => ({
+      getTotalSize: () => options.count * 20,
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: `row-${index}`,
+          start: index * 20
+        })),
+      measureElement: vi.fn(),
+      measure
+    }))
+  }
+})
 
 vi.mock('@renderer/hooks/useCodeHighlight', () => ({
   useCodeHighlight: ({ rawLines }: { rawLines: string[] }) => ({
@@ -198,28 +201,42 @@ describe('CodeViewer', () => {
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
   })
 
-  it('remasures virtual rows when expanding a collapsed code block', () => {
-    const measure = vi.fn()
-    mocks.useVirtualizer.mockImplementation((options: { count: number }) => ({
-      getTotalSize: () => options.count * 20,
-      getVirtualItems: () =>
-        Array.from({ length: options.count }, (_, index) => ({
-          index,
-          key: `row-${index}`,
-          start: index * 20
-        })),
-      measureElement: vi.fn(),
-      measure
-    }))
-
-    const { rerender } = render(
+  it('remasures virtual rows and resets scroll position when expanding a collapsed code block', () => {
+    const { container, rerender } = render(
       <CodeViewer value={'line 1\nline 2'} language="typescript" expanded={false} maxHeight="350px" />
     )
-    expect(measure).toHaveBeenCalled()
+    const scroller = container.querySelector('.shiki-scroller') as HTMLElement
+    scroller.scrollTop = 80
+    expect(mocks.measure).toHaveBeenCalled()
 
-    measure.mockClear()
+    mocks.measure.mockClear()
     rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" expanded maxHeight="350px" />)
-    expect(measure).toHaveBeenCalled()
+    expect(mocks.measure).toHaveBeenCalled()
+    expect(scroller.scrollTop).toBe(0)
+  })
+
+  it('remasures virtual rows when line numbers are toggled', () => {
+    const { rerender } = render(
+      <CodeViewer
+        value={'line 1\nline 2'}
+        language="typescript"
+        wrapped
+        options={{ lineNumbers: false }}
+        maxHeight="350px"
+      />
+    )
+    mocks.measure.mockClear()
+
+    rerender(
+      <CodeViewer
+        value={'line 1\nline 2'}
+        language="typescript"
+        wrapped
+        options={{ lineNumbers: true }}
+        maxHeight="350px"
+      />
+    )
+    expect(mocks.measure).toHaveBeenCalled()
   })
 
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
