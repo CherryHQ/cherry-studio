@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { app, session } from 'electron'
 
 import { loggerService } from '@logger'
@@ -38,7 +41,14 @@ function clearDataTypesForDir(livePath: ChromiumRuntimeDirName): Array<'indexedD
  * Uses `clearData` rather than `clearStorageData` because the pinned Electron
  * version does not reliably release IndexedDB handles via the legacy API.
  */
-export async function quiesceChromiumStorageForRestore(livePath: ChromiumRuntimeDirName): Promise<void> {
+export async function quiesceChromiumStorageForRestore(
+  livePath: ChromiumRuntimeDirName,
+  userDataRoot: string
+): Promise<void> {
+  const liveAbs = path.join(userDataRoot, livePath)
+  if (!fs.existsSync(liveAbs)) {
+    return
+  }
   await app.whenReady()
   await session.defaultSession.clearData({
     dataTypes: clearDataTypesForDir(livePath)

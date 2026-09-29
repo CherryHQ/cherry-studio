@@ -1033,7 +1033,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(stagedLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
     }
 
-    it('quiesces Chromium storage after aside, before staging move on Windows', async () => {
+    it('skips Chromium quiesce when live path is absent after aside on Windows', async () => {
       if (process.platform !== 'win32') {
         return
       }
@@ -1043,16 +1043,10 @@ describe('runRestorePromotion', () => {
       seedLocalStorageFixtures()
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
       const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
-      let asideExistedBeforeQuiesce = false
-      quiesceSpy.mockImplementation(async () => {
-        asideExistedBeforeQuiesce = existsSync(join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live'))
-      })
 
       await runRestorePromotion()
 
-      expect(quiesceSpy).toHaveBeenCalledOnce()
-      expect(quiesceSpy).toHaveBeenCalledWith('Local Storage')
-      expect(asideExistedBeforeQuiesce).toBe(true)
+      expect(quiesceSpy).not.toHaveBeenCalled()
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
       expect(journalState()).toBe('completed')
       expect(existsSync(stagingDir())).toBe(false)

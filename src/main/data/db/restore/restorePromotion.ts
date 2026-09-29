@@ -525,12 +525,17 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
       // Quiesce only while the staging move is still pending. A crash after the
       // move but before its step marker would otherwise clearData the restored
       // live directory before moveIdempotent's idempotent return.
-      if (fs.existsSync(staging) && entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
-        logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
+      if (
+        fs.existsSync(staging) &&
+        fs.existsSync(live) &&
+        entryNeedsChromiumStorageQuiesce(entry) &&
+        isChromiumRuntimeDir(entry.livePath)
+      ) {
+        logger.info('Quiescing Chromium runtime storage before staging move', {
           restoreId: ctx.journal.restoreId,
           livePath: entry.livePath
         })
-        await quiesceChromiumStorageForRestore(entry.livePath)
+        await quiesceChromiumStorageForRestore(entry.livePath, ctx.userData)
       }
       moveIdempotent(staging, live)
       return
