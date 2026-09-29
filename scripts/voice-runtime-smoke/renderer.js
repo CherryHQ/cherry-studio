@@ -1,14 +1,18 @@
 module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en-US', mode = 'apple-round-trip') {
   const evidence = { schemaVersion: 1, passed: false, stage: 'target', cleanupSucceeded: true, sessionsDiscarded: 0 }
-  const sessions = []
+  const sessions = new Set()
   const safeCodes = new Set([
     'VOICE_UNSUPPORTED',
     'VOICE_ASSET_REQUIRED',
     'VOICE_MODEL_REQUIRED',
+    'VOICE_DOWNLOAD_FAILED',
+    'VOICE_MODEL_LOAD_FAILED',
+    'VOICE_WORKER_CRASHED',
     'VOICE_VOICE_UNAVAILABLE',
     'VOICE_BUSY',
     'VOICE_FORBIDDEN',
     'VOICE_INVALID_AUDIO',
+    'VOICE_NO_SPEECH',
     'VOICE_ABORTED',
     'VOICE_STOPPED',
     'VOICE_INVALID_REQUEST',
@@ -34,6 +38,11 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
   let source
   let recorder
   let recordingTimer
+  const discardSession = async (sessionId) => {
+    await request('ai.voice.session.discard', { sessionId })
+    sessions.delete(sessionId)
+    evidence.sessionsDiscarded += 1
+  }
   try {
     if (location.href !== expectedUrl) throw { code: 'TARGET_MISMATCH' }
     if (language !== 'en-US' && language !== 'zh-CN') throw { code: 'INVALID_LANGUAGE' }
@@ -73,7 +82,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
 
     evidence.stage = 'speech'
     const speechSession = crypto.randomUUID()
-    sessions.push(speechSession)
+    sessions.add(speechSession)
     const speech = await request('ai.speech.generate', {
       sessionId: speechSession,
       requestId: crypto.randomUUID(),
@@ -88,24 +97,26 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
           : 'Cherry Studio local voice verification. The bright blue sky is clear today. This recording uses a synthetic voice.'
     })
     evidence.stage = 'read_speech'
-    const file = await request('file.read', {
-      handle: { kind: 'entry', entryId: speech.fileEntry.id },
-      options: { mode: 'full', encoding: 'binary' }
+    const output = await request('ai.voice.output.read', {
+      sessionId: speechSession,
+      fileEntryId: speech.fileEntry.id
     })
-    if (!(file.content instanceof Uint8Array) || !file.content.byteLength || file.content.byteLength > 32 * 1024 * 1024)
+    if (!(output.audio instanceof Uint8Array) || !output.audio.byteLength || output.audio.byteLength > 32 * 1024 * 1024)
       throw { code: 'INVALID_TTS_AUDIO' }
     context = new AudioContext({ sampleRate: 48000 })
     await context.resume()
-    const audio = await context.decodeAudioData(new Uint8Array(file.content).buffer)
+    const audio = await context.decodeAudioData(new Uint8Array(output.audio).buffer)
     if (!Number.isFinite(audio.duration) || audio.duration <= 0 || audio.duration > 60)
       throw { code: 'INVALID_TTS_AUDIO' }
     evidence.tts = {
       modelId: speechModelId,
-      bytes: file.content.byteLength,
+      bytes: output.audio.byteLength,
       sampleRate: audio.sampleRate,
       channels: audio.numberOfChannels,
       durationSeconds: audio.duration
     }
+    evidence.stage = 'speech_discard'
+    await discardSession(speechSession)
 
     if (windowsTts) {
       evidence.passed = true
@@ -140,9 +151,15 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     if (webm.byteLength < 4 || webm.byteLength > 32 * 1024 * 1024) throw { code: 'RECORDING_FAILED' }
     evidence.recording = { bytes: webm.byteLength, mimeType: 'audio/webm;codecs=opus' }
 
-    evidence.stage = 'apple_upload'
+    evidence.stage = 'apple_recording'
     const appleSession = crypto.randomUUID()
-    sessions.push(appleSession)
+    sessions.add(appleSession)
+    await request('ai.voice.recording.start', {
+      sessionId: appleSession,
+      requestId: crypto.randomUUID(),
+      source: 'automation'
+    })
+    evidence.stage = 'apple_upload'
     const recording = await request('file.voice_recording.create', {
       sessionId: appleSession,
       audio: webm,
@@ -160,10 +177,18 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     })
     if (typeof transcript.text !== 'string' || !transcript.text.trim()) throw { code: 'TRANSCRIPT_EMPTY' }
     evidence.apple = { transcriptNonEmpty: true, durationSeconds: transcript.durationInSeconds }
+    evidence.stage = 'apple_discard'
+    await discardSession(appleSession)
 
-    evidence.stage = 'funasr_upload'
+    evidence.stage = 'funasr_recording'
     const funasrSession = crypto.randomUUID()
-    sessions.push(funasrSession)
+    sessions.add(funasrSession)
+    await request('ai.voice.recording.start', {
+      sessionId: funasrSession,
+      requestId: crypto.randomUUID(),
+      source: 'automation'
+    })
+    evidence.stage = 'funasr_upload'
     const funasrRecording = await request('file.voice_recording.create', {
       sessionId: funasrSession,
       audio: webm,
@@ -213,8 +238,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       })
     for (const sessionId of sessions) {
       try {
-        await request('ai.voice.session.discard', { sessionId })
-        evidence.sessionsDiscarded += 1
+        await discardSession(sessionId)
       } catch {
         evidence.cleanupSucceeded = false
       }
