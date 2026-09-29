@@ -2594,7 +2594,7 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls' && args.length === 2) {
           return {
             stdout: JSON.stringify(
-              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.1.7-rc.2', active: true }] } : {}
+              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.2.0-rc.2', active: true }] } : {}
             ),
             stderr: ''
           }
@@ -2602,12 +2602,12 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls') {
           return {
             stdout: JSON.stringify({
-              'npm:@deepseek-ai/dsh': [{ version: installed ? '0.1.7-rc.2' : '0.1.0-rc.6', active: true }]
+              'npm:@deepseek-ai/dsh': [{ version: installed ? '0.2.0-rc.2' : '0.1.0-rc.6', active: true }]
             }),
             stderr: ''
           }
         }
-        if (args.includes('npm:@deepseek-ai/dsh@0.1.7-rc.2')) installed = true
+        if (args.includes('npm:@deepseek-ai/dsh@0.2.0-rc.2')) installed = true
         if (args[0] === 'which' && args[1] === 'node') {
           return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
         }
@@ -2623,7 +2623,7 @@ describe('BinaryManager', () => {
       const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
       expect(useCalls.map((call: any[]) => call[1])).toEqual([
         ['use', '-g', '--pin', 'node@22.23.2'],
-        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@0.1.7-rc.2']
+        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@0.2.0-rc.2']
       ])
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
         'latest',
@@ -2664,12 +2664,12 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls') {
           return {
             stdout: JSON.stringify({
-              'npm:@deepseek-ai/dsh': [{ version: reinstalled ? '0.1.7-rc.2' : '0.1.1-rc.2', active: true }]
+              'npm:@deepseek-ai/dsh': [{ version: reinstalled ? '0.2.0-rc.2' : '0.1.1-rc.2', active: true }]
             }),
             stderr: ''
           }
         }
-        if (args.includes('npm:@deepseek-ai/dsh@0.1.7-rc.2')) reinstalled = true
+        if (args.includes('npm:@deepseek-ai/dsh@0.2.0-rc.2')) reinstalled = true
         if (args[0] === 'which' && args[1] === 'node') {
           return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
         }
@@ -2683,7 +2683,7 @@ describe('BinaryManager', () => {
       await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
 
       expect(reinstalled).toBe(true)
-      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@0.1.7-rc.2'])
+      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@0.2.0-rc.2'])
     })
   })
 
