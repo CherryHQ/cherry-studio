@@ -9,6 +9,11 @@ import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
+import {
+  entryNeedsChromiumStorageQuiesce,
+  isChromiumRuntimeDir,
+  quiesceChromiumStorageForRestore
+} from './chromiumStorageQuiesce'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
@@ -29,6 +34,11 @@ type FileResource = RestoreJournal['fileResources'][number]
  * PROMOTION_STEP_ORDER.indexOf — see the warning on that constant.
  */
 const COMMIT_STEP: PromotionStep = 'work-promoted'
+
+const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FS_RETRY_MAX_ATTEMPTS = 8
+const FS_RETRY_BASE_DELAY_MS = 100
+const FS_RETRY_MAX_DELAY_MS = 1500
 
 interface PromotionContext {
   readonly journal: StagedJournal | PromotingJournal
@@ -393,7 +403,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   for (let i = PROMOTION_STEP_ORDER.indexOf(current.step) + 1; i < PROMOTION_STEP_ORDER.length; i++) {
     const step = PROMOTION_STEP_ORDER[i]
     try {
-      runStep(ctx, step)
+      await runStep(ctx, step)
     } catch (error) {
       // The commit step's rename is the point of no return, and renameDurable
       // fsyncs the affected directories AFTER renaming — so this throw can
@@ -436,7 +446,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   finalize(ctx, 'completed', current.step)
 }
 
-function runStep(ctx: PromotionContext, step: PromotionStep): void {
+async function runStep(ctx: PromotionContext, step: PromotionStep): Promise<void> {
   switch (step) {
     case 'gate-passed':
       // Admission marker only — no filesystem action.
@@ -462,7 +472,7 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
       return
     case 'entries-applied':
       for (const entry of ctx.journal.fileResources) {
-        applyEntry(ctx, entry)
+        await applyEntry(ctx, entry)
       }
       return
     case 'integrity-ok': {
@@ -494,7 +504,7 @@ function integrityCheck(dbPath: string): string {
   }
 }
 
-function applyEntry(ctx: PromotionContext, entry: FileResource): void {
+async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<void> {
   switch (entry.kind) {
     case 'blob-add':
     case 'dir-add':
@@ -506,12 +516,23 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
     case 'note-overwrite':
     case 'overwrite': {
       const live = resolveEntry(ctx, entry.livePath)
+      const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
         renameDurable(live, aside)
       }
-      moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
+      // Quiesce only while the staging move is still pending. A crash after the
+      // move but before its step marker would otherwise clearData the restored
+      // live directory before moveIdempotent's idempotent return.
+      if (fs.existsSync(staging) && entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
+        logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
+          restoreId: ctx.journal.restoreId,
+          livePath: entry.livePath
+        })
+        await quiesceChromiumStorageForRestore(entry.livePath)
+      }
+      moveIdempotent(staging, live)
       return
     }
     default:
@@ -688,12 +709,41 @@ function renameOnceIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  retrySyncOnTransientFsLock(() => {
+    fs.renameSync(source, target)
+  })
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
   }
+}
+
+function retrySyncOnTransientFsLock(operation: () => void): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      operation()
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      const retriable =
+        process.platform === 'win32' &&
+        code !== undefined &&
+        TRANSIENT_FS_LOCK_CODES.has(code) &&
+        attempt < FS_RETRY_MAX_ATTEMPTS
+      if (!retriable) {
+        throw error
+      }
+      sleepSync(Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS))
+    }
+  }
+}
+
+function sleepSync(ms: number): void {
+  if (ms <= 0) {
+    return
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
 function fsyncDir(dir: string): void {
