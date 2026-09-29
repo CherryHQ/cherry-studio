@@ -47,10 +47,16 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^nova-2' },
   // anthropic
   {
-    pattern: '^(?:anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: true,
+    wireDialect: 'adaptive-between-tools'
+  },
+  {
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
     effort: ['low', 'medium', 'high', 'xhigh', 'max'],
     toggle: false,
-    wireDialect: 'effort'
+    wireDialect: 'adaptive-always'
   },
   {
     pattern: '^(?:anthropic\\.)?claude-fable',
@@ -193,6 +199,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // meta
   { pattern: '^muse-spark' },
   // minimax
+  { pattern: '^minimax-m3[.-]1-flash-preview$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },

@@ -14,10 +14,11 @@ const logger = loggerService.withContext('ModelListSyncPreview')
 export async function buildModelListSyncPreview(params: { providerId: string }): Promise<ModelSyncPreviewResponse> {
   const { providerId } = params
 
-  const [localModels, remoteModels] = await Promise.all([
+  const [localModels, listing] = await Promise.all([
     dataApiService.get('/models' as const, { query: { providerId } }),
     fetchResolvedProviderModels(providerId)
   ])
+  const remoteModels = listing.models
 
   const localIds = new Set(localModels.map((m) => m.id))
   const remoteIds = new Set(remoteModels.map((m) => m.id))
