@@ -23,6 +23,15 @@ describe('shouldRenderRichTextPreview', () => {
     expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(4_000)}\n`)).toBe(true)
   })
 
+  it('keeps a line exactly at the line-length budget, newline or not', () => {
+    // The budget is a strict bound on line length: the terminator is not part of the line.
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\n`)).toBe(true)
+    expect(shouldRenderRichTextPreview(ONE_MIB, 'a'.repeat(5_000))).toBe(true)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\n${'b'.repeat(5_000)}\n`)).toBe(true)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_001)}\n`)).toBe(false)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\n${'b'.repeat(5_002)}\n`)).toBe(false)
+  })
+
   it('refuses a document whose average line length exceeds the budget', () => {
     expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(6_000)}\n${'b'.repeat(6_000)}\n`)).toBe(false)
   })
