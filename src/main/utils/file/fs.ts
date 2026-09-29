@@ -859,14 +859,16 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
-export async function removeDir(target: AbsoluteFilePath): Promise<void> {
-  await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
-}
-
-/** Removes only an empty directory; missing and nonempty paths remain errors. */
-export async function removeEmptyDir(target: AbsoluteFilePath): Promise<void> {
-  await rmdir(target)
+/**
+ * Remove a directory recursively by default, retrying transient locks and ignoring missing paths.
+ * With `recursive: false`, remove only an empty directory; missing and nonempty paths remain errors.
+ */
+export async function removeDir(target: AbsoluteFilePath, options?: { recursive?: boolean }): Promise<void> {
+  if (options?.recursive === false) {
+    await rmdir(target)
+  } else {
+    await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  }
 }
 
 /** Create a single directory. Throws if it already exists. */
