@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { getFileIdentity, removeEmptyDir, writeInPlace } from '../fs'
+import { getFileIdentity, removeDir, writeInPlace } from '../fs'
 
 describe('file mutation primitives', () => {
   let root: string
@@ -56,10 +56,11 @@ describe('file mutation primitives', () => {
     const dir = AbsoluteFilePathSchema.parse(path.join(root, 'dir'))
     await fs.mkdir(dir)
     await fs.writeFile(path.join(dir, 'child.txt'), 'keep')
-    await expect(removeEmptyDir(dir)).rejects.toThrow()
+    await expect(removeDir(dir, { recursive: false })).rejects.toThrow()
     expect(await fs.readFile(path.join(dir, 'child.txt'), 'utf-8')).toBe('keep')
     await fs.unlink(path.join(dir, 'child.txt'))
-    await removeEmptyDir(dir)
+    await removeDir(dir, { recursive: false })
     await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(removeDir(dir, { recursive: false })).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })
