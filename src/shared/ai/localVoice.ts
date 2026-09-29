@@ -2,6 +2,7 @@ import { MODALITY, MODEL_CAPABILITY, type Model } from '@shared/data/types/model
 
 export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
+export const WINDOWS_TTS_MODEL_ID = 'local-voice::windows-system-tts' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
 
 export const MIN_SPEECH_SPEED = 0.5
@@ -14,9 +15,14 @@ export type VoiceSessionSource = (typeof VOICE_SESSION_SOURCES)[number]
 export const VOICE_SESSION_TRIGGERS = ['manual', 'auto_read'] as const
 export type VoiceSessionTrigger = (typeof VOICE_SESSION_TRIGGERS)[number]
 
-export const LOCAL_VOICE_MODEL_IDS = [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID] as const
+export const LOCAL_VOICE_MODEL_IDS = [
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  WINDOWS_TTS_MODEL_ID,
+  FUNASR_MODEL_ID
+] as const
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
-export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID
+export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID | typeof WINDOWS_TTS_MODEL_ID
 export type LocalTranscriptionModelId = typeof APPLE_ASR_MODEL_ID | typeof FUNASR_MODEL_ID
 
 export interface LocalVoiceModelFacts {
@@ -49,6 +55,15 @@ export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze
     supportsStreaming: false
   }),
   Object.freeze({
+    id: WINDOWS_TTS_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Windows System TTS',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
+    inputModalities: Object.freeze([MODALITY.TEXT]),
+    outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
     id: FUNASR_MODEL_ID,
     providerId: 'local-voice',
     name: 'FunASR Nano',
@@ -73,5 +88,21 @@ export function resolveDefaultAsrModel(
   ) {
     return undefined
   }
-  return platform.majorVersion >= 26 ? APPLE_ASR_MODEL_ID : FUNASR_MODEL_ID
+  return platform.majorVersion >= 13 ? APPLE_ASR_MODEL_ID : undefined
+}
+
+export function resolveDefaultSpeechModel(platform: {
+  platform: string
+  arch?: string
+  majorVersion?: number
+}): LocalSpeechModelId | undefined {
+  if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_TTS_MODEL_ID
+  if (
+    platform.platform === 'darwin' &&
+    platform.majorVersion !== undefined &&
+    Number.isInteger(platform.majorVersion) &&
+    platform.majorVersion >= 13
+  )
+    return APPLE_TTS_MODEL_ID
+  return undefined
 }

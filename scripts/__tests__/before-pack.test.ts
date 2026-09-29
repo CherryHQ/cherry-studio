@@ -12,12 +12,56 @@ import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../before-pack'
+import {
+  assertPrebuiltPackages,
+  keepPackages,
+  prepareNativeModulesForElectron,
+  prepareSystemSpeechHelper
+} from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
 const legacyMacOcrVersion = '1.0.2'
 const macOcrPackages = ['@napi-rs/system-ocr-darwin-arm64', '@napi-rs/system-ocr-darwin-x64']
+
+describe('prepareSystemSpeechHelper', () => {
+  it('ships the x64 helper once and removes it before an ARM64 packaging pass', () => {
+    const config = parse(readFileSync('electron-builder.yml', 'utf8'))
+    const originalResources = [...config.win.extraResources]
+    const context = { arch: Arch.x64, packager: { platform: { name: 'windows' }, config } }
+    const build = vi.fn()
+
+    prepareSystemSpeechHelper(context, build)
+    prepareSystemSpeechHelper(context, build)
+    expect(config.win.extraResources).toEqual([
+      ...originalResources,
+      {
+        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        to: 'system-speech/cherry-system-speech.exe'
+      }
+    ])
+
+    context.arch = Arch.arm64
+    prepareSystemSpeechHelper(context, () => {
+      throw new Error('ARM64 must not build an x64 helper')
+    })
+    expect(config.win.extraResources).toEqual(originalResources)
+    expect(config.win.signtoolOptions.sign).toBe('scripts/win-sign.js')
+  })
+
+  it('fails an x64 package when native compilation fails', () => {
+    const config = parse(readFileSync('electron-builder.yml', 'utf8'))
+    const context = { arch: Arch.x64, packager: { platform: { name: 'windows' }, config } }
+    expect(() =>
+      prepareSystemSpeechHelper(context, () => {
+        throw new Error('native compilation failed')
+      })
+    ).toThrow('native compilation failed')
+    expect(config.win.extraResources.some((resource: { to: string }) => resource.to.startsWith('system-speech/'))).toBe(
+      false
+    )
+  })
+})
 
 describe('assertPrebuiltPackages', () => {
   it.each(['arm64', 'x64'])('passes for the host platform on %s', (arch) => {

@@ -1,4 +1,3 @@
-import AVFAudio
 import Foundation
 import Testing
 @testable import SystemSpeechHelper
@@ -7,6 +6,7 @@ import Testing
 struct CommandTests {
     @Test(arguments: [
         #"{"operation":"capabilities","locale":"zh-CN"}"#,
+        #"{"operation":"list_asr_locales"}"#,
         #"{"operation":"install_asr_assets","locale":"zh-CN","confirmDownload":true}"#,
         #"{"operation":"transcribe","locale":"zh-CN","inputPath":"/tmp/input.wav"}"#,
         #"{"operation":"synthesize","voiceId":"voice","text":"hello","outputPath":"/tmp/output.wav","speed":1.25}"#,
@@ -63,14 +63,24 @@ struct CommandTests {
         }
     }
 
-    @Test(arguments: [0.5, 1.0, 2.0])
-    func mapsProductSpeedToAppleRate(speed: Double) throws {
-        let expected = min(
-            max(AVSpeechUtteranceDefaultSpeechRate * Float(speed), AVSpeechUtteranceMinimumSpeechRate),
-            AVSpeechUtteranceMaximumSpeechRate
+    @Test
+    func normalizesAndSortsAsrLocaleIdentifiers() {
+        let result = AppleAsr.localesResult(
+            supported: [Locale(identifier: "zh_CN"), Locale(identifier: "en_US"), Locale(identifier: "zh-CN")],
+            installed: [Locale(identifier: "zh_CN"), Locale(identifier: "zh-CN")]
         )
 
-        #expect(try AppleTts.rate(forMultiplier: speed) == expected)
+        #expect(result.supported == ["en-US", "zh-CN"])
+        #expect(result.installed == ["zh-CN"])
+    }
+
+    @Test
+    func listsDeviceAsrLocales() async {
+        let result = await AppleAsr.listLocales()
+
+        #expect(result.supported == result.supported.sorted())
+        #expect(result.supported.count == Set(result.supported).count)
+        #expect(result.supported.allSatisfy { !$0.contains("_") })
     }
 
     @Test(arguments: [

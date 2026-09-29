@@ -5527,6 +5527,7 @@
   "settings.voice.model.apple_asr": "Αναγνώριση ομιλίας συστήματος Apple",
   "settings.voice.model.apple_tts": "Ομιλία συστήματος Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.windows_tts": "Ομιλία συστήματος Windows",
   "settings.voice.playback.source": "Αναπαραγωγή φωνής",
   "settings.voice.playback.state.failed": "Η αναπαραγωγή απέτυχε",
   "settings.voice.playback.state.generating": "Προετοιμασία ήχου",

@@ -6,6 +6,7 @@ import {
   FUNASR_MODEL_ID,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
+  WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
@@ -179,7 +180,7 @@ export class VoiceService {
     const preferences = await this.readSpeechPreferences()
     const modelId = preferences.modelId.trim()
     if (!modelId) throw new VoiceDomainError('model_required')
-    if (modelId !== APPLE_TTS_MODEL_ID) throw new VoiceDomainError('unsupported')
+    if (modelId !== APPLE_TTS_MODEL_ID && modelId !== WINDOWS_TTS_MODEL_ID) throw new VoiceDomainError('unsupported')
     if (!preferences.voice.trim()) throw new VoiceDomainError('voice_unavailable')
     if (
       !Number.isFinite(preferences.speed) ||

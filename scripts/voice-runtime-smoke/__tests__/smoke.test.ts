@@ -29,14 +29,18 @@ describe('voice smoke connection boundary', () => {
   })
 })
 
-function browserEnvironment(transcription: 'success' | 'empty' | 'funasr_fallback' | 'native_failure') {
+function browserEnvironment(
+  transcription: 'success' | 'empty' | 'funasr_fallback' | 'native_failure',
+  windows = false
+) {
   const created = new Set<string>()
   const discarded = new Set<string>()
   const requestedModels: string[] = []
   const languageRequests: { route: string; language: string; voice?: string; text?: string }[] = []
+  const voicePrefix = windows ? 'windows-sapi-test' : 'com.apple.voice.test'
   const voices = [
-    { id: 'com.apple.voice.test.en-US', name: 'Synthetic English voice', language: 'en-US' },
-    { id: 'com.apple.voice.test.zh-CN', name: 'Synthetic Chinese voice', language: 'zh-CN' }
+    { id: `${voicePrefix}.en-US`, name: 'Synthetic English voice', language: 'en-US' },
+    { id: `${voicePrefix}.zh-CN`, name: 'Synthetic Chinese voice', language: 'zh-CN' }
   ]
   const audio = { duration: 0.001, sampleRate: 48000, numberOfChannels: 1 }
   let ended: (() => void) | null = null
@@ -165,6 +169,49 @@ function browserEnvironment(transcription: 'success' | 'empty' | 'funasr_fallbac
 }
 
 describe('voice smoke renderer contract', () => {
+  it('verifies Windows TTS without requiring ASR or microphone recording, then releases the output session', async () => {
+    const fixture = browserEnvironment('native_failure', true)
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    const requestedSpeech: Record<string, any>[] = []
+    ipc.request = async (route, input) => {
+      if (route === 'ai.voice.model.status' && input?.modelId !== 'local-voice::windows-system-tts')
+        return { ok: false, error: { code: 'VOICE_UNSUPPORTED' } }
+      if (route === 'ai.speech.generate') requestedSpeech.push(input!)
+      return originalRequest(route, input)
+    }
+    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl, 'en-US', 'windows-tts'), {
+      ...fixture.globals,
+      MediaRecorder: undefined
+    })
+    expect(result).toMatchObject({ passed: true, mode: 'windows-tts', sessionsDiscarded: 1, cleanupSucceeded: true })
+    expect(requestedSpeech).toEqual([
+      expect.objectContaining({
+        modelId: 'local-voice::windows-system-tts',
+        voice: 'windows-sapi-test.en-US',
+        speed: 1
+      })
+    ])
+    expect(result.tts.durationSeconds).toBeGreaterThan(0)
+    expect(fixture.requestedModels).toEqual([])
+    expect(fixture.discarded).toEqual(fixture.created)
+    expect(JSON.stringify(result)).not.toMatch(/Cherry Studio local voice verification|e0b0c5ec/)
+  })
+
+  it('does not fall back to Apple when Windows TTS is unavailable', async () => {
+    const fixture = browserEnvironment('success')
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    ipc.request = async (route, input) =>
+      route === 'ai.voice.model.status' ? { ok: true, data: { status: 'unsupported' } } : originalRequest(route, input)
+    const result = await runInNewContext(
+      createVoiceRuntimeSmokeExpression(expectedUrl, 'en-US', 'windows-tts'),
+      fixture.globals
+    )
+    expect(result).toMatchObject({ passed: false, stage: 'tts_status', code: 'TTS_NOT_READY' })
+    expect(fixture.created.size).toBe(0)
+  })
+
   it('refuses to run after the target navigates', async () => {
     const fixture = browserEnvironment('success')
     fixture.globals.location.href = `${expectedUrl}#wrong`

@@ -25,6 +25,16 @@ The renderer function uses the real preload `window.api.ipcApi.request` routes t
 
 The output proves only the routes exercised in that particular run. It does not prove recognition accuracy, platform coverage, code signing, packaged ASAR/resource placement, offline operation, or model redistribution rights. Offline evidence requires the caller's external network restriction; the harness does not change host networking.
 
+## Windows x64 TTS
+
+Use `--mode windows-tts` with an already running, tracked Windows x64 application and an installed SAPI voice matching `--language` (`en-US` or `zh-CN`):
+
+```sh
+pnpm exec tsx scripts/voice-runtime-smoke/run.ts --cdp-endpoint http://127.0.0.1:9222 --expected-url 'http://localhost:5173/windows/main/index.html' --mode windows-tts --language en-US
+```
+
+This mode selects an exact installed voice, checks Windows TTS readiness, explicitly requests the Windows model through production IPC, reads and decodes the returned WAV, and discards its session. It does not call ASR, MediaRecorder, or microphone permissions, install resources, change preferences, or fall back to Apple. Output contains only model/voice identifiers and audio metadata. It verifies synthesis and the application file/session path; it does not play through speakers or verify playback controls. Run it against the installed and portable applications as well as development builds, using each tracked window's actual URL. Network isolation and Windows code-signature checks remain separate requirements.
+
 ## Reuse inside an offline packaged harness
 
 `renderer.js` contains the self-contained renderer function. The Node-side loader produces the exact expression used by CDP, so a packaged smoke controller can evaluate it through the tracked main window:

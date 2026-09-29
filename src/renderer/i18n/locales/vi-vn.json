@@ -5527,6 +5527,7 @@
   "settings.voice.model.apple_asr": "Nhận dạng giọng nói hệ thống Apple",
   "settings.voice.model.apple_tts": "Giọng nói hệ thống Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.windows_tts": "Giọng nói hệ thống Windows",
   "settings.voice.playback.source": "Phát giọng nói",
   "settings.voice.playback.state.failed": "Phát thất bại",
   "settings.voice.playback.state.generating": "Đang chuẩn bị âm thanh",

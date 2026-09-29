@@ -5527,6 +5527,7 @@
   "settings.voice.model.apple_asr": "Apple System Speech Recognition",
   "settings.voice.model.apple_tts": "Apple System Speech",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.windows_tts": "Windows System Speech",
   "settings.voice.playback.source": "Voice playback",
   "settings.voice.playback.state.failed": "Playback failed",
   "settings.voice.playback.state.generating": "Preparing audio",
