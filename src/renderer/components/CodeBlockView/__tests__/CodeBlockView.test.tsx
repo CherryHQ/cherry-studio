@@ -9,16 +9,18 @@ import { CodeBlockView } from '../CodeBlockView'
 import { CodeBlockWrapLinesContext } from '../wrapLinesContext'
 
 const mocks = vi.hoisted(() => ({
-  CodeEditor: vi.fn(({ value, onSave }: { value: string; onSave?: (newContent: string) => void }) => (
-    <div>
-      <div role="textbox" aria-label="Code editor">
-        {value}
+  CodeEditor: vi.fn(
+    ({ value, onSave, readOnly }: { value: string; onSave?: (newContent: string) => void; readOnly?: boolean }) => (
+      <div>
+        <div role="textbox" aria-label="Code editor" aria-readonly={readOnly}>
+          {value}
+        </div>
+        <button type="button" onClick={() => onSave?.('const value = 2')}>
+          Save from editor
+        </button>
       </div>
-      <button type="button" onClick={() => onSave?.('const value = 2')}>
-        Save from editor
-      </button>
-    </div>
-  )),
+    )
+  ),
   CodeViewer: vi.fn(({ value, wrapped }: { value: string; wrapped?: boolean }) => (
     <pre aria-label="Code viewer" data-wrapped={wrapped ? 'true' : 'false'}>
       {value}
@@ -146,6 +148,35 @@ describe('CodeBlockView', () => {
     expect(onSave).toHaveBeenCalledWith('const value = 2')
     expect(await screen.findByLabelText('Code viewer')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+  })
+
+  it('locks the editor until an in-flight save settles so later input cannot be lost', async () => {
+    const user = userEvent.setup()
+    let finishSave: (saved: boolean) => void = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    render(
+      <CodeBlockView language="javascript" editable onSave={onSave}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).not.toHaveAttribute('aria-readonly', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveAttribute('aria-readonly', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    await act(async () => finishSave(false))
+
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).not.toHaveAttribute('aria-readonly', 'true')
   })
 
   it('ignores a save that settles after the editor was closed and reopened', async () => {

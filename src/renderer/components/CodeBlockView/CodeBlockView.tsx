@@ -124,6 +124,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   }, [canEdit, hasSpecialView, viewState.mode])
 
   const editSessionRef = useRef(0)
+  const savingRef = useRef(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     if (newMode === 'edit') editSessionRef.current += 1
@@ -136,8 +138,19 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const handleSave = useCallback(
     async (newContent: string) => {
+      if (savingRef.current) return
       const session = editSessionRef.current
-      const saved = await onSave?.(newContent)
+      // The editor stays read-only until the save settles: the saved content flows back as
+      // `value`, and CodeEditor's value sync would overwrite anything typed in the meantime.
+      savingRef.current = true
+      setIsSaving(true)
+      let saved: void | boolean
+      try {
+        saved = await onSave?.(newContent)
+      } finally {
+        savingRef.current = false
+        setIsSaving(false)
+      }
       // A save that settles after the editor was closed and reopened must not close the new session.
       if (saved === false || session !== editSessionRef.current) return
       setViewState((current) =>
@@ -350,6 +363,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           fontSize={fontSize - 1}
           value={children}
           language={language}
+          readOnly={isSaving}
           onSave={handleSave}
           onHeightChange={handleHeightChange}
           maxHeight={sourceMaxHeight}
@@ -382,6 +396,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       handleHeightChange,
       handleRequestExpand,
       isEditing,
+      isSaving,
       isStreaming,
       language,
       maxHeight,
