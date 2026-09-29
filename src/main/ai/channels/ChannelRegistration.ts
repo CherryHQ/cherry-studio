@@ -12,7 +12,24 @@ const wecomPoll = z.object({
   data: z.object({ status: text, bot_info: z.object({ botid: text, secret: text }).optional() })
 })
 
+const dingtalkInit = z.object({ errcode: z.literal(0), nonce: text })
+const dingtalkBegin = z.object({
+  errcode: z.literal(0),
+  device_code: text,
+  verification_uri_complete: text,
+  interval: z.number().positive().max(60).default(3),
+  expires_in: z.number().positive().default(300)
+})
+const dingtalkPoll = z.object({
+  errcode: z.literal(0),
+  status: z.enum(['WAITING', 'SUCCESS', 'FAIL', 'EXPIRED']),
+  client_id: text.optional(),
+  client_secret: text.optional()
+})
+
 type Session = {
+  type: 'wecom' | 'dingtalk'
+  interval: number
   id: string
   owner: string
   channelId: string
@@ -35,7 +52,14 @@ export class ChannelRegistration {
   ): Promise<OutputFor<'channel.registration.begin'>> {
     const window = owner ? application.get('WindowManager').getWindow(owner) : undefined
     const channel = agentChannelService.getChannel(channelId)
-    if (!owner || !window || window.isDestroyed() || !channel || channel.isActive || channel.type !== 'wecom') {
+    if (
+      !owner ||
+      !window ||
+      window.isDestroyed() ||
+      !channel ||
+      channel.isActive ||
+      (channel.type !== 'wecom' && channel.type !== 'dingtalk')
+    ) {
       throw new Error('Channel registration is unavailable')
     }
     if (this.sessions.has(requestId)) throw new Error('Registration request already exists')
@@ -49,6 +73,8 @@ export class ChannelRegistration {
     timer.unref()
     window.once('closed', close)
     const session: Session = {
+      type: channel.type,
+      interval: 3000,
       id: requestId,
       owner,
       channelId,
@@ -63,25 +89,39 @@ export class ChannelRegistration {
     }
     this.sessions.set(requestId, session)
     try {
-      const plat = process.platform === 'darwin' ? 1 : process.platform === 'win32' ? 2 : 3
-      const result = wecomBegin.parse(
-        await this.request(
-          `https://work.weixin.qq.com/ai/qc/generate?source=cherry-studio&plat=${plat}`,
-          controller.signal
+      let verificationUrl: string
+      if (session.type === 'dingtalk') {
+        const base = 'https://oapi.dingtalk.com/app/registration'
+        const init = dingtalkInit.parse(
+          await this.request(`${base}/init`, controller.signal, { source: 'CHERRY_STUDIO' })
         )
-      ).data
-      const url = URL.parse(result.auth_url)
-      if (
-        !url ||
-        url.origin !== 'https://work.weixin.qq.com' ||
-        url.pathname !== '/ai/qc/c' ||
-        url.username ||
-        url.password
-      ) {
+        const result = dingtalkBegin.parse(
+          await this.request(`${base}/begin`, controller.signal, { nonce: init.nonce })
+        )
+        session.code = result.device_code
+        session.interval = Math.max(1000, result.interval * 1000)
+        session.expiresAt = Math.min(session.expiresAt, Date.now() + result.expires_in * 1000)
+        verificationUrl = result.verification_uri_complete
+      } else {
+        const plat = process.platform === 'darwin' ? 1 : process.platform === 'win32' ? 2 : 3
+        const result = wecomBegin.parse(
+          await this.request(
+            `https://work.weixin.qq.com/ai/qc/generate?source=cherry-studio&plat=${plat}`,
+            controller.signal
+          )
+        ).data
+        session.code = result.scode
+        verificationUrl = result.auth_url
+      }
+      const url = URL.parse(verificationUrl)
+      const expected =
+        session.type === 'wecom'
+          ? 'https://work.weixin.qq.com/ai/qc/c'
+          : 'https://open-dev.dingtalk.com/openapp/registration/openClaw'
+      if (!url || `${url.origin}${url.pathname}` !== expected || url.username || url.password) {
         throw new Error('Invalid authorization URL')
       }
       controller.signal.throwIfAborted()
-      session.code = result.scode
       return { requestId, url: url.href, expiresAt: session.expiresAt }
     } catch {
       this.cancel(owner, requestId)
@@ -112,32 +152,55 @@ export class ChannelRegistration {
   private async pollSession(session: Session): Promise<OutputFor<'channel.registration.poll'>> {
     const { signal } = session.controller
     try {
-      await delay(3000, { signal })
-      const data = wecomPoll.parse(
-        await this.request(
-          `https://work.weixin.qq.com/ai/qc/query_result?scode=${encodeURIComponent(session.code!)}`,
-          signal
+      await delay(session.interval, { signal })
+      if (Date.now() >= session.expiresAt) throw new Error('Registration expired')
+      let status: 'pending' | 'success' | 'expired'
+      let credentials: Record<string, string> | undefined
+      if (session.type === 'dingtalk') {
+        const data = dingtalkPoll.parse(
+          await this.request('https://oapi.dingtalk.com/app/registration/poll', signal, { device_code: session.code! })
         )
-      ).data
-      signal.throwIfAborted()
-      if (data.status === 'init' || data.status === 'pending' || data.status === 'scanned') return { status: 'pending' }
-      if (data.status === 'expired') {
-        this.cancel(session.owner, session.id)
-        return { status: 'expired' }
+        if (data.status === 'FAIL') throw new Error('Registration denied')
+        status = data.status === 'WAITING' ? 'pending' : data.status === 'EXPIRED' ? 'expired' : 'success'
+        if (data.client_id && data.client_secret) {
+          credentials = {
+            client_id: data.client_id.trim(),
+            client_secret: data.client_secret,
+            robot_code: data.client_id.trim()
+          }
+        }
+      } else {
+        const data = wecomPoll.parse(
+          await this.request(
+            `https://work.weixin.qq.com/ai/qc/query_result?scode=${encodeURIComponent(session.code!)}`,
+            signal
+          )
+        ).data
+        if (['init', 'pending', 'scanned'].includes(data.status)) status = 'pending'
+        else if (data.status === 'expired') status = 'expired'
+        else if (data.status === 'success') status = 'success'
+        else throw new Error('Registration unsuccessful')
+        if (data.bot_info) credentials = { bot_id: data.bot_info.botid.trim(), secret: data.bot_info.secret }
       }
-      if (data.status !== 'success' || !data.bot_info) throw new Error('Registration unsuccessful')
+      signal.throwIfAborted()
+      if (status === 'pending') return { status }
+      if (status === 'expired') {
+        this.cancel(session.owner, session.id)
+        return { status }
+      }
+      if (!credentials) throw new Error('Registration credentials missing')
       const channel = agentChannelService.getChannel(session.channelId)
       if (
         !channel ||
         channel.isActive ||
-        channel.type !== 'wecom' ||
+        channel.type !== session.type ||
         JSON.stringify(channel.config) !== session.originalConfig
       ) {
         this.cancel(session.owner, session.id)
         return { status: 'cancelled' }
       }
       agentChannelService.updateChannel(channel.id, {
-        config: { ...channel.config, bot_id: data.bot_info.botid.trim(), secret: data.bot_info.secret }
+        config: { ...channel.config, ...credentials }
       })
       this.cancel(session.owner, session.id)
       return { status: 'confirmed' }
@@ -148,8 +211,11 @@ export class ChannelRegistration {
     }
   }
 
-  private async request(url: string, signal: AbortSignal): Promise<unknown> {
+  private async request(url: string, signal: AbortSignal, body?: Record<string, string>): Promise<unknown> {
+    signal.throwIfAborted()
     const response = await net.fetch(url, {
+      method: body ? 'POST' : 'GET',
+      ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
       signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
       redirect: 'error',
       credentials: 'omit'

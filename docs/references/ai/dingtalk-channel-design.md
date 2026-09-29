@@ -87,7 +87,7 @@ P1 在既有 Channel 实体外层使用 `type: 'dingtalk'`，`config` 为：
 ```
 
 - Client ID 和 Robot Code 去边缘空白；Secret 保持原始字节。P0 核实选定应用类型中 Robot Code 与 Client ID 的关系；确认恒等才能省去重复输入，否则分别保存，不能静默猜测。
-- 禁用草稿允许凭据未填完整；启用校验凭据和机器人标识，不新增扫码或无效的渠道权限覆盖开关。
+- 禁用草稿允许凭据未填完整；启用校验凭据和机器人标识，支持扫码获取凭据，不新增无效的渠道权限覆盖开关。
 - `allowed_chat_ids` 使用第 5 节规范 ID，`allowed_user_ids` 使用企业内 `senderStaffId`。两者同时配置取交集，空数组表示该维度不限制。
 - 同 Client ID 在本地仅允许一个启用配置，避免意外的多实例消息分配。创建、更新、启用及 Agent 工具写入共用同步事务校验；禁用草稿可重复。这是 Cherry 的产品约束，不宣称钉钉平台只允许单连接。
 - Agent、workspace 和 isActive 沿用外层字段；Token、Webhook、downloadCode、卡片实例及临时投递状态不写入配置 JSON。
@@ -261,3 +261,16 @@ P1 不新增自动离线结果补发队列。若 HTTP 也失败，记录投递�
 3. 由可用的企业内部应用完成 P0，确定权限、Robot Code、群地址、各类限额及真实样本；在此之前不宣称平台闭环完成。
 
 除上述真实账号验收外，不扩展到企业管理功能、审批或新的 Agent 权限模式。
+
+
+## 扫码配置
+
+设置页提供二维码授权及手动凭据两种入口。扫码协议采用
+[钉钉官方连接器注册流程](https://github.com/DingTalk-Real-AI/dingtalk-openclaw-connector/blob/main/src/device-auth.ts)：
+`POST /app/registration/init`（来源 `CHERRY_STUDIO`）→ `begin` → `poll`，固定请求 `https://oapi.dingtalk.com`。
+二维码仅接受官方 `open-dev.dingtalk.com/openapp/registration/openClaw` 地址。
+
+复用 ChannelRegistration 的窗口绑定、取消、响应大小限制与主进程凭据保存；遵循服务端轮询间隔，应用侧单次扫码最多等待 5 分钟。
+成功将 Client ID / Secret 写入未启用频道；Robot Code 按官方连接器使用 Client ID，仍可手动修改。原有白名单和卡片模板保留。
+关闭弹窗或窗口、超时、停止应用都会取消；配置已变化、频道已删除或启用时不覆盖。成功后仍需绑定 Agent 并启用。
+官方 init / begin 已用 Cherry 来源标识实测返回有效二维码；真实手机授权成功、权限开通与机器人收发仍需验收。

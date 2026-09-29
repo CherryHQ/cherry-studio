@@ -117,4 +117,66 @@ describe('channel QR registration', () => {
     vi.mocked(net.fetch).mockRejectedValue(new Error('https://example.com/?secret=leak'))
     await expect(begin()).rejects.toThrow(/^Channel registration failed$/)
   })
+  const dingBegin = {
+    errcode: 0,
+    device_code: 'private-device',
+    verification_uri_complete: 'https://open-dev.dingtalk.com/openapp/registration/openClaw?code=qr',
+    interval: 2,
+    expires_in: 7200
+  }
+  const startDingTalk = async () => {
+    channelId = agentChannelService.createChannel({
+      type: 'dingtalk',
+      name: 'DingTalk',
+      workspace: { type: 'system' },
+      isActive: false,
+      config: {
+        client_id: '',
+        client_secret: '',
+        robot_code: '',
+        allowed_chat_ids: ['dm:alice'],
+        card_template_id: 'template'
+      }
+    }).id
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(response({ errcode: 0, nonce: 'nonce' }))
+      .mockResolvedValueOnce(response(dingBegin))
+    return begin()
+  }
+
+  it('registers DingTalk with Cherry identity and saves robot credentials without losing settings', async () => {
+    const result = await startDingTalk()
+    expect(result.url).toBe(dingBegin.verification_uri_complete)
+    const [initUrl, initOptions] = vi.mocked(net.fetch).mock.calls[0]
+    expect(initUrl).toBe('https://oapi.dingtalk.com/app/registration/init')
+    expect(JSON.parse(initOptions!.body as string)).toEqual({ source: 'CHERRY_STUDIO' })
+    vi.mocked(net.fetch).mockResolvedValue(response({ errcode: 0, status: 'WAITING' }))
+    expect(await poll()).toEqual({ status: 'pending' })
+    vi.mocked(net.fetch).mockResolvedValue(
+      response({ errcode: 0, status: 'SUCCESS', client_id: 'ding-app', client_secret: ' secret ' })
+    )
+    expect(await poll()).toEqual({ status: 'confirmed' })
+    expect(agentChannelService.getChannel(channelId)).toMatchObject({
+      isActive: false,
+      config: {
+        client_id: 'ding-app',
+        client_secret: ' secret ',
+        robot_code: 'ding-app',
+        allowed_chat_ids: ['dm:alice'],
+        card_template_id: 'template'
+      }
+    })
+  })
+
+  it.each([
+    [{ errcode: 0, status: 'FAIL' }, 'error'],
+    [{ errcode: 0, status: 'EXPIRED' }, 'expired'],
+    [{ errcode: 1, status: 'SUCCESS', client_id: 'x', client_secret: 'x' }, 'error'],
+    [{ errcode: 0, status: 'SUCCESS', client_id: 'x' }, 'error']
+  ] as const)('rejects unsuccessful DingTalk authorization %j', async (data, status) => {
+    await startDingTalk()
+    vi.mocked(net.fetch).mockResolvedValue(response(data))
+    expect(await poll()).toEqual({ status })
+    expect(agentChannelService.getChannel(channelId)?.config).toMatchObject({ client_secret: '' })
+  })
 })

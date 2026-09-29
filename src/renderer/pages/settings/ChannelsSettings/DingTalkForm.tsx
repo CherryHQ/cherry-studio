@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Input, Label } from '@cherrystudio/ui'
 
+import { ChannelQrRegistration } from './ChannelQrRegistration'
 import type { ChannelData } from './channelTypes'
 
 export function DingTalkForm({
@@ -24,6 +25,7 @@ export function DingTalkForm({
   ]
   return (
     <div className="flex flex-col gap-3">
+      <ChannelQrRegistration channel={channel} />
       <p className="text-xs text-muted-foreground">{t('agent.channels.dingtalk.setupHint')}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map((field) => {
