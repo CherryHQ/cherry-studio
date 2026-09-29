@@ -110,11 +110,9 @@ const GeneralSettings: FC = () => {
     showTagFilter: false,
     showPinnedModels: false
   })
-  const canEvaluateFallbackStale =
-    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null
+  const canEvaluateFallbackStale = !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null
   const hasInvalidRetryFallbackModels =
-    canEvaluateFallbackStale &&
-    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
+    canEvaluateFallbackStale && hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
   const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
     ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds, t)
     : configuredRetryFallbackModelIds.length > 0

@@ -36,7 +36,7 @@ vi.mock('@renderer/components/ModelSelector', async () => {
     ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
     countStaleSelectedModelIds: selection.countStaleSelectedModelIds,
     hasStaleSelectedModelIds: selection.hasStaleSelectedModelIds,
-    useModelSelectorData: (...args: unknown[]) => mockUseModelSelectorData(...args)
+    useModelSelectorData: () => mockUseModelSelectorData()
   }
 })
 
@@ -155,7 +155,7 @@ describe('GeneralSettings', () => {
 
   it('renders model retry settings in General and persists changes', async () => {
     mockUseModelSelectorData.mockReturnValue({
-      resolvedSelectedModelIds: ['openai::gpt-4o' as UniqueModelId],
+      resolvedSelectedModelIds: ['openai::gpt-4o'],
       isLoading: false,
       modelsError: undefined
     })
