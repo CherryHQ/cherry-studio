@@ -69,7 +69,9 @@ access policy. Without this capability, previews retain Streamdown's default saf
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
 stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
-so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
+so generated applications can run scripts. Markdown keeps one exception: a document over the rich-render budget drops
+to the plain-text source even on an artifact, since the budget exists to keep the renderer responsive. This does not
+hide format-specific controls such as PDF zoom or image
 transforms.
 
 All other callers default to `type="file"`. That type treats local HTML as untrusted, renders it with the
