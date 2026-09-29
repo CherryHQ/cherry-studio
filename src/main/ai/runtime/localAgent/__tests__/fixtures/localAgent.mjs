@@ -16,6 +16,19 @@ const text = (value) =>
 let turn = 0
 let cwd
 let terminalId
+let modeValue = 'ask'
+const modeOptions = [
+  { value: 'ask', name: 'Ask', description: 'Ask before changes' },
+  { value: 'plan', name: 'Plan', description: 'Plan before executing' }
+]
+const mode = () => ({
+  id: 'agent-mode',
+  name: 'Mode',
+  category: 'mode',
+  type: 'select',
+  currentValue: modeValue,
+  options: modeOptions
+})
 let thoughtValue = 'balanced'
 let thoughtPending = false
 const thought = () => ({
@@ -74,14 +87,41 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         ? {
             protocolVersion: 1,
             agentInfo: { name: 'fixture', version: '1.0' },
-            agentCapabilities: { loadSession: scenario !== 'no-resume', promptCapabilities: { image: true } },
-            authMethods: []
+            agentCapabilities: {
+              loadSession: scenario !== 'no-resume',
+              promptCapabilities: {
+                image: scenario !== 'no-images',
+                ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
+              }
+            },
+            authMethods: scenario.startsWith('auth-') ? [{ id: 'oauth-personal', name: 'Google' }] : []
           }
         : { userAgent: 'fixture' }
     )
+  } else if (method === 'authenticate') {
+    if (scenario === 'auth-pending') return
+    if (scenario === 'auth-rejected' || scenario === 'auth-secret') {
+      process.stdout.write(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          error: {
+            code: -32000,
+            message:
+              scenario === 'auth-secret'
+                ? `Rejected ${process.env.GEMINI_API_KEY}`
+                : 'Account is not available in your location'
+          }
+        }) + '\n'
+      )
+    } else reply(id, {})
   } else if (method === 'session/new' || method === 'session/load') {
     cwd = message.params.cwd
-    if (method === 'session/load') text('REPLAY MUST NOT APPEAR')
+    if (method === 'session/load') {
+      text('REPLAY MUST NOT APPEAR')
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'REPLAY THOUGHT' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'REPLAY PLAN', priority: 'low', status: 'pending' }] })
+    }
     if (scenario === 'initial-updates') {
       update({
         sessionUpdate: 'available_commands_update',
@@ -120,11 +160,20 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             }
           }
         : {}),
+      ...(scenario === 'mode-legacy' || scenario === 'mode-both'
+        ? {
+            modes: {
+              currentModeId: 'ask',
+              availableModes: modeOptions.map(({ value, ...option }) => ({ id: value, ...option }))
+            }
+          }
+        : {}),
       sessionId: 'native-session',
       configOptions:
         scenario === 'no-models' || scenario === 'legacy-models'
           ? []
           : [
+              ...(scenario.startsWith('mode') && scenario !== 'mode-legacy' ? [mode()] : []),
               ...(scenario.startsWith('thought') ? [thought()] : []),
               {
                 id: 'model',
@@ -136,7 +185,16 @@ createInterface({ input: process.stdin }).on('line', (line) => {
               }
             ]
     })
+  } else if (method === 'session/set_mode') {
+    modeValue = message.params.modeId
+    update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
+    reply(id, {})
   } else if (method === 'session/set_config_option') {
+    if (message.params.configId === 'agent-mode') {
+      if (scenario === 'mode-error') return emit({ id, error: { code: -32602, message: 'Mode unavailable' } })
+      modeValue = message.params.value
+      return reply(id, { configOptions: scenario === 'mode-removed' ? [] : [mode()] })
+    }
     if (message.params.configId === 'reasoning-budget') {
       if (scenario === 'thought-error') return emit({ id, error: { code: -32602, message: 'Reasoning unavailable' } })
       if (scenario === 'thought-delayed') {
@@ -176,6 +234,35 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
     }
     text(`turn ${turn}: `)
+    if (scenario === 'rich-cancel') {
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Still thinking' } })
+      return
+    }
+    if (scenario === 'rich-output') {
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Inspect first' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'Inspect', priority: 'high', status: 'in_progress' }] })
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'edit',
+        title: 'Edit example',
+        kind: 'edit',
+        status: 'pending',
+        rawInput: { path: '/example' }
+      })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'edit',
+        status: 'in_progress',
+        locations: [{ path: '/example', line: 2 }],
+        content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
+      })
+      update({ sessionUpdate: 'tool_call_update', toolCallId: 'edit', status: 'completed', rawInput: null })
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Then answer' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'Inspect', priority: 'high', status: 'completed' }] })
+      text('Done')
+      finish()
+      return
+    }
     if (scenario === 'crash') process.exit(7)
     if (scenario === 'cancel') return
     if (scenario === 'cursor-question' || scenario === 'cursor-plan') {
@@ -267,6 +354,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     })
   } else if (id === 'terminal-create') {
     terminalId = message.result.terminalId
+    update({
+      sessionUpdate: 'tool_call',
+      toolCallId: 'terminal-tool',
+      title: 'Run terminal',
+      kind: 'execute',
+      status: 'in_progress',
+      content: [{ type: 'terminal', terminalId }]
+    })
     emit({ id: 'terminal-wait', method: 'terminal/wait_for_exit', params: { sessionId: 'native-session', terminalId } })
   } else if (id === 'terminal-wait') {
     emit({ id: 'terminal-output', method: 'terminal/output', params: { sessionId: 'native-session', terminalId } })
@@ -274,6 +369,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     text(message.result.output)
     emit({ id: 'terminal-release', method: 'terminal/release', params: { sessionId: 'native-session', terminalId } })
   } else if (id === 'terminal-release') {
+    update({ sessionUpdate: 'tool_call_update', toolCallId: 'terminal-tool', status: 'completed' })
     finish()
   } else if (id === 'approval') {
     text(JSON.stringify(message.result))

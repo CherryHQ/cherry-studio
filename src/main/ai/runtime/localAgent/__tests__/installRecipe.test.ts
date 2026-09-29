@@ -5,16 +5,19 @@ import { resolveInstallRecipe } from '../installRecipe'
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
+  it('rejects retired Gemini CLI installation even when it remains in the registry', () => {
+    expect(() =>
+      resolveInstallRecipe('gemini', registry('gemini', { npx: { package: '@google/gemini-cli' } }))
+    ).toThrow('Unknown local agent preset')
+  })
+
   it('turns registry runners into persistent installation, without passing ACP launch arguments', () => {
     expect(
-      resolveInstallRecipe(
-        'gemini',
-        registry('gemini', { npx: { package: '@google/gemini-cli@0.61.0', args: ['--acp'] } })
-      )
+      resolveInstallRecipe('kilo', registry('kilo', { npx: { package: '@kilocode/cli@7.8.1', args: ['--acp'] } }))
     ).toEqual({
       manager: 'npm',
-      package: '@google/gemini-cli@0.61.0',
-      args: ['install', '--global', '@google/gemini-cli@0.61.0']
+      package: '@kilocode/cli@7.8.1',
+      args: ['install', '--global', '@kilocode/cli@7.8.1']
     })
     expect(
       resolveInstallRecipe(
@@ -46,7 +49,7 @@ describe('system agent install recipes', () => {
     'git+https://example.com/repo',
     'pkg@latest\n--force'
   ])('rejects unsupported package specifications: %s', (spec) => {
-    expect(() => resolveInstallRecipe('gemini', registry('gemini', { npx: { package: spec } }))).toThrow()
+    expect(() => resolveInstallRecipe('kilo', registry('kilo', { npx: { package: spec } }))).toThrow()
   })
 
   it('selects the matching binary architecture and preserves the integrity checksum', () => {

@@ -3337,6 +3337,14 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  async setLocalMode(sessionId: string, configId: string, value: string) {
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    if (!connection?.setMode || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    return connection.setMode(configId, value)
+  }
+
   async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
     const entry = this.entries.get(sessionId)
     const connection = entry && this.currentConnection(entry)

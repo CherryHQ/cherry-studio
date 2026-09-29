@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { LocalAcpToolSchema } from '@shared/ai/localAgent'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -15,6 +16,7 @@ import {
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
+import { AcpTool } from './AcpTool'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
@@ -73,9 +75,14 @@ export function AgentToolCallCard({
 }) {
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
-  const renderedItem =
-    isCherrySessionTool &&
-    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+  const acp = LocalAcpToolSchema.safeParse(
+    input && typeof input === 'object' && 'localAcpTool' in input ? input.localAcpTool : undefined
+  )
+  const displayStatus = acp.success && status === 'invoking' && acp.data.status === 'pending' ? 'pending' : status
+  const renderedItem = acp.success
+    ? AcpTool({ tool: acp.data })
+    : isCherrySessionTool &&
+        (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
       ? SessionCreateTool({ input, output, hasError, isStreaming, status })
       : isCherrySessionTool &&
           (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
@@ -159,7 +166,7 @@ export function AgentToolCallCard({
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
             {status && (status !== 'done' || hasError || openFlowOnClick) && (
-              <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+              <ToolStatusIndicator status={displayStatus ?? status} hasError={hasError} errorText={errorText} />
             )}
           </div>
         }

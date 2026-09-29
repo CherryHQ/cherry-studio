@@ -21,6 +21,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
   protected readonly abort = new AbortController()
   protected textId?: string
+  private reasoningId?: string
   protected active = false
   protected closed = false
   private closing?: Promise<void>
@@ -85,9 +86,25 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.tools.clear()
     this.chunk({ type: 'start' })
   }
+  protected endContent() {
+    if (this.textId) this.chunk({ type: 'text-end', id: this.textId })
+    if (this.reasoningId) this.chunk({ type: 'reasoning-end', id: this.reasoningId })
+    this.textId = undefined
+    this.reasoningId = undefined
+  }
+  protected reasoning(delta: string) {
+    if (!this.active || !delta) return
+    if (!this.reasoningId) {
+      this.endContent()
+      this.reasoningId = randomUUID()
+      this.chunk({ type: 'reasoning-start', id: this.reasoningId })
+    }
+    this.chunk({ type: 'reasoning-delta', id: this.reasoningId, delta })
+  }
   protected text(delta: string) {
     if (!this.active || !delta) return
     if (!this.textId) {
+      this.endContent()
       this.textId = randomUUID()
       this.chunk({ type: 'text-start', id: this.textId })
     }
@@ -97,8 +114,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     if (!this.active) return
     this.active = false
     this.completeTurn?.()
-    if (this.textId) this.chunk({ type: 'text-end', id: this.textId })
-    this.textId = undefined
+    this.endContent()
     if (error) this.events.push({ type: 'error', error })
     else {
       if (finishReason !== 'cancelled') this.chunk({ type: 'finish', finishReason })

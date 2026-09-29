@@ -153,7 +153,11 @@ export function isProcessToolPart(part: CherryMessagePart): boolean {
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isProcessToolPart(part)
+  return (
+    isVisibleReasoningPart(part) ||
+    isProcessToolPart(part) ||
+    (part.type === 'data-agent-plan' && part.data.entries.length > 0)
+  )
 }
 
 /**

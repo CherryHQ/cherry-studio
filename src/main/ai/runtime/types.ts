@@ -193,6 +193,7 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   readonly localSessionInfo?: LocalAgentSessionInfo
+  setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>

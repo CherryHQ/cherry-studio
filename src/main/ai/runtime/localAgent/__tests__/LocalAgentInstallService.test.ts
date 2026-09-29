@@ -25,18 +25,18 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     BinaryManager: {
       removeTool: async ({ name }: { name: string }) => {
-        if (name !== 'gemini' || state.removeBlocked) return { status: 'cleanup_blocked', reason: 'conflict' }
+        if (name !== 'kilo' || state.removeBlocked) return { status: 'cleanup_blocked', reason: 'conflict' }
         fs.unlinkSync(state.existing)
         state.existing = ''
         return { status: 'removed' }
       },
       getToolSnapshots: async () => ({
-        gemini: {
-          name: 'gemini',
+        kilo: {
+          name: 'kilo',
           availability: state.existing
             ? { source: 'mise', path: state.existing }
-            : fs.existsSync(`${state.root}/gemini`)
-              ? { source: 'system', path: `${state.root}/gemini` }
+            : fs.existsSync(`${state.root}/kilo`)
+              ? { source: 'system', path: `${state.root}/kilo` }
               : { source: 'none' }
         }
       })
@@ -75,8 +75,8 @@ describe('local agent system installation', () => {
 const fs = require('fs'); const root = process.env.INSTALL_ROOT;
 if (process.argv[2] === 'root' || process.argv[2] === 'prefix') { process.stdout.write(process.env.INSTALL_TARGET); }
 else { fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
-if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/gemini'); fs.rmSync(root + '/@google/gemini-cli', {recursive:true}); }
-else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/gemini', 'installed');
+if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/kilo'); fs.rmSync(root + '/@kilocode/cli', {recursive:true}); }
+else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/kilo', 'installed');
 else process.stderr.write('installation failed');
 process.exit(Number(process.env.INSTALL_EXIT)); }
 `
@@ -87,7 +87,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       vi.fn(async () => ({
         ok: true,
         json: async () => ({
-          agents: [{ id: 'gemini', distribution: { npx: { package: '@google/gemini-cli@0.61.0' } } }]
+          agents: [{ id: 'kilo', distribution: { npx: { package: '@kilocode/cli@7.8.1' } } }]
         })
       }))
     )
@@ -98,8 +98,8 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   })
 
   it('reuses a managed installation without downloading or invoking an installer', async () => {
-    state.existing = '/managed/gemini'
-    expect(await new LocalAgentInstallService().install('gemini')).toEqual({
+    state.existing = '/managed/kilo'
+    expect(await new LocalAgentInstallService().install('kilo')).toEqual({
       ok: true,
       reused: true,
       path: state.existing
@@ -109,16 +109,16 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
 
   it('runs a persistent global install once for concurrent callers and requires rediscovery', async () => {
     const service = new LocalAgentInstallService()
-    const results = await Promise.all([service.install('gemini'), service.install('gemini')])
-    expect(results).toEqual(Array(2).fill({ ok: true, reused: false, path: path.join(state.root, 'gemini') }))
+    const results = await Promise.all([service.install('kilo'), service.install('kilo')])
+    expect(results).toEqual(Array(2).fill({ ok: true, reused: false, path: path.join(state.root, 'kilo') }))
     expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe(
-      '["install","--global","@google/gemini-cli@0.61.0"]\n'
+      '["install","--global","@kilocode/cli@7.8.1"]\n'
     )
   })
 
   it('blocks package managers configured to write to Cherry-managed directories', async () => {
     state.target = path.join(state.root, 'cherry', 'npm')
-    expect(await new LocalAgentInstallService().install('gemini')).toMatchObject({
+    expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({
       ok: false,
       reason: 'managed_runtime'
     })
@@ -127,85 +127,83 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
 
   it('does not report success when the installer fails', async () => {
     state.exit = '1'
-    expect(await new LocalAgentInstallService().install('gemini')).toMatchObject({ ok: false, reason: 'failed' })
-    expect(fs.existsSync(path.join(state.root, 'gemini'))).toBe(false)
+    expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({ ok: false, reason: 'failed' })
+    expect(fs.existsSync(path.join(state.root, 'kilo'))).toBe(false)
   })
 
   it('reports missing system prerequisites without silently installing managed runtimes', async () => {
     state.manager = ''
-    expect(await new LocalAgentInstallService().install('gemini')).toEqual({
+    expect(await new LocalAgentInstallService().install('kilo')).toEqual({
       ok: false,
       reason: 'missing_runtime',
       manager: 'npm'
     })
   })
   it.skipIf(process.platform === 'win32')('uninstalls only the npm package owning the detected CLI', async () => {
-    const directory = path.join(state.root, '@google/gemini-cli')
+    const directory = path.join(state.root, '@kilocode/cli')
     await mkdir(directory, { recursive: true })
     await writeFile(
       path.join(directory, 'package.json'),
-      JSON.stringify({ name: '@google/gemini-cli', bin: { gemini: 'cli.js' } })
+      JSON.stringify({ name: '@kilocode/cli', bin: { kilo: 'cli.js' } })
     )
     await writeFile(path.join(directory, 'cli.js'), 'installed')
-    await symlink(path.join(directory, 'cli.js'), path.join(state.root, 'gemini'))
-    const result = await new LocalAgentInstallService().uninstall('gemini', path.join(state.root, 'gemini'))
+    await symlink(path.join(directory, 'cli.js'), path.join(state.root, 'kilo'))
+    const result = await new LocalAgentInstallService().uninstall('kilo', path.join(state.root, 'kilo'))
     expect(result).toEqual({ ok: true })
     expect(fs.existsSync(directory)).toBe(false)
-    expect(fs.existsSync(path.join(state.root, 'gemini'))).toBe(false)
-    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
-      '["uninstall","--global","@google/gemini-cli"]'
-    )
+    expect(fs.existsSync(path.join(state.root, 'kilo'))).toBe(false)
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain('["uninstall","--global","@kilocode/cli"]')
   })
 
   it('preserves commands whose installation owner cannot be verified', async () => {
-    await writeFile(path.join(state.root, 'gemini'), 'manual installation')
-    expect(await new LocalAgentInstallService().uninstall('gemini', path.join(state.root, 'gemini'))).toEqual({
+    await writeFile(path.join(state.root, 'kilo'), 'manual installation')
+    expect(await new LocalAgentInstallService().uninstall('kilo', path.join(state.root, 'kilo'))).toEqual({
       ok: false,
       reason: 'unsupported'
     })
-    expect(await readFile(path.join(state.root, 'gemini'), 'utf8')).toBe('manual installation')
+    expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('manual installation')
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
   it('refuses to remove a different installation than the one confirmed', async () => {
-    await writeFile(path.join(state.root, 'gemini'), 'keep')
-    expect(await new LocalAgentInstallService().uninstall('gemini', '/old/gemini')).toEqual({
+    await writeFile(path.join(state.root, 'kilo'), 'keep')
+    expect(await new LocalAgentInstallService().uninstall('kilo', '/old/kilo')).toEqual({
       ok: false,
       reason: 'changed'
     })
-    expect(await readFile(path.join(state.root, 'gemini'), 'utf8')).toBe('keep')
+    expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('keep')
   })
 
   it('blocks removal during an active agent session', async () => {
     state.busy = true
-    await writeFile(path.join(state.root, 'gemini'), 'keep')
-    expect(await new LocalAgentInstallService().uninstall('gemini', path.join(state.root, 'gemini'))).toEqual({
+    await writeFile(path.join(state.root, 'kilo'), 'keep')
+    expect(await new LocalAgentInstallService().uninstall('kilo', path.join(state.root, 'kilo'))).toEqual({
       ok: false,
       reason: 'busy'
     })
-    expect(await readFile(path.join(state.root, 'gemini'), 'utf8')).toBe('keep')
+    expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('keep')
   })
 
   it('serializes removal against pending installation', async () => {
     const service = new LocalAgentInstallService()
-    const installing = service.install('gemini')
-    expect(await service.uninstall('gemini', path.join(state.root, 'gemini'))).toEqual({ ok: false, reason: 'busy' })
+    const installing = service.install('kilo')
+    expect(await service.uninstall('kilo', path.join(state.root, 'kilo'))).toEqual({ ok: false, reason: 'busy' })
     expect(await installing).toMatchObject({ ok: true })
   })
   it('removes a CodeMate installation through its existing manager', async () => {
-    state.existing = path.join(state.root, 'managed-gemini')
+    state.existing = path.join(state.root, 'managed-kilo')
     await writeFile(state.existing, 'managed')
     const command = state.existing
-    expect(await new LocalAgentInstallService().uninstall('gemini', command)).toEqual({ ok: true })
+    expect(await new LocalAgentInstallService().uninstall('kilo', command)).toEqual({ ok: true })
     expect(fs.existsSync(command)).toBe(false)
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
   it('preserves a CodeMate installation when its manager blocks cleanup', async () => {
-    state.existing = path.join(state.root, 'managed-gemini')
+    state.existing = path.join(state.root, 'managed-kilo')
     state.removeBlocked = true
     await writeFile(state.existing, 'managed')
-    expect(await new LocalAgentInstallService().uninstall('gemini', state.existing)).toMatchObject({
+    expect(await new LocalAgentInstallService().uninstall('kilo', state.existing)).toMatchObject({
       ok: false,
       reason: 'failed'
     })

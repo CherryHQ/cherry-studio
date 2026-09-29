@@ -187,12 +187,17 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.local_agents.set_mode': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalMode(sessionId, configId, value),
   'ai.local_agents.set_thought_level': ({ sessionId, configId, value }) =>
     application.get('AgentSessionRuntimeService').setLocalThoughtLevel(sessionId, configId, value),
   'ai.local_agents.session_info': async ({ sessionId }) =>
     application.get('AgentSessionRuntimeService').getLocalSessionInfo(sessionId),
   'ai.local_agents.detect': detectLocalAgents,
   'ai.local_agents.check': checkLocalAgent,
+  'ai.local_agents.authenticate': ({ requestId, config, methodId }) =>
+    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId),
+  'ai.local_agents.cancel_auth': ({ requestId }) => application.get('LocalAgentAuthService').cancel(requestId),
   'ai.local_agents.models': listLocalAgentModels,
   'ai.local_agents.uninstall': ({ presetId, expectedPath }) =>
     application.get('LocalAgentInstallService').uninstall(presetId, expectedPath),

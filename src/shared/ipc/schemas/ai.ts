@@ -335,6 +335,10 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.set_mode': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
   'ai.local_agents.set_thought_level': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
     output: z.custom<LocalAgentSessionInfo>()
@@ -352,6 +356,11 @@ export const aiRequestSchemas = {
     input: z.object({ presetId: z.string().min(1) }),
     output: LocalAgentInstallResultSchema
   }),
+  'ai.local_agents.authenticate': defineRoute({
+    input: z.strictObject({ requestId: z.uuid(), config: LocalAgentConfigurationSchema, methodId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.check': defineRoute({
     input: LocalAgentConfigurationSchema,

@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +12,14 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { CodexConnection } from '../CodexConnection'
+import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { listLocalAgentModels } from '../LocalRuntimeDriver'
+
+const managedFiles = vi.hoisted(() => ({ read: vi.fn(), getPhysicalPath: vi.fn() }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ FileManager: managedFiles })
+})
 
 vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: async () => ({ ...process.env }) }))
 
@@ -55,6 +62,255 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
+
+  it('redacts a supplied API key from native authentication failures before crossing IPC', async () => {
+    const service = new LocalAgentAuthService()
+    await expect(
+      service.authenticate(
+        'redaction-test',
+        {
+          protocol: 'acp',
+          enabled: true,
+          executableOverride: process.execPath,
+          args: [fixture, 'acp', 'auth-secret'],
+          env: { GEMINI_API_KEY: 'fixture-private-key' }
+        },
+        'oauth-personal'
+      )
+    ).rejects.toThrow('Rejected <redacted>')
+  })
+
+  it('authenticates with advertised native IDs without creating a conversation', async () => {
+    const { connection } = create('acp', 'auth-success')
+    await connection.start(cwd, undefined, true)
+    await (connection as AcpConnection).authenticate('oauth-personal')
+    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+    expect(wire).toContain('"methodId":"oauth-personal"')
+    expect(wire).not.toContain('session/new')
+    await expect((connection as AcpConnection).authenticate('unknown')).rejects.toThrow(
+      'Unsupported authentication method'
+    )
+  })
+
+  it('preserves authentication failures and interrupts pending login when closed', async () => {
+    const { connection } = create('acp', 'auth-rejected')
+    await connection.start(cwd, undefined, true)
+    await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
+      'not available in your location'
+    )
+    const pending = create('acp', 'auth-pending').connection as AcpConnection
+    await pending.start(cwd, undefined, true)
+    const rejected = expect(pending.authenticate('oauth-personal')).rejects.toThrow()
+    await pending.close()
+    await rejected
+  })
+
+  it.each(['normal', 'embedded-files'])('sends image bytes and native file content in order (%s)', async (scenario) => {
+    const { connection } = create('acp', scenario)
+    await connection.start(cwd)
+    const file = path.join(cwd, '说明 #1.txt')
+    await writeFile(file, '附件内容：测试')
+    const parts = [
+      { type: 'text', text: 'Read both attachments' },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aW1hZ2U=', filename: 'image.png' },
+      { type: 'file', mediaType: 'text/plain', url: pathToFileURL(file).href, filename: '说明 #1.txt' }
+    ]
+    await connection.send({ message: { data: { parts } } } as AgentRuntimeUserInput)
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
+    expect(prompt).toEqual([
+      { type: 'text', text: 'Read both attachments' },
+      { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+      scenario === 'embedded-files'
+        ? {
+            type: 'resource',
+            resource: { uri: pathToFileURL(file).href, mimeType: 'text/plain', text: '附件内容：测试' }
+          }
+        : {
+            type: 'resource_link',
+            uri: pathToFileURL(file).href,
+            mimeType: 'text/plain',
+            name: '说明 #1.txt',
+            size: Buffer.byteLength('附件内容：测试')
+          }
+    ])
+  })
+
+  it('resolves managed attachments by file entry ID instead of their stale URL', async () => {
+    const { connection } = create('acp', 'embedded-files')
+    await connection.start(cwd)
+    const file = path.join(cwd, 'managed.json')
+    managedFiles.getPhysicalPath.mockReturnValue(file)
+    managedFiles.read.mockResolvedValue({
+      content: Buffer.from('managed attachment content').toString('base64'),
+      mime: 'application/json'
+    })
+    await connection.send({
+      ...input,
+      message: {
+        ...input.message,
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'application/json',
+              url: 'file:///stale/missing.txt',
+              filename: 'note',
+              providerMetadata: { cherry: { fileEntryId: 'managed-entry' } }
+            }
+          ]
+        }
+      }
+    })
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
+      {
+        type: 'resource',
+        resource: { uri: pathToFileURL(file).href, mimeType: 'application/json', text: 'managed attachment content' }
+      }
+    ])
+  })
+
+  it('embeds binary documents and empty text without corrupting their bytes', async () => {
+    const { connection } = create('acp', 'embedded-files')
+    await connection.start(cwd)
+    const bytes = Buffer.from([0, 255, 128, 37, 80, 68, 70])
+    await connection.send({
+      message: {
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'application/pdf',
+              url: `data:application/pdf;base64,${bytes.toString('base64')}`,
+              filename: 'report.pdf'
+            },
+            { type: 'file', mediaType: 'text/plain', url: 'data:text/plain;base64,', filename: 'empty.txt' }
+          ]
+        }
+      }
+    } as AgentRuntimeUserInput)
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
+      {
+        type: 'resource',
+        resource: { uri: 'urn:cherry:attachment:0', mimeType: 'application/pdf', blob: bytes.toString('base64') }
+      },
+      { type: 'resource', resource: { uri: 'urn:cherry:attachment:1', mimeType: 'text/plain', text: '' } }
+    ])
+  })
+
+  it.each(['no-images', 'missing-file', 'directory', 'missing-image'])(
+    'rejects unusable attachments before sending any prompt (%s)',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      await connection.start(cwd)
+      const part =
+        scenario === 'no-images'
+          ? { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aW1hZ2U=' }
+          : {
+              type: 'file',
+              mediaType: scenario === 'missing-image' ? 'image/png' : 'text/plain',
+              url: pathToFileURL(scenario === 'directory' ? cwd : path.join(cwd, 'missing')).href
+            }
+      await expect(connection.send({ message: { data: { parts: [part] } } } as AgentRuntimeUserInput)).rejects.toThrow()
+      const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+      expect(wire).not.toContain('session/prompt')
+    }
+  )
+
+  it.each(['mode', 'mode-legacy', 'mode-both'])(
+    'switches advertised modes and restores native state (%s)',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      const acp = connection as AcpConnection
+      await acp.start(cwd, 'native-session')
+      const mode = acp.localSessionInfo.mode!
+      expect(mode.currentValue).toBe('ask')
+      await expect(acp.setMode(mode.id, 'invalid')).rejects.toThrow('no longer available')
+      await acp.setMode(mode.id, 'plan')
+      expect(acp.localSessionInfo.mode?.currentValue).toBe('plan')
+      const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+      const request = wire.find(
+        (message) => message.method === (scenario === 'mode-legacy' ? 'session/set_mode' : 'session/set_config_option')
+      )
+      expect(request.params).toMatchObject(
+        scenario === 'mode-legacy' ? { modeId: 'plan' } : { configId: 'agent-mode', value: 'plan' }
+      )
+    }
+  )
+
+  it('keeps the confirmed mode when a change fails and removes withdrawn options', async () => {
+    const failed = create('acp', 'mode-error').connection as AcpConnection
+    await failed.start(cwd)
+    await expect(failed.setMode('agent-mode', 'plan')).rejects.toThrow('Mode unavailable')
+    expect(failed.localSessionInfo.mode?.currentValue).toBe('ask')
+    const removed = create('acp', 'mode-removed').connection as AcpConnection
+    await removed.start(cwd)
+    await removed.setMode('agent-mode', 'plan')
+    expect(removed.localSessionInfo.mode).toBeUndefined()
+  })
+
+  it('preserves thoughts, replaces plans, and merges partial tool details without replaying history', async () => {
+    const { connection, events, drained } = create('acp', 'rich-output')
+    await connection.start(cwd, 'native-session')
+    await connection.send(input)
+    await connection.close()
+    await drained
+    const chunks = events.flatMap((event) => (event.type === 'chunk' ? [event.chunk] : []))
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-delta')).toEqual([
+      expect.objectContaining({ delta: 'Inspect first' }),
+      expect.objectContaining({ delta: 'Then answer' })
+    ])
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-start')).toHaveLength(2)
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-end')).toHaveLength(2)
+    const plans = chunks.flatMap((chunk) => (chunk.type === 'data-agent-plan' && 'data' in chunk ? [chunk] : []))
+    expect(plans).toHaveLength(2)
+    expect(plans[0].id).toBe(plans[1].id)
+    expect(plans[1].data).toEqual({ entries: [{ content: 'Inspect', priority: 'high', status: 'completed' }] })
+    const tools = chunks.filter((chunk) => chunk.type === 'tool-input-available')
+    expect(tools.at(-1)).toMatchObject({
+      toolCallId: 'edit',
+      input: {
+        localAcpTool: {
+          title: 'Edit example',
+          kind: 'edit',
+          status: 'completed',
+          rawInput: { path: '/example' },
+          locations: [{ path: '/example', line: 2 }],
+          content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
+        }
+      }
+    })
+    expect(chunks.filter((chunk) => chunk.type === 'tool-output-available')).toHaveLength(1)
+  })
+
+  it('closes a partial thought on interruption without starting another response', async () => {
+    const { connection, events, drained } = create('acp', 'rich-cancel')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    await vi.waitFor(() =>
+      expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'reasoning-delta')).toBe(true)
+    )
+    await connection.close()
+    await sending
+    await drained
+    const chunks = events.flatMap((event) => (event.type === 'chunk' ? [event.chunk] : []))
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-end')).toHaveLength(1)
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-delta')).toHaveLength(1)
+  })
 
   it('preserves restored thought settings when the native model already matches', async () => {
     const { connection } = create('acp', 'thought-resume', 'fixture-model')
@@ -371,9 +627,11 @@ describe('local protocol processes', () => {
     })
     await sending
     expect(text()).toContain('"optionId":"always"')
-    expect(
-      events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
-    ).toHaveLength(1)
+    await vi.waitFor(() =>
+      expect(
+        events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
+      ).toHaveLength(1)
+    )
   })
 
   it('settles a standalone ACP approval card even when the agent uses a separate execution tool ID', async () => {
@@ -441,9 +699,22 @@ describe('local protocol processes', () => {
     await sending
     expect(await readFile(path.join(cwd, 'callback.txt'), 'utf8')).toBe('line1\nline2\nline3')
     expect(text()).toBe('turn 1: line2terminal-result')
-    expect(
-      events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
-    ).toHaveLength(2)
+    await vi.waitFor(() =>
+      expect(
+        events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
+      ).toHaveLength(3)
+    )
+    const terminalInputs = events.flatMap((event) =>
+      event.type === 'chunk' &&
+      event.chunk.type === 'tool-input-available' &&
+      event.chunk.toolCallId === 'terminal-tool'
+        ? [event.chunk.input]
+        : []
+    )
+    expect(terminalInputs.at(-1)).toMatchObject({
+      localAcpTool: { status: 'completed', terminals: expect.objectContaining({}) }
+    })
+    expect(JSON.stringify(terminalInputs.at(-1))).toContain('terminal-result')
   })
 
   it('suppresses ACP replay during load and rejects unsupported restore', async () => {

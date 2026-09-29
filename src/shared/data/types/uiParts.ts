@@ -26,6 +26,7 @@
 import * as z from 'zod'
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { LocalAgentPlan } from '@shared/ai/localAgent'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
@@ -138,6 +139,7 @@ export type RetryPartData =
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  'agent-plan': LocalAgentPlan
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData

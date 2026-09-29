@@ -115,6 +115,7 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { LocalAgentModeControl } from './agent/LocalAgentModeControl'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
@@ -1823,6 +1824,14 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
+      {agent?.type === 'local' && localInfo?.mode && !launchOptions?.editing ? (
+        <LocalAgentModeControl
+          key={sessionId}
+          sessionId={sessionId}
+          mode={localInfo.mode}
+          disabled={isStreaming || localThoughtSaving}
+        />
+      ) : null}
       {agent?.type === 'local' && localInfo?.thoughtLevel && !launchOptions?.editing ? (
         <ModelSpeedControl
           nativeReasoning={{

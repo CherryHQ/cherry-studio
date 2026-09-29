@@ -66,14 +66,6 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://cursor.com/docs/cli/acp'
   },
   {
-    id: 'gemini',
-    name: 'Gemini CLI',
-    protocol: 'acp',
-    executable: 'gemini',
-    args: ['--acp'],
-    helpUrl: 'https://geminicli.com/docs/'
-  },
-  {
     id: 'kimi',
     name: 'Kimi',
     protocol: 'acp',
@@ -330,14 +322,15 @@ export const LocalAgentProtocolInfoSchema = z.object({
 })
 export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema>
 
-export interface LocalAgentThoughtLevel {
+export interface LocalAgentSelection {
   id: string
   currentValue: string
-  options: Array<{ value: string; name: string }>
+  options: Array<{ value: string; name: string; description?: string }>
 }
 
 export interface LocalAgentSessionInfo {
-  thoughtLevel?: LocalAgentThoughtLevel
+  mode?: LocalAgentSelection
+  thoughtLevel?: LocalAgentSelection
   protocolInfo?: LocalAgentProtocolInfo
   models: Array<{ id: string; name: string }>
   activeModel?: { id: string; name?: string }
@@ -394,3 +387,26 @@ export const LocalAgentUninstallResultSchema = z.discriminatedUnion('ok', [
   })
 ])
 export type LocalAgentUninstallResult = z.infer<typeof LocalAgentUninstallResultSchema>
+
+export const LocalAgentPlanSchema = z.object({
+  entries: z.array(
+    z.object({
+      content: z.string(),
+      priority: z.enum(['high', 'medium', 'low']),
+      status: z.enum(['pending', 'in_progress', 'completed'])
+    })
+  )
+})
+export type LocalAgentPlan = z.infer<typeof LocalAgentPlanSchema>
+
+export const LocalAcpToolSchema = z.object({
+  title: z.string(),
+  kind: z.string().optional(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'failed']).optional(),
+  locations: z.array(z.object({ path: z.string(), line: z.number().optional() })).optional(),
+  content: z.array(z.unknown()).optional(),
+  rawInput: z.unknown().optional(),
+  rawOutput: z.unknown().optional(),
+  terminals: z.record(z.string(), z.string()).optional()
+})
+export type LocalAcpTool = z.infer<typeof LocalAcpToolSchema>

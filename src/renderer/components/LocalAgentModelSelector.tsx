@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { LockKeyhole, RefreshCw } from 'lucide-react'
 import { type ReactElement, type ReactNode, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +31,7 @@ interface LocalAgentModelSelectorProps {
   loadDisabled?: boolean
   loaded?: boolean
   error?: string
+  onOpenSettings?: () => void
   footer?: ReactNode
   side?: 'top' | 'bottom'
   onLoad: () => void | Promise<void>
@@ -46,12 +47,17 @@ export function LocalAgentModelSelector({
   loadDisabled,
   loaded,
   error,
+  onOpenSettings,
   footer,
   side = 'bottom',
   onLoad,
   onSelect
 }: LocalAgentModelSelectorProps) {
   const { t } = useTranslation()
+  const regionRestricted =
+    !!error && /not (?:currently )?available in your (?:location|region)|unsupported (?:location|region)/i.test(error)
+  const authenticationRequired =
+    regionRestricted || (!!error && /authentication required|not authenticated|login required/i.test(error))
   const [open, setOpen] = useState(false)
   const positionedRef = useRef(false)
   const scrollToSelected = useCallback((node: HTMLDivElement | null) => {
@@ -149,22 +155,42 @@ export function LocalAgentModelSelector({
         </Command>
         <div className="space-y-2 border-t border-border p-2">
           {error && (
-            <p role="alert" className="break-words text-xs text-destructive">
-              {error}
-            </p>
+            <div role="alert" className="flex gap-2 rounded-md bg-muted/50 p-2 text-xs">
+              {authenticationRequired && <LockKeyhole className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
+              <div className="min-w-0 space-y-1">
+                <p className={cn('break-words', !authenticationRequired && 'text-destructive')}>
+                  {authenticationRequired
+                    ? t(regionRestricted ? 'local_agents.auth_region_unavailable' : 'local_agents.sign_in_required')
+                    : error.replace(/^(?:IpcError|Error):\s*/, '')}
+                </p>
+              </div>
+            </div>
           )}
           {!loading && !error && loaded && !models.length && (
             <p className="text-xs text-muted-foreground">{t('local_agents.models_unavailable')}</p>
           )}
           {footer}
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={loading || disabled || loadDisabled}
-            onClick={() => void onLoad()}>
-            <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
-            {t(loading ? 'common.loading' : 'common.refresh')}
-          </Button>
+          <div className="flex items-center gap-2">
+            {authenticationRequired && onOpenSettings && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenSettings()
+                }}>
+                {t('local_agents.open_login_settings')}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={loading || disabled || loadDisabled}
+              onClick={() => void onLoad()}>
+              <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+              {t(loading ? 'common.loading' : 'common.refresh')}
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

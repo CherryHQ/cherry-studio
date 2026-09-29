@@ -8,6 +8,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentModelCatalog, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -90,6 +91,9 @@ export function LocalAgentModelControl({
       loading={loading}
       loaded={catalog?.key === catalogKey || models.length > 0}
       error={error}
+      onOpenSettings={() =>
+        openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(config.presetId ?? agent.id)}`)
+      }
       side={side}
       onLoad={loadModels}
       onSelect={selectModel}
