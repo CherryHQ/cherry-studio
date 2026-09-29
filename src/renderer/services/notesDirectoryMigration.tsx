@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import {
   NotesDirectoryMigrationConfirmContent,
   NotesDirectoryMigrationMergeContent
-} from '@renderer/pages/notes/components/NotesDirectoryMigrationConfirmContent'
+} from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
 import { ipcApi } from '@renderer/ipc'
 import { flushAllNotesEdits } from '@renderer/services/notesEditFlush'
 import { popup } from '@renderer/services/popup'
