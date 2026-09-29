@@ -15,19 +15,86 @@ import type {
 } from './types'
 
 const logger = loggerService.withContext('AgentSessionFallbackConnection')
-const RETRYABLE_STATUS = /\b(429|500|502|503|529)\b/
-const RETRYABLE_REASON = /rate.?limit|overload|quota|resource_exhausted/i
 
-/** Pi and DSH surface ordinary turn errors, rather than Claude's structured result error. */
+/** Provider statuses that justify leaving the primary model for this turn. */
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 529])
+/** The dsh-llm `LlmFailure.code` taxonomy, which routes on the code and never on `message`. */
+const RETRYABLE_CODE = new Set([
+  'RATE_LIMIT',
+  'RATE_LIMITED',
+  'SERVER',
+  'TIMEOUT',
+  'TRANSPORT',
+  'QUOTA',
+  'EMPTY_RESPONSE'
+])
+const HTTP_FAILURE_CODE = /^HTTP[_-]?(\d{3})$/
+/** The harness sentinel for "no machine class": it names nothing, so it decides nothing. */
+const UNKNOWN_FAILURE_CODE = 'UNKNOWN'
+
+interface ProviderFailureFacts {
+  status?: number
+  code?: string
+}
+
+/** The structured provider facts an error carries, or undefined when none of them decides. */
+function readProviderFailureFacts(error: object): ProviderFailureFacts | undefined {
+  const candidate = error as {
+    status?: unknown
+    statusCode?: unknown
+    code?: unknown
+    failure?: { status?: unknown; code?: unknown }
+  }
+  const status = [candidate.status, candidate.statusCode, candidate.failure?.status].find(
+    (value): value is number => typeof value === 'number'
+  )
+  const code = [candidate.code, candidate.failure?.code].find(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  )
+  return status !== undefined || (code !== undefined && code !== UNKNOWN_FAILURE_CODE) ? { status, code } : undefined
+}
+
+function classifyProviderFailure(facts: ProviderFailureFacts): string | undefined {
+  if (facts.status !== undefined) return RETRYABLE_STATUS.has(facts.status) ? `http ${facts.status}` : undefined
+  const code = facts.code
+  if (code === undefined) return undefined
+  const httpStatus = code.match(HTTP_FAILURE_CODE)?.[1]
+  if (httpStatus !== undefined) return RETRYABLE_STATUS.has(Number(httpStatus)) ? `http ${httpStatus}` : undefined
+  return RETRYABLE_CODE.has(code.toUpperCase()) ? code.toLowerCase() : undefined
+}
+
+/** Compatibility prose matching only: a retryable status has to be named as one. */
+const MESSAGE_HTTP_STATUS =
+  /\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(429|500|502|503|529)\b/i
+/** Provider vocabulary: it is what makes a bare status or an `overload` credible as provider prose. */
+const MESSAGE_PROVIDER_FRAME =
+  /\b(?:api|provider|upstream|servers?|services?|models?|llm|completions?|https?|status)\b/i
+const MESSAGE_STATUS = /\b(429|500|502|503|529)\b/
+const MESSAGE_PROVIDER_REASON =
+  /\brate[\s_-]?limit|too many requests|resource_exhausted|insufficient_quota|quota_exceeded/i
+/** Also names local alarms ("worker overload"), so it counts only inside a provider frame. */
+const MESSAGE_OVERLOAD = /\boverload/i
+
+function classifyMessageFailure(message: string): string | undefined {
+  const inProviderFrame = MESSAGE_PROVIDER_FRAME.test(message)
+  const status =
+    MESSAGE_HTTP_STATUS.exec(message)?.[1] ?? (inProviderFrame ? MESSAGE_STATUS.exec(message)?.[1] : undefined)
+  if (status !== undefined) return `http ${status}`
+  if (MESSAGE_PROVIDER_REASON.test(message)) return message.slice(0, 80)
+  return inProviderFrame && MESSAGE_OVERLOAD.test(message) ? message.slice(0, 80) : undefined
+}
+
+/**
+ * Pi and DSH surface ordinary turn errors, rather than Claude's structured result error. Structured
+ * provider facts decide; their prose qualifies only where the runtime reported nothing to route on.
+ */
 export function classifyRuntimeFallbackError(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined
-  const candidate = error as { status?: unknown; statusCode?: unknown; message?: unknown }
-  const status = candidate.status ?? candidate.statusCode
-  if (typeof status === 'number') return RETRYABLE_STATUS.test(String(status)) ? `http ${status}` : undefined
-  const message = typeof candidate.message === 'string' ? candidate.message : ''
-  const matched = message.match(RETRYABLE_STATUS)
-  if (matched) return `http ${matched[1]}`
-  return RETRYABLE_REASON.test(message) ? message.slice(0, 80) : undefined
+  const facts = readProviderFailureFacts(error)
+  // A reported status or failure class is the runtime's own verdict and outranks the prose with it.
+  if (facts) return classifyProviderFailure(facts)
+  const message = (error as { message?: unknown }).message
+  return classifyMessageFailure(typeof message === 'string' ? message : '')
 }
 
 /**
