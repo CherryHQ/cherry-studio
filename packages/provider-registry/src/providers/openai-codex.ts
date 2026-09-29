@@ -48,6 +48,14 @@ export default defineProvider({
   },
   overrides: [
     {
+      modelId: 'gpt-6-1-sol',
+      apiModelId: 'gpt-6.1-sol',
+      supportsFastMode: true,
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      endpointTypes: ['openai-responses'],
+      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], 'low')
+    },
+    {
       modelId: 'gpt-6-sol',
       apiModelId: 'gpt-6-sol',
       supportsFastMode: true,
