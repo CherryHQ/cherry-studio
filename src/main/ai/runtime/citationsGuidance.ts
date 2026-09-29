@@ -16,6 +16,8 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
+import { CITATION_ATTRIBUTION_POLICY } from './citationAttributionPolicy'
+
 // The agent calls these tools under their cherry-tools runtime names, so that is what the prompt
 // must quote — the bare `web_search` would not match anything it can invoke.
 const CHERRY_WEB_SEARCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)
@@ -36,5 +38,5 @@ export function buildCitationsGuidance({ web, kb }: CitationsGuidanceOptions): s
   ].join(' and ')
   return `## Citations
 
-Results from ${tools} each carry an \`id\` field. When a statement in your reply is based on one of those results, append a citation marker immediately after it: [cite:ID] with the exact id (e.g. "Prices rose 3% in June. [cite:3f2a1b9c-2]"). Chain markers when several results support one statement: [cite:3f2a1b9c-1][cite:7d4e0a51-3]. For synthesis across documents, search for relevant passages in more than one source; read a document to verify its wording and context, since one kb_read result only supports claims about that document. Match each claim to the results that actually support it. Use distinct sources when they provide evidence, but never cite a source just to increase the number of citations or reuse one source for unrelated claims. Statements from your own knowledge take no marker. Copy ids exactly — never invent or renumber them — and do not add a "References" or "Sources" section: the app renders citations from the inline markers.`
+Results from ${tools} each carry an \`id\` field. When a statement in your reply is based on one of those results, append a citation marker immediately after it: [cite:ID] with the exact id (e.g. "Prices rose 3% in June. [cite:3f2a1b9c-2]"). Chain markers when several results support one statement: [cite:3f2a1b9c-1][cite:7d4e0a51-3]. ${CITATION_ATTRIBUTION_POLICY} Statements from your own knowledge take no marker. Copy ids exactly — never invent or renumber them — and do not add a "References" or "Sources" section: the app renders citations from the inline markers.`
 }

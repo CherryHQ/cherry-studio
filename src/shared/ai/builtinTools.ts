@@ -19,6 +19,16 @@ import { isHttpUrl } from '@shared/utils/url'
  */
 export const CITATION_SNIPPET_MAX_CHARS = 1000
 
+/** Keep persisted and rendered previews equal without cutting a UTF-16 surrogate pair. */
+export function citationSnippet(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  let end = CITATION_SNIPPET_MAX_CHARS
+  const lastCodeUnit = trimmed.charCodeAt(end - 1)
+  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end--
+  return `${trimmed.slice(0, end)}…`
+}
+
 // ── Why no builtin tool runs with `strict: true` ─────────────────
 //
 // `strict` asks the provider for constrained decoding, which makes Anthropic compile every strict

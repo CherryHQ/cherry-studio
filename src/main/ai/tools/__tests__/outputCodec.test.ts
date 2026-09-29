@@ -55,6 +55,10 @@ describe('makeEntitiesCodec', () => {
     expect(s).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
     expect(s.endsWith('…')).toBe(true)
   })
+
+  it('preserves Unicode characters at the preview boundary', () => {
+    expect(codec.snippet(`${'x'.repeat(999)}😀tail`)).toBe(`${'x'.repeat(999)}…`)
+  })
 })
 
 describe('makeTextFieldCodec', () => {

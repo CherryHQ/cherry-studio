@@ -243,7 +243,14 @@ describe('resolveMessageCitations', () => {
 
   it('truncates a long read slice to a tooltip-sized snippet', () => {
     const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content: 'x'.repeat(2000) }))])
-    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`)
+    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(1000)}…`)
+    expect(CITATION_SNIPPET_MAX_CHARS).toBe(1000)
+  })
+
+  it('does not split a surrogate pair at the preview boundary', () => {
+    const content = `${'x'.repeat(999)}😀tail`
+    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content }))])
+    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(999)}…`)
   })
 
   it('aliases a document to its existing citation when kb_search already returned it', () => {
