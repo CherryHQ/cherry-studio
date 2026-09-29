@@ -1,9 +1,10 @@
+import { unlink } from 'node:fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { remove, removeDir, stat } from '@main/utils/file'
+import { removeDir, stat } from '@main/utils/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
 import { logger, validatePath } from '../types'
@@ -60,8 +61,14 @@ export async function handleDeleteTool(
         if (isDirectory) {
           await removeDir(validPath, { recursive })
         } else {
-          // Delete file
-          await remove(validPath)
+          try {
+            await unlink(validPath)
+          } catch (error: any) {
+            if (error.code === 'ENOENT') {
+              throw new Error(`Path not found: ${targetPath}`)
+            }
+            throw error
+          }
         }
       } catch (error: any) {
         if (error.code === 'ENOTEMPTY') {
