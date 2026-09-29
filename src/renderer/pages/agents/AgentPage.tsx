@@ -645,14 +645,7 @@ const AgentPage = () => {
         }
       })
     },
-    [
-      agents,
-      createAgent,
-      isAgentPresetModelIdSelectable,
-      isPresetModelContextReady,
-      selectableDefaultModelId,
-      t
-    ]
+    [agents, createAgent, isAgentPresetModelIdSelectable, isPresetModelContextReady, selectableDefaultModelId, t]
   )
 
   const handleAgentConversationSelect = useCallback(
