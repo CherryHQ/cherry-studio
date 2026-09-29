@@ -511,7 +511,19 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     virtualizer.measure()
-  }, [expanded, wrapped, fontSize, lineNumbers, rawLines.length, virtualizer])
+  }, [expanded, wrapped, fontSize, lineNumbers, rawLines, virtualizer])
+
+  useLayoutEffect(() => {
+    if (!wrapped) return
+    const scroller = scrollerRef.current
+    if (!scroller || typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(() => {
+      virtualizer.measure()
+    })
+    resizeObserver.observe(scroller)
+    return () => resizeObserver.disconnect()
+  }, [wrapped, virtualizer])
 
   useLayoutEffect(() => {
     if (!expanded) return
