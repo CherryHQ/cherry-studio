@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -64,6 +64,29 @@ function removePatchFieldsForVersion(
   }
 }
 
+function prunePatchFieldsMatchingCanonical(
+  current: CacheAssistantSettingsPatchPending,
+  canonicalSettings: AssistantSettings
+): CacheAssistantSettingsPatchPending | null {
+  const fields = { ...current.fields }
+  for (const key of Object.keys(fields)) {
+    const entry = fields[key]
+    if (!entry) continue
+    const canonicalValue = canonicalSettings[key as keyof AssistantSettings]
+    if (Object.is(canonicalValue, entry.value)) {
+      delete fields[key]
+    }
+  }
+  const remainingVersions = Object.values(fields)
+    .map((entry) => entry?.version ?? 0)
+    .filter((entryVersion) => entryVersion > 0)
+  if (remainingVersions.length === 0) return null
+  return {
+    fields,
+    version: Math.max(...remainingVersions)
+  }
+}
+
 function useAssistantPendingSetting<T>(
   assistantId: string | null | undefined,
   getKey: (id: string) => UseCacheKey,
@@ -74,19 +97,30 @@ function useAssistantPendingSetting<T>(
 
   const effective = assistantId && pending ? pending.value : canonical
 
+  useEffect(() => {
+    if (!assistantId || !pending) return
+    if (!Object.is(pending.value, canonical)) return
+    setPending((current) =>
+      current?.version === pending.version && Object.is(current.value, pending.value) ? null : current
+    )
+  }, [assistantId, canonical, pending, setPending])
+
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
-      const current = cacheService.get(getKey(assistantId))
-      const version = (current?.version ?? 0) + 1
-      setPending({ value, version })
-      return version
+      const key = getKey(assistantId)
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return { value, version }
+      })
+      return cacheService.get(key)?.version ?? 0
     },
     [assistantId, getKey, setPending]
   )
 
   const finishPending = useCallback(
-    (version: number) => {
+    (version: number, failed = false) => {
+      if (!failed) return
       setPending((current) => (current?.version === version ? null : current))
     },
     [setPending]
@@ -123,20 +157,30 @@ export function useAssistantPendingSettingsPatch(
       ? { ...canonicalSettings, ...pendingPatch }
       : canonicalSettings
 
+  useEffect(() => {
+    if (!assistantId || !pending || !canonicalSettings) return
+    setPending((current) => {
+      if (!current) return current
+      return prunePatchFieldsMatchingCanonical(current, canonicalSettings)
+    })
+  }, [assistantId, canonicalSettings, pending, setPending])
+
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
       const key = getSettingsPatchPendingKey(assistantId)
-      const current = cacheService.get(key) ?? null
-      const version = (current?.version ?? 0) + 1
-      setPending(mergePatchFields(current, patch, version))
-      return version
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return mergePatchFields(current ?? null, patch, version)
+      })
+      return cacheService.get(key)?.version ?? 0
     },
     [assistantId, setPending]
   )
 
   const finishPending = useCallback(
-    (version: number) => {
+    (version: number, failed = false) => {
+      if (!failed) return
       setPending((current) => {
         if (!current) return current
         return removePatchFieldsForVersion(current, version)

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import {
   useAssistantPendingReasoningEffort,
@@ -18,25 +19,40 @@ describe('useAssistantPendingReasoningEffort', () => {
     const pendingKey = `chat.assistant.reasoning_effort_pending.${assistantId}` as const
     cacheService.delete(pendingKey)
 
-    const canonical = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
-    const consumer = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
+    const hook = renderHook(
+      ({ canonical }: { canonical: ReasoningEffortOption }) =>
+        useAssistantPendingReasoningEffort(assistantId, canonical),
+      { initialProps: { canonical: 'default' as ReasoningEffortOption } }
+    )
+    const consumer = renderHook(
+      ({ canonical }: { canonical: ReasoningEffortOption }) =>
+        useAssistantPendingReasoningEffort(assistantId, canonical),
+      { initialProps: { canonical: 'default' as ReasoningEffortOption } }
+    )
 
-    expect(canonical.result.current.effective).toBe('default')
+    expect(hook.result.current.effective).toBe('default')
     expect(consumer.result.current.effective).toBe('default')
 
     act(() => {
-      canonical.result.current.startPending('high')
+      hook.result.current.startPending('high')
     })
 
-    expect(canonical.result.current.effective).toBe('high')
+    expect(hook.result.current.effective).toBe('high')
     expect(consumer.result.current.effective).toBe('high')
 
     act(() => {
-      canonical.result.current.finishPending(1)
+      hook.result.current.finishPending(1)
     })
 
-    expect(canonical.result.current.effective).toBe('default')
-    expect(consumer.result.current.effective).toBe('default')
+    expect(hook.result.current.effective).toBe('high')
+
+    act(() => {
+      hook.rerender({ canonical: 'high' })
+      consumer.rerender({ canonical: 'high' })
+    })
+
+    expect(hook.result.current.effective).toBe('high')
+    expect(consumer.result.current.effective).toBe('high')
   })
 
   it('does not clear a newer pending value when an older mutation finishes', () => {
@@ -44,8 +60,16 @@ describe('useAssistantPendingReasoningEffort', () => {
     const pendingKey = `chat.assistant.reasoning_effort_pending.${assistantId}` as const
     cacheService.delete(pendingKey)
 
-    const first = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
-    const second = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
+    const first = renderHook(
+      ({ canonical }: { canonical: ReasoningEffortOption }) =>
+        useAssistantPendingReasoningEffort(assistantId, canonical),
+      { initialProps: { canonical: 'default' as ReasoningEffortOption } }
+    )
+    const second = renderHook(
+      ({ canonical }: { canonical: ReasoningEffortOption }) =>
+        useAssistantPendingReasoningEffort(assistantId, canonical),
+      { initialProps: { canonical: 'default' as ReasoningEffortOption } }
+    )
 
     let firstVersion = 0
     let secondVersion = 0
@@ -68,8 +92,35 @@ describe('useAssistantPendingReasoningEffort', () => {
       second.result.current.finishPending(secondVersion)
     })
 
-    expect(first.result.current.effective).toBe('default')
-    expect(second.result.current.effective).toBe('default')
+    expect(first.result.current.effective).toBe('high')
+
+    act(() => {
+      first.rerender({ canonical: 'high' })
+      second.rerender({ canonical: 'high' })
+    })
+
+    expect(first.result.current.effective).toBe('high')
+    expect(second.result.current.effective).toBe('high')
+  })
+
+  it('reverts optimistic values when persistence fails', () => {
+    const assistantId = 'assistant-5'
+    const pendingKey = `chat.assistant.reasoning_effort_pending.${assistantId}` as const
+    cacheService.delete(pendingKey)
+
+    const { result } = renderHook(() => useAssistantPendingReasoningEffort(assistantId, 'default'))
+
+    let version = 0
+    act(() => {
+      version = result.current.startPending('high')
+    })
+    expect(result.current.effective).toBe('high')
+
+    act(() => {
+      result.current.finishPending(version, true)
+    })
+
+    expect(result.current.effective).toBe('default')
   })
 })
 
@@ -80,8 +131,12 @@ describe('useAssistantPendingSettingsPatch', () => {
     cacheService.delete(pendingKey)
 
     const canonical = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 1, topP: 1 }
-    const first = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
-    const second = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
+    const first = renderHook(({ settings }) => useAssistantPendingSettingsPatch(assistantId, settings), {
+      initialProps: { settings: canonical }
+    })
+    const second = renderHook(({ settings }) => useAssistantPendingSettingsPatch(assistantId, settings), {
+      initialProps: { settings: canonical }
+    })
 
     let firstVersion = 0
     let secondVersion = 0
@@ -97,14 +152,28 @@ describe('useAssistantPendingSettingsPatch', () => {
       first.result.current.finishPending(firstVersion)
     })
 
-    expect(first.result.current.effectiveSettings?.temperature).toBe(1)
+    expect(first.result.current.effectiveSettings?.temperature).toBe(0.2)
+    expect(first.result.current.effectiveSettings?.topP).toBe(0.5)
+
+    act(() => {
+      first.rerender({ settings: { ...canonical, temperature: 0.2 } })
+      second.rerender({ settings: { ...canonical, temperature: 0.2 } })
+    })
+
+    expect(first.result.current.effectiveSettings?.temperature).toBe(0.2)
     expect(first.result.current.effectiveSettings?.topP).toBe(0.5)
 
     act(() => {
       second.result.current.finishPending(secondVersion)
     })
 
-    expect(first.result.current.effectiveSettings).toEqual(canonical)
+    act(() => {
+      const synced = { ...canonical, temperature: 0.2, topP: 0.5 }
+      first.rerender({ settings: synced })
+      second.rerender({ settings: synced })
+    })
+
+    expect(first.result.current.effectiveSettings).toEqual({ ...canonical, temperature: 0.2, topP: 0.5 })
   })
 
   it('does not keep superseded field values when a newer mutation finishes first', () => {
@@ -113,8 +182,12 @@ describe('useAssistantPendingSettingsPatch', () => {
     cacheService.delete(pendingKey)
 
     const canonical = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 1 }
-    const first = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
-    const second = renderHook(() => useAssistantPendingSettingsPatch(assistantId, canonical))
+    const first = renderHook(({ settings }) => useAssistantPendingSettingsPatch(assistantId, settings), {
+      initialProps: { settings: canonical }
+    })
+    const second = renderHook(({ settings }) => useAssistantPendingSettingsPatch(assistantId, settings), {
+      initialProps: { settings: canonical }
+    })
 
     let firstVersion = 0
     let secondVersion = 0
@@ -129,13 +202,22 @@ describe('useAssistantPendingSettingsPatch', () => {
       second.result.current.finishPending(secondVersion)
     })
 
-    expect(first.result.current.effectiveSettings?.temperature).toBe(1)
+    expect(first.result.current.effectiveSettings?.temperature).toBe(0.8)
+    expect(first.result.current.pendingPatch).toEqual({ temperature: 0.8 })
+
+    act(() => {
+      const synced = { ...canonical, temperature: 0.8 }
+      first.rerender({ settings: synced })
+      second.rerender({ settings: synced })
+    })
+
+    expect(first.result.current.effectiveSettings?.temperature).toBe(0.8)
     expect(first.result.current.pendingPatch).toBeUndefined()
 
     act(() => {
       first.result.current.finishPending(firstVersion)
     })
 
-    expect(first.result.current.effectiveSettings).toEqual(canonical)
+    expect(first.result.current.effectiveSettings).toEqual({ ...canonical, temperature: 0.8 })
   })
 })

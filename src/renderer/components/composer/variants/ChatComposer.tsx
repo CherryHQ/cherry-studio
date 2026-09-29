@@ -713,7 +713,7 @@ const ChatComposerInner = ({
       return update
         ?.then(() => finishReasoningPending(version))
         .catch((error) => {
-          finishReasoningPending(version)
+          finishReasoningPending(version, true)
           throw error
         })
     },
@@ -880,7 +880,7 @@ const ChatComposerInner = ({
       void updateAssistantSettings({ reasoning_effort: option })
         .then(() => finishReasoningPending(version))
         .catch((error) => {
-          finishReasoningPending(version)
+          finishReasoningPending(version, true)
           logger.warn('Failed to persist reasoning effort', { error })
         })
     },
@@ -900,7 +900,7 @@ const ChatComposerInner = ({
       void updateAssistantSettings({ reasoning_summary: summary })
         .then(() => finishSettingsPatchPending(version))
         .catch((error) => {
-          finishSettingsPatchPending(version)
+          finishSettingsPatchPending(version, true)
           logger.warn('Failed to persist reasoning summary', { error })
         })
     },
@@ -913,7 +913,7 @@ const ChatComposerInner = ({
       void updateAssistantSettings({ service_tier: tier })
         .then(() => finishServiceTierPending(version))
         .catch((error) => {
-          finishServiceTierPending(version)
+          finishServiceTierPending(version, true)
           logger.warn('Failed to persist service tier', { error })
         })
     },

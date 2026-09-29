@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -26,19 +26,30 @@ function useAgentPendingSetting<T>(
 
   const effective = agentId && pending ? pending.value : canonical
 
+  useEffect(() => {
+    if (!agentId || !pending) return
+    if (!Object.is(pending.value, canonical)) return
+    setPending((current) =>
+      current?.version === pending.version && Object.is(current.value, pending.value) ? null : current
+    )
+  }, [agentId, canonical, pending, setPending])
+
   const startPending = useCallback(
     (value: T): number => {
       if (!agentId) return 0
-      const current = cacheService.get(getKey(agentId))
-      const version = (current?.version ?? 0) + 1
-      setPending({ value, version })
-      return version
+      const key = getKey(agentId)
+      setPending((current) => {
+        const version = (current?.version ?? 0) + 1
+        return { value, version }
+      })
+      return cacheService.get(key)?.version ?? 0
     },
     [agentId, getKey, setPending]
   )
 
   const finishPending = useCallback(
-    (version: number) => {
+    (version: number, failed = false) => {
+      if (!failed) return
       setPending((current) => (current?.version === version ? null : current))
     },
     [setPending]

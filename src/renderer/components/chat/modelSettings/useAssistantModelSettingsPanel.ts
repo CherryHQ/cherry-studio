@@ -62,7 +62,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
       const version = startSettingsPatchPending(patch)
       return persistSettings(patch)
         ?.then(() => finishSettingsPatchPending(version))
-        .catch(() => finishSettingsPatchPending(version))
+        .catch(() => finishSettingsPatchPending(version, true))
     },
     [finishSettingsPatchPending, persistSettings, startSettingsPatchPending]
   )
@@ -82,7 +82,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
       const version = startReasoningPending(option)
       void persistSettings({ reasoning_effort: option })
         ?.then(() => finishReasoningPending(version))
-        .catch(() => finishReasoningPending(version))
+        .catch(() => finishReasoningPending(version, true))
     },
     [
       assistant?.settings.enableWebSearch,
@@ -108,7 +108,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
       const version = startServiceTierPending(tier)
       void persistSettings({ service_tier: tier })
         ?.then(() => finishServiceTierPending(version))
-        .catch(() => finishServiceTierPending(version))
+        .catch(() => finishServiceTierPending(version, true))
     },
     [finishServiceTierPending, persistSettings, selectedAssistantId, startServiceTierPending]
   )

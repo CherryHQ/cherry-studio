@@ -1368,7 +1368,7 @@ const AgentComposerInner = ({
           setReasoningPendingSync((token) => token + 1)
         })
         .catch(() => {
-          finishReasoningPending(pendingVersion)
+          finishReasoningPending(pendingVersion, true)
           setReasoningOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )
@@ -1391,7 +1391,7 @@ const AgentComposerInner = ({
           )
         })
         .catch(() => {
-          finishServiceTierPending(pendingVersion)
+          finishServiceTierPending(pendingVersion, true)
           setServiceTierOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )

@@ -37,7 +37,7 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
       const version = startReasoningPending(option)
       void updateAgent({ id: agent.id, configuration: { reasoning_effort: option } }, { showSuccessToast: false })
         .then(() => finishReasoningPending(version))
-        .catch(() => finishReasoningPending(version))
+        .catch(() => finishReasoningPending(version, true))
     },
     [agent?.id, finishReasoningPending, startReasoningPending, updateAgent]
   )
@@ -48,7 +48,7 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
       const version = startServiceTierPending(tier)
       void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
         .then(() => finishServiceTierPending(version))
-        .catch(() => finishServiceTierPending(version))
+        .catch(() => finishServiceTierPending(version, true))
     },
     [agent?.id, finishServiceTierPending, startServiceTierPending, updateAgent]
   )
