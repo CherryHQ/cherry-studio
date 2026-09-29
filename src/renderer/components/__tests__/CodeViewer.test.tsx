@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
   resetHighlight: vi.fn(),
   measureElement: vi.fn(),
-  useVirtualizer: vi.fn((options: { count: number }) => ({
+  measure: vi.fn(),
+  useVirtualizer: vi.fn((options: { count: number; estimateSize?: (index: number) => number }) => ({
     getTotalSize: () => options.count * 20,
     getVirtualItems: () =>
       Array.from({ length: options.count }, (_, index) => ({
@@ -18,7 +19,8 @@ const mocks = vi.hoisted(() => ({
         key: `row-${index}`,
         start: index * 20
       })),
-    measureElement: vi.fn()
+    measureElement: vi.fn(),
+    measure: mocks.measure
   }))
 }))
 
@@ -50,11 +52,13 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientHeight')
+const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
 const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'scrollHeight')
 
-function mockScrollGeometry(geometry: { scrollHeight: number; clientHeight: number }) {
+function mockScrollGeometry(geometry: { scrollHeight: number; clientHeight: number; clientWidth?: number }) {
   Object.defineProperties(window.HTMLElement.prototype, {
     clientHeight: { configurable: true, get: () => geometry.clientHeight },
+    clientWidth: { configurable: true, get: () => geometry.clientWidth ?? 640 },
     scrollHeight: { configurable: true, get: () => geometry.scrollHeight }
   })
 }
@@ -80,6 +84,7 @@ describe('CodeViewer', () => {
 
   afterEach(() => {
     restoreDescriptor('clientHeight', originalClientHeightDescriptor)
+    restoreDescriptor('clientWidth', originalClientWidthDescriptor)
     restoreDescriptor('scrollHeight', originalScrollHeightDescriptor)
   })
 
@@ -194,6 +199,50 @@ describe('CodeViewer', () => {
     })
     // The un-highlighted fallback renders the raw text at full opacity
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
+  })
+
+  it('estimates taller virtual rows for wrapped long lines than short lines', () => {
+    let estimateSize: ((index: number) => number) | undefined
+    mocks.useVirtualizer.mockImplementation((options: { count: number; estimateSize?: (index: number) => number }) => {
+      estimateSize = options.estimateSize
+      return {
+        getTotalSize: () => options.count * 20,
+        getVirtualItems: () =>
+          Array.from({ length: options.count }, (_, index) => ({
+            index,
+            key: `row-${index}`,
+            start: index * 20
+          })),
+        measureElement: vi.fn(),
+        measure: mocks.measure
+      }
+    })
+
+    const longLine = 'x'.repeat(500)
+    const { rerender } = render(
+      <CodeViewer
+        value={`${longLine}\nshort`}
+        language="python"
+        wrapped
+        expanded={false}
+        maxHeight="350px"
+      />
+    )
+
+    expect(estimateSize).toBeDefined()
+    expect(estimateSize!(0)).toBeGreaterThan(estimateSize!(1))
+
+    mocks.measure.mockClear()
+    rerender(
+      <CodeViewer
+        value={`${longLine}more\nshort`}
+        language="python"
+        wrapped
+        expanded={false}
+        maxHeight="350px"
+      />
+    )
+    expect(mocks.measure).toHaveBeenCalled()
   })
 
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
