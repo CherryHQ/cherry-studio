@@ -2,8 +2,8 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-l
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import Hyperlink from '../Hyperlink'
-import Link from '../Link'
+import Hyperlink from '../MarkdownHyperlink'
+import { MarkdownLinkRenderer as Link } from '../MarkdownRenderers'
 
 const { parseMetadata, metadataHook, openExternalUrl } = vi.hoisted(() => ({
   openExternalUrl: vi.fn(),
@@ -14,9 +14,6 @@ const { parseMetadata, metadataHook, openExternalUrl } = vi.hoisted(() => ({
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: metadataHook
-}))
-vi.mock('../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({ openExternalUrl })
 }))
 
 describe('Hyperlink context menu', () => {
@@ -31,7 +28,11 @@ describe('Hyperlink context menu', () => {
     vi.useRealTimers()
     const user = userEvent.setup()
     const href = 'https://example.com/a%20b'
-    render(<Link href={href}>Website</Link>)
+    render(
+      <Link href={href} openExternalUrl={openExternalUrl}>
+        Website
+      </Link>
+    )
     await user.hover(screen.getByRole('link', { name: 'Website' }))
     const preview = await screen.findByRole('link', { name: /Website preview/ })
     for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {

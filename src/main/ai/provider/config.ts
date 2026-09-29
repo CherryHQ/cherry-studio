@@ -40,13 +40,20 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
+import {
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials,
+  routeToEndpoint
+} from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
@@ -64,6 +71,7 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  resolvedBaseUrl: string
   apiKeyOverride?: string
   endpointType?: EndpointType
   endpoint?: string
@@ -201,6 +209,7 @@ export async function resolveProviderAiSdkConfig(
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
+    resolvedBaseUrl: baseUrl,
     // Credential selection is intentionally deferred until a key-backed builder
     // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
     // for a key they never serve with.
@@ -238,6 +247,8 @@ export async function resolveProviderAiSdkConfig(
       }))
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
+    // ComfyUI has no OpenAI fallback or credential, so its builder bypasses both.
+    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withoutCredential(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
@@ -592,6 +603,24 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, headers }
+  }
+}
+
+/**
+ * ComfyUI: a credential-free local server, so the host is the whole contract — no
+ * `Authorization` even when a key field happens to be filled in (the extension's
+ * `apiKey` is accepted for symmetry and never read). `baseURL` is the server root;
+ * the transport appends its own paths (`/prompt`, `/history/{id}`, `/view?…`).
+ */
+function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
+  return {
+    providerId: 'comfyui',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: normalizeComfyuiBaseUrl(ctx.resolvedBaseUrl),
+      headers: headersWithoutCredentials(ctx.actualProvider)
+    }
   }
 }
 
