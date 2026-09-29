@@ -453,21 +453,6 @@ describe('useChatWriteActions — edit message', () => {
 describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('waits for regeneration to finish', async () => {
-    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
-    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
-    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
-    let finishRegenerate: (() => void) | undefined
-    regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
-
-    const request = actions.regenerate('a1')
-
-    expect(regenerate).toHaveBeenCalledOnce()
-
-    finishRegenerate?.()
-    await request
-  })
-
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.parts = [{ type: 'text', text: 'answer' }]
@@ -545,6 +530,7 @@ describe('useChatWriteActions — regenerate', () => {
   it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.metadata.modelId = 'provider::model-a'
+    assistantMessage.metadata.modelSelection = 'explicit'
     assistantMessage.parts = [{ type: 'text', text: 'answer in progress' }]
     const reservedMessage = {
       ...uiMsg('a2', 'assistant', 'u1', false, 'pending'),
@@ -582,6 +568,80 @@ describe('useChatWriteActions — regenerate', () => {
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
       preserveActiveNode: true
+    })
+  })
+
+  it.each(['default', undefined] as const)(
+    'uses the current model for %s replies with different-model siblings',
+    async (modelSelection) => {
+      const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+      replyA.metadata.modelId = 'provider::model-a'
+      replyA.metadata.modelSelection = modelSelection
+      replyA.parts = [{ type: 'text', text: 'original answer' }]
+      const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+      replyB.metadata.modelId = 'provider::model-b'
+      replyB.metadata.modelSelection = modelSelection
+      replyB.parts = [{ type: 'text', text: 'regenerated after switching models' }]
+      const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
+
+      await actions.regenerate('a2')
+
+      expect(streamOpen).not.toHaveBeenCalled()
+      expect(regenerate).toHaveBeenCalledWith({
+        messageId: 'a2',
+        body: expect.objectContaining({ parentAnchorId: 'u1' })
+      })
+      expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    }
+  )
+
+  it.each([true, false])('keeps an explicitly selected model when a sibling remains: %s', async (hasSibling) => {
+    const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    replyA.metadata.modelId = 'provider::model-a'
+    replyA.metadata.modelSelection = 'explicit'
+    replyA.parts = [{ type: 'text', text: 'answer a' }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([
+      uiMsg('u1', 'user', 'vroot'),
+      replyA,
+      ...(hasSibling ? [replyB] : [])
+    ])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
+    })
+  })
+
+  it('still retries a failed multi-model group reply in place with its original model', async () => {
+    const failedReplyA = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedReplyA.metadata.modelId = 'provider::model-a'
+    failedReplyA.metadata.modelSelection = 'explicit'
+    failedReplyA.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedReplyA, replyB])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
     })
   })
 

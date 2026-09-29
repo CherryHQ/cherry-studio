@@ -3562,6 +3562,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-fable-5-1",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-haiku-4-5",
       "providerId": "claude-code"
     },
@@ -3618,6 +3622,11 @@
       "apiModelId": "claude-opus-5[1m]",
       "modelId": "claude-opus-5",
       "name": "Claude Opus 5 (1M context)",
+      "providerId": "claude-code",
+      "supportsFastMode": true
+    },
+    {
+      "modelId": "claude-opus-5-5",
       "providerId": "claude-code",
       "supportsFastMode": true
     },
@@ -40944,5 +40953,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c262434020f29700"
+  "version": "8fb0dde9d8d03bba"
 }

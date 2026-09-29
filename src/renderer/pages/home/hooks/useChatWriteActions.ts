@@ -291,11 +291,7 @@ export function useChatWriteActions(params: Params): Result {
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
-      // Anchor semantics depend on the target role:
-      //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
-      //   - user:      keep the user itself, spawn assistant child — anchor = target.id
-      // Ordinary regeneration leaves the model unspecified so Main observes the current default.
-      // Failed in-place retries keep their original model; an explicit model always wins.
+      // Regenerating an assistant spawns a sibling; resending a user spawns a child.
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
@@ -307,6 +303,9 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : regenerateModelId
+      // Only a persisted explicit selection pins the model; sibling history cannot establish intent.
+      const effectiveRegenerateModelId =
+        target?.metadata?.modelSelection === 'explicit' ? retryModelId : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
       const isFailedAssistant =
@@ -336,16 +335,15 @@ export function useChatWriteActions(params: Params): Result {
         return
       }
 
-      // The message toolbar's @ picker is an explicit request to add the selected model to this
-      // reply group. Main decides atomically whether the group is still live: live groups append a
-      // new execution without moving activeNodeId; settled groups use the ordinary regenerate path.
-      if (target?.role === 'assistant' && parentAnchorId && options?.modelId) {
+      // Main admits explicit-model retries atomically: live groups append without moving the branch,
+      // while settled groups create a sibling.
+      if (target?.role === 'assistant' && parentAnchorId && effectiveRegenerateModelId) {
         const ack = await ipcApi.request('ai.stream.open', {
           trigger: 'regenerate-message',
           topicId: topic.id,
           parentAnchorId,
           appendToLiveGroupMessageId: target.id,
-          mentionedModelIds: [options.modelId],
+          mentionedModelIds: [effectiveRegenerateModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
