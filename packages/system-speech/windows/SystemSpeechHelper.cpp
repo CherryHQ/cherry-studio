@@ -6,6 +6,7 @@
 #include <sapi.h>
 #include <sphelper.h>
 #include <wrl/client.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Data.Json.h>
 
 #include <algorithm>
@@ -220,11 +221,11 @@ JsonObject transcribe(const JsonObject& request) {
                              IID_PPV_ARGS(recognizer.GetAddressOf())), "transcription_failed");
     require(recognizer->SetRecognizer(engine.Get()), "transcription_failed");
     ComPtr<ISpStream> input;
-    require(SpBindToFile(inputPath.c_str(), SPFM_OPEN_READONLY, input.GetAddressOf()), "transcription_failed");
+    require(SPBindToFile(inputPath.c_str(), SPFM_OPEN_READONLY, input.GetAddressOf()), "transcription_failed");
     require(recognizer->SetInput(input.Get(), TRUE), "transcription_failed");
     ComPtr<ISpRecoContext> context;
     require(recognizer->CreateRecoContext(context.GetAddressOf()), "transcription_failed");
-    const auto interest = SPFEI(SPEI_RECOGNITION) | SPFEI(SPEI_SR_END_STREAM);
+    const auto interest = SPFEI(SPEI_RECOGNITION) | SPFEI(SPEI_END_SR_STREAM);
     require(context->SetInterest(interest, interest), "transcription_failed");
     require(context->SetNotifyWin32Event(), "transcription_failed");
     ComPtr<ISpRecoGrammar> grammar;
@@ -243,12 +244,13 @@ JsonObject transcribe(const JsonObject& request) {
                 auto* recognition = reinterpret_cast<ISpRecoResult*>(event.lParam);
                 wchar_t* text = nullptr;
                 if (recognition &&
-                    recognition->GetText(SP_GETWHOLEPHRASE, SP_GETWHOLEPHRASE, TRUE, &text, nullptr) == S_OK && text) {
+                    recognition->GetText(static_cast<ULONG>(SP_GETWHOLEPHRASE), static_cast<ULONG>(SP_GETWHOLEPHRASE),
+                                         TRUE, &text, nullptr) == S_OK && text) {
                     if (!transcript.empty()) transcript += L" ";
                     transcript += text;
                 }
                 CoTaskMemFree(text);
-            } else if (event.eEventId == SPEI_SR_END_STREAM) {
+            } else if (event.eEventId == SPEI_END_SR_STREAM) {
                 ended = true;
             }
             SpClearEvent(&event);
@@ -312,7 +314,7 @@ JsonObject synthesize(const JsonObject& request) {
     format.nAvgBytesPerSec = 32000;
     try {
         ComPtr<ISpStream> output;
-        require(SpBindToFile(outputPath.c_str(), SPFM_CREATE_ALWAYS, output.GetAddressOf(),
+        require(SPBindToFile(outputPath.c_str(), SPFM_CREATE_ALWAYS, output.GetAddressOf(),
                              &SPDFID_WaveFormatEx, &format), "synthesis_failed");
         ComPtr<ISpVoice> voice;
         require(CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL,
