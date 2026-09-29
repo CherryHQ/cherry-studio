@@ -1,6 +1,8 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
+import { coerceCodexRequestBody } from '../codex'
+
 /**
  * Guards the sampling-parameter hunk in patches/@ai-sdk__openai@3.0.109.patch.
  * `forceReasoning` exists to make the adapter emit `reasoning` for models its
@@ -64,6 +66,8 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
 
       expect(body.model).toBe('gpt-6.1-sol')
       expect(body.reasoning).toEqual({ effort: reasoningEffort })
+      const codexBody = JSON.parse(coerceCodexRequestBody(JSON.stringify(body)) as string)
+      expect(codexBody.reasoning).toEqual({ effort: reasoningEffort })
       expect(body.temperature).toBeUndefined()
       expect(body.top_p).toBeUndefined()
       expect(warnings).not.toContainEqual(expect.objectContaining({ feature: 'reasoningEffort' }))

@@ -53,7 +53,8 @@ export default defineProvider({
       supportsFastMode: true,
       limits: { contextWindow: 272000, maxInputTokens: 144000 },
       endpointTypes: ['openai-responses'],
-      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], 'low')
+      // Codex Ultra also requires client-side task delegation; it is not a wire effort.
+      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max'], 'low')
     },
     {
       modelId: 'gpt-6-sol',

@@ -58,7 +58,7 @@ describe('OpenAI catalog', () => {
       reasoningContracts: {
         'openai-responses': {
           support: {
-            controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], default: 'low' }],
+            controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'low' }],
             defaultEffort: 'low'
           }
         }

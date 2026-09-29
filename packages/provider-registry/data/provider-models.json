@@ -21486,7 +21486,7 @@
               {
                 "default": "low",
                 "kind": "effort",
-                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+                "values": ["low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "low"
@@ -40978,5 +40978,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "b959838093a11bd7"
+  "version": "bd1ff301f4521d11"
 }
