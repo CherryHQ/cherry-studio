@@ -1096,6 +1096,22 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier.promise
   }
 
+  async closeLocalAgentForUninstall(presetId: string): Promise<boolean> {
+    const entries = [...this.entries.values()].filter(
+      (entry) =>
+        entry.agentType === 'local' &&
+        agentService.getAgent(entry.agentId)?.configuration?.localRuntime?.presetId === presetId
+    )
+    if (
+      entries.some(
+        (entry) => this.isSessionBusy(entry.sessionId) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+      )
+    )
+      return false
+    await Promise.all(entries.map((entry) => this.closeSession(entry.sessionId)))
+    return true
+  }
+
   /**
    * Release a connection opened by {@link primeConnection} (or left idle after a turn) when its
    * session view closes — frees the subprocess and clears the cached catalog now instead of waiting

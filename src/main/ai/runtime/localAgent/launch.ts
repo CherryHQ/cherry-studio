@@ -22,16 +22,40 @@ function selectInstallation(preset: LocalAgentPreset, snapshots: Record<string, 
   )
 }
 
+export function systemAgentEntry(executable: string): string {
+  return application.getPath('external.acp.bin', `${executable}${process.platform === 'win32' ? '.cmd' : ''}`)
+}
+
+async function selectAvailableInstallation(preset: LocalAgentPreset, snapshots: Record<string, BinaryToolSnapshot>) {
+  const installed = selectInstallation(preset, snapshots)
+  if (installed.source !== 'none') return installed
+  const entry = systemAgentEntry(preset.executable)
+  try {
+    if (!(await fs.stat(entry)).isFile()) return installed
+    await fs.access(entry, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
+    return { source: 'system' as const, path: entry }
+  } catch {
+    return installed
+  }
+}
+
 export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   const snapshots = await application
     .get('BinaryManager')
     .getToolSnapshots(LOCAL_AGENT_PRESETS.flatMap((preset) => [preset.executable, ...(preset.aliases ?? [])]))
-  return LOCAL_AGENT_PRESETS.map((preset) => ({ presetId: preset.id, ...selectInstallation(preset, snapshots) }))
+  return Promise.all(
+    LOCAL_AGENT_PRESETS.map(async (preset) => ({
+      presetId: preset.id,
+      ...(await selectAvailableInstallation(preset, snapshots))
+    }))
+  )
 }
 
 export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, signal?: AbortSignal) {
   const preset = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
   if (config.presetId && (!preset || preset.protocol !== config.protocol)) throw new Error('Invalid local agent preset')
+  if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
+    throw new Error('Local agent is being uninstalled')
   const shellEnv = await getRawShellEnv(signal)
   let executable: string | undefined
   let source = 'system'
@@ -48,13 +72,15 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots([preset.executable, ...(preset.aliases ?? [])])
-    const installation = selectInstallation(preset, snapshots)
+    const installation = await selectAvailableInstallation(preset, snapshots)
     executable = installation.source !== 'none' ? installation.path : undefined
     source = installation.source
   }
   if (!executable) {
     throw Object.assign(new Error('Local agent is not installed'), { code: 'LOCAL_AGENT_NOT_INSTALLED' })
   }
+  if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
+    throw new Error('Local agent is being uninstalled')
   const env =
     source === 'system'
       ? shellEnv

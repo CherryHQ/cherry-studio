@@ -341,3 +341,32 @@ export const LocalAgentCheckResultSchema = z.object({
   version: z.string().optional()
 })
 export type LocalAgentCheckResult = z.infer<typeof LocalAgentCheckResultSchema>
+
+export const LocalAgentInstallResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), reused: z.boolean(), path: z.string() }),
+  z.object({
+    ok: z.literal(false),
+    reason: z.enum([
+      'registry',
+      'unsupported',
+      'missing_runtime',
+      'managed_runtime',
+      'failed',
+      'not_detected',
+      'stopping'
+    ]),
+    manager: z.enum(['npm', 'uv']).optional(),
+    detail: z.string().optional()
+  })
+])
+export type LocalAgentInstallResult = z.infer<typeof LocalAgentInstallResultSchema>
+
+export const LocalAgentUninstallResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
+  z.object({
+    ok: z.literal(false),
+    reason: z.enum(['busy', 'unsupported', 'changed', 'failed']),
+    detail: z.string().optional()
+  })
+])
+export type LocalAgentUninstallResult = z.infer<typeof LocalAgentUninstallResultSchema>

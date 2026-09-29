@@ -370,6 +370,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
+      read-cmd-shim:
+        specifier: ^6.0.0
+        version: 6.0.0
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -397,6 +400,9 @@ importers:
       turndown:
         specifier: 7.2.0
         version: 7.2.0
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
       which:
         specifier: 6.0.1
         version: 6.0.1
@@ -851,6 +857,9 @@ importers:
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       '@types/unist':
         specifier: 3.0.3
         version: 3.0.3
@@ -9306,6 +9315,9 @@ packages:
   '@types/stream-json@1.7.8':
     resolution: {integrity: sha512-MU1OB1eFLcYWd1LjwKXrxdoPtXSRzRmAnnxs4Js/ayB5O/NvHraWwuOaqMWIebpYwM6khFlsJOHEhI9xK/ab4Q==}
 
+  '@types/through@0.0.33':
+    resolution: {integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==}
+
   '@types/tinycolor2@1.4.6':
     resolution: {integrity: sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw==}
 
@@ -9317,6 +9329,9 @@ packages:
 
   '@types/turndown@5.0.6':
     resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
+
+  '@types/unbzip2-stream@1.4.3':
+    resolution: {integrity: sha512-D8X5uuJRISqc8YtwL8jNW2FpPdUOCYXbfD6zNROCTbVXK9nawucxh10tVXE3MPjnHdRA1LvB0zDxVya/lBsnYw==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -15256,6 +15271,10 @@ packages:
   read-binary-file-arch@1.0.6:
     resolution: {integrity: sha512-BNg9EN3DD3GsDXX7Aa8O4p92sryjkmzYYgmgTAc6CA4uGLEDzFfxOxugu21akOxpcXHiEgsYkC6nPsQvLLLmEg==}
     hasBin: true
+
+  read-cmd-shim@6.0.0:
+    resolution: {integrity: sha512-1zM5HuOfagXCBWMN83fuFI/x+T/UhZ7k+KIzhrHXcQoeX5+7gmaDYjELQHmmzIodumBHeByBJT4QYS7ufAgs7A==}
+    engines: {node: ^20.17.0 || >=22.9.0}
 
   read-yaml-file@1.1.0:
     resolution: {integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==}
@@ -24906,6 +24925,10 @@ snapshots:
       '@types/node': 24.10.4
       '@types/stream-chain': 2.1.0
 
+  '@types/through@0.0.33':
+    dependencies:
+      '@types/node': 24.10.4
+
   '@types/tinycolor2@1.4.6': {}
 
   '@types/triple-beam@1.3.5': {}
@@ -24914,6 +24937,10 @@ snapshots:
     optional: true
 
   '@types/turndown@5.0.6': {}
+
+  '@types/unbzip2-stream@1.4.3':
+    dependencies:
+      '@types/through': 0.0.33
 
   '@types/unist@2.0.11': {}
 
@@ -31973,6 +32000,8 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
+
+  read-cmd-shim@6.0.0: {}
 
   read-yaml-file@1.1.0:
     dependencies:

@@ -191,6 +191,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').getLocalSessionInfo(sessionId),
   'ai.local_agents.detect': detectLocalAgents,
   'ai.local_agents.check': checkLocalAgent,
+  'ai.local_agents.uninstall': ({ presetId, expectedPath }) =>
+    application.get('LocalAgentInstallService').uninstall(presetId, expectedPath),
+  'ai.local_agents.install': ({ presetId }) => application.get('LocalAgentInstallService').install(presetId),
   'ai.agent.create': createAgent,
   'ai.agent.restore': async ({ agentId }) => {
     try {

@@ -32,6 +32,16 @@ describe('local agent installation resolution', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it('blocks new connections while the CLI is being removed', async () => {
+    const guard = vi.mocked(application.get('LocalAgentInstallService').isUninstalling)
+    guard.mockReturnValue(true)
+    try {
+      await expect(resolveLocalAgentLaunch(config)).rejects.toThrow('being uninstalled')
+    } finally {
+      guard.mockReturnValue(false)
+    }
+  })
+
   it('refreshes managed paths after upgrades and uses its isolated execution environment', async () => {
     inventory.snapshots.codex = { name: 'codex', availability: { source: 'mise', path: '/managed/v1/codex' } }
     const first = await resolveLocalAgentLaunch(config)

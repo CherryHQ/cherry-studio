@@ -20,6 +20,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { LocalAgentInstallService } from '@main/ai/runtime/localAgent/LocalAgentInstallService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -123,6 +124,7 @@ export const services = {
   CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
+  LocalAgentInstallService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

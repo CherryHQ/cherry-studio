@@ -4,6 +4,8 @@ import * as z from 'zod'
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import {
   LocalAgentConfigurationSchema,
+  LocalAgentInstallResultSchema,
+  LocalAgentUninstallResultSchema,
   LocalAgentCheckResultSchema,
   type LocalAgentSessionInfo,
   type LocalAgentDetection
@@ -337,6 +339,14 @@ export const aiRequestSchemas = {
     output: z.custom<LocalAgentSessionInfo | null>()
   }),
   'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
+  'ai.local_agents.uninstall': defineRoute({
+    input: z.object({ presetId: z.string().min(1), expectedPath: z.string().min(1) }),
+    output: LocalAgentUninstallResultSchema
+  }),
+  'ai.local_agents.install': defineRoute({
+    input: z.object({ presetId: z.string().min(1) }),
+    output: LocalAgentInstallResultSchema
+  }),
   'ai.local_agents.check': defineRoute({
     input: LocalAgentConfigurationSchema,
     output: LocalAgentCheckResultSchema

@@ -1,6 +1,8 @@
 import { useSearch } from '@tanstack/react-router'
 import {
   CheckCircle2,
+  Download,
+  Trash2,
   CircleAlert,
   ExternalLink,
   Loader2,
@@ -33,6 +35,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import {
   LOCAL_AGENT_PRESETS,
@@ -44,6 +47,16 @@ import {
 } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+
+const installErrorKeys = {
+  registry: 'local_agents.install_error.registry',
+  unsupported: 'local_agents.install_error.unsupported',
+  missing_runtime: 'local_agents.install_error.missing_runtime',
+  managed_runtime: 'local_agents.install_error.managed_runtime',
+  failed: 'local_agents.install_error.failed',
+  not_detected: 'local_agents.install_error.not_detected',
+  stopping: 'local_agents.install_error.stopping'
+} as const
 
 export function LocalAgentSettingsPage() {
   const { t } = useTranslation()
@@ -243,7 +256,9 @@ function LocalAgentEditor({
   const [name, setName] = useState(agent?.name ?? preset?.name ?? '')
   const [args, setArgs] = useState(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
   const [env, setEnv] = useState(JSON.stringify(initial.env, null, 2))
-  const [busyAction, setBusyAction] = useState<'save' | 'check' | 'toggle'>()
+  const [busyAction, setBusyAction] = useState<
+    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall'
+  >()
   const busy = busyAction !== undefined
   const [result, setResult] = useState<string>()
   const [resultOk, setResultOk] = useState(false)
@@ -279,6 +294,62 @@ function LocalAgentEditor({
         ]
           .filter(Boolean)
           .join('\n')
+  const install = async () => {
+    if (!preset || busy) return
+    setBusyAction('install')
+    setResult(undefined)
+    try {
+      const response = await ipcApi.request('ai.local_agents.install', { presetId: preset.id })
+      setResultOk(response.ok)
+      setResult(
+        response.ok
+          ? `${t('local_agents.install_success')}\n${response.path}`
+          : [t(installErrorKeys[response.reason], { manager: response.manager ?? '' }), response.detail]
+              .filter(Boolean)
+              .join('\n')
+      )
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
+  const uninstall = async () => {
+    if (!preset || !detection?.path || busy) return
+    const expectedPath = detection.path
+    setBusyAction('confirm-uninstall')
+    try {
+      if (
+        !(await popup.confirm({
+          title: t('local_agents.uninstall_title', { name: preset.name }),
+          content: (
+            <div className="space-y-3">
+              <p>{t('local_agents.uninstall_confirm')}</p>
+              <p className="break-all text-xs text-muted-foreground">{expectedPath}</p>
+            </div>
+          ),
+          okText: t('local_agents.uninstall'),
+          okButtonProps: { danger: true }
+        }))
+      )
+        return
+      setResult(undefined)
+      setBusyAction('uninstall')
+      const response = await ipcApi.request('ai.local_agents.uninstall', { presetId: preset.id, expectedPath })
+      setResultOk(response.ok)
+      setResult(
+        response.ok
+          ? t('local_agents.uninstall_success')
+          : [t(`local_agents.uninstall_error.${response.reason}`), response.detail].filter(Boolean).join('\n')
+      )
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
   const check = async () => {
     setBusyAction('check')
     try {
@@ -413,6 +484,16 @@ function LocalAgentEditor({
               </p>
             )}
             <div className="flex flex-wrap items-center gap-3">
+              {preset && !detection?.path && !initial.executableOverride && (
+                <Button size="sm" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => void install()}>
+                  {busyAction === 'install' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Download className="size-3.5" />
+                  )}
+                  {t(busyAction === 'install' ? 'local_agents.installing' : 'local_agents.install')}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -447,6 +528,9 @@ function LocalAgentEditor({
                 )
               )}
             </div>
+            {preset && !detection?.path && !initial.executableOverride && (
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.install_hint')}</p>
+            )}
             {!editing && feedback}
           </section>
         </div>
@@ -479,6 +563,16 @@ function LocalAgentEditor({
               </div>
             ) : (
               <div className="flex items-center justify-end gap-2">
+                {preset && detection?.path && !initial.executableOverride && (
+                  <Button variant="outline" className="mr-auto" disabled={busy} onClick={() => void uninstall()}>
+                    {busyAction === 'uninstall' ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="lucide-custom size-4 text-muted-foreground" />
+                    )}
+                    {t(busyAction === 'uninstall' ? 'local_agents.uninstalling' : 'local_agents.uninstall')}
+                  </Button>
+                )}
                 <Button variant="outline" disabled={busy} onClick={closeEditor}>
                   {t('common.cancel')}
                 </Button>

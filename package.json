@@ -150,6 +150,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
+    "read-cmd-shim": "^6.0.0",
     "registry-js": "1.16.1",
     "selection-hook": "2.1.1",
     "sharp": "0.35.3",
@@ -159,6 +160,7 @@
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
+    "unbzip2-stream": "^1.4.3",
     "which": "6.0.1",
     "ws": "^8.21.0"
   },
@@ -312,6 +314,7 @@
     "@types/stream-json": "^1",
     "@types/tinycolor2": "^1",
     "@types/turndown": "^5.0.5",
+    "@types/unbzip2-stream": "^1.4.3",
     "@types/unist": "3.0.3",
     "@types/use-sync-external-store": "^0.0.6",
     "@types/uuid": "^10.0.0",
