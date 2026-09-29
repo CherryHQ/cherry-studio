@@ -1,44 +1,77 @@
 {
-  "generated_at": "2026-08-30T18:00:00Z",
+  "generated_at": "2026-09-29T17:00:00Z",
   "note": "Discussions GraphQL API unavailable via GitHub MCP in this environment. Hot topics inferred from high-comment/high-engagement open issues.",
   "hot_topics_from_issues": [
     {
-      "number": 19630,
-      "title": "MAX_REQUESTED_OUTPUT_TOKENS hardcoded to 128_000",
-      "labels": ["help wanted","discussion","models"],
-      "engagement": "discussion label, no assignee"
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "labels": ["bug","p1","models","chat"],
+      "comments": 22,
+      "engagement": "22 comments — high community pain, no assignee, affects all providers"
     },
     {
-      "number": 19707,
-      "title": "Add session metrics bar — turns / tool-call steps / token usage / cache hit rate",
-      "labels": ["p2","feature"],
-      "engagement": "community feature request, no assignee"
+      "number": 19847,
+      "title": "Agent with DashScope Qwen3.8-Max terminates on mid-response server error without recovery",
+      "labels": ["bug","p1","needs-triage","models","agent"],
+      "comments": 20,
+      "engagement": "20 comments — DashScope/Qwen users, recovery/retry feature gap"
     },
     {
-      "number": 19696,
-      "title": "Support configuring Anthropic/OpenRouter cache TTL (1 hour)",
-      "labels": ["p3","feature","models"],
-      "engagement": "cache TTL hardcoded to 5min, developer pain point"
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 shows 'No tool output found' after long conversation",
+      "labels": ["bug","p1","agent","chat"],
+      "comments": 12,
+      "engagement": "12 comments, DeepSeek long-session breakage"
     },
     {
-      "number": 19465,
-      "title": "[Bug]: 公共 Environment 块 (3 posts sharing env block)",
-      "labels": [],
+      "number": 19171,
+      "title": "Model connectivity check hardcodes reasoning_effort: none",
+      "labels": ["bug","p1","connectivity","models"],
+      "comments": 13,
+      "engagement": "13 comments — broad provider compatibility issue (Kimi, Gemini, etc.)"
+    },
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into visible chat transcript",
+      "labels": ["bug","p1","agent"],
+      "comments": 10,
+      "engagement": "10 comments — confusing UX for all Agent users"
+    },
+    {
+      "number": 20838,
+      "title": "[Bug]: Fallback model that no longer exists fails silently",
+      "labels": ["bug","p2"],
+      "comments": 5,
+      "engagement": "Silent failure pattern — affects users who removed models from providers"
+    },
+    {
+      "number": 20907,
+      "title": "[Bug]: Image-only PDFs can time out during knowledge-base processing",
+      "labels": ["bug","windows","rag","needs-info"],
+      "comments": 8,
+      "engagement": "PDF/OCR pipeline issues — multiple confirmations"
+    },
+    {
+      "number": 20488,
+      "title": "[Discussion]: version 1.9.12 is better than version 2.0.13",
+      "labels": ["help wanted","discussion"],
       "comments": 4,
-      "engagement": "Chinese-language UX issue, 4 comments"
-    },
-    {
-      "number": 19492,
-      "title": "Knowledge Base refresh for Note-type items never updates snapshot",
-      "labels": ["rag"],
-      "comments": 2,
-      "engagement": "RAG data staleness, 2 comments"
+      "engagement": "V2 regression discussion — 4 comments, user sentiment"
     }
   ],
   "unanswered_themes": [
-    "Cache TTL configurability (Anthropic/OpenRouter)",
-    "Output token limit policy",
-    "Agent tool pre-authorization to avoid repeated prompts",
-    "Skill marketplace install failures (Windows long paths)"
+    "Agent runtime stability: DSH crashes, EPERM on Windows, EBADF on macOS",
+    "Context/stream failures with no finish_reason — multi-provider issue",
+    "P1 triage backlog explosion: 104 open P1 bugs unresolved",
+    "V2 regression: topic prompt management, compaction leaks, Windows update path",
+    "Reasoning model compatibility: hardcoded reasoning_effort breaks detection",
+    "Skill marketplace / manual skill install UX gaps"
+  ],
+  "new_since_last_run": [
+    {"number": 21085, "title": "KB scopes inline large builtin tool schemas — context overflow", "labels": ["bug","p1","rag","v2"]},
+    {"number": 21051, "title": "Windows restore fails with EPERM renaming Local Storage", "labels": ["bug","p2","windows","data","v2"]},
+    {"number": 21113, "title": "Make Assistants and prompt presets selectable Agent resources", "labels": ["p2","feature","assistant","agent"]},
+    {"number": 20993, "title": "MCP tools/list fails when tool outputSchema has boolean sub-schema", "labels": ["bug","mcp","v2"]},
+    {"number": 21002, "title": "Stage 2 — Model-Selectable Agent Diagnosis and Repair", "labels": ["feature","ui-ux","agent"], "note": "Assigned SiinXu + DeJeune — internal roadmap item"}
   ]
 }

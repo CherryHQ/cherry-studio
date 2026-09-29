@@ -1,74 +1,87 @@
 {
-  "generated_at": "2026-08-30T18:00:00Z",
-  "total_open_issues": 1008,
-  "p1_critical_count": 33,
+  "generated_at": "2026-09-29T17:00:00Z",
+  "total_open_issues": 1105,
+  "p1_critical_count": 104,
+  "p1_delta_30d": 71,
   "p1_breakdown": {
-    "active_assigned": 8,
-    "active_unassigned": 17,
-    "aging_7_30d": 5,
-    "stale_30_90d": 2,
-    "zombie_gt90d": 2,
-    "needs_repro_or_more_info": 5,
-    "new_today": 1
+    "active_assigned": 12,
+    "active_unassigned": 42,
+    "aging_7_30d": 28,
+    "stale_30_90d": 14,
+    "zombie_gt90d": 8,
+    "needs_repro_or_more_info": 15,
+    "v2_labeled": 10
   },
   "p1_platform_breakdown": {
-    "windows_specific": 10,
-    "linux_specific": 3,
-    "cross_platform": 20
+    "windows_specific": 38,
+    "linux_specific": 8,
+    "macos_specific": 7,
+    "cross_platform": 51
   },
   "p1_category_breakdown": {
-    "agent_pi_runtime": 9,
-    "ui_ux": 8,
-    "models_inference": 7,
-    "data_startup": 4,
-    "connectivity": 3,
-    "performance": 2,
-    "other": 0
+    "agent_runtime": 32,
+    "models_inference": 28,
+    "ui_ux": 16,
+    "connectivity": 12,
+    "data_startup": 8,
+    "performance": 5,
+    "rag_knowledge": 3
   },
   "high_urgency_unassigned_p1": [
-    {"number": 19753, "title": "DeepSeek Harness crashes during Agent sessions", "age_days": 0, "note": "NEW TODAY"},
-    {"number": 19659, "title": "Cannot switch model while streaming", "age_days": 2},
-    {"number": 19584, "title": "Agent WeChat replies not delivered after 2.0.9 upgrade", "age_days": 3},
-    {"number": 19583, "title": "Deleting topic fails to refresh", "age_days": 3},
-    {"number": 19579, "title": "Migration DB disk I/O failure on startup", "age_days": 3},
-    {"number": 19578, "title": "Linux arm64 main window flickers continuously", "age_days": 3},
-    {"number": 19577, "title": "Agent requests fail on SSL cert errors", "age_days": 3},
-    {"number": 19383, "title": "Built-in agent DELETE handler missing", "age_days": 5},
-    {"number": 19322, "title": "DSH Zstandard session first-frame contract broken", "age_days": 6},
-    {"number": 19314, "title": "DeepSeek V4 Pro reasoning finishes without final answer", "age_days": 6},
-    {"number": 19313, "title": "Managed DSH missing @deepseek-ai/dsh-scope", "age_days": 6}
+    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "age_days": 33, "note": "Active today — ARM regression"},
+    {"number": 19753, "title": "DeepSeek Harness repeatedly crashes during Agent sessions", "age_days": 30, "note": "Active today — 15 comments"},
+    {"number": 19787, "title": "Managed Python 3.12.13 not runnable on Kysec-restricted systems", "age_days": 29, "note": "Active today"},
+    {"number": 20940, "title": "Responses API stream events fail client TypeValidation", "age_days": 7},
+    {"number": 20941, "title": "Work and Agent conversations terminate with empty no-response error", "age_days": 7},
+    {"number": 20937, "title": "DSH cannot read dsh-bridge under Program Files (EPERM)", "age_days": 7},
+    {"number": 20407, "title": "Claude Code Agent spawn fails with EBADF on macOS arm64", "age_days": 18},
+    {"number": 20365, "title": "Clearing chat context still reports 90K cached prompt tokens", "age_days": 19},
+    {"number": 20343, "title": "OCR fallback fails for image input on non-vision models", "age_days": 19},
+    {"number": 19793, "title": "Chat fails when stream ends without finish reason", "age_days": 29, "note": "22 comments — high engagement"}
   ],
   "aging_p1_risk": [
-    {"number": 17949, "title": "V2 regression: topic prompt management broken", "age_days": 25},
-    {"number": 18741, "title": "DeepSeek V4 no tool output after long session", "age_days": 17},
-    {"number": 18382, "title": "File >8000 chars truncated", "age_days": 19},
-    {"number": 19254, "title": "Multimodal images not passed to model", "age_days": 8},
-    {"number": 19290, "title": "Claude SDK dev prompt injected twice", "age_days": 7}
+    {"number": 19171, "title": "Model connectivity check hardcodes reasoning_effort: none", "age_days": 38, "note": "13 comments, assigned DeJeune"},
+    {"number": 20692, "title": "Agent compaction summary leaks into chat transcript", "age_days": 12},
+    {"number": 20695, "title": "Parallel edit calls to same file cause lost updates", "age_days": 11},
+    {"number": 19847, "title": "DashScope Qwen3.8-Max terminates on mid-response error", "age_days": 28, "note": "20 comments"},
+    {"number": 19865, "title": "Claude Code Agent exhausts Windows virtual memory", "age_days": 27},
+    {"number": 19864, "title": "Large local Ollama context ends in opaque 500 and OOM", "age_days": 27},
+    {"number": 19321, "title": "Local API drops DeepSeek reasoning_text on tool continuations", "age_days": 36, "note": "13 comments"}
   ],
-  "stale_zombie_p1": [
-    {"number": 16863, "title": "ARM: cannot upload docs / switch input methods", "age_days": 64},
-    {"number": 15431, "title": "Quick Assist not working", "age_days": 156},
-    {"number": 10512, "title": "Cloud Backup Complete Failure", "age_days": 295},
-    {"number": 8730, "title": "Cannot connect SenseTime model", "age_days": 403}
+  "stale_zombie_p1_sample": [
+    {"number": 16863, "title": "ARM: cannot upload docs / switch input methods", "age_days": 95},
+    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "age_days": 117, "note": "internal-team"},
+    {"number": 14356, "title": "v2 fresh install — every message fails with Topic not found", "age_days": 165},
+    {"number": 12397, "title": "Expected function.name to be a string (MCP)", "age_days": 267},
+    {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 325},
+    {"number": 5996, "title": "Context length issue with DeepSeek model", "age_days": 503},
+    {"number": 5256, "title": "Auto-start and minimized-to-tray conflict on boot", "age_days": 523}
   ],
   "health_summary": {
-    "Active_le7d": "~64% (biased: page-1 sample is recency-sorted)",
-    "Aging_7_30d": "~25% estimate",
-    "Stale_30_90d": "~8% estimate",
-    "Zombie_gt90d": "~3% estimate",
-    "methodology": "Page-1 (100 most-recently-updated issues) all Active; health distribution extrapolated from historical drift and prior runs"
+    "Active_le7d": "~130 issues (12%)",
+    "Aging_7_30d": "~270 issues (24%)",
+    "Stale_30_90d": "~420 issues (38%)",
+    "Zombie_gt90d": "~285 issues (26%)",
+    "methodology": "Page-1 100-issue sample (sorted by updated_at DESC) shows all Active; remaining 1005 extrapolated from historical drift. True health is worse than active-biased view suggests."
   },
   "unclassified_issues": {
-    "no_labels": "~110 issues (11%)",
-    "needs_triage": "~150 issues (15%)",
-    "no_priority": "~420 issues (42%)",
-    "recommendation": "Triage sprint needed; focus on no-label issues first as they cannot be routed"
+    "no_labels": "~310 issues (28%)",
+    "needs_triage": "~155 issues (14%)",
+    "no_priority": "~465 issues (42%)",
+    "recommendation": "Urgent triage sprint needed — 28% of issues have zero labels and cannot be routed to any team member."
   },
+  "key_alerts": [
+    "P1 count tripled in 30 days (33→104): indicates triage/labeling acceleration OR genuine quality regression",
+    "97 net new open issues in 30 days: close rate lagging open rate significantly",
+    "7 oldest open issues (zombie P1) are from 2025 — data integrity risk",
+    "V2-labeled P1 bugs cluster around Agent/DSH runtime: #19753, #20937, #20940, #20941, #21085"
+  ],
   "volume_trend": {
-    "2026-08-28": "~1020 (estimated)",
-    "2026-08-29": 1014,
     "2026-08-30": 1008,
-    "delta_24h": -6,
-    "note": "Net decrease of 6 — closure pace exceeding open rate slightly"
+    "2026-09-29": 1105,
+    "delta_30d": 97,
+    "p1_2026-08-30": 33,
+    "p1_2026-09-29": 104,
+    "p1_delta_30d": 71
   }
 }
