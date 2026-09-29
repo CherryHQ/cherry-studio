@@ -80,6 +80,7 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
   # Keep Bun's internal runners independent of workspace config and preserve their argv delimiter.
   "@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-sandbox-local@0.2.0-rc.2.patch
   "@deepseek-ai/dsh-subprocess-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-subprocess-local@0.2.0-rc.2.patch

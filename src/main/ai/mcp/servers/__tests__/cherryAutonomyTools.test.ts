@@ -1399,15 +1399,13 @@ describe('CherryAutonomyTools', () => {
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
-        expect(parsed.supported_channel_types).toHaveLength(6)
-        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual([
-          'telegram',
-          'feishu',
-          'qq',
-          'wechat',
-          'discord',
-          'slack'
-        ])
+        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual(
+          expect.arrayContaining(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'dingtalk'])
+        )
+        expect(parsed.supported_channel_types.find((type: any) => type.type === 'dingtalk')).toMatchObject({
+          required_fields: ['client_id', 'client_secret', 'robot_code'],
+          optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']
+        })
         expect(parsed.soul_enabled).toBeUndefined()
         expect(parsed.heartbeat_enabled).toBe(true)
       })

@@ -142,6 +142,7 @@
     "@vectorstores/readers": "^0.1.8",
     "better-sqlite3": "12.11.1",
     "cross-spawn": "7.0.6",
+    "dingtalk-stream": "2.1.7-beta.1",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
     "grammy": "^1.36.3",

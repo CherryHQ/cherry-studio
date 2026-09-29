@@ -23,6 +23,7 @@ import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
 
 import type { ChannelData } from './channelTypes'
+import { DingTalkForm } from './DingTalkForm'
 import { WeComForm } from './WeComForm'
 
 // --------------- Permission mode ---------------
@@ -560,6 +561,8 @@ export const getFormForType = (type: string) => {
       return DiscordForm
     case 'slack':
       return SlackForm
+    case 'dingtalk':
+      return DingTalkForm
     case 'wecom':
       return WeComForm
     case 'wechat':

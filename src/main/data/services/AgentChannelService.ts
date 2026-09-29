@@ -96,7 +96,7 @@ export class AgentChannelService {
     }
 
     const result = application.get('DbService').withWriteTx((tx) => {
-      this.validateWeComBot(tx, data.type, insertData.config, isActive)
+      this.validateStreamBot(tx, data.type, insertData.config, isActive)
       return tx.insert(channelsTable).values(insertData).returning().all()
     })
 
@@ -252,7 +252,7 @@ export class AgentChannelService {
             : existing.config,
         isActive
       )
-      this.validateWeComBot(tx, existing.type, config, isActive, id)
+      this.validateStreamBot(tx, existing.type, config, isActive, id)
       const normalizedUpdates = {
         ...fields,
         ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
@@ -288,16 +288,21 @@ export class AgentChannelService {
     return result.length > 0
   }
 
-  private validateWeComBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
-    if (type !== 'wecom' || !active) return
-    const botId = (config as { bot_id: string }).bot_id
+  private validateStreamBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+    if ((type !== 'wecom' && type !== 'dingtalk') || !active) return
+    const key = type === 'wecom' ? 'bot_id' : 'client_id'
+    const botId = (config as Record<string, string>)[key]
     const conflict = tx
       .select()
       .from(channelsTable)
-      .where(and(eq(channelsTable.type, 'wecom'), eq(channelsTable.isActive, true)))
+      .where(and(eq(channelsTable.type, type), eq(channelsTable.isActive, true)))
       .all()
-      .some((row) => row.id !== id && (row.config as { bot_id?: string }).bot_id?.trim() === botId)
-    if (conflict) throw DataApiErrorFactory.invalidOperation('activate channel', t('common.wecom_duplicate_bot'))
+      .some((row) => row.id !== id && (row.config as Record<string, string>)[key]?.trim() === botId)
+    if (conflict)
+      throw DataApiErrorFactory.invalidOperation(
+        'activate channel',
+        type === 'wecom' ? t('common.wecom_duplicate_bot') : t('common.dingtalk_duplicate_bot')
+      )
   }
 
   private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {

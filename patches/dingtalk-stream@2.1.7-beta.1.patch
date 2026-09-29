@@ -1,0 +1,507 @@
+diff --git a/dist/client.cjs b/dist/client.cjs
+--- a/dist/client.cjs
++++ b/dist/client.cjs
+@@ -42,6 +42,8 @@
+   activeConnectPromise;
+   abortPendingConnect;
+   httpTimeout = 1e4;
++  endpointAbort;
++  logger;
+   eventTasks = /* @__PURE__ */ new Set();
+   inflightEvents = /* @__PURE__ */ new Map();
+   eventResults = /* @__PURE__ */ new Map();
+@@ -58,6 +60,7 @@
+   };
+   constructor(opts) {
+     super({ captureRejections: true });
++    this.logger = opts.logger ?? console;
+     const subscriptions = opts.subscriptions ?? defaultConfig.subscriptions;
+     this.config = {
+       ...defaultConfig,
+@@ -67,7 +70,7 @@
+       subscriptions: subscriptions.map((subscription) => ({ ...subscription }))
+     };
+     if (!this.config.clientId || !this.config.clientSecret) {
+-      console.error("clientId or clientSecret is null");
++      this.logger.error("clientId or clientSecret is null");
+       throw new Error("clientId or clientSecret is null");
+     }
+     if (!Number.isInteger(this.config.maxPendingEventHandlers) || this.config.maxPendingEventHandlers <= 0) {
+@@ -89,7 +92,7 @@
+   printDebug(msg) {
+     if (this.debug) {
+       const date = "[" + (/* @__PURE__ */ new Date()).toISOString() + "]";
+-      console.info(date, msg);
++      this.logger.info(date, msg);
+     }
+   }
+   registerAllEventListener(onEventReceived) {
+@@ -98,7 +101,7 @@
+   }
+   registerCallbackListener(eventId, callback) {
+     if (!eventId || !callback) {
+-      console.error(
++      this.logger.error(
+         "registerCallbackListener: eventId and callback must be defined"
+       );
+       throw new Error(
+@@ -147,7 +150,7 @@
+       if (messageId) {
+         inflightMessageIds.delete(messageId);
+       }
+-      console.warn(`Callback listener failed for topic ${eventId}`, err);
++      this.logger.warn(`Callback listener failed for topic ${eventId}`, err);
+       return;
+     }
+     if (!result) {
+@@ -156,7 +159,7 @@
+       }
+       return;
+     }
+-    const task = Promise.resolve(result).catch((err) => console.warn(`Callback listener failed for topic ${eventId}`, err));
++    const task = Promise.resolve(result).catch((err) => this.logger.warn(`Callback listener failed for topic ${eventId}`, err));
+     this.callbackTasks.add(task);
+     void task.finally(() => {
+       this.callbackTasks.delete(task);
+@@ -166,7 +169,7 @@
+     });
+   }
+   [EventEmitter.captureRejectionSymbol](err, eventName) {
+-    console.warn(`Callback listener failed for topic ${String(eventName)}`, err);
++    this.logger.warn(`Callback listener failed for topic ${String(eventName)}`, err);
+   }
+   async getAccessToken() {
+     const result = await axios.get(
+@@ -182,10 +185,13 @@
+   }
+   async getEndpoint() {
+     this.printDebug("get connect endpoint by config");
++    this.endpointAbort = new AbortController();
+     const res = await axios({
+       url: constants.GATEWAY_URL,
+       method: "POST",
+       timeout: this.httpTimeout,
++      signal: this.endpointAbort.signal,
++      maxRedirects: 0,
+       responseType: "json",
+       data: {
+         clientId: this.config.clientId,
+@@ -230,6 +236,7 @@
+     this.clearHeartbeat();
+     this.connected = false;
+     this.registered = false;
++    this.emit("connectionState", false);
+     const abortPendingConnect = this.abortPendingConnect;
+     this.abortPendingConnect = void 0;
+     abortPendingConnect == null ? void 0 : abortPendingConnect(reason);
+@@ -264,7 +271,7 @@
+         this.eventAbortControllers.set(socket, new AbortController());
+       } catch (err) {
+         this.printDebug("WebSocket constructor error");
+-        console.warn("ERROR", err);
++        this.logger.warn("ERROR", err);
+         reject(err);
+         return;
+       }
+@@ -300,14 +307,14 @@
+         opened = true;
+         this.connected = true;
+         this.reconnectAttempts = 0;
+-        console.info("[" + (/* @__PURE__ */ new Date()).toISOString() + "] connect success");
++        this.logger.info("[" + (/* @__PURE__ */ new Date()).toISOString() + "] connect success");
+         if (this.config.keepAlive) {
+           this.isAlive = true;
+           this.heartbeatIntervallId = setInterval(() => {
+             if (this.socket !== socket)
+               return;
+             if (this.isAlive === false) {
+-              console.error(
++              this.logger.error(
+                 "TERMINATE SOCKET: Ping Pong does not transfer heartbeat within heartbeat intervall"
+               );
+               return socket.terminate();
+@@ -332,6 +339,7 @@
+         this.printDebug("Socket closed");
+         this.connected = false;
+         this.registered = false;
++    this.emit("connectionState", false);
+         this.clearHeartbeat();
+         if (!opened) {
+           rejectOnce(new Error("WebSocket closed before the connection was established"));
+@@ -343,7 +351,7 @@
+         if (this.socket !== socket)
+           return;
+         this.printDebug("SOCKET ERROR");
+-        console.warn("ERROR", err);
++        this.logger.warn("ERROR", err);
+         rejectOnce(err);
+         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+           socket.terminate();
+@@ -390,6 +398,7 @@
+     } catch (err) {
+       this.printDebug("Connect failed: " + (err instanceof Error ? err.message : String(err)));
+       if (!this.userDisconnect) {
++        this.emit("connectionFailed");
+         this.reconnectAttempts++;
+         this.scheduleReconnect();
+       }
+@@ -399,8 +408,9 @@
+     }
+   }
+   disconnect() {
+-    console.info("Disconnecting.");
++    this.logger.info("Disconnecting.");
+     this.userDisconnect = true;
++    this.endpointAbort?.abort();
+     if (this.reconnectTimerId) {
+       clearTimeout(this.reconnectTimerId);
+       this.reconnectTimerId = void 0;
+@@ -432,7 +442,7 @@
+           break;
+       }
+     } catch (err) {
+-      console.warn("Failed to process downstream message", err);
++      this.logger.warn("Failed to process downstream message", err);
+     }
+   }
+   sendFrame(socket, payload, onSent) {
+@@ -443,12 +453,12 @@
+     try {
+       socket.send(JSON.stringify(payload), (err) => {
+         if (err) {
+-          console.warn("Failed to send websocket response", err);
++          this.logger.warn("Failed to send websocket response", err);
+         }
+         onSent == null ? void 0 : onSent();
+       });
+     } catch (err) {
+-      console.warn("Failed to send websocket response", err);
++      this.logger.warn("Failed to send websocket response", err);
+       onSent == null ? void 0 : onSent();
+     }
+   }
+@@ -494,7 +504,7 @@
+         this.cacheEventResult(messageId, ackData);
+       }
+     }).catch((err) => {
+-      console.warn("Failed to cache event result", err);
++      this.logger.warn("Failed to cache event result", err);
+     }).finally(() => {
+       this.eventTasks.delete(task);
+       if (messageId && this.inflightEvents.get(messageId) === task) {
+@@ -507,7 +517,7 @@
+       if (!(signal == null ? void 0 : signal.aborted)) {
+         this.sendEventAck(message, ackData, socket);
+       }
+-    }).catch((err) => console.warn("Failed to process event", err));
++    }).catch((err) => this.logger.warn("Failed to process event", err));
+   }
+   getCachedEventResult(messageId) {
+     const cached = this.eventResults.get(messageId);
+@@ -557,6 +567,7 @@
+       case "REGISTERED": {
+         if (ownsCurrentState) {
+           this.registered = true;
++          this.emit("connectionState", true);
+           this.reconnecting = false;
+         }
+         break;
+@@ -565,6 +576,7 @@
+         if (ownsCurrentState) {
+           this.connected = false;
+           this.registered = false;
++    this.emit("connectionState", false);
+         }
+         this.sendFrame(socket, {
+           code: 200,
+@@ -604,11 +616,11 @@
+     try {
+       ackData = await this.onEventReceived(message, signal);
+       if (!ackData || ackData.status !== "SUCCESS" /* SUCCESS */ && ackData.status !== "LATER" /* LATER */) {
+-        console.warn("Event listener returned an invalid acknowledgement");
++        this.logger.warn("Event listener returned an invalid acknowledgement");
+         ackData = { status: "LATER" /* LATER */ };
+       }
+     } catch (err) {
+-      console.warn("Event listener failed", err);
++      this.logger.warn("Event listener failed", err);
+       ackData = { status: "LATER" /* LATER */ };
+     }
+     return ackData;
+@@ -625,7 +637,7 @@
+   }
+   send(messageId, value) {
+     if (!messageId) {
+-      console.error("send: messageId must be defined");
++      this.logger.error("send: messageId must be defined");
+       throw new Error("send: messageId must be defined");
+     }
+     const msg = {
+@@ -656,7 +668,7 @@
+   }
+   sendGraphAPIResponse(messageId, value) {
+     if (!messageId) {
+-      console.error("send: messageId must be defined");
++      this.logger.error("send: messageId must be defined");
+       throw new Error("send: messageId must be defined");
+     }
+     const msg = {
+diff --git a/dist/client.mjs b/dist/client.mjs
+--- a/dist/client.mjs
++++ b/dist/client.mjs
+@@ -40,6 +40,8 @@
+   activeConnectPromise;
+   abortPendingConnect;
+   httpTimeout = 1e4;
++  endpointAbort;
++  logger;
+   eventTasks = /* @__PURE__ */ new Set();
+   inflightEvents = /* @__PURE__ */ new Map();
+   eventResults = /* @__PURE__ */ new Map();
+@@ -56,6 +58,7 @@
+   };
+   constructor(opts) {
+     super({ captureRejections: true });
++    this.logger = opts.logger ?? console;
+     const subscriptions = opts.subscriptions ?? defaultConfig.subscriptions;
+     this.config = {
+       ...defaultConfig,
+@@ -65,7 +68,7 @@
+       subscriptions: subscriptions.map((subscription) => ({ ...subscription }))
+     };
+     if (!this.config.clientId || !this.config.clientSecret) {
+-      console.error("clientId or clientSecret is null");
++      this.logger.error("clientId or clientSecret is null");
+       throw new Error("clientId or clientSecret is null");
+     }
+     if (!Number.isInteger(this.config.maxPendingEventHandlers) || this.config.maxPendingEventHandlers <= 0) {
+@@ -87,7 +90,7 @@
+   printDebug(msg) {
+     if (this.debug) {
+       const date = "[" + (/* @__PURE__ */ new Date()).toISOString() + "]";
+-      console.info(date, msg);
++      this.logger.info(date, msg);
+     }
+   }
+   registerAllEventListener(onEventReceived) {
+@@ -96,7 +99,7 @@
+   }
+   registerCallbackListener(eventId, callback) {
+     if (!eventId || !callback) {
+-      console.error(
++      this.logger.error(
+         "registerCallbackListener: eventId and callback must be defined"
+       );
+       throw new Error(
+@@ -145,7 +148,7 @@
+       if (messageId) {
+         inflightMessageIds.delete(messageId);
+       }
+-      console.warn(`Callback listener failed for topic ${eventId}`, err);
++      this.logger.warn(`Callback listener failed for topic ${eventId}`, err);
+       return;
+     }
+     if (!result) {
+@@ -154,7 +157,7 @@
+       }
+       return;
+     }
+-    const task = Promise.resolve(result).catch((err) => console.warn(`Callback listener failed for topic ${eventId}`, err));
++    const task = Promise.resolve(result).catch((err) => this.logger.warn(`Callback listener failed for topic ${eventId}`, err));
+     this.callbackTasks.add(task);
+     void task.finally(() => {
+       this.callbackTasks.delete(task);
+@@ -164,7 +167,7 @@
+     });
+   }
+   [EventEmitter.captureRejectionSymbol](err, eventName) {
+-    console.warn(`Callback listener failed for topic ${String(eventName)}`, err);
++    this.logger.warn(`Callback listener failed for topic ${String(eventName)}`, err);
+   }
+   async getAccessToken() {
+     const result = await axios.get(
+@@ -180,10 +183,13 @@
+   }
+   async getEndpoint() {
+     this.printDebug("get connect endpoint by config");
++    this.endpointAbort = new AbortController();
+     const res = await axios({
+       url: GATEWAY_URL,
+       method: "POST",
+       timeout: this.httpTimeout,
++      signal: this.endpointAbort.signal,
++      maxRedirects: 0,
+       responseType: "json",
+       data: {
+         clientId: this.config.clientId,
+@@ -228,6 +234,7 @@
+     this.clearHeartbeat();
+     this.connected = false;
+     this.registered = false;
++    this.emit("connectionState", false);
+     const abortPendingConnect = this.abortPendingConnect;
+     this.abortPendingConnect = void 0;
+     abortPendingConnect == null ? void 0 : abortPendingConnect(reason);
+@@ -262,7 +269,7 @@
+         this.eventAbortControllers.set(socket, new AbortController());
+       } catch (err) {
+         this.printDebug("WebSocket constructor error");
+-        console.warn("ERROR", err);
++        this.logger.warn("ERROR", err);
+         reject(err);
+         return;
+       }
+@@ -298,14 +305,14 @@
+         opened = true;
+         this.connected = true;
+         this.reconnectAttempts = 0;
+-        console.info("[" + (/* @__PURE__ */ new Date()).toISOString() + "] connect success");
++        this.logger.info("[" + (/* @__PURE__ */ new Date()).toISOString() + "] connect success");
+         if (this.config.keepAlive) {
+           this.isAlive = true;
+           this.heartbeatIntervallId = setInterval(() => {
+             if (this.socket !== socket)
+               return;
+             if (this.isAlive === false) {
+-              console.error(
++              this.logger.error(
+                 "TERMINATE SOCKET: Ping Pong does not transfer heartbeat within heartbeat intervall"
+               );
+               return socket.terminate();
+@@ -330,6 +337,7 @@
+         this.printDebug("Socket closed");
+         this.connected = false;
+         this.registered = false;
++    this.emit("connectionState", false);
+         this.clearHeartbeat();
+         if (!opened) {
+           rejectOnce(new Error("WebSocket closed before the connection was established"));
+@@ -341,7 +349,7 @@
+         if (this.socket !== socket)
+           return;
+         this.printDebug("SOCKET ERROR");
+-        console.warn("ERROR", err);
++        this.logger.warn("ERROR", err);
+         rejectOnce(err);
+         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+           socket.terminate();
+@@ -388,6 +396,7 @@
+     } catch (err) {
+       this.printDebug("Connect failed: " + (err instanceof Error ? err.message : String(err)));
+       if (!this.userDisconnect) {
++        this.emit("connectionFailed");
+         this.reconnectAttempts++;
+         this.scheduleReconnect();
+       }
+@@ -397,8 +406,9 @@
+     }
+   }
+   disconnect() {
+-    console.info("Disconnecting.");
++    this.logger.info("Disconnecting.");
+     this.userDisconnect = true;
++    this.endpointAbort?.abort();
+     if (this.reconnectTimerId) {
+       clearTimeout(this.reconnectTimerId);
+       this.reconnectTimerId = void 0;
+@@ -430,7 +440,7 @@
+           break;
+       }
+     } catch (err) {
+-      console.warn("Failed to process downstream message", err);
++      this.logger.warn("Failed to process downstream message", err);
+     }
+   }
+   sendFrame(socket, payload, onSent) {
+@@ -441,12 +451,12 @@
+     try {
+       socket.send(JSON.stringify(payload), (err) => {
+         if (err) {
+-          console.warn("Failed to send websocket response", err);
++          this.logger.warn("Failed to send websocket response", err);
+         }
+         onSent == null ? void 0 : onSent();
+       });
+     } catch (err) {
+-      console.warn("Failed to send websocket response", err);
++      this.logger.warn("Failed to send websocket response", err);
+       onSent == null ? void 0 : onSent();
+     }
+   }
+@@ -492,7 +502,7 @@
+         this.cacheEventResult(messageId, ackData);
+       }
+     }).catch((err) => {
+-      console.warn("Failed to cache event result", err);
++      this.logger.warn("Failed to cache event result", err);
+     }).finally(() => {
+       this.eventTasks.delete(task);
+       if (messageId && this.inflightEvents.get(messageId) === task) {
+@@ -505,7 +515,7 @@
+       if (!(signal == null ? void 0 : signal.aborted)) {
+         this.sendEventAck(message, ackData, socket);
+       }
+-    }).catch((err) => console.warn("Failed to process event", err));
++    }).catch((err) => this.logger.warn("Failed to process event", err));
+   }
+   getCachedEventResult(messageId) {
+     const cached = this.eventResults.get(messageId);
+@@ -555,6 +565,7 @@
+       case "REGISTERED": {
+         if (ownsCurrentState) {
+           this.registered = true;
++          this.emit("connectionState", true);
+           this.reconnecting = false;
+         }
+         break;
+@@ -563,6 +574,7 @@
+         if (ownsCurrentState) {
+           this.connected = false;
+           this.registered = false;
++    this.emit("connectionState", false);
+         }
+         this.sendFrame(socket, {
+           code: 200,
+@@ -602,11 +614,11 @@
+     try {
+       ackData = await this.onEventReceived(message, signal);
+       if (!ackData || ackData.status !== "SUCCESS" /* SUCCESS */ && ackData.status !== "LATER" /* LATER */) {
+-        console.warn("Event listener returned an invalid acknowledgement");
++        this.logger.warn("Event listener returned an invalid acknowledgement");
+         ackData = { status: "LATER" /* LATER */ };
+       }
+     } catch (err) {
+-      console.warn("Event listener failed", err);
++      this.logger.warn("Event listener failed", err);
+       ackData = { status: "LATER" /* LATER */ };
+     }
+     return ackData;
+@@ -623,7 +635,7 @@
+   }
+   send(messageId, value) {
+     if (!messageId) {
+-      console.error("send: messageId must be defined");
++      this.logger.error("send: messageId must be defined");
+       throw new Error("send: messageId must be defined");
+     }
+     const msg = {
+@@ -654,7 +666,7 @@
+   }
+   sendGraphAPIResponse(messageId, value) {
+     if (!messageId) {
+-      console.error("send: messageId must be defined");
++      this.logger.error("send: messageId must be defined");
+       throw new Error("send: messageId must be defined");
+     }
+     const msg = {
+diff --git a/dist/client.d.ts b/dist/client.d.ts
+--- a/dist/client.d.ts
++++ b/dist/client.d.ts
+@@ -79,6 +79,7 @@
+     private isAlive;
+     private onEventReceived;
+     constructor(opts: {
++        logger?: Pick<Console, "info" | "warn" | "error">;
+         clientId: string;
+         clientSecret: string;
+         ua?: string;

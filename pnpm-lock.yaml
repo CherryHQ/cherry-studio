@@ -247,6 +247,7 @@ patchedDependencies:
   app-builder-lib@26.15.6: 0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
+  dingtalk-stream@2.1.7-beta.1: e685b4ba9c997637a53c30f7b685ab879462b02b7703a90b39b732de3a034e88
   docx-preview@0.3.7: e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
@@ -325,6 +326,9 @@ importers:
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6
+      dingtalk-stream:
+        specifier: 2.1.7-beta.1
+        version: 2.1.7-beta.1(patch_hash=e685b4ba9c997637a53c30f7b685ab879462b02b7703a90b39b732de3a034e88)(supports-color@8.1.1)
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -10158,6 +10162,9 @@ packages:
   axios@1.16.0:
     resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
 
+  axios@1.20.0:
+    resolution: {integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==}
+
   b4a@1.7.3:
     resolution: {integrity: sha512-5Q2mfq2WfGuFp3uS//0s6baOJLMoVduPYVeNmDYxu5OUA1/cBfvr2RIS7vi62LdNj/urk1hfmj867I3qt6uZ7Q==}
     peerDependencies:
@@ -11202,6 +11209,9 @@ packages:
 
   dingbat-to-unicode@1.0.1:
     resolution: {integrity: sha512-98l0sW87ZT58pU4i61wa2OHwxbiYSbuxsCBozaVnYX2iCnr3bLM3fIes1/ej7h1YdOKuKt/MLs706TVnALA65w==}
+
+  dingtalk-stream@2.1.7-beta.1:
+    resolution: {integrity: sha512-MBWfDa3KrocwFPf5tOAhG2oM6FFYBN30sQQ7wbz7BPlRcuemAb7SGXbeztS49Pp/3Hiyzhwqjcssf8Yq3Z9DzA==}
 
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
@@ -25801,6 +25811,16 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
+  axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+    dependencies:
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@8.1.1))
+      form-data: 4.0.6
+      https-proxy-agent: 5.0.1(supports-color@8.1.1)
+      proxy-from-env: 2.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
   b4a@1.7.3: {}
 
   babel-dead-code-elimination@1.0.12(supports-color@8.1.1):
@@ -26900,6 +26920,16 @@ snapshots:
   dijkstrajs@1.0.3: {}
 
   dingbat-to-unicode@1.0.1: {}
+
+  dingtalk-stream@2.1.7-beta.1(patch_hash=e685b4ba9c997637a53c30f7b685ab879462b02b7703a90b39b732de3a034e88)(supports-color@8.1.1):
+    dependencies:
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@8.1.1)
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
 
   dir-compare@4.2.0:
     dependencies:

@@ -1,7 +1,7 @@
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 export type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'wecom' | 'discord' | 'slack'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'wecom' | 'dingtalk' | 'discord' | 'slack'
   name: string
   titleKey: string
   description: string
@@ -48,6 +48,21 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.channels.wechat.description',
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
+  },
+  {
+    type: 'dingtalk',
+    name: 'DingTalk',
+    titleKey: 'agent.channels.dingtalk.title',
+    description: 'agent.channels.dingtalk.description',
+    available: true,
+    defaultConfig: {
+      client_id: '',
+      client_secret: '',
+      robot_code: '',
+      card_template_id: '',
+      allowed_chat_ids: [],
+      allowed_user_ids: []
+    }
   },
   {
     type: 'wecom',

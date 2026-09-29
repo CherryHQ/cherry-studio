@@ -89,6 +89,9 @@ function getChannelSummary(channel: ChannelData): string {
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
+    case 'dingtalk':
+      if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
+      break
     case 'wecom':
       if (cfg.bot_id) parts.push(truncateId(cfg.bot_id as string))
       break
