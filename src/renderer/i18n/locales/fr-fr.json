@@ -3844,6 +3844,7 @@
   "settings.data.notes_relocation.error.generic": "Échec de la migration du répertoire de notes",
   "settings.data.notes_relocation.error.invalid_target": "Le répertoire sélectionné est invalide ou l’accès est refusé",
   "settings.data.notes_relocation.error.same_path": "Le nouveau répertoire est identique au répertoire de notes actuel",
+  "settings.data.notes_relocation.error.source_contains_symlinks": "Le dossier de notes actuel contient des liens symboliques et ne peut pas être migré",
   "settings.data.notes_relocation.error.source_missing": "Impossible de lire le répertoire de notes actuel",
   "settings.data.notes_relocation.error.source_not_directory": "Le chemin de notes actuel n’est pas un répertoire",
   "settings.data.notes_relocation.error.target_contains_source": "Le nouveau répertoire contient le dossier de notes actuel",

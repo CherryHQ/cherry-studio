@@ -3844,6 +3844,7 @@
   "settings.data.notes_relocation.error.generic": "Không thể di chuyển thư mục ghi chú",
   "settings.data.notes_relocation.error.invalid_target": "Thư mục đã chọn không hợp lệ hoặc bị từ chối truy cập",
   "settings.data.notes_relocation.error.same_path": "Thư mục mới trùng với thư mục ghi chú hiện tại",
+  "settings.data.notes_relocation.error.source_contains_symlinks": "Thư mục ghi chú hiện tại chứa liên kết tượng trưng và không thể di chuyển",
   "settings.data.notes_relocation.error.source_missing": "Không thể đọc thư mục ghi chú hiện tại",
   "settings.data.notes_relocation.error.source_not_directory": "Đường dẫn ghi chú hiện tại không phải thư mục",
   "settings.data.notes_relocation.error.target_contains_source": "Thư mục mới chứa thư mục ghi chú hiện tại",

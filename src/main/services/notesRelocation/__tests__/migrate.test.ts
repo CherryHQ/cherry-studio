@@ -156,4 +156,29 @@ describe('notesRelocation', () => {
 
     expect(() => assertNotesRelocationPaths(source, filesRoot)).toThrow()
   })
+
+  it('rejects a target inside the managed application data directory', () => {
+    const source = path.join(tempRoot, 'source-notes-appdata')
+    const appDataRoot = path.join(tempRoot, 'appdata')
+    const target = path.join(appDataRoot, 'notes-export')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target, { recursive: true })
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    expect(() => assertNotesRelocationPaths(source, target)).toThrow()
+  })
+
+  it('rejects a source directory that contains symbolic links', () => {
+    const source = path.join(tempRoot, 'source-notes-symlink')
+    const target = path.join(tempRoot, 'target-notes-symlink')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+    fs.symlinkSync(path.join(source, 'note.md'), path.join(source, 'link.md'))
+
+    const inspection = inspectNotesRelocation(source, target)
+    expect(inspection.valid).toBe(false)
+    if (inspection.valid) return
+    expect(inspection.reason).toBe('source_contains_symlinks')
+  })
 })

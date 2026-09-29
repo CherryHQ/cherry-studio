@@ -3844,6 +3844,7 @@
   "settings.data.notes_relocation.error.generic": "笔记目录迁移失败",
   "settings.data.notes_relocation.error.invalid_target": "所选目录无效或没有访问权限",
   "settings.data.notes_relocation.error.same_path": "新目录与当前笔记目录相同",
+  "settings.data.notes_relocation.error.source_contains_symlinks": "当前笔记文件夹包含符号链接，无法迁移",
   "settings.data.notes_relocation.error.source_missing": "无法读取当前笔记目录",
   "settings.data.notes_relocation.error.source_not_directory": "当前笔记路径不是文件夹",
   "settings.data.notes_relocation.error.target_contains_source": "新目录包含当前笔记文件夹",
