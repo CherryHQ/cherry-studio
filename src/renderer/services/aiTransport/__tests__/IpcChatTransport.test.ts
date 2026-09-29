@@ -489,6 +489,31 @@ describe('IpcChatTransport', () => {
     expect(second.done).toBe(true)
   })
 
+  it('reconnectToStream delivers execution-scoped attach replay on a topic-level stream', async () => {
+    const execId = 'provider-a::model-a' as UniqueModelId
+    const replay = [
+      { topicId, executionId: execId, chunk: { type: 'text-start', id: 't' } },
+      { topicId, executionId: execId, chunk: { type: 'text-delta', id: 't', delta: 'from-replay' } }
+    ]
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks: replay })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    mock.emitDone(topicId, undefined, true)
+    const chunks: UIMessageChunk[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'from-replay' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
   it('reconnectToStream does not pin topic stream to a filtered per-execution attach error', async () => {
     const execA = 'provider-a::model-a' as UniqueModelId
     const execB = 'provider-b::model-b' as UniqueModelId
@@ -526,7 +551,7 @@ describe('IpcChatTransport', () => {
     mock.mockApi.streamAttach.mockImplementation(async () => {
       mock.emitChunk(
         topicId,
-        { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' } as UIMessageChunk,
+        { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' },
         undefined,
         99
       )

@@ -208,15 +208,15 @@ describe('dropCoveredOverflow', () => {
 
 describe('repairAttachOverflow', () => {
   it('drops orphan tool-output in overflow after a capped replay tail', () => {
-    const replay = [
+    const replay: StreamChunkPayload[] = [
       { topicId: 't', seq: 1, chunk: { type: 'text-start', id: 'p' } },
       { topicId: 't', seq: 2, chunk: { type: 'text-delta', id: 'p', delta: 'a' } }
     ]
-    const overflow = [
+    const overflow: StreamChunkPayload[] = [
       {
         topicId: 't',
         seq: 3,
-        chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' }
+        chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' } as unknown as UIMessageChunk
       },
       { topicId: 't', seq: 4, chunk: { type: 'text-delta', id: 'p', delta: 'b' } }
     ]

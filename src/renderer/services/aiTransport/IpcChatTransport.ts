@@ -158,8 +158,11 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
         if (initialChunks) {
+          // Attach replay is already scoped; do not apply live-stream pin filters here
+          // or execution-scoped production chunks are dropped before the reader runs.
           for (const data of initialChunks) {
-            if (matchesStream(data)) controller.enqueue(data.chunk)
+            if (data.topicId !== topicId) continue
+            controller.enqueue(data.chunk)
           }
         }
 
