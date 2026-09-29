@@ -28,6 +28,15 @@ describe('resolveOllamaNumCtx', () => {
     expect(numCtx).toBeGreaterThanOrEqual(4_096)
   })
 
+  it('never exceeds the trained context window when applying the minimum floor', () => {
+    const numCtx = resolveOllamaNumCtx({
+      trainedContextWindow: 2_048,
+      freeMemoryBytes: 32 * 1024 ** 3,
+      totalMemoryBytes: 64 * 1024 ** 3
+    })
+    expect(numCtx).toBe(2_048)
+  })
+
   it('applies a session cap from a prior OOM retry', () => {
     const numCtx = resolveOllamaNumCtx({
       trainedContextWindow: 131_072,
@@ -54,9 +63,10 @@ describe('suggestReducedOllamaNumCtx', () => {
 })
 
 describe('isOllamaKvCacheAllocationError', () => {
-  it('recognizes common Ollama OOM phrases', () => {
+  it('recognizes KV-cache allocation failures', () => {
     expect(isOllamaKvCacheAllocationError('failed to allocate KV cache')).toBe(true)
-    expect(isOllamaKvCacheAllocationError('cuda out of memory')).toBe(true)
+    expect(isOllamaKvCacheAllocationError('out of memory allocating kvcache')).toBe(true)
+    expect(isOllamaKvCacheAllocationError('cuda out of memory')).toBe(false)
     expect(isOllamaKvCacheAllocationError('HTTP 500 Internal Server Error')).toBe(false)
   })
 })

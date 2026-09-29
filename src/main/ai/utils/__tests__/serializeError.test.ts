@@ -147,6 +147,24 @@ describe('serializeError', () => {
       expect(result.ollamaEffectiveNumCtx).toBe(65_536)
     })
 
+    it('does not tag generic GPU OOM text even with Ollama request context', () => {
+      const providerError = new APICallError({
+        message: 'cuda out of memory',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'cuda out of memory',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError, {
+        ollamaNumCtx: { trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBeUndefined()
+    })
+
     it('does not tag allocation-like failures without Ollama request context', () => {
       const providerError = new APICallError({
         message: 'cuda out of memory',
