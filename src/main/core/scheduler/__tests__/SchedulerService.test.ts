@@ -148,6 +148,39 @@ describe('interval re-arm phase preservation', () => {
     expect(scheduler.getNextRun('phase')?.getTime()).toBe(firstDeadline)
   })
 
+  it('carries the pending deadline across a dispose + re-register (JobManager re-arm path)', () => {
+    // JobManager.armSchedule disposes the prior registration BEFORE calling
+    // registerSchedule, so the carry must survive unregister — a live-entry
+    // replacement alone does not cover persisted schedules.
+    const disp = scheduler.registerSchedule('carry-dispose', { kind: 'interval', ms: 60_000 }, () => undefined)
+    const firstDeadline = scheduler.getNextRun('carry-dispose')?.getTime() ?? 0
+    vi.advanceTimersByTime(10_000)
+    disp.dispose()
+    expect(scheduler.has('carry-dispose')).toBe(false)
+    scheduler.registerSchedule('carry-dispose', { kind: 'interval', ms: 60_000 }, () => undefined)
+    expect(scheduler.getNextRun('carry-dispose')?.getTime()).toBe(firstDeadline)
+  })
+
+  it('starts a fresh period when the carried deadline already expired while unregistered', () => {
+    const disp = scheduler.registerSchedule('expired-carry', { kind: 'interval', ms: 60_000 }, () => undefined)
+    disp.dispose()
+    vi.advanceTimersByTime(120_000)
+    const before = Date.now()
+    scheduler.registerSchedule('expired-carry', { kind: 'interval', ms: 60_000 }, () => undefined)
+    expect(scheduler.getNextRun('expired-carry')?.getTime()).toBe(before + 60_000)
+  })
+
+  it('carried delay ignores system-clock adjustments between arms', () => {
+    scheduler.registerSchedule('mono-carry', { kind: 'interval', ms: 60_000 }, () => undefined)
+    vi.advanceTimersByTime(10_000)
+    // Wall clock jumps forward an hour between arms (NTP sync, VM thaw). The
+    // carried delay must come from the monotonic clock, so the pending fire
+    // stays ~50s away instead of reading as overdue.
+    vi.setSystemTime(Date.now() + 3_600_000)
+    scheduler.registerSchedule('mono-carry', { kind: 'interval', ms: 60_000 }, () => undefined)
+    expect(scheduler.getNextRun('mono-carry')?.getTime()).toBe(Date.now() + 50_000)
+  })
+
   it('changing the interval length still resets the phase', () => {
     scheduler.registerSchedule('rephase', { kind: 'interval', ms: 60_000 }, () => undefined)
     const before = Date.now()
