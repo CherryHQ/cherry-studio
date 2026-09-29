@@ -327,6 +327,9 @@ export function buildPathRegistry() {
     'external.tailscale.app': isMac
       ? '/Applications/Tailscale.app'
       : path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale'),
+    'external.tailscale.executable_file': isMac
+      ? '/Applications/Tailscale.app/Contents/MacOS/Tailscale'
+      : path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale', 'tailscale.exe'),
     'external.zerotier.app': isMac
       ? '/Applications/ZeroTier One.app'
       : path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'ZeroTier', 'One'),

@@ -242,7 +242,7 @@ describe('ApiGateway listening scope', () => {
     }
   })
 
-  it('keeps IPv4 available when the operating system disables IPv6', async () => {
+  it.each(['event', 'throw'])('keeps IPv4 available when IPv6 fails via %s', async (failure) => {
     const originalListen = NetServer.prototype.listen
     const listen = vi.spyOn(NetServer.prototype, 'listen').mockImplementation(function (
       this: NetServer,
@@ -250,7 +250,9 @@ describe('ApiGateway listening scope', () => {
     ) {
       const options = args[0] as { host?: string }
       if (options?.host === '::1') {
-        process.nextTick(() => this.emit('error', Object.assign(new Error('IPv6 disabled'), { code: 'EAFNOSUPPORT' })))
+        const error = Object.assign(new Error('IPv6 disabled'), { code: 'EAFNOSUPPORT' })
+        if (failure === 'throw') throw error
+        process.nextTick(() => this.emit('error', error))
         return this
       }
       return Reflect.apply(originalListen, this, args)

@@ -21,7 +21,15 @@ export class RemoteAdvertisement {
     const addresses = Object.values(networkInterfaces())
       .flatMap((entries) =>
         (entries ?? [])
-          .filter((entry) => !entry.internal && (entry.family === 'IPv4' || (ipv6 && entry.family === 'IPv6')))
+          .filter(
+            (entry) =>
+              !entry.internal &&
+              (entry.family === 'IPv4' ||
+                (ipv6 &&
+                  entry.family === 'IPv6' &&
+                  !/^fe[89ab][0-9a-f]:/i.test(entry.address) &&
+                  !entry.address.includes('%')))
+          )
           .map((entry) => entry.address)
       )
       .sort()
@@ -44,6 +52,7 @@ export class RemoteAdvertisement {
         type: remoteDiscoveryType,
         protocol: 'tcp',
         disableIPv6: !ipv6,
+        addresses,
         port,
         txt: { v: '1', identity }
       })

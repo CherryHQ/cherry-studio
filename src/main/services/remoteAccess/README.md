@@ -47,6 +47,9 @@ Deviations from the design doc, kept deliberately small:
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
 
+Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
+The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
+
 `connection.endpoints` requires an authenticated, current capability and returns the
 Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
 The mobile owns candidate verification and explicit persistence. Local setup checks and

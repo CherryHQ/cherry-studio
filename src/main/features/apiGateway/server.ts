@@ -1,7 +1,5 @@
 import type { Server as HttpServer } from 'http'
 
-import type { Server } from 'elysia/universal/server'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 
@@ -16,18 +14,12 @@ const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 /** How long a still-running response may delay shutdown before its socket is destroyed. */
 const SHUTDOWN_GRACE_MS = 3_000
 
-/**
- * `@elysia/node` resolves the listen callback's argument to Elysia's Bun-shaped
- * `Server` (which provides `stop()`), but at runtime hands back a srvx-backed object
- * that also carries `.raw` internals not present in that type. We widen the real
- * `Server` with exactly the `.raw` shape we read — so no cast is needed.
- */
-type NodeServerInfo = Server & {
-  raw?: {
-    // Node's `http.Server` — exposes the timeout knobs we set below.
-    node?: { server?: HttpServer }
-    // srvx `NodeServer`: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
-    ready?: () => Promise<unknown>
+// The Node adapter returns srvx internals, not the Bun server type exposed by Elysia.
+type NodeServerInfo = {
+  stop: () => Promise<unknown>
+  raw: {
+    node: { server: HttpServer }
+    ready: () => Promise<unknown>
   }
 }
 
@@ -63,7 +55,6 @@ export class ApiGateway {
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code
         if (code !== 'EAFNOSUPPORT' && code !== 'EADDRNOTAVAIL') throw error
-        await this.closeHttpServer(this.servers.pop())
         logger.info('IPv6 unavailable; listening on IPv4 only', { code })
       }
       logger.info('API server started', { hosts: this.getHosts(), port: this.boundPort })
@@ -77,23 +68,25 @@ export class ApiGateway {
     const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
     // Explicit IPv6-only sockets avoid platform-dependent dual-stack defaults.
     const options = { port, hostname: host, reusePort: false, gracefulShutdown: false, node: { ipv6Only: true } }
-    await new Promise<void>((resolve, reject) => {
-      try {
+    let created: NodeServerInfo | undefined
+    try {
+      const server = await new Promise<NodeServerInfo>((resolve, reject) => {
         app.listen(options, (server: NodeServerInfo) => {
-          this.servers.push(server)
-          const http = server.raw?.node?.server
-          if (http) this.applyServerTimeouts(http)
-          void server.raw!.ready!().then(() => resolve(), reject)
+          created = server
+          this.applyServerTimeouts(server.raw.node.server)
+          void server.raw.ready().then(() => resolve(server), reject)
         })
-      } catch (error) {
-        reject(error)
-      }
-    })
+      })
+      this.servers.push(server)
+    } catch (error) {
+      if (created) await this.closeHttpServer(created)
+      throw error
+    }
   }
 
   getHosts(): string[] {
     return this.servers.flatMap((server) => {
-      const address = server.raw?.node?.server?.address()
+      const address = server.raw.node.server.address()
       return address && typeof address !== 'string' ? [address.address] : []
     })
   }
@@ -107,13 +100,13 @@ export class ApiGateway {
     if (!this.servers.length || this.boundPort === undefined) throw new Error('API Gateway has no TCP listener')
     // Release listening handles only; existing local streams retain their sockets.
     for (const server of this.servers) {
-      const http = server.raw!.node!.server!
+      const http = server.raw.node.server
       if (http.listening) http.close()
     }
     try {
       for (const [index, server] of this.servers.entries()) {
         const address = index === 0 ? host : host === '0.0.0.0' ? '::' : '::1'
-        const http = server.raw!.node!.server!
+        const http = server.raw.node.server
         await new Promise<void>((resolve, reject) => {
           const onError = (error: Error) => {
             http.off('listening', onListening)
@@ -131,7 +124,7 @@ export class ApiGateway {
     } catch (error) {
       // A partially rebound pair must not leave an unreported network listener open.
       for (const server of this.servers) {
-        const http = server.raw!.node!.server!
+        const http = server.raw.node.server
         if (http.listening) http.close()
       }
       throw error
@@ -165,26 +158,26 @@ export class ApiGateway {
    * timeout is disabled — so awaiting it alone leaves the user's off switch spinning forever.
    */
   private async closeHttpServer(server: NodeServerInfo): Promise<void> {
-    const http = server.raw?.node?.server
-    if (http && !http.listening) http.closeAllConnections?.()
+    const http = server.raw.node.server
+    if (!http.listening) http.closeAllConnections?.()
     // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
-    const closed = Promise.resolve(server.stop?.()).catch((error: unknown) =>
+    const closed = Promise.resolve(server.stop()).catch((error: unknown) =>
       logger.warn('API server close failed', error as Error)
     )
     if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
 
     logger.warn('API server still has open connections after the grace period; destroying them')
-    http?.closeAllConnections?.()
+    http.closeAllConnections?.()
     // Stop waiting either way — the port is already released, whatever the remaining sockets do.
     await settledWithin(closed, SHUTDOWN_GRACE_MS)
   }
 
   isRunning(): boolean {
-    return this.servers.length > 0 && this.servers.every((server) => server.raw?.node?.server?.listening)
+    return this.servers.length > 0 && this.servers.every((server) => server.raw.node.server.listening)
   }
 
   getPort(): number {
-    const address = this.servers[0]?.raw?.node?.server?.address()
+    const address = this.servers[0]?.raw.node.server.address()
     if (!address || typeof address === 'string') throw new Error('API Gateway is not listening on a TCP port')
     return address.port
   }

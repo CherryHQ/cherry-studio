@@ -241,6 +241,7 @@ patchedDependencies:
   ai@6.0.185: 61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711
   app-builder-lib@26.15.6: 0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
+  bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
   docx-preview@0.3.7: e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
@@ -922,7 +923,7 @@ importers:
         version: 1.16.0(debug@4.4.3(supports-color@8.1.1))
       bonjour-service:
         specifier: 1.3.0
-        version: 1.3.0
+        version: 1.3.0(patch_hash=ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49)
       builder-util-runtime:
         specifier: 9.5.0
         version: 9.5.0(supports-color@8.1.1)
@@ -25583,7 +25584,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  bonjour-service@1.3.0:
+  bonjour-service@1.3.0(patch_hash=ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49):
     dependencies:
       fast-deep-equal: 3.1.3
       multicast-dns: 7.2.5

@@ -89,10 +89,7 @@ export async function checkVpnNetworks(signal: AbortSignal): Promise<VpnStatus[]
       const app = application.getPath(product === 'tailscale' ? 'external.tailscale.app' : 'external.zerotier.app')
       let executable = availability && availability.source !== 'none' ? availability.path : undefined
       if (!executable && product === 'tailscale' && process.platform !== 'linux') {
-        const bundled = application.getPath(
-          'external.tailscale.app',
-          process.platform === 'darwin' ? 'Contents/MacOS/Tailscale' : 'tailscale.exe'
-        )
+        const bundled = application.getPath('external.tailscale.executable_file')
         if (existsSync(bundled)) executable = bundled
       }
       if (!executable) return { product, state: existsSync(app) ? 'unknown' : 'not-detected', networks: [] }
