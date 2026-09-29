@@ -201,6 +201,20 @@ describe('CodeViewer', () => {
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
   })
 
+  it('positions each virtual row with its own translateY offset', () => {
+    const { container } = render(
+      <CodeViewer value={'line 1\nline 2\nline 3'} language="typescript" maxHeight="350px" />
+    )
+
+    const rows = Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]
+    expect(rows).toHaveLength(3)
+    expect(rows.map((row) => row.style.transform)).toEqual([
+      'translateY(0px)',
+      'translateY(20px)',
+      'translateY(40px)'
+    ])
+  })
+
   it('remasures virtual rows and resets scroll position when expanding a collapsed code block', () => {
     const { container, rerender } = render(
       <CodeViewer value={'line 1\nline 2'} language="typescript" expanded={false} maxHeight="350px" />
