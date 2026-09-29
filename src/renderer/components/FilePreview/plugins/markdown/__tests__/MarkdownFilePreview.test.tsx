@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+  default: (props: { language: string; options?: { highlight?: boolean }; value: string; wrapped: boolean }) => {
     mocks.codeViewer(props)
     return <div data-testid="code-viewer">{props.value}</div>
   }
@@ -147,6 +147,46 @@ describe('MarkdownFilePreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
     expect(screen.getByRole('heading')).toBeInTheDocument()
+  })
+
+  // A document over the render budget used to go through the Markdown pipeline in one
+  // synchronous pass and block the renderer until it finished.
+  it('shows plain source instead of rendering a document over the rich render budget', async () => {
+    mocks.readText.mockResolvedValueOnce('# File preview')
+
+    renderPreview({ size: 1024 * 1024 + 1, type: 'artifact' })
+
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# File preview')
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('file_preview.markdown.plain_fallback.description')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
+  })
+
+  it('locks the view switch so a plain-text document cannot be forced through rendering', async () => {
+    mocks.readText.mockResolvedValueOnce('# File preview')
+
+    renderPreview({ size: 1024 * 1024 + 1 })
+
+    await screen.findByTestId('code-viewer')
+    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' })).toBeDisabled()
+  })
+
+  it('shows plain source for a document dominated by very long lines', async () => {
+    mocks.readText.mockResolvedValueOnce('a'.repeat(60_000))
+
+    renderPreview({ size: 60_000 })
+
+    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('keeps rendering a document that fits the render budget', async () => {
+    mocks.readText.mockResolvedValueOnce('# File preview')
+
+    renderPreview({ size: 1024 * 1024 })
+
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
   it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
