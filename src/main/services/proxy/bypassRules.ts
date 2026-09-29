@@ -13,7 +13,7 @@ export type ProxyBypassMatcherFactory = typeof createProxyBypassMatcher
 
 type HostnameMatchType = 'exact' | 'wildcardSubdomain' | 'generalWildcard'
 
-type ProxyBypassRuleType = 'local' | 'cidr' | 'ip' | 'domain' | 'loopbackScope'
+type ProxyBypassRuleType = 'local' | 'cidr' | 'ip' | 'domain' | 'loopbackScope' | 'matchAll'
 
 interface ParsedProxyBypassRule {
   type: ProxyBypassRuleType
@@ -95,11 +95,22 @@ export function createProxyBypassMatcher(
       }
     }
 
-    if (trimmedRule === '<-loopback>') {
+    // Match-all including IP literals: with the in-process agent unconditionally proxying, this
+    // rule owns the bypass-everything behavior `NO_PROXY=*` used to provide.
+    if (trimmedRule === '*') {
+      return {
+        type: 'matchAll',
+        matchType: 'exact',
+        rule: trimmedRule
+      }
+    }
+
+    if (trimmedRule.toLowerCase() === '<-loopback>') {
       // Chromium's subtractive directive for the implicit loopback scope (see
-      // isImplicitLoopbackScope), spelled as an exclude entry. Its position in the list matters:
-      // the matcher lets later rules override earlier ones, so `<-loopback>,localhost` keeps
-      // localhost bypassed while `localhost,<-loopback>` sends it through the proxy.
+      // isImplicitLoopbackScope), spelled as an exclude entry, matched case-insensitively like
+      // Chromium parses it. Its position in the list matters: the matcher lets later rules
+      // override earlier ones, so `<-loopback>,localhost` keeps localhost bypassed while
+      // `localhost,<-loopback>` sends it through the proxy.
       return {
         type: 'loopbackScope',
         matchType: 'exact',
@@ -236,10 +247,12 @@ export function createProxyBypassMatcher(
     return false
   }
 
-  // The implicit scope that `<-loopback>` negates: loopback hostnames (including the Windows-only
-  // `loopback` and the legacy `localhost6` aliases), the whole .localhost TLD, the loopback and
-  // unspecified IPv4 ranges, link-local addresses, and IPv4-mapped loopback
-  // (net::IsIPv4MappedLoopback).
+  // The implicit scope that `<-loopback>` negates, mirroring Chromium's implicit rules: loopback
+  // hostnames (including the Windows-only `loopback` form), the whole .localhost TLD, the
+  // loopback and unspecified IPv4 ranges, link-local addresses, and IPv4-mapped loopback
+  // (net::IsIPv4MappedLoopback). The `localhost6` aliases are deliberately absent — they live
+  // in the defensive defaults but are not Chromium implicit scope, so the negation must not
+  // remove them either.
   const isImplicitLoopbackScope = (hostname: string): boolean => {
     if (isLocalHostname(hostname)) {
       return true
@@ -269,7 +282,7 @@ export function createProxyBypassMatcher(
       return true
     }
 
-    return ['loopback', 'localhost6', 'localhost6.localdomain6'].includes(cleaned.toLowerCase())
+    return cleaned.toLowerCase() === 'loopback'
   }
 
   /**
@@ -335,6 +348,8 @@ export function createProxyBypassMatcher(
           }
 
           switch (rule.type) {
+            case 'matchAll':
+              return true
             case 'local':
               if (isLocalHostname(hostname)) {
                 return true

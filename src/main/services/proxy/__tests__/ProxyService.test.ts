@@ -137,6 +137,13 @@ describe('resolveProxyConfig', () => {
     ).toBe('*.local,<-loopback>')
   })
 
+  it('honors the negation case-insensitively and keeps the user spelling verbatim', () => {
+    expect(
+      resolveProxyConfig({ mode: 'custom', url: 'http://proxy.lan:7890', bypassRules: '*.local,<-LoopBack>' })
+        ?.proxyBypassRules
+    ).toBe('*.local,<-LoopBack>')
+  })
+
   it('merges a loopback scope the Node matcher actually honors for every covered host form', () => {
     const merged = resolveProxyConfig({
       mode: 'custom',

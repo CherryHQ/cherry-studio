@@ -63,7 +63,7 @@ function withLoopbackBypass(bypassRules: string): string {
     .map((entry) => entry.trim())
     .filter(Boolean)
   if (entries.length === 0) return LOOPBACK_BYPASS_RULES.join(',')
-  if (entries.some((entry) => entry === '*' || entry === '<-loopback>')) return entries.join(',')
+  if (entries.some((entry) => entry === '*' || entry.toLowerCase() === '<-loopback>')) return entries.join(',')
   const seen = new Set(entries.map((entry) => entry.toLowerCase()))
   for (const rule of LOOPBACK_BYPASS_RULES) {
     if (!seen.has(rule)) {

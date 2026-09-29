@@ -34,7 +34,7 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
-    const loopbackEscape = normalizedBypassRules.includes('<-loopback>')
+    const loopbackEscape = normalizedBypassRules.some((rule) => rule.toLowerCase() === '<-loopback>')
     // Keep local services reachable independently of the configured proxy. The matcher resolves
     // conflicts the way Chromium's does — later rules override earlier rules — so with the
     // `<-loopback>` escape hatch armed these defaults must stay out: appended at the end they

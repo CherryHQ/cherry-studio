@@ -222,6 +222,85 @@ describe('NodeProxyController', () => {
     }
   })
 
+  it('lets a bare * bypass hostname and IP-literal targets alike (NO_PROXY=* parity)', async () => {
+    // 127.0.0.2 is an IP literal the controller's appended defaults do not name — only a
+    // working match-all rule keeps it off the proxy.
+    const aliasedServer = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'local' }))
+    })
+    const localServer = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'local' }))
+    })
+    const tunnels: string[] = []
+    const proxyRequests: string[] = []
+    const proxyServer = createServer((request, response) => {
+      proxyRequests.push(request.url ?? '')
+      response.writeHead(404).end()
+    })
+    proxyServer.on('connect', (request, clientSocket) => {
+      tunnels.push(request.url ?? '')
+      clientSocket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n')
+    })
+    const aliasedPort = await new Promise<number>((resolve, reject) => {
+      aliasedServer.once('error', reject)
+      aliasedServer.listen(0, '127.0.0.2', () => {
+        const address = aliasedServer.address()
+        if (!address || typeof address === 'string') {
+          reject(new Error('Missing aliased server port'))
+          return
+        }
+        resolve(address.port)
+      })
+    })
+    const localPort = await listen(localServer)
+    const proxyPort = await listen(proxyServer)
+    const controller = new NodeProxyController()
+    const proxyEnvKeys = [
+      CHERRY_NODE_PROXY_RULES_ENV,
+      CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
+      'HTTP_PROXY',
+      'HTTPS_PROXY',
+      'grpc_proxy',
+      'http_proxy',
+      'https_proxy',
+      'NO_PROXY',
+      'no_proxy',
+      'SOCKS_PROXY',
+      'socks_proxy',
+      'ALL_PROXY',
+      'all_proxy'
+    ] as const
+    const originalEnv = Object.fromEntries(proxyEnvKeys.map((key) => [key, process.env[key]]))
+    try {
+      // With the in-process agent unconditionally proxying, the matcher now owns the bare-*
+      // behavior NO_PROXY=* used to provide — hostname and IP-literal hosts alike.
+      await controller.configure({
+        proxyRules: `http://127.0.0.1:${proxyPort}`,
+        proxyBypassRules: '*'
+      })
+      for (const [hostname, port] of [
+        ['localhost', localPort],
+        ['127.0.0.2', aliasedPort]
+      ] as const) {
+        const response = await fetch(`http://${hostname}:${port}/models`, { signal: AbortSignal.timeout(5000) })
+        expect(await response.json()).toEqual({ source: 'local' })
+      }
+      expect(tunnels).toEqual([])
+      expect(proxyRequests).toEqual([])
+    } finally {
+      await controller.configure({})
+      for (const key of proxyEnvKeys) {
+        const value = originalEnv[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      aliasedServer.close()
+      await Promise.all([close(localServer), close(proxyServer)])
+    }
+  })
+
   it('lets <-loopback> send local traffic through the configured proxy', async () => {
     const localServer = createServer((_request, response) => {
       response.setHeader('content-type', 'application/json')

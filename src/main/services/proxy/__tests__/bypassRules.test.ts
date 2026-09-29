@@ -189,6 +189,33 @@ describe('ProxyBypassRuleMatcher — <-loopback> ordering', () => {
     withRules(['<-loopback>', '*.localhost'])
     expect(matcher.isByPass('http://foo.localhost:8001/')).toBe(true)
   })
+
+  it('a bare * bypasses IP literals too, keeping the old NO_PROXY=* parity', () => {
+    withRules(['*'])
+    expect(matcher.isByPass('http://example.com:8001/')).toBe(true)
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(true)
+    expect(matcher.isByPass('http://[::1]:8001/')).toBe(true)
+    // first-match-reversed: a later negation still overrides the match-all
+    withRules(['*', '<-loopback>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+  })
+
+  it('parses the negation case-insensitively like Chromium does', () => {
+    // negation last: it gets the first say under reverse evaluation, so a false here proves
+    // `<-LOOPBACK>` was parsed as the directive and not as an unmatchable domain rule
+    withRules(['127.0.0.1', '<-LOOPBACK>'])
+    expect(matcher.isByPass('http://127.0.0.1:8001/')).toBe(false)
+  })
+
+  it('does not apply the negation to the localhost6 aliases — they are not implicit scope', () => {
+    // negation last: under reverse evaluation it gets the first say, so a true here can
+    // only come from the alias not being part of the implicit scope
+    withRules(['localhost6', '<-loopback>'])
+    expect(matcher.isByPass('http://localhost6:8001/')).toBe(true)
+    // without an explicit entry they simply stay proxied, like Chromium leaves them
+    withRules(['<-loopback>'])
+    expect(matcher.isByPass('http://localhost6:8001/')).toBe(false)
+  })
 })
 
 describe('ProxyBypassRuleMatcher — implicit loopback scope parity (Chromium MatchesImplicitRules)', () => {
