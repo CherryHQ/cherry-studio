@@ -101,7 +101,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
     notes: z.string().optional(),
-    apiKeyId: z.string().nullable().optional()
+    apiKeyId: z.string().min(1).nullable().optional()
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 

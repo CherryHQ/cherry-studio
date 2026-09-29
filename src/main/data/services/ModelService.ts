@@ -1000,6 +1000,12 @@ class ModelService {
     providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
+    if (dto.apiKeyId === '') {
+      throw DataApiErrorFactory.invalidOperation(
+        `update model ${providerId}/${modelId}`,
+        'api key id must not be empty'
+      )
+    }
     if (dto.apiKeyId != null && dto.apiKeyId !== '') {
       const keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
       if (!keyIds.has(dto.apiKeyId)) {
@@ -1062,6 +1068,12 @@ class ModelService {
 
     for (const { providerId, modelId, patch } of items) {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
+      if (patch.apiKeyId === '') {
+        throw DataApiErrorFactory.invalidOperation(
+          `update model ${providerId}/${modelId}`,
+          'api key id must not be empty'
+        )
+      }
       if (patch.apiKeyId != null && patch.apiKeyId !== '') {
         let keyIds = providerKeyIds.get(providerId)
         if (!keyIds) {

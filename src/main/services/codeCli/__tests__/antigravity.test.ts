@@ -9,7 +9,8 @@ import { CodeCli } from '@shared/types/codeCli'
 const mocks = vi.hoisted(() => ({
   root: '',
   getByProviderId: vi.fn(),
-  getRotatedApiKey: vi.fn(),
+  getByKey: vi.fn(),
+  resolveApiKey: vi.fn(),
   getMultiple: vi.fn()
 }))
 
@@ -30,10 +31,16 @@ vi.mock('@application', async () => {
   }
 })
 
+vi.mock('@data/services/ModelService', () => ({
+  modelService: {
+    getByKey: mocks.getByKey
+  }
+}))
+
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getByProviderId,
-    getRotatedApiKey: mocks.getRotatedApiKey
+    resolveApiKey: mocks.resolveApiKey
   }
 }))
 
@@ -43,7 +50,8 @@ describe('prepareAntigravityLaunch', () => {
   beforeEach(async () => {
     mocks.root = await mkdtemp(path.join(tmpdir(), 'cherry-antigravity-test-'))
     mocks.getByProviderId.mockReset()
-    mocks.getRotatedApiKey.mockReset()
+    mocks.getByKey.mockReset()
+    mocks.resolveApiKey.mockReset()
     mocks.getMultiple.mockReset()
   })
 
@@ -63,7 +71,8 @@ describe('prepareAntigravityLaunch', () => {
         'google-generate-content': { baseUrl: 'https://gemini.example.test' }
       }
     })
-    mocks.getRotatedApiKey.mockReturnValue('direct-secret')
+    mocks.getByKey.mockReturnValue({ apiKeyId: 'key-a' })
+    mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     const result = await prepareAntigravityLaunch({
       mode: 'normal',
@@ -73,6 +82,7 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
+    expect(mocks.resolveApiKey).toHaveBeenCalledWith('custom-gemini', undefined, 'key-a')
     expect(result).toEqual({
       env: {
         GEMINI_API_KEY: 'direct-secret',
@@ -126,7 +136,8 @@ describe('prepareAntigravityLaunch', () => {
   it('rejects an unsafe model id without touching the isolated settings', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
-    mocks.getRotatedApiKey.mockReturnValue('direct-secret')
+    mocks.getByKey.mockReturnValue({})
+    mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     await expect(
       prepareAntigravityLaunch({
@@ -146,7 +157,8 @@ describe('prepareAntigravityLaunch', () => {
     await mkdir(settingsDir, { recursive: true })
     await writeFile(settingsPath, '{ invalid json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
-    mocks.getRotatedApiKey.mockReturnValue('direct-secret')
+    mocks.getByKey.mockReturnValue({})
+    mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     await expect(
       prepareAntigravityLaunch({

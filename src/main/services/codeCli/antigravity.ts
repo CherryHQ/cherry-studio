@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
 import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
@@ -69,7 +70,8 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
     model = `gemini-api://${gatewayModel.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)}`
   } else {
     const provider = providerService.getByProviderId(input.providerId)
-    apiKey = providerService.getRotatedApiKey(provider.id)
+    const userModel = modelService.getByKey(input.providerId, input.model)
+    apiKey = providerService.resolveApiKey(provider.id, undefined, userModel.apiKeyId).value
     baseUrl = resolveGeminiBaseUrl(provider)
   }
 
