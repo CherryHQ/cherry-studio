@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from 'react'
 
-import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { CacheAssistantSettingsPatchPending } from '@shared/data/cache/cacheValueTypes'
@@ -108,14 +107,14 @@ function useAssistantPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
-      const key = getKey(assistantId)
+      let version = 0
       setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+        version = (current?.version ?? 0) + 1
         return { value, version }
       })
-      return cacheService.get(key)?.version ?? 0
+      return version
     },
-    [assistantId, getKey, setPending]
+    [assistantId, setPending]
   )
 
   const finishPending = useCallback(
@@ -126,7 +125,11 @@ function useAssistantPendingSetting<T>(
     [setPending]
   )
 
-  return { effective, startPending, finishPending }
+  const clearPending = useCallback(() => {
+    setPending(null)
+  }, [setPending])
+
+  return { effective, startPending, finishPending, clearPending }
 }
 
 export function useAssistantPendingReasoningEffort(
@@ -168,12 +171,12 @@ export function useAssistantPendingSettingsPatch(
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
-      const key = getSettingsPatchPendingKey(assistantId)
+      let version = 0
       setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+        version = (current?.version ?? 0) + 1
         return mergePatchFields(current ?? null, patch, version)
       })
-      return cacheService.get(key)?.version ?? 0
+      return version
     },
     [assistantId, setPending]
   )

@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from 'react'
 
-import { cacheService } from '@data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import type { UseCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { ServiceTierSelection } from '@shared/data/types/model'
@@ -37,14 +36,14 @@ function useAgentPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!agentId) return 0
-      const key = getKey(agentId)
+      let version = 0
       setPending((current) => {
-        const version = (current?.version ?? 0) + 1
+        version = (current?.version ?? 0) + 1
         return { value, version }
       })
-      return cacheService.get(key)?.version ?? 0
+      return version
     },
-    [agentId, getKey, setPending]
+    [agentId, setPending]
   )
 
   const finishPending = useCallback(
@@ -55,7 +54,11 @@ function useAgentPendingSetting<T>(
     [setPending]
   )
 
-  return { effective, startPending, finishPending }
+  const clearPending = useCallback(() => {
+    setPending(null)
+  }, [setPending])
+
+  return { effective, startPending, finishPending, clearPending }
 }
 
 export function useAgentPendingReasoningEffort(
