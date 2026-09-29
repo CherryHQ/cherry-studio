@@ -5,10 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
   APPLE_ASR_MODEL_ID,
-  APPLE_TTS_MODEL_ID,
+  DEFAULT_SPEECH_SPEED,
   LOCAL_VOICE_MODELS,
   type LocalVoiceModelId,
-  resolveDefaultAsrModel
+  resolveDefaultAsrModel,
+  resolveDefaultSpeechModel,
+  WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { InputFor } from '@shared/ipc/types'
@@ -37,7 +39,7 @@ type Session = {
   requestId?: string
   operation?: VoiceOperation
   selectedModel?: LocalVoiceModelId
-  resolvedAdapter?: 'apple' | 'funasr'
+  resolvedAdapter?: 'apple' | 'windows' | 'funasr'
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
 }
@@ -73,7 +75,11 @@ export class VoiceSessionService extends BaseService {
 
   listModels() {
     this.requireAdmission()
-    return { models: LOCAL_VOICE_MODELS, defaultAsrModelId: this.defaultAsrModel() }
+    return {
+      models: LOCAL_VOICE_MODELS,
+      defaultAsrModelId: this.defaultAsrModel(),
+      defaultSpeechModelId: this.defaultSpeechModel()
+    }
   }
 
   status(owner: VoiceOwner, input: InputFor<'ai.voice.model.status'>) {
@@ -136,9 +142,10 @@ export class VoiceSessionService extends BaseService {
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
     if (this.active || this.inspections.size) throw new VoiceRuntimeError('busy')
+    const modelId = input.modelId ?? this.defaultSpeechModel()
+    if (!modelId) throw new VoiceRuntimeError('unsupported')
     const session = this.sessionFor(owner, input.sessionId)
     if (session.files.size) throw new VoiceRuntimeError('busy')
-    const modelId = input.modelId ?? APPLE_TTS_MODEL_ID
     return this.run(session, input.requestId, modelId, 'speech', async (signal) => {
       await this.requireReady(modelId, input, signal)
       const result = await application
@@ -146,7 +153,7 @@ export class VoiceSessionService extends BaseService {
         .generateSpeech(
           modelId,
           input.text.normalize('NFC').trim(),
-          { voice: input.voice, language: input.language },
+          { voice: input.voice, language: input.language, speed: input.speed ?? DEFAULT_SPEECH_SPEED },
           signal
         )
       signal.throwIfAborted()
@@ -197,6 +204,14 @@ export class VoiceSessionService extends BaseService {
     if (!session) return
     this.assertOwner(session, owner)
     await this.closeSession(session)
+  }
+
+  private defaultSpeechModel() {
+    return resolveDefaultSpeechModel({
+      platform: process.platform,
+      arch: process.arch,
+      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
+    })
   }
 
   private defaultAsrModel() {
@@ -276,7 +291,8 @@ export class VoiceSessionService extends BaseService {
     this.active = active
     session.requestId = requestId
     session.selectedModel = modelId
-    session.resolvedAdapter = modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
+    session.resolvedAdapter =
+      modelId === WINDOWS_TTS_MODEL_ID ? 'windows' : modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
     session.operation = operation
     const startedAt = Date.now()
     const result = Promise.resolve().then(async () => {

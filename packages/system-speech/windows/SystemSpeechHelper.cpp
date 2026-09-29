@@ -1,3 +1,7 @@
+#if !defined(_M_X64)
+#error The Windows system speech helper supports x64 only.
+#endif
+
 #include <windows.h>
 #include <sapi.h>
 #include <sphelper.h>
@@ -285,12 +289,9 @@ JsonObject synthesize(const JsonObject& request) {
     const auto voiceId = requiredString(request, L"voiceId");
     const auto text = requiredString(request, L"text");
     const auto outputPath = requiredString(request, L"outputPath");
-    double speed = 1.0;
-    if (request.HasKey(L"speed")) {
-        if (request.Lookup(L"speed").ValueType() != JsonValueType::Number)
-            throw HelperError("invalid_request");
-        speed = request.GetNamedNumber(L"speed");
-    }
+    if (!request.HasKey(L"speed") || request.Lookup(L"speed").ValueType() != JsonValueType::Number)
+        throw HelperError("invalid_request");
+    const auto speed = request.GetNamedNumber(L"speed");
     if (!std::isfinite(speed) || speed < 0.5 || speed > 2.0) throw HelperError("invalid_request");
 
     ComPtr<ISpObjectToken> selected;

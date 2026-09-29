@@ -25,13 +25,14 @@ export class SystemSpeechNativeClient {
     if (options.signal?.aborted) throw new SystemSpeechError('cancelled')
     try {
       const helper = await stat(this.options.helperPath)
-      if (!helper.isFile() || (helper.mode & 0o100) === 0) throw new SystemSpeechError('native_helper_failed')
+      if (!helper.isFile() || (process.platform !== 'win32' && (helper.mode & 0o100) === 0))
+        throw new SystemSpeechError('native_helper_failed')
     } catch {
       throw new SystemSpeechError('native_helper_failed')
     }
     if (options.signal?.aborted) throw new SystemSpeechError('cancelled')
 
-    const child = spawn(this.options.helperPath, [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(this.options.helperPath, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
       let bytes = 0

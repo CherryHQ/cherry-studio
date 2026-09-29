@@ -25,7 +25,7 @@ function response(value: unknown): string {
   return `process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(JSON.stringify(value))}))`
 }
 
-describe('SystemSpeechNativeClient', () => {
+describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POSIX executable fixtures', () => {
   it('returns installed and supported recognition locales through the protocol', async () => {
     const setup = await helper(
       response({

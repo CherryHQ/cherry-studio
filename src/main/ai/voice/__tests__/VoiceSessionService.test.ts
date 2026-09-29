@@ -15,7 +15,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
@@ -90,6 +90,14 @@ describe('VoiceSessionService file and admission contract', () => {
   let files: InstanceType<typeof FileManager>
   let a: VoiceOwner
   beforeEach(async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'darwin' },
+        arch: { value: 'arm64' },
+        getSystemVersion: { value: () => '26.3' }
+      })
+    )
     BaseService.resetInstances()
     MockMainDbServiceUtils.setDb(db.db)
     root = await mkdtemp(path.join(tmpdir(), 'voice-session-'))
@@ -113,6 +121,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await service._doStop()
     await files._doStop()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     await rm(root, { recursive: true, force: true })
   })
   async function recording() {
@@ -360,6 +369,83 @@ describe('VoiceSessionService file and admission contract', () => {
     await rmdir(physicalPath)
     await expect(service.discard(a, input.sessionId)).resolves.toBeUndefined()
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('resolves omitted speech model to Windows x64 and returns its owned WAV', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+    )
+    native.speech.mockImplementation(async (modelId, _text, options) => {
+      if (modelId !== WINDOWS_TTS_MODEL_ID || options.speed !== 1.5) throw new VoiceRuntimeError('unsupported')
+      return { audio: wav(), mediaType: 'audio/wav' }
+    })
+    const input = {
+      sessionId: randomUUID(),
+      requestId: randomUUID(),
+      text: 'Windows speech',
+      voice: 'exact',
+      speed: 1.5
+    }
+    const result = await service.speech(a, input)
+    expect((await files.read(result.fileEntry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array(wav()))
+    expect(service.listModels().defaultSpeechModelId).toBe(WINDOWS_TTS_MODEL_ID)
+    await service.discard(a, input.sessionId)
+    expect(fileEntryService.findById(result.fileEntry.id)).toBeNull()
+  })
+
+  it('rejects unsupported platform defaults without retaining empty sessions', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'win32' },
+        arch: { value: 'arm64' }
+      })
+    )
+    for (let index = 0; index < 17; index++) {
+      await expect(
+        service.speech(a, { sessionId: randomUUID(), requestId: randomUUID(), text: 'speech', voice: 'exact' })
+      ).rejects.toMatchObject({ reason: 'unsupported' })
+    }
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+    )
+    const result = await service.speech(a, {
+      sessionId: randomUUID(),
+      requestId: randomUUID(),
+      text: 'speech',
+      voice: 'exact'
+    })
+    expect(result.mimeType).toBe('audio/wav')
+  })
+
+  it('preserves an explicit cross-platform speech selection when its readiness rejects it', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+    )
+    native.status.mockImplementation(async (modelId) =>
+      modelId === APPLE_TTS_MODEL_ID ? { status: 'unsupported', reason: 'unsupported' } : { status: 'ready' }
+    )
+    await expect(
+      service.speech(a, {
+        sessionId: randomUUID(),
+        requestId: randomUUID(),
+        modelId: APPLE_TTS_MODEL_ID,
+        text: 'speech',
+        voice: 'exact'
+      })
+    ).rejects.toMatchObject({ reason: 'unsupported' })
   })
 
   it('returns a complete temporary WAV without a path, then discards its file', async () => {

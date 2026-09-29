@@ -7,7 +7,9 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODELS,
-  resolveDefaultAsrModel
+  resolveDefaultAsrModel,
+  resolveDefaultSpeechModel,
+  WINDOWS_TTS_MODEL_ID
 } from '../localVoice'
 
 describe('local voice model facts and default resolution', () => {
@@ -47,5 +49,15 @@ describe('local voice model facts and default resolution', () => {
       expect(model.outputModalities).toEqual([MODALITY.TEXT])
       expect(model.supportsStreaming).toBe(false)
     }
+  })
+})
+
+describe('default system speech model', () => {
+  it('selects Windows only for x64 and preserves supported Apple versions', () => {
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64' })).toBe(WINDOWS_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'arm64', majorVersion: 13 })).toBe(APPLE_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'x64' })).toBeUndefined()
   })
 })

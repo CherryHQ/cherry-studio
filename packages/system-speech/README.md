@@ -1,8 +1,8 @@
-# Apple system speech
+# System speech helpers
 
 Private native boundary for Cherry Studio's local Voice Runtime. The production
 Main adapters own platform checks, temporary paths and cancellation; this package
-owns the Apple frameworks and its typed subprocess protocol. It is selectively
+owns the Apple frameworks, Windows SAPI and their typed subprocess protocol. It is selectively
 rebuilt from validation PR #20733, not a validation application.
 
 `capabilities` and `transcribe` never request asset installation. On macOS 26 or
@@ -41,6 +41,10 @@ app's deep strict signature, and a capabilities round trip. The helper is signed
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
 
-The Windows SAPI helper under `windows/` is an isolated proof of concept. It is
-not yet packaged or selected by the Voice Runtime; see its README for the
-Windows x64 build and device checks.
+Windows x64 system TTS uses the SAPI helper under `windows/`. Its build and
+packaging are architecture-gated; Windows ARM64 system speech is unsupported
+without blocking ARM64 application packages. See the [Windows helper guide](./windows/README.md)
+for build prerequisites, independent protocol and real TTS smokes, packaged
+helper signature checks, and the remaining NSIS/portable device acceptance.
+The native synthesis protocol requires an explicit `speed` from 0.5 to 2;
+Apple adapters on this foundation branch send 1 until their speed support lands.
