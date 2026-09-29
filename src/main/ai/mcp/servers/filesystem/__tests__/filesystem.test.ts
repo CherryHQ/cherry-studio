@@ -1,4 +1,4 @@
-import fs from 'fs/promises'
+import * as fs from 'node:fs/promises'
 import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'

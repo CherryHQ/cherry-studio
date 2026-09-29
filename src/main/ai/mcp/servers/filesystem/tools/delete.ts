@@ -1,10 +1,11 @@
-import fs from 'fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { withMutationLockForRequest } from '../mutationLock'
+import { remove, removeDir, removeEmptyDir, stat } from '@main/utils/file'
+
+import { filesystemMutationService } from '../FilesystemMutationService'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -35,9 +36,7 @@ export async function handleDeleteTool(
   const targetPath = args.path
   const recursive = args.recursive || false
 
-  // Hold the mutation lock across validation and mutation so concurrent mutations queue in
-  // call order even when file existence flips the lock key mid-operation (e.g. creates).
-  return withMutationLockForRequest(
+  return filesystemMutationService.runExclusive(
     targetPath,
     baseDir,
     async () => {
@@ -45,7 +44,7 @@ export async function handleDeleteTool(
       // Check if path exists and get stats
       let stats
       try {
-        stats = await fs.stat(validPath)
+        stats = await stat(validPath)
       } catch (error: any) {
         if (error.code === 'ENOENT') {
           throw new Error(`Path not found: ${targetPath}`)
@@ -53,7 +52,7 @@ export async function handleDeleteTool(
         throw error
       }
 
-      const isDirectory = stats.isDirectory()
+      const isDirectory = stats.isDirectory
       const relativePath = path.relative(baseDir, validPath)
 
       // Perform deletion
@@ -61,14 +60,14 @@ export async function handleDeleteTool(
         if (isDirectory) {
           if (recursive) {
             // Delete directory recursively
-            await fs.rm(validPath, { recursive: true, force: true })
+            await removeDir(validPath)
           } else {
             // Try to delete empty directory
-            await fs.rmdir(validPath)
+            await removeEmptyDir(validPath)
           }
         } else {
           // Delete file
-          await fs.unlink(validPath)
+          await remove(validPath)
         }
       } catch (error: any) {
         if (error.code === 'ENOTEMPTY') {

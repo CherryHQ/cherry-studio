@@ -19,7 +19,8 @@ export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
-function normalizePathForComparison(value: string): string {
+/** Returns a platform-folded comparison key, not a path to use for filesystem I/O. */
+export function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
   return isMac || isWin ? resolved.toLowerCase() : resolved
 }

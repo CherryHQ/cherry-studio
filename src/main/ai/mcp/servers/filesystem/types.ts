@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { canonicalizePathForContainment, isOutsidePath } from '@main/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -42,7 +43,7 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string): Promise<AbsoluteFilePath> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
@@ -55,15 +56,7 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
-  return resolvedPath
-}
-
-// Re-reads the file and throws when the bytes on disk differ from what was written.
-export async function verifyWrittenContent(filePath: string, expectedContent: string): Promise<void> {
-  const writtenContent = await fs.readFile(filePath, 'utf-8')
-  if (writtenContent !== expectedContent) {
-    throw new Error('Post-write verification failed: file content did not match requested content')
-  }
+  return AbsoluteFilePathSchema.parse(resolvedPath)
 }
 
 // ============================================================================
