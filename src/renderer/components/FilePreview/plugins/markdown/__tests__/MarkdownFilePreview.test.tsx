@@ -202,6 +202,17 @@ describe('MarkdownFilePreview', () => {
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
+  it('keeps artifact frontmatter hidden when the document falls back to plain source', async () => {
+    mocks.readText.mockResolvedValueOnce('---\nname: Writer\ndescription: Draft clear prose\n---\n# File preview')
+
+    renderPreview({ size: 1024 * 1024 + 1, type: 'artifact' })
+
+    const source = await screen.findByTestId('code-viewer')
+    expect(source).toHaveTextContent('# File preview')
+    expect(source).not.toHaveTextContent('name: Writer')
+    expect(source).not.toHaveTextContent('description: Draft clear prose')
+  })
+
   it('reloads when the path or refresh key changes', async () => {
     const secondPath = '/tmp/workspace/CHANGELOG.md' as AbsoluteFilePath
     const view = renderPreview()
