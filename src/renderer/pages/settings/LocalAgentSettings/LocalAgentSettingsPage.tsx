@@ -597,6 +597,7 @@ function LocalAgentEditor({
             {(preset || agent) && (
               <LocalAgentModelList
                 models={catalog?.models ?? []}
+                groupFallback={agent?.name ?? preset?.name}
                 value={initial.nativeModel}
                 disabled={busy}
                 loading={modelsLoading}

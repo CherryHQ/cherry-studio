@@ -2,15 +2,28 @@ import { Check, RefreshCw, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Button,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  Tooltip
+} from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelTag } from '@renderer/components/tags/Model'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentModelCatalog } from '@shared/ai/localAgent'
+import { deriveModelGroupName } from '@shared/utils/model'
 
 export function LocalAgentModelList({
   models,
+  groupFallback,
   value,
   loaded,
   loading,
@@ -20,6 +33,7 @@ export function LocalAgentModelList({
   onSelect
 }: {
   models: LocalAgentModelCatalog['models']
+  groupFallback?: string
   value?: string
   loaded: boolean
   loading: boolean
@@ -31,6 +45,7 @@ export function LocalAgentModelList({
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
   const iconButtonClass =
     'size-6 shrink-0 rounded-md p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground'
   const closeSearch = () => {
@@ -42,10 +57,18 @@ export function LocalAgentModelList({
   const filtered = options.filter((model) =>
     `${model.name} ${model.id}`.toLowerCase().includes(query.trim().toLowerCase())
   )
+  const grouped = new Map<string, LocalAgentModelCatalog['models']>()
+  for (const model of filtered) {
+    const group = deriveModelGroupName(model.id) ?? groupFallback ?? t('models.group.ungrouped')
+    const models = grouped.get(group)
+    if (models) models.push(model)
+    else grouped.set(group, [model])
+  }
+  const groups = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))
   const rowClass = (selected: boolean) =>
     cn(
-      'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
-      'h-auto w-full justify-start rounded-none font-normal hover:bg-accent/60 disabled:opacity-100',
+      'group flex min-h-[42px] items-center gap-2.5 px-2.5 py-1 text-foreground leading-none',
+      'h-auto w-full justify-start rounded-lg font-normal hover:bg-accent/40 disabled:opacity-100',
       selected && 'bg-accent/70'
     )
   return (
@@ -106,39 +129,68 @@ export function LocalAgentModelList({
           </Button>
         </Tooltip>
       </div>
-      <div className="overflow-hidden rounded-lg border border-border-subtle">
+      <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">
         <Button
           variant="ghost"
           aria-pressed={!value}
           disabled={disabled}
           className={rowClass(!value)}
           onClick={() => void onSelect()}>
-          <CliModelAvatar className="size-[26px] shrink-0" />
+          <CliModelAvatar className="size-[26px] shrink-0 rounded-full border border-border" />
           <span className="min-w-0 flex-1 truncate text-left text-sm">{t('local_agents.follow_cli')}</span>
-          {!value && <Check className="size-4 shrink-0 text-primary" />}
+          <span className="flex size-[30px] shrink-0 items-center justify-center">
+            {!value && <Check className="size-4 text-primary" />}
+          </span>
         </Button>
       </div>
       {filtered.length > 0 ? (
-        <div className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">
-          {filtered.map((model) => (
-            <Button
-              key={model.id}
-              variant="ghost"
-              aria-pressed={value === model.id}
-              disabled={disabled}
-              className={rowClass(value === model.id)}
-              onClick={() => void onSelect(model.id)}>
-              <ModelAvatar model={model} size={26} className="shrink-0 rounded-full" />
-              <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
-                {model.name || model.id}
-              </span>
-              {/free/i.test(`${model.id} ${model.name}`) && (
-                <ModelTag tag="free" size={9} showLabel={false} showTooltip className="[&_svg]:size-[9px]!" />
-              )}
-              {value === model.id && <Check className="size-4 shrink-0 text-primary" />}
-            </Button>
+        <Accordion
+          type="multiple"
+          className="space-y-2.5"
+          value={groups.filter(([group]) => query.trim() || !collapsedGroups.includes(group)).map(([group]) => group)}
+          onValueChange={(openGroups) =>
+            setCollapsedGroups((previous) => [
+              ...previous.filter((group) => !grouped.has(group)),
+              ...groups.filter(([group]) => !openGroups.includes(group)).map(([group]) => group)
+            ])
+          }>
+          {groups.map(([group, models]) => (
+            <AccordionItem
+              key={group}
+              value={group}
+              className="overflow-hidden rounded-lg border border-border-subtle last:border-b">
+              <AccordionTrigger className="min-h-9 justify-start gap-2 rounded-none bg-muted/30 px-4 py-0 font-normal text-foreground data-[state=open]:border-b data-[state=open]:border-border-subtle [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                <span className="min-w-0 truncate leading-5">{group}</span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-1 p-1.5" contentClassName="text-foreground">
+                {models.map((model) => (
+                  <Button
+                    key={model.id}
+                    variant="ghost"
+                    aria-pressed={value === model.id}
+                    disabled={disabled}
+                    className={rowClass(value === model.id)}
+                    onClick={() => void onSelect(model.id)}>
+                    <ModelAvatar
+                      model={model}
+                      size={26}
+                      className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
+                      {model.name || model.id}
+                    </span>
+                    {/free/i.test(`${model.id} ${model.name}`) && (
+                      <ModelTag tag="free" size={9} showLabel={false} showTooltip className="[&_svg]:size-[9px]!" />
+                    )}
+                    <span className="flex size-[30px] shrink-0 items-center justify-center">
+                      {value === model.id && <Check className="size-4 text-primary" />}
+                    </span>
+                  </Button>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
           ))}
-        </div>
+        </Accordion>
       ) : (
         (loaded || query) && (
           <p className="rounded-lg border border-dashed border-border-subtle px-4 py-6 text-center text-xs text-muted-foreground">
