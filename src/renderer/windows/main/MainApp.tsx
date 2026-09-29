@@ -24,6 +24,7 @@ import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { NotesFileEditSessionProvider } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -121,7 +122,9 @@ export function MainWindowContent(): React.ReactElement {
               <OnboardingPage />
             </Suspense>
           ) : (
-            <AppShell />
+            <NotesFileEditSessionProvider>
+              <AppShell />
+            </NotesFileEditSessionProvider>
           )}
           <MainWindowRuntime />
           <ConversationNotificationRuntime />

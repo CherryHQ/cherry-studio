@@ -27,7 +27,7 @@ import {
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { startNotesDirectoryMigration } from '@renderer/services/notesDirectoryMigration'
+import { startNotesDirectoryMigration } from '@renderer/pages/notes/notesDirectoryMigration'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -104,7 +104,12 @@ const BasicDataSettings: React.FC = () => {
   }, [refreshCacheSize])
 
   useEffect(() => {
-    void resolveNotesPath(notesPath || '').then((resolved) => setResolvedNotesPath(resolved.path))
+    void resolveNotesPath(notesPath || '')
+      .then((resolved) => setResolvedNotesPath(resolved.path))
+      .catch((error) => {
+        logger.warn('Failed to resolve notes path', error as Error)
+        setResolvedNotesPath(undefined)
+      })
   }, [notesPath])
 
   const handleSelectAppDataPath = async () => {
