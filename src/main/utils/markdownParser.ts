@@ -31,6 +31,17 @@ const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 // Skill markdown filename variants (case-insensitive support)
 const SKILL_MD_VARIANTS = ['SKILL.md', 'skill.md']
 
+/** Dot-prefixed repo roots whose `skills/` subtree holds marketplace SKILL.md files. */
+const DOT_PREFIXED_SKILL_REPO_ROOTS = new Set(['.agents', '.claude', '.gemini'])
+
+function shouldTraverseDotPrefixedDirectory(entryName: string, currentDirRelativeToBase: string): boolean {
+  const normalized = currentDirRelativeToBase.replaceAll('\\', '/')
+  if (normalized === '' || normalized === '.') {
+    return DOT_PREFIXED_SKILL_REPO_ROOTS.has(entryName)
+  }
+  return false
+}
+
 /**
  * Find the skill markdown file in a directory (supports SKILL.md or skill.md)
  * @returns The full path to the skill file if found, null otherwise
@@ -273,9 +284,12 @@ export async function findAllSkillDirectories(
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
+    const relativeDir = path.relative(basePath, dirPath)
     for (const entry of entries) {
-      // Skip hidden directories and node_modules
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.name === 'node_modules') continue
+      if (entry.name.startsWith('.') && !shouldTraverseDotPrefixedDirectory(entry.name, relativeDir)) {
+        continue
+      }
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)

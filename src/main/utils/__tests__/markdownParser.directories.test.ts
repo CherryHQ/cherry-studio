@@ -35,7 +35,7 @@ describe('findAllSkillDirectories', () => {
     ])
   })
 
-  it('skips hidden directories and node_modules', async () => {
+  it('skips arbitrary hidden directories and node_modules', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
     tempDirs.push(root)
     const visible = path.join(root, 'skills', 'my-skill')
@@ -55,5 +55,31 @@ describe('findAllSkillDirectories', () => {
     const result = await findAllSkillDirectories(root, root)
 
     expect(result.map((candidate) => fwd(candidate.sourcePath))).toEqual(['skills/my-skill'])
+  })
+
+  it('finds skills under dot-prefixed community convention directories', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
+    tempDirs.push(root)
+    const geminiSkill = path.join(root, '.gemini', 'skills', 'github-issue-creator')
+    const agentsSkill = path.join(root, '.agents', 'skills', 'gh-create-pr')
+    const claudeSkill = path.join(root, '.claude', 'skills', 'review')
+    await Promise.all([
+      fs.promises.mkdir(geminiSkill, { recursive: true }),
+      fs.promises.mkdir(agentsSkill, { recursive: true }),
+      fs.promises.mkdir(claudeSkill, { recursive: true })
+    ])
+    await Promise.all([
+      fs.promises.writeFile(path.join(geminiSkill, 'SKILL.md'), '# gemini'),
+      fs.promises.writeFile(path.join(agentsSkill, 'SKILL.md'), '# agents'),
+      fs.promises.writeFile(path.join(claudeSkill, 'SKILL.md'), '# claude')
+    ])
+
+    const result = await findAllSkillDirectories(root, root)
+
+    expect(result.map((candidate) => fwd(candidate.sourcePath)).sort()).toEqual([
+      '.agents/skills/gh-create-pr',
+      '.claude/skills/review',
+      '.gemini/skills/github-issue-creator'
+    ])
   })
 })
