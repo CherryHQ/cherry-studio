@@ -2,7 +2,7 @@ import path from 'path'
 
 import * as z from 'zod'
 
-import { remove, removeDir, removeEmptyDir, stat } from '@main/utils/file'
+import { remove, removeDir, stat } from '@main/utils/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
 import { logger, validatePath } from '../types'
@@ -60,13 +60,7 @@ export async function handleDeleteTool(args: unknown, baseDir: string) {
       // Perform deletion
       try {
         if (isDirectory) {
-          if (recursive) {
-            // Delete directory recursively
-            await removeDir(validPath)
-          } else {
-            // Try to delete empty directory
-            await removeEmptyDir(validPath)
-          }
+          await removeDir(validPath, { recursive })
         } else {
           // Delete file
           await remove(validPath)

@@ -84,7 +84,6 @@ export {
   realpath,
   remove,
   removeDir,
-  removeEmptyDir,
   shouldSilenceFsyncDirError,
   stat,
   write,
