@@ -39,8 +39,10 @@ import {
   realpath as fsRealpath,
   rename,
   rm as fsRm,
+  rmdir,
   stat as fsStat,
-  unlink
+  unlink,
+  writeFile
 } from 'node:fs/promises'
 import path from 'node:path'
 import { addAbortSignal, Readable, Writable } from 'node:stream'
@@ -143,9 +145,20 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
   }
 }
 
+/** Returns the device/inode identity, following symlinks; missing paths have no identity. */
+export async function getFileIdentity(target: AbsoluteFilePath): Promise<string | undefined> {
+  try {
+    const stats = await fsStat(target, { bigint: true })
+    return `${stats.dev}:${stats.ino}`
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
 /**
  * Whether two paths resolve to the same physical file. Compares POSIX
- * `(device, inode)` — does NOT follow symlinks (`stat`, not `realpath`).
+ * `(device, inode)` — follows symlinks via `stat`.
  *
  * Primary use case: distinguishing a case-only rename on a case-insensitive
  * filesystem (macOS APFS / Windows NTFS) from a true name collision. On such
@@ -162,15 +175,11 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
-    // two adjacent files can round to the same ino.
-    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
-    return sa.dev === sb.dev && sa.ino === sb.ino
+    const [aIdentity, bIdentity] = await Promise.all([getFileIdentity(a), getFileIdentity(b)])
+    return aIdentity !== undefined && aIdentity === bIdentity
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    if (code !== 'ENOENT') {
-      logger.warn('isSameFile: stat failed, treating as different file', { a, b, code, err })
-    }
+    logger.warn('isSameFile: stat failed, treating as different file', { a, b, code, err })
     return false
   }
 }
@@ -178,6 +187,18 @@ export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Prom
 /** Write content to a file path. Atomic — never produces partially-written targets. */
 export async function write(target: AbsoluteFilePath, data: string | Uint8Array): Promise<void> {
   return atomicWriteFile(target, data)
+}
+
+/**
+ * Overwrites in place to preserve hard links and existing file permissions, then verifies bytes.
+ * Unlike write(), this is not atomic: callers must serialize the complete read-modify-write flow.
+ */
+export async function writeInPlace(target: AbsoluteFilePath, data: string | Uint8Array): Promise<void> {
+  await writeFile(target, data, 'utf-8')
+  const expected = typeof data === 'string' ? Buffer.from(data, 'utf-8') : Buffer.from(data)
+  if (!(await readFile(target)).equals(expected)) {
+    throw new Error('Post-write verification failed: file content did not match requested content')
+  }
 }
 
 function tmpNameFor(target: string): string {
@@ -841,6 +862,11 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
 /** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
   await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+}
+
+/** Removes only an empty directory; missing and nonempty paths remain errors. */
+export async function removeEmptyDir(target: AbsoluteFilePath): Promise<void> {
+  await rmdir(target)
 }
 
 /** Create a single directory. Throws if it already exists. */

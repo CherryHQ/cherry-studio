@@ -7,7 +7,8 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { canonicalizePathForContainment } from '@main/utils/file'
+import { canonicalizePathForContainment, isOutsidePath } from '@main/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -48,29 +49,6 @@ function normalizeForComparison(filePath: string): string {
   return isWin ? normalizedPath.toLowerCase() : normalizedPath
 }
 
-async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
-  try {
-    return normalizePath(await fs.realpath(targetPath))
-  } catch {
-    let currentPath = path.dirname(targetPath)
-
-    while (true) {
-      try {
-        const realCurrentPath = await fs.realpath(currentPath)
-        const relativeSuffix = path.relative(currentPath, targetPath)
-        return normalizePath(path.join(realCurrentPath, relativeSuffix))
-      } catch {
-        const parentPath = path.dirname(currentPath)
-        if (parentPath === currentPath) {
-          logger.warn('Could not resolve any existing ancestor for path', { targetPath })
-          return normalizePath(targetPath)
-        }
-        currentPath = parentPath
-      }
-    }
-  }
-}
-
 function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
   const normalizedTargetPath = normalizeForComparison(targetPath)
   const normalizedRootPath = normalizeForComparison(rootPath)
@@ -80,31 +58,23 @@ function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
   }
 
   const relativePath = path.relative(normalizedRootPath, normalizedTargetPath)
-  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+  return !isOutsidePath(relativePath)
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string): Promise<AbsoluteFilePath> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
-  const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
+  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
-  if (!resolvedPath || !isPathWithinRoot(resolvedPath, resolvedRoot)) {
+  if (!resolvedRoot || !resolvedPath || !isPathWithinRoot(resolvedPath, resolvedRoot)) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
-  return resolvedPath
-}
-
-// Re-reads the file and throws when the bytes on disk differ from what was written.
-export async function verifyWrittenContent(filePath: string, expectedContent: string): Promise<void> {
-  const writtenContent = await fs.readFile(filePath, 'utf-8')
-  if (writtenContent !== expectedContent) {
-    throw new Error('Post-write verification failed: file content did not match requested content')
-  }
+  return AbsoluteFilePathSchema.parse(resolvedPath)
 }
 
 // ============================================================================

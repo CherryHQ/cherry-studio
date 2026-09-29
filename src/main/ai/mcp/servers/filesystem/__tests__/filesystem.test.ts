@@ -1,7 +1,11 @@
-import fs from 'fs/promises'
+import * as fs from 'node:fs/promises'
 import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof fs>())
+}))
 
 import { resolveFilesystemBaseDir } from '../config'
 import { handleDeleteTool } from '../tools/delete'
