@@ -19,8 +19,8 @@ export function isClaudeCodeSpawnMemoryPressured(): boolean {
  * children on Windows. No-op when under the cap.
  */
 export function prepareClaudeCodeSpawnCapacity(): boolean {
-  const processManager = application.getOptional('ClaudeCodeProcessManager')
-  const warmManager = application.getOptional('ClaudeCodeWarmQueryManager')
+  const processManager = application.getExisting('ClaudeCodeProcessManager')
+  const warmManager = application.getExisting('ClaudeCodeWarmQueryManager')
   if (!processManager || !warmManager) return true
   while (processManager.getActiveProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) {
     if (!warmManager.evictOldestWarmQuery()) return false

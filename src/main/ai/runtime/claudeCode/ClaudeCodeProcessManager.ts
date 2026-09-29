@@ -171,6 +171,8 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeProcessManager extends BaseService {
   private readonly processes = new Set<TrackedSpawnedProcess>()
+  /** Evicted warm children stay here until exit so shutdown still signals them. */
+  private readonly evictingProcesses = new Set<TrackedSpawnedProcess>()
   private readonly processesByDiagnostics = new Map<string, TrackedSpawnedProcess>()
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
@@ -189,6 +191,7 @@ export class ClaudeCodeProcessManager extends BaseService {
     if (!child) return
     this.forgetProcess(child, diagnosticsReference)
     if (this.hasExited(child)) return
+    this.trackEvictingProcess(child)
     try {
       child.kill('SIGTERM')
     } catch (error) {
@@ -233,7 +236,7 @@ export class ClaudeCodeProcessManager extends BaseService {
    * this running.
    */
   killAll(signal: NodeJS.Signals): void {
-    for (const child of [...this.processes]) {
+    for (const child of [...this.processes, ...this.evictingProcesses]) {
       if (this.hasExited(child)) {
         this.forgetProcess(child)
         continue
@@ -259,8 +262,18 @@ export class ClaudeCodeProcessManager extends BaseService {
     this.processesByDiagnostics.set(diagnosticsReference, child)
   }
 
+  private trackEvictingProcess(child: TrackedSpawnedProcess): void {
+    this.evictingProcesses.add(child)
+    const release = () => this.evictingProcesses.delete(child)
+    child.once('exit', release)
+    child.once('error', () => {
+      if (child.pid === undefined) release()
+    })
+  }
+
   private forgetProcess(child: TrackedSpawnedProcess, diagnosticsReference?: string): void {
     this.processes.delete(child)
+    this.evictingProcesses.delete(child)
     if (diagnosticsReference) {
       this.processesByDiagnostics.delete(diagnosticsReference)
       return

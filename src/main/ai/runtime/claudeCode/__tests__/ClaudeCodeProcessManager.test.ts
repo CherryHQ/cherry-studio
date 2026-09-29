@@ -279,6 +279,21 @@ describe('ClaudeCodeProcessManager', () => {
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
   })
 
+  it('still signals warm-query children dropped from the spawn cap during eviction', () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('warm-ref')
+    manager.spawn(spawnOptions, diagnostics)
+
+    expect(manager.getActiveProcessCount()).toBe(1)
+    manager.releaseWarmQueryProcess('warm-ref')
+    expect(manager.getActiveProcessCount()).toBe(0)
+    child.kill.mockClear()
+
+    manager.killAll('SIGTERM')
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+
   it('absorbs child kill failures', () => {
     const child = createFakeChild()
     child.kill.mockImplementation(() => {

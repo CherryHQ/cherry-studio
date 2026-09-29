@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  applicationGet: vi.fn()
+  applicationGetExisting: vi.fn()
 }))
 
 vi.mock('@application', () => ({
-  application: { getOptional: mocks.applicationGet }
+  application: { getExisting: mocks.applicationGetExisting }
 }))
 
 const { prepareClaudeCodeSpawnCapacity } = await import('../claudeCodeSpawnCapacity')
@@ -22,7 +22,7 @@ describe('claudeCodeSpawnCapacity', () => {
       activeCount -= 1
       return true
     })
-    mocks.applicationGet.mockImplementation((name: string) => {
+    mocks.applicationGetExisting.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => activeCount }
       if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
       throw new Error(`unexpected service ${name}`)
@@ -35,7 +35,7 @@ describe('claudeCodeSpawnCapacity', () => {
 
   it('refuses another spawn while the cap is saturated and nothing warm remains to evict', () => {
     const evictOldestWarmQuery = vi.fn().mockReturnValue(false)
-    mocks.applicationGet.mockImplementation((name: string) => {
+    mocks.applicationGetExisting.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => 6 }
       if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
       throw new Error(`unexpected service ${name}`)
