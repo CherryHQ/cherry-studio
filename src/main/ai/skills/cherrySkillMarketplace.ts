@@ -17,7 +17,12 @@ import {
 } from '@shared/types/skillMarketplace'
 import { CHERRY_SKILL_MARKETPLACE_URL, summarizeMarketplaceSkill } from '@shared/utils/cherrySkillMarketplace'
 
-import { extractZip, MAX_EXTRACTED_SIZE, validateRepositorySkillDirectory } from './skillArchive'
+import {
+  assertSkillDirectoryWithinLimits,
+  extractZip,
+  MAX_ARCHIVE_SIZE,
+  validateRepositorySkillDirectory
+} from './skillArchive'
 import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 
 async function readMarketplace<T>(url: string, read: (response: Response) => Promise<T>, timeout = 15_000): Promise<T> {
@@ -112,7 +117,7 @@ export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
             const { done, value } = await reader.read()
             if (done) break
             size += value.byteLength
-            if (size > MAX_EXTRACTED_SIZE) throw new Error('Skill download exceeds the size limit')
+            if (size > MAX_ARCHIVE_SIZE) throw new Error('Skill download exceeds the size limit')
             await file.writeFile(value)
           }
         } finally {
@@ -137,6 +142,7 @@ export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
     for (const candidate of candidates) {
       const memberPath = isCollection ? candidate.sourcePath.split(path.sep).join('/') : ''
       let skillDir = await validateRepositorySkillDirectory(contentDir, candidate.folderPath)
+      await assertSkillDirectoryWithinLimits(skillDir)
       const metadata = await parseSkillMetadata(skillDir, memberPath, 'skills', { calculateSize: false })
       const folderName = sanitizeFolderName(isCollection ? metadata.filename : metadata.name)
       if (!folderName || folderNames.has(folderName.toLowerCase()))

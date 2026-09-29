@@ -36,6 +36,11 @@ type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent'
 const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
 const logger = loggerService.withContext('useResourceCatalogController')
 
+interface ResourceCatalogControllerOptions {
+  onOpenSkill?: (skill: InstalledSkill) => void
+  onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
+}
+
 /**
  * Build the top-bar chip list.
  *
@@ -59,9 +64,10 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
 
 export function useResourceCatalogController(
   resourceType: ResourceCatalogControllerType,
-  skillSelection?: { id?: string; onChange: (id: string | undefined) => void }
+  options: ResourceCatalogControllerOptions = {}
 ) {
   const { t } = useTranslation()
+  const { onLaunchSkill, onOpenSkill } = options
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -69,7 +75,6 @@ export function useResourceCatalogController(
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [creatingResource, setCreatingResource] = useState(false)
-  const [localSelectedSkill, setLocalSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
@@ -93,22 +98,6 @@ export function useResourceCatalogController(
     search,
     sort: 'name'
   })
-
-  const selectedResource = skillSelection
-    ? allResources.find((resource) => resource.type === 'skill' && resource.id === skillSelection.id)
-    : undefined
-  const selectedSkill = skillSelection
-    ? selectedResource?.type === 'skill'
-      ? selectedResource.raw
-      : null
-    : localSelectedSkill
-  const setSelectedSkill = useCallback(
-    (skill: InstalledSkill | null) => {
-      if (skillSelection) skillSelection.onChange(skill?.id)
-      else setLocalSelectedSkill(skill)
-    },
-    [skillSelection]
-  )
 
   useEffect(() => {
     setActiveGroupId(null)
@@ -139,11 +128,30 @@ export function useResourceCatalogController(
       } else if (resource.type === 'agent') {
         setEditDialogTarget({ kind: 'agent', id: resource.id })
       } else if (resource.type === 'skill') {
-        setSelectedSkill(resource.raw)
+        onOpenSkill?.(resource.raw)
       }
     },
-    [setSelectedSkill]
+    [onOpenSkill]
   )
+
+  const handleLaunchSkill = useCallback(
+    (resource: ResourceItem) => {
+      if (resource.type === 'skill') void onLaunchSkill?.(resource.raw)
+    },
+    [onLaunchSkill]
+  )
+
+  const handleCreateSkillWithAgent = useCallback(() => {
+    const creator = allResources.find(
+      (resource) =>
+        resource.type === 'skill' && resource.raw.source === 'builtin' && resource.raw.folderName === 'skill-creator'
+    )
+    if (!creator || creator.type !== 'skill') {
+      toast.error(t('settings.skills.creatorUnavailable'))
+      return
+    }
+    void onLaunchSkill?.(creator.raw)
+  }, [allResources, onLaunchSkill, t])
 
   const handleDuplicate = useCallback(
     async (resource: ResourceItem) => {
@@ -309,6 +317,8 @@ export function useResourceCatalogController(
       onOpenAssistantLibrary: isAssistantLibrary ? () => setAssistantLibraryOpen(true) : undefined,
       onOpenSkillMarketplace: () => setSkillMarketplaceOpen(true),
       onOpenSystemSkills: () => setSystemSkillOpen(true),
+      onCreateSkillWithAgent: onLaunchSkill ? handleCreateSkillWithAgent : undefined,
+      onLaunchSkill: onLaunchSkill ? handleLaunchSkill : undefined,
       groups: scopedGroups,
       activeGroupId,
       onGroupFilter: setActiveGroupId,
@@ -325,7 +335,6 @@ export function useResourceCatalogController(
       creatingResource,
       deleteConfirm,
       editDialogTarget,
-      selectedSkill,
       skillImportOpen,
       skillMarketplaceOpen,
       systemSkillOpen,
@@ -333,7 +342,6 @@ export function useResourceCatalogController(
       setAssistantLibraryOpen,
       setDeleteConfirm,
       setEditDialogTarget,
-      setSelectedSkill,
       setSkillImportOpen,
       setSkillMarketplaceOpen,
       setSystemSkillOpen,

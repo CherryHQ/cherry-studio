@@ -224,7 +224,12 @@ export const aiRequestSchemas = {
       assistantId: z.string().optional(),
       throwOnError: z.boolean().optional()
     }),
-    output: z.array(ModelSchema.partial())
+    // A listing, not a bare array: a provider whose "models" are its own files
+    // (ComfyUI) holds some back, and the caller has to be able to say which.
+    output: z.object({
+      models: z.array(ModelSchema.partial()),
+      skippedModels: z.array(z.string()).optional()
+    })
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({
@@ -342,6 +347,10 @@ export const aiRequestSchemas = {
   }),
   'ai.agent.support_session.create': defineRoute({
     input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
+  'ai.agent.skill_session.create': defineRoute({
+    input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({

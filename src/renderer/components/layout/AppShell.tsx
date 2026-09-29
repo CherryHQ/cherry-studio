@@ -42,6 +42,7 @@ export const AppShell = () => {
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
+  const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
@@ -119,7 +120,12 @@ export const AppShell = () => {
     [tabs, activeTabId, setActiveTab]
   )
 
+  const handleCloseActiveTab = useCallback(() => {
+    if (activeTabId) handleCloseTab(activeTabId)
+  }, [activeTabId, handleCloseTab])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 

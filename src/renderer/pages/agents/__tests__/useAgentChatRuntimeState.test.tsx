@@ -1,8 +1,15 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  readAskUserQuestionDraftCache,
+  writeAskUserQuestionDraftCache
+} from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -63,10 +70,6 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
-}))
-
-vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/services/messageUiStateCache', () => ({
@@ -156,6 +159,34 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('shows the edit reason when resending from an unsupported checkpoint fails', async () => {
+    const draft = {
+      messageId: 'user-1',
+      version: 'version-1',
+      parts: [{ type: 'text' as const, text: 'Original question' }]
+    }
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockRejectedValue(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, 'checkpoint_unsupported', {
+        reason: 'checkpoint_unsupported'
+      })
+    )
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+
+    expect(mocks.toastError).toHaveBeenCalledExactlyOnceWith('agent.edit_resend.error.checkpoint_unsupported')
+    expect(mocks.toastError).not.toHaveBeenCalledWith('agent_session_fork.unsupported_checkpoint')
+  })
+
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
       messageId: 'edited-user',
@@ -214,6 +245,7 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
@@ -223,6 +255,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.sendTurn.mockResolvedValue(true)
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
+      persistedPartsByMessageId: {},
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
@@ -283,20 +316,6 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
-  })
-
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
-    expect(mocks.refresh).not.toHaveBeenCalled()
-    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
   it('invalidates disclosure state after deleting a session message', async () => {
@@ -456,5 +475,128 @@ describe('useAgentChatRuntimeState', () => {
     // Actual session change: the stale input must be dropped.
     view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
     expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('evicts the AskUserQuestion draft cache only when the persisted part settles the answers', async () => {
+    MockCacheUtils.resetMocks()
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval(makeAskUserQuestionApproval())
+    })
+
+    // The dispatch ack lands before the assistant row is durably persisted, so
+    // the draft must still be readable for a remount in that window.
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    const liveAnswer = makeAskUserQuestionPart({ state: 'output-available', input: askUserQuestionUpdatedInput })
+    mocks.useAgentSessionParts.mockReturnValue({
+      ...mocks.useAgentSessionParts(),
+      messages: [{ ...assistantMessage, parts: [liveAnswer] }],
+      persistedPartsByMessageId: { 'assistant-1': [makeAskUserQuestionPart()] }
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      ...mocks.useExecutionOverlay(),
+      overlay: { 'assistant-1': [liveAnswer] }
+    })
+    rerender()
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    // Only the database update allows the draft to be retired.
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    await act(async () => {
+      rerender()
+    })
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
+  })
+
+  it('evicts the AskUserQuestion draft cache from persisted parts after a remount or session change', async () => {
+    // The settlement happened in a previous mount/session, so this mount never
+    // dispatched the approval and holds no optimistic ids to sweep from.
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
   })
 })

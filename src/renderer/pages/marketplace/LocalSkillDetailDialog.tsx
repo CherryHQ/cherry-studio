@@ -12,16 +12,20 @@ import {
   Markdown,
   Spinner
 } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/types/skill'
+import { createFilePathHandle } from '@shared/utils/file'
 
 async function readSkillBody(id: string): Promise<string> {
-  const files = await window.api.skill.listFiles(id)
-  if (!files.success) throw new Error('Cannot read skill files')
-  const root = files.data.find((file) => file.type === 'file' && file.name.toLowerCase() === 'skill.md')
+  const { rootPath } = await ipcApi.request('skill.folder.resolve', { skillId: id })
+  const files = await window.api.file.listDirectoryEntries(rootPath, { recursive: false, includeDirectories: false })
+  const root = files.find((file) => !file.isDirectory && file.path.split(/[\\/]/).pop()?.toLowerCase() === 'skill.md')
   if (!root) throw new Error('Missing SKILL.md')
-  const result = await window.api.skill.readSkillFile(id, root.path)
-  if (!result.success || result.data === null) throw new Error('Cannot read SKILL.md')
-  return result.data
+  const { content } = await ipcApi.request('file.read', {
+    handle: createFilePathHandle(root.path),
+    options: { mode: 'full', encoding: 'binary' }
+  })
+  return new TextDecoder().decode(content)
 }
 
 export function LocalSkillDetailDialog({

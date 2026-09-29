@@ -1110,6 +1110,28 @@ describe('ComposerToken', () => {
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps modified sent-link clicks on the global opener when a host opener is present', async () => {
+    const user = userEvent.setup()
+    const url = 'https://www.example.com/docs'
+    const onOpenLink = vi.fn()
+    render(
+      <ComposerToken
+        token={{ id: 'link-token-1', kind: 'link', label: 'example.com/docs', promptText: url }}
+        readOnly
+        onOpenLink={onOpenLink}
+      />
+    )
+    const link = screen.getByRole('link', { name: url })
+    for (const modifier of ['Control', 'Meta', 'Shift', 'Alt']) {
+      ipcRequestMock.mockClear()
+      await user.keyboard(`{${modifier}>}`)
+      await user.click(link)
+      await user.keyboard(`{/${modifier}}`)
+      expect(ipcRequestMock).toHaveBeenCalledExactlyOnceWith('system.shell.open_website', url)
+    }
+    expect(onOpenLink).not.toHaveBeenCalled()
+  })
+
   it('renders sent links with their hostname favicon', () => {
     const url = 'https://www.example.com/docs'
     const { container } = render(

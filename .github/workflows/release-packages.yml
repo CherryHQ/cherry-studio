@@ -9,6 +9,8 @@ on:
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
+      - "packages/remote-protocol/**"
+      - "packages/remote-transport/**"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -56,6 +58,11 @@ jobs:
 
       - name: Build Packages
         run: pnpm packages:build
+
+      - name: Check Remote Packages
+        run: |
+          pnpm --filter '@cherrystudio/remote-*' typecheck
+          pnpm --filter '@cherrystudio/remote-*' test
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

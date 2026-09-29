@@ -1267,6 +1267,7 @@ native runtimes remain separate; both use the same session tool definitions,
 `SessionBrowserController`, CDP sessions, screenshot tiles and WebMCP implementation.
 Pure tool schemas and descriptions live in `src/main/ai/mcp/browserToolDefinitions.ts`;
 browser feature handlers consume that contract, without an AI-to-feature import.
+On the AI SDK chat path, the assistant browser tool surface is exposed through the deferred tool pool (`tool_search`, `tool_inspect`, and `tool_invoke`), so a Topic that never uses the browser pays only the meta-tool and `<deferred-tools>` overhead instead of full browser schemas at every context size; Agent runtimes retain their unchanged runtime-native browser MCP surface.
 
 `BrowserGuestRegistry` owns guest validation, leases and cursor identity. Agent and Topic
 registries resolve their owners through their respective data services. Their shared guest
