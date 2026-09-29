@@ -517,7 +517,8 @@ describe('Browser preferences', () => {
   it('persists website routing independently of Agent control', async () => {
     const user = userEvent.setup()
     renderSettings()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.openLinks'] }))
+    const openLinks = screen.getByRole('switch', { name: en['settings.browser.openLinks'] })
+    await user.click(openLinks)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.open_links_in_browser']).toBe(true)
     )
@@ -528,16 +529,18 @@ describe('Browser preferences', () => {
   it('persists browser control without individual tool permission settings', async () => {
     const user = userEvent.setup()
     const view = renderSettings()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
+    const control = screen.getByRole('switch', { name: en['settings.browser.control'] })
+    await user.click(control)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
     )
     await waitForBrowserSwitchSave(en['settings.browser.control'])
     view.unmount()
     renderSettings()
-    expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeChecked()
+    const controlAfterRemount = screen.getByRole('switch', { name: en['settings.browser.control'] })
+    expect(controlAfterRemount).toBeChecked()
     expect(screen.queryByRole('button', { name: 'Manage Tool permissions' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
+    await user.click(controlAfterRemount)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
