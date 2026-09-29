@@ -86,7 +86,12 @@ function assertNotesTargetDirectory(dirPath: string): void {
   const filesDir = normalizeForCompare(realPath(application.getPath('feature.files.data')))
   const defaultNotesDir = normalizeForCompare(realPath(application.getPath('feature.notes.data')))
 
-  if (isPathInside(physicalPath, filesDir) || physicalPath === defaultNotesDir || physicalPath === appDataPath) {
+  if (
+    physicalPath === filesDir ||
+    isPathInside(physicalPath, filesDir) ||
+    physicalPath === defaultNotesDir ||
+    physicalPath === appDataPath
+  ) {
     invalid('invalid_target', `target is a protected directory: ${dirPath}`)
   }
 

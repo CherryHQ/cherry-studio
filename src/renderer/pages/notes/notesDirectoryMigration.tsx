@@ -1,11 +1,14 @@
 import type { TFunction } from 'i18next'
 
 import { loggerService } from '@logger'
+import {
+  NotesDirectoryMigrationConfirmContent,
+  NotesDirectoryMigrationMergeContent
+} from '@renderer/pages/notes/components/NotesDirectoryMigrationConfirmContent'
 import { ipcApi } from '@renderer/ipc'
 import { flushAllNotesEdits } from '@renderer/services/notesEditFlush'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { formatFileSize } from '@renderer/utils/file'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
@@ -15,45 +18,26 @@ function showValidationError(t: TFunction, reason: NotesRelocationValidationReas
   toast.error(t(key, { defaultValue: t('settings.data.notes_relocation.error.generic') }))
 }
 
-function formatMigrationSummary(
-  t: TFunction,
-  markdownFileCount: number,
-  folderCount: number,
-  totalBytes: number
-): string {
-  return t('settings.data.notes_relocation.confirm.summary', {
-    notes: markdownFileCount,
-    folders: folderCount,
-    size: formatFileSize(totalBytes)
-  })
-}
-
 async function confirmMigration(
   t: TFunction,
   sourcePath: string,
   targetPath: string,
-  summary: string
+  markdownFileCount: number,
+  folderCount: number,
+  totalBytes: number
 ): Promise<boolean> {
   return popup.confirm({
     title: t('settings.data.notes_relocation.confirm.title'),
     width: 'min(560px, 90vw)',
     content: (
-      <div className="flex flex-col gap-4 text-sm">
-        <p>{summary}</p>
-        <div>
-          <div className="font-medium">{t('settings.data.notes_relocation.confirm.from')}</div>
-          <div className="break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground">
-            {sourcePath}
-          </div>
-        </div>
-        <div>
-          <div className="font-medium">{t('settings.data.notes_relocation.confirm.to')}</div>
-          <div className="break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground">
-            {targetPath}
-          </div>
-        </div>
-        <p className="text-foreground-tertiary">{t('settings.data.notes_relocation.confirm.notice')}</p>
-      </div>
+      <NotesDirectoryMigrationConfirmContent
+        t={t}
+        sourcePath={sourcePath}
+        targetPath={targetPath}
+        markdownFileCount={markdownFileCount}
+        folderCount={folderCount}
+        totalBytes={totalBytes}
+      />
     ),
     okText: t('settings.data.notes_relocation.confirm.action'),
     cancelText: t('common.cancel'),
@@ -62,19 +46,9 @@ async function confirmMigration(
 }
 
 async function confirmMerge(t: TFunction, markdownFileCount: number): Promise<boolean> {
-  const mergeMessage =
-    markdownFileCount > 0
-      ? t('settings.data.notes_relocation.merge.content', { count: markdownFileCount })
-      : t('settings.data.notes_relocation.merge.content_other_files')
-
   return popup.confirm({
     title: t('settings.data.notes_relocation.merge.title'),
-    content: (
-      <div className="flex flex-col gap-2 text-sm">
-        <p>{mergeMessage}</p>
-        <p className="text-foreground-tertiary">{t('settings.data.notes_relocation.merge.choose_another_hint')}</p>
-      </div>
-    ),
+    content: <NotesDirectoryMigrationMergeContent t={t} markdownFileCount={markdownFileCount} />,
     okText: t('settings.data.notes_relocation.merge.merge'),
     cancelText: t('common.cancel'),
     centered: true
@@ -113,12 +87,9 @@ export async function migrateNotesDirectoryWithUi(options: {
       t,
       sourcePath,
       targetPath,
-      formatMigrationSummary(
-        t,
-        inspection.source.markdownFileCount,
-        inspection.source.folderCount,
-        inspection.source.totalBytes
-      )
+      inspection.source.markdownFileCount,
+      inspection.source.folderCount,
+      inspection.source.totalBytes
     )
     if (!confirmed) {
       return
