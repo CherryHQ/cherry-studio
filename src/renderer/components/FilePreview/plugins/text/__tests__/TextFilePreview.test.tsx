@@ -70,6 +70,15 @@ describe('TextFilePreview', () => {
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
   })
 
+  it('renders source in a viewer with a bounded scroll viewport', async () => {
+    renderPreview()
+
+    await screen.findByTestId('code-viewer')
+    // The viewer's virtualizer windows rows against its own scroller, so it must own a bounded
+    // viewport — an unbounded wrapper hands it the whole document and materializes every row.
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ expanded: false, height: '100%' }))
+  })
+
   // Shiki tokenization runs over the whole document on the renderer main thread, so a big
   // text preview drops highlighting instead of blocking the UI until it finishes.
   it('drops syntax highlighting for a file over the rich render budget', async () => {

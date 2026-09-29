@@ -141,15 +141,19 @@ function MarkdownPreviewContent({
   const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
 
   if (mode === 'source') {
+    // The viewer owns the scroll here: its virtualizer measures its own scroller, so an unbounded
+    // wrapper would hand it the whole document as the viewport and materialize every row.
     return (
-      <div className="flex min-h-full w-full">
+      <div className="flex h-full min-h-0 w-full">
         <Suspense fallback={<MarkdownPreviewLoading />}>
           <LazyCodeViewer
             value={content}
             language="markdown"
             wrapped
+            expanded={false}
+            height="100%"
             options={{ highlight: richPreview }}
-            className="min-w-0 flex-1 overflow-hidden"
+            className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
           />
         </Suspense>
       </div>
@@ -214,7 +218,8 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         />
       ) : null}
       {plainFallback ? <MarkdownPreviewPlainFallback /> : null}
-      <FilePreviewLayout.Content>
+      {/* The source viewer paints an opaque surface, so its composer inset is padded inside it. */}
+      <FilePreviewLayout.Content composerInset={!(loadState.status === 'ready' && effectiveMode === 'source')}>
         <MarkdownPreviewContent
           hideFrontmatter={type === 'artifact'}
           loadState={loadState}
