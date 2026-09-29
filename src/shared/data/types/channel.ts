@@ -43,6 +43,28 @@ export const WeChatChannelConfigSchema = z.object({
 
 export type WeChatChannelConfig = z.infer<typeof WeChatChannelConfigSchema>
 
+const WeComChatIdSchema = z
+  .string()
+  .trim()
+  .regex(/^(dm|group):\S+$/)
+const WeComUserIdSchema = z.string().trim().min(1)
+
+export const WeComChannelConfigSchema = z.strictObject({
+  type: z.literal('wecom'),
+  bot_id: z.string().trim(),
+  secret: z.string(),
+  allowed_chat_ids: z
+    .array(WeComChatIdSchema)
+    .default([])
+    .transform((ids) => [...new Set(ids)]),
+  allowed_user_ids: z
+    .array(WeComUserIdSchema)
+    .default([])
+    .transform((ids) => [...new Set(ids)])
+})
+
+export type WeComChannelConfig = z.infer<typeof WeComChannelConfigSchema>
+
 export const DiscordChannelConfigSchema = z.object({
   type: z.literal('discord'),
   bot_token: z.string(),
@@ -67,13 +89,14 @@ export const ChannelConfigSchema = z.discriminatedUnion('type', [
   FeishuChannelConfigSchema,
   QQChannelConfigSchema,
   WeChatChannelConfigSchema,
+  WeComChannelConfigSchema,
   DiscordChannelConfigSchema,
   SlackChannelConfigSchema
 ])
 
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>
 
-export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'] as const
+export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'wecom', 'discord', 'slack'] as const
 export type ChannelType = (typeof CHANNEL_TYPES)[number]
 
 export interface ChannelStatus {

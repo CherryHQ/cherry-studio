@@ -490,9 +490,6 @@ export class ChannelMessageHandler {
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
           adapter.sendMessage(message.chatId, streamErrorMessage, responseOptionsFor(message)).catch(() => {})
-        } else {
-          // Mid-stream error: let the adapter update its streaming UI.
-          adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
         }
         throw streamError
       } finally {

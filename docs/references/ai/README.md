@@ -46,6 +46,7 @@ renderer-side transport that connects to them.
 | [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
 | [Browser Use Design](./browser-use-design.md) | Browser automation ownership, capability gaps, and delivery roadmap |
 | [Browser Use Implementation](./browser-use-implementation.md) | Session engine, MCP contracts, and implementation plan |
+| [企业微信 Channel 接入方案](./wecom-channel-design.md) | Proposed WeCom integration, session bindings, stream lifecycle, attachments, delivery limits, and acceptance criteria |
 
 ### Renderer-side glue
 
@@ -60,9 +61,9 @@ renderer-side transport that connects to them.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `channels/`, `skills/`, and
-> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
-> deep-dive docs.
+> tools → persistence → renderer transport). The WeCom channel design describes
+> the integration and its pending acceptance checks; the `channels/`, `skills/`, and `mcp/` subsystems are
+> mapped in the tree below but do not yet have complete subsystem references.
 
 ```
 src/main/ai/
@@ -75,7 +76,7 @@ src/main/ai/
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
 ├── agents/                       ← AgentLifecycleService, AgentJobsService, runAgentTask, prompt, heartbeat, builtin/
-├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
+├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat/wecom) + security/
 ├── streamManager/                ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts        ← active-stream registry and dispatch owner
 │   ├── context/                  ← ChatContextProvider implementations + dispatch

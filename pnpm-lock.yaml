@@ -313,6 +313,9 @@ importers:
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)(supports-color@8.1.1)
+      '@wecom/aibot-node-sdk':
+        specifier: 1.0.7
+        version: 1.0.7(debug@4.4.3(supports-color@8.1.1))
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
@@ -9591,6 +9594,9 @@ packages:
 
   '@webcontainer/env@1.1.1':
     resolution: {integrity: sha512-6aN99yL695Hi9SuIk1oC88l9o0gmxL1nGWWQ/kNy81HigJ0FoaoTXpytCj6ItzgyCEwA9kF1wixsTuv5cjsgng==}
+
+  '@wecom/aibot-node-sdk@1.0.7':
+    resolution: {integrity: sha512-51w+sTqunry6GD3HFvmuh0gArMSJDFE418vyvR1wMJHj1N6DaFuGD3HuaY2fazZs3mb9FWeQFX3+vU5t0Qhwmw==}
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -25066,6 +25072,16 @@ snapshots:
   '@vue/shared@3.5.26': {}
 
   '@webcontainer/env@1.1.1': {}
+
+  '@wecom/aibot-node-sdk@1.0.7(debug@4.4.3(supports-color@8.1.1))':
+    dependencies:
+      axios: 1.16.0(debug@4.4.3(supports-color@8.1.1))
+      eventemitter3: 5.0.4
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - utf-8-validate
 
   '@xmldom/xmldom@0.8.13': {}
 

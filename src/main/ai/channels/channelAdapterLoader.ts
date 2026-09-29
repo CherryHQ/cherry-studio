@@ -51,6 +51,15 @@ export const loadChannelAdapter: ChannelAdapterLoader = async (channel, agentId)
         channelConfig: channel.config
       })
     }
+    case 'wecom': {
+      const { createWeComAdapter } = await import('./adapters/wecom/WeComAdapter')
+      return createWeComAdapter({
+        channelId: channel.id,
+        channelType: channel.type,
+        agentId,
+        channelConfig: channel.config
+      })
+    }
     case 'wechat': {
       const { createWeChatAdapter } = await import('./adapters/wechat/WeChatAdapter')
       return createWeChatAdapter({

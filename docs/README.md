@@ -51,6 +51,7 @@
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
+| [企业微信 Channel 接入方案](./references/ai/wecom-channel-design.md) | WeCom channel design and implementation record covering WebSocket transport, Agent and Session bindings, stream lifecycle, attachments, delivery limits, and acceptance criteria |
 
 ### API Gateway
 

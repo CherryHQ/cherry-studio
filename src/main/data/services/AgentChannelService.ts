@@ -12,6 +12,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
@@ -82,7 +83,6 @@ export class AgentChannelService {
           permissionMode?: AgentPermissionMode | null
         }
   ): AgentChannelEntity {
-    const database = application.get('DbService').getDb()
     const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
@@ -95,7 +95,10 @@ export class AgentChannelService {
       permissionMode: data.permissionMode
     }
 
-    const result = database.insert(channelsTable).values(insertData).returning().all()
+    const result = application.get('DbService').withWriteTx((tx) => {
+      this.validateWeComBot(tx, data.type, insertData.config, isActive)
+      return tx.insert(channelsTable).values(insertData).returning().all()
+    })
 
     if (!result[0]) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
@@ -243,6 +246,7 @@ export class AgentChannelService {
         updates.config !== undefined ? updates.config : existing.config,
         isActive
       )
+      this.validateWeComBot(tx, existing.type, config, isActive, id)
       const normalizedUpdates = {
         ...updates,
         ...(updates.config !== undefined || updates.isActive !== undefined ? { config } : {})
@@ -274,6 +278,18 @@ export class AgentChannelService {
       this.notifyReadModelChange(id, 'membership')
     }
     return result.length > 0
+  }
+
+  private validateWeComBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+    if (type !== 'wecom' || !active) return
+    const botId = (config as { bot_id: string }).bot_id
+    const conflict = tx
+      .select()
+      .from(channelsTable)
+      .where(and(eq(channelsTable.type, 'wecom'), eq(channelsTable.isActive, true)))
+      .all()
+      .some((row) => row.id !== id && (row.config as { bot_id?: string }).bot_id?.trim() === botId)
+    if (conflict) throw DataApiErrorFactory.invalidOperation('activate channel', t('common.wecom_duplicate_bot'))
   }
 
   private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {

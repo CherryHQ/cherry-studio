@@ -133,6 +133,7 @@
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
     "@vectorstores/readers": "^0.1.8",
+    "@wecom/aibot-node-sdk": "1.0.7",
     "better-sqlite3": "12.11.1",
     "cross-spawn": "7.0.6",
     "font-list": "2.0.0",

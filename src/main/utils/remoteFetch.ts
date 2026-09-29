@@ -97,12 +97,12 @@ function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
   return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 }
 
-async function fetchRemoteTextFromUrl(
+async function fetchRemoteResponse(
   url: string,
   options: ResolvedFetchRemoteTextOptions,
   signal: AbortSignal,
   redirectsRemaining: number
-): Promise<string> {
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const target = await resolveRemoteFetchUrl(url, {
     signal,
     allowPrivateNetwork: application.get('PreferenceService').get('app.fetch.allow_private_network')
@@ -154,10 +154,7 @@ async function fetchRemoteTextFromUrl(
         settled = true
         response.resume()
         response.destroy()
-        void fetchRemoteTextFromUrl(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(
-          resolve,
-          reject
-        )
+        void fetchRemoteResponse(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(resolve, reject)
         return
       }
 
@@ -202,7 +199,7 @@ async function fetchRemoteTextFromUrl(
         }
 
         settled = true
-        resolve(Buffer.concat(chunks).toString('utf8'))
+        resolve({ body: Buffer.concat(chunks), headers: response.headers })
       })
 
       response.on('aborted', () => fail(new Error('Remote response aborted before completion')))
@@ -220,6 +217,14 @@ async function fetchRemoteTextFromUrl(
  * DNS address. Redirects are opt-in and response bodies are bounded.
  */
 export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
+  return (await fetchRemoteBytes(url, options)).body.toString('utf8')
+}
+
+/** Fetch bounded binary data using the same DNS, redirect and cancellation policy as text. */
+export async function fetchRemoteBytes(
+  url: string,
+  options: FetchRemoteTextOptions = {}
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const maxRedirects = options.maxRedirects ?? 0
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('maxRedirects must be a non-negative safe integer')
@@ -227,5 +232,5 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
 
   const signal = buildSignal(options)
   const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
-  return fetchRemoteTextFromUrl(url, requestOptions, signal, maxRedirects)
+  return fetchRemoteResponse(url, requestOptions, signal, maxRedirects)
 }
