@@ -709,4 +709,22 @@ describe('cold-resumed dsh flows', () => {
     expect(projection.messages.map((item) => item.id)).toEqual(['call-send:agent-flow-prompt'])
     expect(JSON.stringify(projection)).not.toContain('message delivered to agent')
   })
+
+  // A receipt can carry the resumed run's answer — a deferred result is hydrated and passed in —
+  // and a prompt-only flow would lose it.
+  it('keeps the answer a receipt root returned', () => {
+    const parts = [dshResume('call-send', 'Please continue the audit')]
+
+    const projection = buildAgentToolFlowProjection(
+      [message('m1', parts)],
+      { m1: parts },
+      'call-send',
+      'The audit found three stale locks.'
+    )
+    const assistantParts = projection.partsByMessageId['call-send:agent-flow-assistant']
+
+    expect(assistantParts).toEqual([
+      expect.objectContaining({ type: 'text', text: 'The audit found three stale locks.' })
+    ])
+  })
 })

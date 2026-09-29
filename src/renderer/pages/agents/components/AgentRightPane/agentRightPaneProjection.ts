@@ -656,11 +656,11 @@ export function buildAgentToolFlowProjection(
         isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput
           ? undefined
           : textFromContent(selectedOutput)
-      // A receipt root's text is delivery metadata, never the child's own answer.
-      const selectedIsResumeReceipt =
-        selectedToolPart !== undefined && getCanonicalToolName(selectedToolPart) === AgentToolsType.SendMessage
+      // A receipt's own text is delivery metadata, never the child's answer. Only the receipt is
+      // suppressed: a root whose result is the resumed run's answer keeps it.
       const foregroundResultText =
-        selectedIsResumeReceipt || isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+        getResumedAgentId(selectedOutput) !== undefined ||
+        isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
           ? undefined
           : selectedOutputText
       if (foregroundResultText) {

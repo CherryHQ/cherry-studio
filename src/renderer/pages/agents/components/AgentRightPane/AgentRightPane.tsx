@@ -461,7 +461,7 @@ function AgentRightPaneActionsProvider({
         : input
       showFlowTab(flowInput, nested)
     },
-    [canOpenAgentToolFlow, showFlowTab]
+    [canOpenAgentToolFlow, sessionId, showFlowTab]
   )
   useEffect(() => {
     if (!pendingFlowOpen || pendingFlowOpen.sessionId !== sessionId) return
