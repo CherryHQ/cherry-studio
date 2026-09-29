@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from '../capAttachReplay'
+import {
+  capAttachReplayChunks,
+  dropCoveredOverflow,
+  MAX_ATTACH_REPLAY_CHUNKS,
+  repairAttachOverflow
+} from '../capAttachReplay'
 
 function textDelta(id: string, delta: string): StreamChunkPayload {
   return { topicId: 't', chunk: { type: 'text-delta', id, delta } }
@@ -198,5 +203,26 @@ describe('dropCoveredOverflow', () => {
 
     const fresh = seqDelta(14, 'c')
     expect(dropCoveredOverflow(replay, [orphanToolDelta(13), fresh], droppedSeqs)).toEqual([fresh])
+  })
+})
+
+describe('repairAttachOverflow', () => {
+  it('drops orphan tool-output in overflow after a capped replay tail', () => {
+    const replay = [
+      { topicId: 't', seq: 1, chunk: { type: 'text-start', id: 'p' } },
+      { topicId: 't', seq: 2, chunk: { type: 'text-delta', id: 'p', delta: 'a' } }
+    ]
+    const overflow = [
+      {
+        topicId: 't',
+        seq: 3,
+        chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' }
+      },
+      { topicId: 't', seq: 4, chunk: { type: 'text-delta', id: 'p', delta: 'b' } }
+    ]
+
+    expect(repairAttachOverflow(replay, overflow).map((p) => p.chunk)).toEqual([
+      { type: 'text-delta', id: 'p', delta: 'b' }
+    ])
   })
 })

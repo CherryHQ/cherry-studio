@@ -84,16 +84,7 @@ function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamCh
   return [...keep].sort((a, b) => a - b).map((i) => chunks[i])
 }
 
-export function capAttachReplayChunks(
-  chunks: readonly StreamChunkPayload[],
-  max: number = MAX_ATTACH_REPLAY_CHUNKS
-): { replay: StreamChunkPayload[]; droppedSeqs: number[] } {
-  if (chunks.length <= max) return { replay: [...chunks], droppedSeqs: [] }
-
-  // Collect authoritative tool identity per toolCallId. Scanning the full
-  // buffer (not just the retained tail) keeps the attach→live handoff from
-  // losing its opener when the cap falls inside an active tool-input run: a
-  // tail-starting delta can still synthesize with the real name/dynamic flag.
+function collectToolInfoByKey(chunks: readonly StreamChunkPayload[]) {
   const toolInfoByKey = new Map<string, { toolName: string; dynamic?: boolean }>()
   for (const payload of chunks) {
     const c = payload.chunk
@@ -104,6 +95,29 @@ export function capAttachReplayChunks(
       })
     }
   }
+  return toolInfoByKey
+}
+
+// Attach-time overflow is not re-capped, but it still needs the same opener /
+// orphan filtering as the snapshot so live handoff stays parseable.
+export function repairAttachOverflow(
+  replay: readonly StreamChunkPayload[],
+  overflow: readonly StreamChunkPayload[]
+): StreamChunkPayload[] {
+  if (overflow.length === 0) return []
+  const toolInfoByKey = collectToolInfoByKey([...replay, ...overflow])
+  const repairedReplay = replayTail(replay, toolInfoByKey)
+  const combined = replayTail([...repairedReplay, ...overflow], toolInfoByKey)
+  return combined.slice(repairedReplay.length)
+}
+
+export function capAttachReplayChunks(
+  chunks: readonly StreamChunkPayload[],
+  max: number = MAX_ATTACH_REPLAY_CHUNKS
+): { replay: StreamChunkPayload[]; droppedSeqs: number[] } {
+  if (chunks.length <= max) return { replay: [...chunks], droppedSeqs: [] }
+
+  const toolInfoByKey = collectToolInfoByKey(chunks)
 
   // A shrink-to-fit loop re-scans the full buffer per pass (quadratic attach
   // work), so shrink once by the net added and finish without synthesis.

@@ -489,6 +489,64 @@ describe('IpcChatTransport', () => {
     expect(second.done).toBe(true)
   })
 
+  it('reconnectToStream does not pin topic stream to a filtered per-execution attach error', async () => {
+    const execA = 'provider-a::model-a' as UniqueModelId
+    const execB = 'provider-b::model-b' as UniqueModelId
+    const replay = [
+      { topicId, executionId: execB, chunk: { type: 'text-start', id: 't' } },
+      { topicId, executionId: execB, chunk: { type: 'text-delta', id: 't', delta: 'from-B' } }
+    ]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitError(topicId, 'exec A failed', execA, false)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    mock.emitChunk(topicId, { type: 'text-delta', id: 't', delta: '-live' }, execB)
+    mock.emitDone(topicId, undefined, true)
+
+    const chunks: UIMessageChunk[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'from-B' },
+      { type: 'text-delta', id: 't', delta: '-live' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream drops orphaned tool-output from attach overflow', async () => {
+    const replay = [{ topicId, seq: 1, chunk: { type: 'text-start', id: 't' } }]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitChunk(
+        topicId,
+        { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' } as UIMessageChunk,
+        undefined,
+        99
+      )
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    mock.emitDone(topicId, undefined, true)
+    const chunks: UIMessageChunk[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks.some((c) => (c as { type: string }).type === 'tool-output-available')).toBe(false)
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
   it('reconnectToStream still closes when a per-execution error precedes topic done during attach', async () => {
     // A filtered per-execution error must not suppress the later topic-level
     // done, or the reconnected stream hangs open indefinitely.

@@ -7,7 +7,12 @@ import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
+import {
+  capAttachReplayChunks,
+  dropCoveredOverflow,
+  MAX_ATTACH_REPLAY_CHUNKS,
+  repairAttachOverflow
+} from './capAttachReplay'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 
@@ -515,7 +520,9 @@ export class TopicStreamSubscription {
             for (const payload of replay) this.#routeChunk(payload)
             // Pre-attach live chunks already covered by the snapshot above are
             // dropped; only genuinely new chunks drain after replay, in order.
-            const fresh = live ? dropCoveredOverflow(replay, live, droppedSeqs) : undefined
+            const fresh = live
+              ? repairAttachOverflow(replay, dropCoveredOverflow(replay, live, droppedSeqs))
+              : undefined
             if (fresh) for (const payload of fresh) this.#routeChunk(payload)
             // Mid-flight terminals settle branches only after their data is
             // routed, so replay and buffered chunks are never dropped as late.

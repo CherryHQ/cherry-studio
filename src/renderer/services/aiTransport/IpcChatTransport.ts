@@ -12,7 +12,12 @@ import {
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
+import {
+  capAttachReplayChunks,
+  dropCoveredOverflow,
+  MAX_ATTACH_REPLAY_CHUNKS,
+  repairAttachOverflow
+} from './capAttachReplay'
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -122,7 +127,10 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
     // Main also sent pre-attach live chunks to a stale/parallel listener for
     // this window; those are inside the snapshot above, so drain only the rest.
-    const freshOverflow = dropCoveredOverflow(replayChunks, overflowChunks, droppedSeqs)
+    const freshOverflow = repairAttachOverflow(
+      replayChunks,
+      dropCoveredOverflow(replayChunks, overflowChunks, droppedSeqs)
+    )
     return this.buildListenerStream(topicId, [...replayChunks, ...freshOverflow], undefined, undefined, {
       done: overflowDone,
       error: overflowError
@@ -231,18 +239,20 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
         unsubscribers.push(
           ipcApi.on('ai.stream.done', (data) => {
+            if (data.topicId !== topicId || isStreamClosed) return
+            if (!executionId && isPerExecutionOnly(data)) return
             if (!matchesStream(data)) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && isPerExecutionOnly(data)) return
             closeStream()
           })
         )
 
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
+            if (data.topicId !== topicId || isStreamClosed) return
+            if (!executionId && isPerExecutionOnly(data)) return
             if (!matchesStream(data)) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && isPerExecutionOnly(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
@@ -272,9 +282,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         if (initialTerminal?.error) {
           const data = initialTerminal.error
           if (
-            matchesStream(data) &&
             !(executionId && data.executionId !== executionId) &&
-            (executionId || !isPerExecutionOnly(data))
+            (executionId || !isPerExecutionOnly(data)) &&
+            matchesStream(data)
           ) {
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           }
@@ -283,9 +293,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         if (!isStreamClosed && initialTerminal?.done) {
           const data = initialTerminal.done
           if (
+            (executionId || !isPerExecutionOnly(data)) &&
             matchesStream(data) &&
-            (!executionId || data.executionId === executionId) &&
-            (executionId || !isPerExecutionOnly(data))
+            (!executionId || data.executionId === executionId)
           ) {
             closeStream()
           }
