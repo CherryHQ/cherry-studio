@@ -35,7 +35,8 @@ jobs:
           node-version-file: .node-version
       - uses: pnpm/action-setup@v5
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # This job builds the helper explicitly and needs no unrelated Electron addon install scripts.
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Build Windows x64 helper with MSVC and Windows SDK
         run: pnpm --filter @cherrystudio/system-speech build:native -- --arch x64
       - name: Build native client
@@ -44,6 +45,8 @@ jobs:
         run: pnpm --filter @cherrystudio/system-speech typecheck
       - name: Test native client and smoke inspectors
         run: pnpm --filter @cherrystudio/system-speech test
+      - name: Test architecture-specific packaged resources
+        run: pnpm exec vitest run --project scripts scripts/__tests__/before-pack.test.ts
       - name: Verify stdin JSON protocol without requiring voices
         run: pnpm --filter @cherrystudio/system-speech smoke:windows
       - name: Synthesize real PCM WAV with an installed SAPI voice
