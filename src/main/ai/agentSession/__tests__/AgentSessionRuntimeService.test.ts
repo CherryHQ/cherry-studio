@@ -2801,7 +2801,10 @@ describe('AgentSessionRuntimeService', () => {
 
       // The first seed read fails: the round's chunks must be held, not dropped.
       sendFlow('First findings', 'first-text')
+      // A failed seed is retried once its spacing has passed, so the next round arrives after it.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
       sendFlow('Second findings', 'second-text')
+      nowSpy.mockRestore()
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
       await vi.waitFor(() => {
@@ -2870,6 +2873,75 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toBeUndefined()
       send({ type: 'text-start', id: 'overflow-2' })
       expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(1)
+    })
+
+    it('rejoins an overflowed root on a reasoning-first round', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+
+      send({ type: 'text-start', id: 'overflow' })
+      for (let index = 0; index < 1_001; index += 1) send({ type: 'text-delta', id: 'overflow', delta: 'x' })
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toBeUndefined()
+
+      // A resumed round can open with reasoning instead of text; that is a fresh stream too, so the
+      // round must be buffered rather than dropped for the rest of the session.
+      send({ type: 'reasoning-start', id: 'reasoning-1' })
+      send({ type: 'reasoning-delta', id: 'reasoning-1', delta: 'thinking' })
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(2)
+
+      // A tool call whose input never streamed arrives whole, so it also opens a part.
+      send({ type: 'reasoning-end', id: 'reasoning-1' })
+      send({ type: 'tool-input-available', toolCallId: 'child-tool', toolName: 'Read', input: {} })
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(4)
+    })
+
+    it('bounds the message-id buffer and waits for a fresh start after it overflows', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      // Every seed read fails, so nothing drains the buffer while the chunks arrive.
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'task-root', toolName: 'Agent', input: { prompt: 'Audit' } }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+
+      send({ type: 'text-start', id: 'held' })
+      for (let index = 0; index < 1_000; index += 1) send({ type: 'text-delta', id: 'held', delta: 'x' })
+
+      // An unbounded hold would retain a whole detached stream through a database outage.
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toBeUndefined()
+      expect(entry.pendingBackgroundFlowChunkCount).toBe(0)
+
+      // Deltas stay refused until a fresh stream starts, as in the recovery buffer above.
+      send({ type: 'text-delta', id: 'held', delta: 'y' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toBeUndefined()
+      send({ type: 'text-start', id: 'held-2' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(1)
+      expect(entry.pendingBackgroundFlowChunkCount).toBe(1)
     })
 
     it('retries a throwing teardown lookup before writing the root off', async () => {
@@ -3114,8 +3186,9 @@ describe('AgentSessionRuntimeService', () => {
       let seedCalls = 0
       mocks.getSessionMessage.mockImplementation(() => {
         seedCalls += 1
-        // Every chunk of the first round hits the failing seed so all three land in the buffer.
-        if (seedCalls <= 3) throw new Error('db busy')
+        // The first round's chunks all land in the buffer: the failing seed holds the first, and
+        // the retry spacing holds the rest without touching the database again.
+        if (seedCalls === 1) throw new Error('db busy')
         return { id: 'assistant-1', role: 'assistant', data: { parts: [] } }
       })
       const service = new AgentSessionRuntimeService()
@@ -3160,7 +3233,10 @@ describe('AgentSessionRuntimeService', () => {
       // The reset must not throw the buffered chunks away.
       expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
 
+      // The retry lands on the first chunk after the seed-failure spacing has passed.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
       sendFlow('Second findings', 'second-text')
+      nowSpy.mockRestore()
       await vi.waitFor(() => {
         const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
         expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
