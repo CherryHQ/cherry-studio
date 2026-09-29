@@ -274,6 +274,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
   an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
 - Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
+- Markdown and text previews drop their expensive pass — the Markdown pipeline, and shiki highlighting — for documents over
+  1 MiB or with very long lines, and show the virtualized plain-text source instead. Those passes run over the whole
+  document on the renderer main thread, and past that budget they block the UI until they finish. Markdown then locks its
+  preview/source switch and says so through `file_preview.markdown.plain_fallback.description`.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.

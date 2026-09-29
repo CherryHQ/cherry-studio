@@ -1446,6 +1446,7 @@
   "file_preview.markdown.mode.label": "Mod de vizualizare Markdown",
   "file_preview.markdown.mode.preview": "Previzualizare",
   "file_preview.markdown.mode.source": "Sursă",
+  "file_preview.markdown.plain_fallback.description": "Acest fișier este afișat ca text simplu, deoarece randarea lui ar încetini aplicația.",
   "file_preview.markdown.read_error.title": "Nu s-a putut citi acest fișier",
   "file_preview.markdown.too_large.description": "Fișierele Markdown mai mari de {{limit}} MiB nu pot fi previzualizate.",
   "file_preview.markdown.too_large.title": "Fișierul este prea mare",

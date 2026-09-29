@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -10,6 +10,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { shouldRenderRichTextPreview } from '../../textPreviewBudget'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
@@ -81,10 +82,11 @@ function TextPreviewError() {
 
 interface TextPreviewContentProps {
   filePath: string
+  highlight: boolean
   loadState: TextFileLoadState
 }
 
-function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, highlight, loadState }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
@@ -97,6 +99,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
+        options={{ highlight }}
         className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
       />
     </div>
@@ -105,6 +108,11 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
 
 export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
+  const readyContent = loadState.status === 'ready' ? loadState.content : null
+  const highlight = useMemo(
+    () => readyContent !== null && shouldRenderRichTextPreview(metadata.size, readyContent),
+    [readyContent, metadata.size]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -140,7 +148,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
-        <TextPreviewContent filePath={filePath} loadState={loadState} />
+        <TextPreviewContent filePath={filePath} highlight={highlight} loadState={loadState} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

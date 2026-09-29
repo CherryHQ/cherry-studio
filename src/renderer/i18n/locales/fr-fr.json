@@ -1446,6 +1446,7 @@
   "file_preview.markdown.mode.label": "Mode d'affichage Markdown",
   "file_preview.markdown.mode.preview": "Aperçu",
   "file_preview.markdown.mode.source": "Source",
+  "file_preview.markdown.plain_fallback.description": "Ce fichier est affiché en texte brut, car son rendu ralentirait l'application.",
   "file_preview.markdown.read_error.title": "Impossible de lire ce fichier",
   "file_preview.markdown.too_large.description": "Les fichiers Markdown de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
   "file_preview.markdown.too_large.title": "Le fichier est trop volumineux",

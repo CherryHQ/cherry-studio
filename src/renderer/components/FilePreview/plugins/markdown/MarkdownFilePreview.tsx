@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -13,6 +13,7 @@ import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { shouldRenderRichTextPreview } from '../../textPreviewBudget'
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
@@ -83,11 +84,22 @@ function MarkdownPreviewEmpty() {
   )
 }
 
+function MarkdownPreviewPlainFallback() {
+  const { t } = useTranslation()
+
+  return (
+    <div role="note" className="border-border border-b px-4 py-2 text-muted-foreground text-xs">
+      {t('file_preview.markdown.plain_fallback.description')}
+    </div>
+  )
+}
+
 interface MarkdownPreviewContentProps {
   hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
+  richPreview: boolean
 }
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
@@ -107,7 +119,8 @@ function MarkdownPreviewContent({
   hideFrontmatter,
   loadState,
   markdownId,
-  mode
+  mode,
+  richPreview
 }: MarkdownPreviewContentProps): ReactNode {
   const navigation = useOptionalFilePreviewNavigation()
   const openFilePath = useCallback(
@@ -131,6 +144,7 @@ function MarkdownPreviewContent({
             value={loadState.content}
             language="markdown"
             wrapped
+            options={{ highlight: richPreview }}
             className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>
@@ -154,7 +168,12 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
-  const effectiveMode = type === 'artifact' ? 'preview' : mode
+  const readyContent = loadState.status === 'ready' ? loadState.content : null
+  const plainFallback = useMemo(
+    () => readyContent !== null && !shouldRenderRichTextPreview(metadata.size, readyContent),
+    [readyContent, metadata.size]
+  )
+  const effectiveMode = plainFallback ? 'source' : type === 'artifact' ? 'preview' : mode
 
   useEffect(() => {
     let cancelled = false
@@ -185,14 +204,20 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   return (
     <FilePreviewLayout.Frame>
       {type === 'file' ? (
-        <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
+        <MarkdownFilePreviewToolbar
+          disabled={loadState.status !== 'ready' || plainFallback}
+          mode={effectiveMode}
+          onModeChange={setMode}
+        />
       ) : null}
+      {plainFallback ? <MarkdownPreviewPlainFallback /> : null}
       <FilePreviewLayout.Content>
         <MarkdownPreviewContent
           hideFrontmatter={type === 'artifact'}
           loadState={loadState}
           markdownId={markdownId}
           mode={effectiveMode}
+          richPreview={!plainFallback}
         />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
