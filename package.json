@@ -163,7 +163,7 @@
   },
   "devDependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.96",
-    "@ai-sdk/anthropic": "^3.0.103",
+    "@ai-sdk/anthropic": "^3.0.125",
     "@ai-sdk/azure": "^3.0.116",
     "@ai-sdk/bytedance": "1.0.29",
     "@ai-sdk/cerebras": "^2.0.78",
