@@ -3,7 +3,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { ensureDir, lstat, read, writeInPlace } from '@main/utils/file'
+import { ensureDir, read, stat, writeInPlace } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
@@ -41,8 +41,8 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
     const validPath = await validatePath(filePath, baseDir)
     // Check if file exists
     try {
-      const stats = await lstat(validPath)
-      if (!stats.isFile) {
+      const stats = await stat(validPath)
+      if (stats.isDirectory) {
         throw new Error(`Path is not a file: ${filePath}`)
       }
     } catch (error: any) {
@@ -53,8 +53,11 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
           const parentDir = path.dirname(validPath)
           await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
 
-          // Write the new content
-          await writeInPlace(validPath, newString)
+          try {
+            await writeInPlace(validPath, newString)
+          } catch (error: any) {
+            throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
+          }
 
           logger.info('File created', { path: validPath })
 
@@ -78,7 +81,11 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
 
     // Handle special case: old_string is empty (create file with content)
     if (oldString === '') {
-      await writeInPlace(validPath, newString)
+      try {
+        await writeInPlace(validPath, newString)
+      } catch (error: any) {
+        throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
+      }
 
       logger.info('File overwritten', { path: validPath })
 
@@ -96,8 +103,6 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
     // Perform the replacement with fuzzy matching
     const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
 
-    // Write the modified content
-    // Write the modified content
     try {
       await writeInPlace(validPath, newContent)
     } catch (error: any) {
