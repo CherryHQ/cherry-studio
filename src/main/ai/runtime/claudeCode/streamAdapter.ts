@@ -510,6 +510,8 @@ export class ClaudeCodeStreamAdapter {
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
   /** Task id → when its persisted launch root was last looked up, so repeated edges cannot re-scan. */
   private readonly launchRootLookupAt = new Map<string, number>()
+  /** Resumed agent id → when a receipt last failed to recover its launch root, so repeats cannot re-scan. */
+  private readonly resumeReceiptLookupAt = new Map<string, number>()
   /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
    *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
    *  turn's result, so clearing would strip markers from the bulk of a continued round. */
@@ -1252,12 +1254,19 @@ export class ClaudeCodeStreamAdapter {
         let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
         // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
         // when the registration-time recovery failed or never ran, recover the launch root here
-        // rather than leaving the task permanently unmapped.
-        if (!launchToolCallId) {
+        // rather than leaving the task permanently unmapped. A lookup that found nothing is
+        // retried no more often than the edge path: unresolvable receipts arrive per send, and
+        // each attempt scans the persisted transcript. A miss still round-splits by position.
+        const now = Date.now()
+        const lastMiss = this.resumeReceiptLookupAt.get(resumedAgentId)
+        if (!launchToolCallId && (lastMiss === undefined || now - lastMiss >= LAUNCH_ROOT_LOOKUP_RETRY_MS)) {
           launchToolCallId = this.resolveLaunchToolCallId?.(resumedAgentId)
           if (launchToolCallId) {
+            this.resumeReceiptLookupAt.delete(resumedAgentId)
             this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
             if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
+          } else {
+            this.resumeReceiptLookupAt.set(resumedAgentId, now)
           }
         }
         if (launchToolCallId) {
