@@ -1169,6 +1169,31 @@ describe('Sessions', () => {
     expect(screen.getByText('Ops message A')).toBeInTheDocument()
   })
 
+  it('passes channel type to non-pinned channel session rows', async () => {
+    const { getChannelTypeIcon } = await import('@renderer/utils/agentSession')
+    vi.mocked(getChannelTypeIcon).mockClear()
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'channel-unpinned',
+          name: 'Ops message',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-42'
+          }
+        })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(getChannelTypeIcon).toHaveBeenCalledWith('telegram')
+  })
+
   it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
     const view = render(<SessionsForTest />)
     const listbox = screen.getByRole('listbox')

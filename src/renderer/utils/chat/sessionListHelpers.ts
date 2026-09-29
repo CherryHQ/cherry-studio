@@ -119,6 +119,8 @@ export function isSessionSourceGroupId(groupId: string): boolean {
   return groupId.startsWith(SESSION_SOURCE_GROUP_ID_PREFIX)
 }
 
+// In agent/workdir display modes, source groups inherit UNKNOWN_GROUP_RANK from the
+// underlying agent/workdir sorter; sessions in the same source group order by orderKey.
 export function withSessionSourceGroups<T extends SessionListItem>(
   fallback: ResourceListGroupResolver<T>
 ): ResourceListGroupResolver<T> {

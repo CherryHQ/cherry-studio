@@ -139,6 +139,7 @@ function resolveTaskSession(params: {
   }
 
   const session = createTaskSession(taskId, { agentId, name, workspace }, sessionType)
+  // Sticky reuse binds in a separate transaction; a failed bind keeps provenance without task_schedule_id.
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,

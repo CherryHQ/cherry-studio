@@ -2306,7 +2306,7 @@ function SessionListBody({
         key={session.id}
         session={session}
         active={session.id === activeSessionId}
-        channelType={session.pinned && session.source?.kind === 'channel' ? session.source.channelType : undefined}
+        channelType={session.source?.kind === 'channel' ? session.source.channelType : undefined}
         pinned={session.pinned}
         reserveLeadingIconSlot={
           displayMode === 'agent' ||
