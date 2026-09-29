@@ -30,6 +30,7 @@ import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -180,5 +181,11 @@ async function resolveFallback(
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
+  const requestContext = options.context as RequestContext | undefined
+  return {
+    model: resolved,
+    options: pickFallbackCallOptions(options),
+    repairToolCall: options.repairToolCall,
+    streamErrorOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
+  }
 }

@@ -712,9 +712,21 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+          if (fallback.streamErrorOllamaNumCtx !== undefined) {
+            request.streamErrorSerialization ??= {}
+            if (fallback.streamErrorOllamaNumCtx === null) {
+              delete request.streamErrorSerialization.ollamaNumCtx
+            } else {
+              request.streamErrorSerialization.ollamaNumCtx = fallback.streamErrorOllamaNumCtx
+            }
+          }
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
+          const requestContext = options.context as RequestContext | undefined
+          if (request.streamErrorSerialization && requestContext?.ollamaNumCtx) {
+            request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+          }
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
@@ -873,9 +885,21 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+          if (fallback.streamErrorOllamaNumCtx !== undefined) {
+            request.streamErrorSerialization ??= {}
+            if (fallback.streamErrorOllamaNumCtx === null) {
+              delete request.streamErrorSerialization.ollamaNumCtx
+            } else {
+              request.streamErrorSerialization.ollamaNumCtx = fallback.streamErrorOllamaNumCtx
+            }
+          }
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
+          const requestContext = options.context as RequestContext | undefined
+          if (request.streamErrorSerialization && requestContext?.ollamaNumCtx) {
+            request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+          }
         }
       })
     }
