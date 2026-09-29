@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
   resetHighlight: vi.fn(),
   measureElement: vi.fn(),
+  measure: vi.fn(),
   useVirtualizer: vi.fn((options: { count: number }) => ({
     getTotalSize: () => options.count * 20,
     getVirtualItems: () =>
@@ -18,7 +19,8 @@ const mocks = vi.hoisted(() => ({
         key: `row-${index}`,
         start: index * 20
       })),
-    measureElement: vi.fn()
+    measureElement: vi.fn(),
+    measure: vi.fn()
   }))
 }))
 
@@ -194,6 +196,30 @@ describe('CodeViewer', () => {
     })
     // The un-highlighted fallback renders the raw text at full opacity
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
+  })
+
+  it('remasures virtual rows when expanding a collapsed code block', () => {
+    const measure = vi.fn()
+    mocks.useVirtualizer.mockImplementation((options: { count: number }) => ({
+      getTotalSize: () => options.count * 20,
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: `row-${index}`,
+          start: index * 20
+        })),
+      measureElement: vi.fn(),
+      measure
+    }))
+
+    const { rerender } = render(
+      <CodeViewer value={'line 1\nline 2'} language="typescript" expanded={false} maxHeight="350px" />
+    )
+    expect(measure).toHaveBeenCalled()
+
+    measure.mockClear()
+    rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" expanded maxHeight="350px" />)
+    expect(measure).toHaveBeenCalled()
   })
 
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {

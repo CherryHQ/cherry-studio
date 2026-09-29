@@ -375,7 +375,17 @@ const CodeViewer = ({
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
   // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
+  const estimateSize = useCallback(
+    (index: number) => {
+      const lineHeight = Math.round(fontSize * 1.6)
+      if (!wrapped) return lineHeight
+      const line = rawLines[index] ?? ''
+      if (line.length === 0) return lineHeight
+      // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
+      return lineHeight * Math.max(1, Math.ceil(line.length / 96))
+    },
+    [fontSize, rawLines, wrapped]
+  )
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -500,6 +510,18 @@ const CodeViewer = ({
   }, [rawLines.length, onHeightChange])
 
   useLayoutEffect(() => {
+    virtualizer.measure()
+  }, [expanded, wrapped, fontSize, rawLines.length, virtualizer])
+
+  useLayoutEffect(() => {
+    if (!expanded) return
+    const scroller = scrollerRef.current
+    if (scroller) {
+      scroller.scrollTop = 0
+    }
+  }, [expanded])
+
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller || !autoScrollToBottom || expanded || !shouldStickToBottomRef.current) return
 
@@ -529,29 +551,30 @@ const CodeViewer = ({
             width: '100%',
             position: 'relative'
           }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
-            }}>
-            {virtualItems.map((virtualItem) => (
-              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
-                <VirtualizedRow
-                  rawLine={rawLines[virtualItem.index]}
-                  tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
-                  highlightEnabled={highlight}
-                  showLineNumbers={lineNumbers}
-                  expanded={expanded}
-                  wrapped={wrapped}
-                  index={virtualItem.index}
-                  isDarkTheme={isShikiThemeDark}
-                />
-              </div>
-            ))}
-          </div>
+          {virtualItems.map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`
+              }}>
+              <VirtualizedRow
+                rawLine={rawLines[virtualItem.index]}
+                tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
+                highlightEnabled={highlight}
+                showLineNumbers={lineNumbers}
+                expanded={expanded}
+                wrapped={wrapped}
+                index={virtualItem.index}
+                isDarkTheme={isShikiThemeDark}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>
