@@ -1,7 +1,7 @@
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { AssistantMessage, CallId, ContentBlock, MessageId, ToolResultMessage } from '@deepseek-ai/dsh-llm'
+import type { AssistantMessage, ContentBlock, MessageId, ToolCallId, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
-import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
+import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,7 +57,7 @@ const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T])
   ({ type, seq: ++seq, time: 0, data }) as SessionEvent
 type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
 type DshRetryId = SessionEventMap['llm/retry']['retryId']
-const callId = (id: string) => id as CallId
+const callId = (id: string) => id as ToolCallId
 const approvalId = (id: string) => id as ApprovalRequestId
 const assistantMessage = (model = 'deepseek-chat-0711'): AssistantMessage => ({
   id: 'msg-1' as MessageId,
@@ -224,8 +224,8 @@ describe('DshTraceRecorder', () => {
       envelope('compaction/summary', {
         compactionId: 'c-1' as DshCompactionId,
         summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
-        shadowedRange: { start: 2, end: 10 },
-        shadowedSeqs: [2, 6, 10],
+        shadowedRange: { start: SessionSeq(2), end: SessionSeq(10) },
+        shadowedSeqs: [SessionSeq(2), SessionSeq(6), SessionSeq(10)],
         shadowedTokenCount: 4200,
         provider: 'deepseek',
         model: 'deepseek-chat-0711',

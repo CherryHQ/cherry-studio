@@ -4,9 +4,10 @@ import net from 'node:net'
 import type { Api, Context, Model } from '@earendil-works/pi-ai'
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
-import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 import { fetch as undiciFetch, ProxyAgent } from 'undici'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 
 const servers: Array<http.Server | net.Server> = []
 let nodeProxyController: NodeProxyController | undefined
@@ -160,7 +161,6 @@ describe('Pi provider request fetch', () => {
   })
 
   it('preserves HTTP proxy authentication through the production Node transport', async () => {
-    const targetPort = await listen(net.createServer((socket) => socket.destroy()))
     let authorizedRequests = 0
     const proxyPort = await listen(
       createAuthenticatedHttpProxy('proxy-user', 'proxy-pass', () => {
@@ -173,17 +173,17 @@ describe('Pi provider request fetch', () => {
     })
 
     const result = await streamOpenAICompletions(
-      createModel('openai-completions', `http://127.0.0.1:${targetPort}/v1`),
+      createModel('openai-completions', 'http://model-provider.invalid/v1'),
       context,
       { apiKey: 'test-key', maxRetries: 0 }
     ).result()
 
     expect(result.stopReason).toBe('error')
+    expect(result.errorMessage).toContain('expected test rejection')
     expect(authorizedRequests).toBe(1)
   })
 
   it('preserves SOCKS5 username and password through the production Node transport', async () => {
-    const targetPort = await listen(net.createServer((socket) => socket.destroy()))
     let authorizedRequests = 0
     const proxyPort = await listen(
       createAuthenticatedSocks5Proxy('proxy-user', 'proxy-pass', () => {
@@ -196,12 +196,13 @@ describe('Pi provider request fetch', () => {
     })
 
     const result = await streamOpenAIResponses(
-      createModel('openai-responses', `http://127.0.0.1:${targetPort}/v1`),
+      createModel('openai-responses', 'http://model-provider.invalid/v1'),
       context,
       { apiKey: 'test-key', maxRetries: 0 }
     ).result()
 
     expect(result.stopReason).toBe('error')
+    expect(result.errorMessage).toContain('expected test rejection')
     expect(authorizedRequests).toBe(1)
   })
 })

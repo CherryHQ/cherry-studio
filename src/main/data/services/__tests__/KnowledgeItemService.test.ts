@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -7,10 +12,6 @@ import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -1302,6 +1303,27 @@ describe('KnowledgeItemService', () => {
       }
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+  })
+
+  describe('clearIndexedRelativePath', () => {
+    it('removes the key instead of storing a sentinel, so the item indexes its own bytes again', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_A_ID)
+      })
+      service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
+
+      const result = service.clearIndexedRelativePath(FILE_A_ID)
+
+      // `toMaterialRelativePath` resolves the material with `indexedRelativePath ?? relativePath`,
+      // so anything left under the key — including null — would keep pointing at the stale artifact.
+      expect('indexedRelativePath' in result.data).toBe(false)
+      expect(service.getById(FILE_A_ID).data).toEqual({
+        source: `/docs/${FILE_A_ID.slice(0, 8)}.md`,
+        relativePath: `${FILE_A_ID.slice(0, 8)}.md`
       })
     })
   })

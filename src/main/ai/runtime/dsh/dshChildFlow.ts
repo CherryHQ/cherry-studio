@@ -1,3 +1,6 @@
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
+
 /**
  * Subagent coordinator for one dsh runtime connection: admits descendant
  * sessions, binds each child to the root tool call that spawned it, projects
@@ -20,8 +23,6 @@
  * Descendants of a child flatten into their ancestor's flow.
  */
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
@@ -66,6 +67,7 @@ interface ChildState {
   title?: string
   /** Live residency epoch (one Activation at a time per child). */
   activeRunId?: string
+  lifecycle?: 'pending' | 'observed'
   projection?: DshChildProjection
   buffered: SessionEvent[]
   bufferOverflow: boolean
@@ -110,12 +112,17 @@ export class DshSubagentCoordinator {
 
   /** SDK-wire `subagent.started` — same pipe as `session.event`, so it precedes child events. */
   handleSdkSubagentStarted(parentSessionId: string, childSessionId: string): void {
-    this.bindChild(childSessionId, parentSessionId)
+    const child = this.bindChild(childSessionId, parentSessionId)
+    if (child.lifecycle === undefined) {
+      child.lifecycle = 'pending'
+      this.publishTasks()
+    }
   }
 
   /** Bridge `subagent/lifecycle` — authoritative per-epoch edges (cold resumes included). */
   handleLifecycle(edge: SubagentLifecycleEdge): void {
     const child = this.bindChild(edge.childSessionId, edge.parentSessionId)
+    child.lifecycle = 'observed'
     if (edge.phase === 'start') {
       child.activeRunId = edge.runId
       this.publishTaskEdge(edge.childSessionId, child, 'started', edge.runId)
@@ -245,7 +252,7 @@ export class DshSubagentCoordinator {
     const tasks: AgentSessionBackgroundTasks = []
     let activeEpochs = 0
     for (const [sessionId, child] of this.children) {
-      if (child.activeRunId === undefined) continue
+      if (child.activeRunId === undefined && child.lifecycle !== 'pending') continue
       activeEpochs += 1
       if (child.parentSessionId !== this.mainSessionId) continue
       tasks.push({

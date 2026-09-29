@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { FC, ReactNode } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 interface Props {
   children: ReactNode
@@ -9,8 +10,8 @@ interface Props {
 const PaintingSectionTitle: FC<Props> = ({ children, className }) => (
   <section
     className={cn(
-      'mb-1.5 flex select-none items-center justify-start gap-1',
-      'text-muted-foreground text-xs uppercase tracking-wider',
+      'mb-1.5 flex items-center justify-start gap-1 select-none',
+      'text-xs tracking-wider text-muted-foreground uppercase',
       className
     )}>
     {children}

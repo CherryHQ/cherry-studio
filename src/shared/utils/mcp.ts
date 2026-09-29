@@ -1,5 +1,6 @@
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js'
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 export const BuiltinMcpServerNames = {
@@ -35,6 +36,9 @@ export type BuiltinMcpServer = McpServer & {
 export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
+
+export const isBrowserMcpServer = (server: Pick<McpServer, 'type' | 'name'>): boolean =>
+  server.type === 'inMemory' && server.name === BuiltinMcpServerNames.browser
 
 /**
  * Spec-aligned guard for a single MCP `CallToolResult` content block

@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 

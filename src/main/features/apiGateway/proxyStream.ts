@@ -17,6 +17,9 @@
  */
 
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { UIMessageChunk } from 'ai'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
@@ -24,8 +27,6 @@ import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
-import type { UIMessageChunk } from 'ai'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -140,9 +141,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
+  const isInternalAgentRequest =
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
   let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
   try {
-    resolvedAddress = resolveGatewayModelAddress(modelString)
+    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
   } catch (error) {
     throw asClientError(error)
   }
@@ -152,9 +156,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
-  const isInternalAgentRequest =
-    config.requestHeaders !== undefined &&
-    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,

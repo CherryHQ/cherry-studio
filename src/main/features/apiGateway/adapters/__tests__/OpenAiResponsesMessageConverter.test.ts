@@ -7,8 +7,10 @@ import {
 
 const converter = new OpenAiResponsesMessageConverter()
 
-const params = (overrides: Partial<ResponsesCreateParams>): ResponsesCreateParams =>
-  ({ model: 'openai:gpt-4', ...overrides }) as ResponsesCreateParams
+const params = (overrides: Partial<ResponsesCreateParams>): ResponsesCreateParams => ({
+  model: 'openai:gpt-4',
+  ...overrides
+})
 
 describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
   it('emits a leading system message from instructions and a user message from a string input', () => {

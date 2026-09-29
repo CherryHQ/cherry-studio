@@ -29,7 +29,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Check out workflow scripts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
@@ -77,7 +77,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Check out trusted workflow scripts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
@@ -245,7 +245,7 @@ jobs:
 
       - name: Check out exact release head
         if: steps.release-ref.outputs.eligible == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

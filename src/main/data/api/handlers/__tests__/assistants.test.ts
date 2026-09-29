@@ -91,7 +91,7 @@ describe('assistantHandlers', () => {
       await expect(
         assistantHandlers['/assistants'].POST({
           body: { name: 'New Assistant' }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(createMock).toHaveBeenCalledWith({
@@ -135,7 +135,7 @@ describe('assistantHandlers', () => {
             prompt: 'legacy prompt',
             groupName: longGroupName
           }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(createFromImportMock).toHaveBeenCalledWith({
@@ -164,7 +164,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { groupId: GROUP_ID }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID })
@@ -177,7 +177,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { mcpServerIds: ['srv-1'], knowledgeBaseIds: ['kb-1'] }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {
@@ -193,7 +193,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: {}
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
@@ -206,10 +206,21 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { settings: { maxTokens: 8192 } }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
+    })
+
+    it('should reject unsafe max tokens before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER + 1 } }
+        })
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
     })
 
     it('should reject an invalid group id before calling the service', async () => {
@@ -217,7 +228,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { groupId: 'not-a-uuid' }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()
@@ -245,27 +256,23 @@ describe('assistantHandlers', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
-    it('should forward DELETE with historical topic preservation by default', async () => {
+    it('should expose only permanent Assistant deletion through DataApi', async () => {
       deleteMock.mockReturnValueOnce({ deleted: true })
-
-      await expect(
-        assistantHandlers['/assistants/:id'].DELETE({ params: { id: ASSISTANT_ID } } as never)
-      ).resolves.toEqual({ deleted: true, deletedTopicIds: undefined })
-
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false })
-    })
-
-    it('should forward DELETE with topic cleanup when requested', async () => {
-      deleteMock.mockReturnValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
 
       await expect(
         assistantHandlers['/assistants/:id'].DELETE({
           params: { id: ASSISTANT_ID },
-          query: { deleteTopics: true }
-        } as never)
-      ).resolves.toEqual({ deleted: true, deletedTopicIds: ['topic-1'] })
+          query: { permanent: true }
+        })
+      ).resolves.toEqual({ deleted: true, deletedTopicIds: undefined })
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true })
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { permanent: true })
+
+      deleteMock.mockClear()
+      await expect(
+        assistantHandlers['/assistants/:id'].DELETE({ params: { id: ASSISTANT_ID } } as never)
+      ).rejects.toThrow()
+      expect(deleteMock).not.toHaveBeenCalled()
     })
   })
 
@@ -277,7 +284,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id/order'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { before: OTHER_ASSISTANT_ID }
-        } as never)
+        })
       ).resolves.toBeUndefined()
 
       expect(reorderMock).toHaveBeenCalledWith(ASSISTANT_ID, { before: OTHER_ASSISTANT_ID })
@@ -288,7 +295,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id/order'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { before: OTHER_ASSISTANT_ID, after: OTHER_ASSISTANT_ID }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(reorderMock).not.toHaveBeenCalled()
@@ -317,9 +324,10 @@ describe('assistantHandlers', () => {
     })
 
     it('should reject an empty move list before calling the service', async () => {
-      await expect(
-        assistantHandlers['/assistants/order:batch'].PATCH({ body: { moves: [] } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(assistantHandlers['/assistants/order:batch'].PATCH({ body: { moves: [] } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
 
       expect(reorderBatchMock).not.toHaveBeenCalled()
     })

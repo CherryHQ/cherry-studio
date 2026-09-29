@@ -22,12 +22,24 @@ export const PaintingSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   prompt: z.string(),
   files: PaintingFilesSchema,
+  /**
+   * Stable snapshot of the referenced FileEntry rows consumed by painting history hydration.
+   * List/get responses populate it so renderer caches can reject stale file metadata without
+   * repeating per-entry DataApi and physical-path IPC on an unchanged refresh.
+   */
+  fileDataFingerprint: z.string().optional(),
   orderKey: z.string().min(1),
   // ISO 8601 (matches the assistant/topic/tag/note/prompt convention); the
   // service emits these via `timestampToISO`. `id` stays `z.string()` because
   // migration supplies opaque ids.
   createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime(),
+  /**
+   * Read-only trash marker — present only on trashed paintings. Set via
+   * `DELETE /paintings/:id` (move to Recycle Bin) and cleared via
+   * `POST /paintings/:id/restore`; never writable through create/update DTOs.
+   */
+  deletedAt: z.iso.datetime().optional()
 })
 
 export type Painting = z.infer<typeof PaintingSchema>

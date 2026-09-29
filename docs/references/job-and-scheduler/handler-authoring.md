@@ -91,6 +91,15 @@ Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without sig
 
 Generic metadata is not a substitute for a domain relationship. A stable reference to an entity owned by another domain must be maintained through lifecycle APIs owned by that entity's service, with database constraints when the relationship topology permits. When constraints would create circular foreign keys, follow the application-level [soft-reference pattern](../data/database-patterns.md#circular-foreign-key-references) instead. For example, the non-circular `agent.task` sticky-session relationship uses the constrained `agent_session.taskScheduleId` relation maintained by `AgentSessionService`, not a session id in schedule metadata.
 
+## Enqueue observer (`onEnqueued`)
+
+`onEnqueued?(snapshot: Readonly<JobSnapshot>): void` is a synchronous observer
+called for a newly committed job before dispatch or delayed arming. It can
+publish business read-model changes while a job is still queued. `enqueueTx`
+defers it to the post-commit microtask and re-reads the persisted snapshot;
+rolled-back inserts and idempotency hits do not call it. Exceptions are logged
+and do not prevent dispatch. Keep the observer synchronous and short.
+
 ## Settled event (`onSettled`)
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:

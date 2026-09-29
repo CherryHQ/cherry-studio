@@ -1,6 +1,10 @@
-import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 
 import BaseNavigatorGroupSection from './BaseNavigatorGroupSection'
 import KnowledgeBaseRow from './KnowledgeBaseRow'
@@ -24,6 +28,30 @@ const BaseNavigatorContent = ({
   onDeleteBase
 }: BaseNavigatorContentProps) => {
   const { t } = useTranslation()
+  const {
+    shortcuts: sidebarShortcuts,
+    setPinned: setSidebarShortcutPinned,
+    remove: removeSidebarShortcut
+  } = useSidebarShortcuts()
+  const sidebarPinnedBaseIds = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.KNOWLEDGE_BASE
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
+  const handleToggleSidebar = useCallback(
+    (base: KnowledgeBaseListItem) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.KNOWLEDGE_BASE, base.id)
+      if (sidebarPinnedBaseIds.has(base.id)) removeSidebarShortcut(target)
+      else setSidebarShortcutPinned(target, true, base.name)
+    },
+    [removeSidebarShortcut, sidebarPinnedBaseIds, setSidebarShortcutPinned]
+  )
 
   const sectionValues = useMemo(() => sections.map(({ groupId }) => groupId ?? UNGROUPED_SECTION_VALUE), [sections])
   // Controlled rather than defaultValue (which is mount-time only) so a group
@@ -54,7 +82,7 @@ const BaseNavigatorContent = ({
   return (
     <Scrollbar className="min-h-0 flex-1 overflow-x-hidden pt-1 pb-3">
       {isLoading ? (
-        <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           {t('common.loading')}
         </div>
       ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
@@ -74,6 +102,8 @@ const BaseNavigatorContent = ({
               onRenameBase={onRenameBase}
               onCreateGroup={onCreateGroup}
               onDeleteBase={onDeleteBase}
+              onToggleSidebar={handleToggleSidebar}
+              sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
             />
           ))}
         </div>
@@ -99,6 +129,8 @@ const BaseNavigatorContent = ({
                 onCreateGroup={onCreateGroup}
                 onDeleteGroup={onDeleteGroup}
                 onDeleteBase={onDeleteBase}
+                onToggleSidebar={handleToggleSidebar}
+                sidebarPinnedBaseIds={sidebarPinnedBaseIds}
               />
             )
           })}

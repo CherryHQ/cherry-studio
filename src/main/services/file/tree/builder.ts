@@ -117,6 +117,7 @@ async function findNearestExistingDirectory(absPath: string): Promise<string> {
 
 export interface DirectoryTreeBuilder extends Disposable {
   readonly root: TreeDirRoot
+  readonly isDisposed: boolean
   readonly onMutation: (listener: (e: TreeMutationEvent) => void) => Disposable
   /** O(1) lookup of any node by its absolute path. */
   getNode(absPath: string): TreeNode | null
@@ -246,7 +247,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // sees zero notes when ripgrep is missing or the root is unreadable).
     let paths: string[]
     try {
-      paths = await searchListDirectory(this.rootPath as AbsoluteFilePath, {
+      paths = await searchListDirectory(this.rootPath, {
         recursive: true,
         maxDepth: this.options.maxDepth,
         includeHidden: this.options.includeHidden,
@@ -313,7 +314,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const watcherIgnore = ((p: AbsoluteFilePath) => {
+    const watcherIgnore = (p: AbsoluteFilePath) => {
       const normalized = normalizePath(p)
       if (this.rootMissingAtInit) {
         const isTargetPath = normalized === this.rootPath || normalized.startsWith(`${this.rootPath}/`)
@@ -322,7 +323,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         if (isTargetAncestor && !isTargetPath) return false
       }
       return this.shouldIgnorePath(normalized)
-    }) as (path: AbsoluteFilePath) => boolean
+    }
     const rootDepthOffset = path.posix.relative(this.watcherRootPath, this.rootPath).split('/').filter(Boolean).length
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER
@@ -604,6 +605,10 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   snapshot(): SerializedTreeNode {
     return this.root.toJSON()
+  }
+
+  get isDisposed(): boolean {
+    return this.disposed
   }
 
   dispose(): void {

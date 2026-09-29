@@ -1,75 +1,20 @@
-import { loggerService } from '@logger'
-import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
-import {
-  localEmbeddingDownloadService,
-  localOcrDownloadService,
-  onnxRuntimeBinaryService
-} from '@main/services/localModel'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import { application } from '@application'
+import { regionService } from '@main/services/RegionService'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-const logger = loggerService.withContext('localModelHandlers')
-
-/** The two download services share one method shape — pick by `model`. */
-function serviceFor(model: LocalModelKind) {
-  return model === 'embedding' ? localEmbeddingDownloadService : localOcrDownloadService
-}
-
-/** The other of the two — checked on removal to decide whether the onnxruntime
- * binary they share is still needed. */
-function siblingFor(model: LocalModelKind) {
-  return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
-}
-
-async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKind): Promise<void> {
-  // 'downloading' counts as still needed — the sibling may be awaiting the same
-  // coalesced binary download.
-  const siblingStatus = siblingFor(model).getStatus()
-  try {
-    await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
-  } catch (cleanupError) {
-    // Best-effort: a locked file must not turn a cancellation into a failure or
-    // mask the original download error.
-    logger.warn('failed to clean up the shared onnxruntime binary after an interrupted download', {
-      error: String(cleanupError)
-    })
-  }
-}
-
-/**
- * Thin adapters for local model routes. Lifecycle routes dispatch by `model` to
- * its owning download service, while the capability route reports platform
- * support directly. `download` resolves only when the download finishes.
- */
+/** Thin IPC adapters; bundle lifecycle and shared-artifact cleanup stay in the domain service. */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
   'local_model.get_acceleration_capability': async () => ({
-    supported: isLocalInferenceHardwareAccelerationSupported()
+    supported: application.get('LocalModelService').isHardwareAccelerationSupported()
   }),
-  'local_model.get_status': async ({ model }) => serviceFor(model).getStatusInfo(),
-  'local_model.download': async ({ model }) => {
-    try {
-      const result = await serviceFor(model).download()
-      if (result === 'cancelled') {
-        await cleanupSharedRuntimeAfterInterruptedDownload(model)
-      }
-      return { result }
-    } catch (error) {
-      // Drop the shared onnxruntime binary so a half-installed runtime doesn't read as
-      // ready. The model weights are deliberately left alone — a failed download never
-      // writes partials, so whatever is on disk is a complete earlier download.
-      await cleanupSharedRuntimeAfterInterruptedDownload(model)
-      throw error
-    }
-  },
-  'local_model.cancel': async ({ model }) => serviceFor(model).cancel(),
-  'local_model.remove': async ({ model }) => {
-    const result = await serviceFor(model).remove()
-    // Only the removed feature's own weights are gone here — the shared onnxruntime
-    // binary is a separate concern, cleaned up only once the sibling feature is gone too.
-    if (result.removed) {
-      await onnxRuntimeBinaryService.removeIfUnused(siblingFor(model).getStatus() === 'ready')
-    }
-    return result
-  }
+  'local_model.list': async () => ({ models: application.get('LocalModelService').listModels() }),
+  'local_model.get_status': async ({ id }) => application.get('LocalModelService').refreshStatus(id),
+  'local_model.download': async ({ id }) => ({
+    result: await application
+      .get('LocalModelService')
+      .download(id, async () => ((await regionService.isInChina()) ? 'china-first' : 'global-first'))
+  }),
+  'local_model.cancel': async ({ id }) => application.get('LocalModelService').cancel(id),
+  'local_model.remove': async ({ id }) => application.get('LocalModelService').remove(id)
 }

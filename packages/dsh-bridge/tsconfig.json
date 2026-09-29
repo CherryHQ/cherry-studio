@@ -12,7 +12,8 @@
     "rootDir": "./src",
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "types": ["node"]
   },
   "exclude": ["node_modules", "dist", "__tests__"],
   "include": ["src/**/*"]

@@ -1,3 +1,9 @@
+import type React from 'react'
+import { useCallback, useState } from 'react'
+import type { DefaultValues, UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   FormControl,
   FormField,
@@ -6,6 +12,7 @@ import {
   FormMessage,
   InfoTooltip,
   Input,
+  InputNumber,
   RadioGroup,
   RadioGroupItem,
   Select,
@@ -20,11 +27,6 @@ import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import type React from 'react'
-import { useCallback, useState } from 'react'
-import type { DefaultValues, UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 export const buildMcpSchema = (t: (key: string) => string) =>
   z
@@ -587,19 +589,21 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
               {t('settings.mcp.timeout')}
               <InfoTooltip content={t('settings.mcp.timeoutTooltip')} />
             </FormLabel>
-            <FormControl>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
+            {/* `FormControl` is a Slot: it puts `id={formItemId}` on its direct child, which is
+                what `FormLabel`'s `htmlFor` points at. Wrapping the row would name the div. */}
+            <div className="flex items-center gap-2">
+              <FormControl>
+                <InputNumber
                   min={1}
+                  step={1}
                   placeholder="60"
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  value={field.value ?? null}
+                  onBlur={(value) => field.onChange(value ?? undefined)}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-tertiary text-xs">s</span>
-              </div>
-            </FormControl>
+              </FormControl>
+              <span className="text-foreground-tertiary text-xs">s</span>
+            </div>
           </FormItem>
         )}
       />

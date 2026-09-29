@@ -14,6 +14,16 @@ const loader = new RegistryLoader({
 })
 
 describe('Alibaba Qwen catalog', () => {
+  it('preserves Flash Next video inputs in the creator source and shipped catalog', () => {
+    const creator = CREATORS.find(({ id }) => id === 'alibaba')
+    const source = creator?.models?.find(({ id }) => id === 'qwen3-8-flash-next')
+
+    for (const model of [source, loader.findModel('qwen3-8-flash-next')]) {
+      expect(model?.inputModalities).toEqual(['text', 'image', 'video'])
+      expect(model?.capabilities).toContain('video-recognition')
+    }
+  })
+
   it('hand-lists Qwen3.8 Flash with its documented capabilities and token limits', () => {
     const alibaba = CREATORS.find(({ id }) => id === 'alibaba')
 
@@ -51,7 +61,9 @@ describe('Alibaba Qwen catalog', () => {
         },
         'openai-responses': {
           support: {
-            controls: [{ default: 'xhigh', kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }]
+            controls: [
+              { default: 'xhigh', kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }
+            ]
           }
         }
       }

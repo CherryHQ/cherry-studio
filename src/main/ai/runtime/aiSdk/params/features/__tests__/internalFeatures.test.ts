@@ -6,11 +6,12 @@
  * implementation details.
  */
 
+import { describe, expect, it, vi } from 'vitest'
+
 import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
   providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` }))
@@ -34,7 +35,7 @@ function makeScope(overrides: {
   request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: (overrides.request ?? { mcpToolIds: [] }) as never,
+    request: { conversation: { id: 'test' }, mcpToolIds: [], ...overrides.request },
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,
@@ -43,13 +44,13 @@ function makeScope(overrides: {
     capabilities: overrides.capabilities as never,
     webToolRoutes: overrides.webToolRoutes,
     sdkConfig: {
-      providerId: 'openai' as never,
+      providerId: 'openai',
       providerOptionsKey: 'openai',
-      providerSettings: {} as never,
+      providerSettings: {},
       modelId: 'm1'
     },
     endpointType: overrides.endpointType as never,
-    aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
+    aiSdkProviderId: overrides.aiSdkProviderId ?? 'openai-compatible',
     reasoningProfile: { format: 'none', wire: { disabled: true } },
     reasoning: overrides.reasoning ?? { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: {
@@ -83,6 +84,7 @@ async function qwenUserText(scope: RequestScope): Promise<string> {
 describe('INTERNAL_FEATURES — decision matrix', () => {
   it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
+      'gateway-usage-normalize',
       'context-build',
       'tool-schema-compatibility'
     ])
@@ -171,7 +173,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: {} } as never,
+          provider: { id: 'anthropic', settings: {} },
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -182,7 +184,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: {} } as never,
+          provider: { id: 'anthropic', settings: {} },
           model: {},
           endpointType: 'openai-chat-completions',
           aiSdkProviderId: 'openai-chat'
@@ -193,7 +195,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } } as never,
+          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } },
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -203,13 +205,13 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
   })
 
   it('no-think activates only on OVMS with at least one MCP tool', () => {
-    expect(
-      activeNames(makeScope({ provider: { id: 'ovms' } as never, model: {}, mcpToolIds: ['mcp__a__b'] }))
-    ).toContain('no-think')
-    expect(activeNames(makeScope({ provider: { id: 'ovms' } as never, model: {} }))).not.toContain('no-think')
-    expect(
-      activeNames(makeScope({ provider: { id: 'openai' } as never, model: {}, mcpToolIds: ['mcp__a__b'] }))
-    ).not.toContain('no-think')
+    expect(activeNames(makeScope({ provider: { id: 'ovms' }, model: {}, mcpToolIds: ['mcp__a__b'] }))).toContain(
+      'no-think'
+    )
+    expect(activeNames(makeScope({ provider: { id: 'ovms' }, model: {} }))).not.toContain('no-think')
+    expect(activeNames(makeScope({ provider: { id: 'openai' }, model: {}, mcpToolIds: ['mcp__a__b'] }))).not.toContain(
+      'no-think'
+    )
   })
 
   it('provider-tool plugins activate from the finalized web-tool routes', () => {
@@ -238,7 +240,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     // Client-side routing adds no provider tool; only the always-on features remain.
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
-    ).toEqual(['context-build', 'tool-schema-compatibility'])
+    ).toEqual(['gateway-usage-normalize', 'context-build', 'tool-schema-compatibility'])
   })
 
   it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {
@@ -326,7 +328,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
   it('orders context-build before anthropic-cache', () => {
     const names = activeNames(
       makeScope({
-        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } },
         model: {},
         endpointType: 'anthropic-messages',
         aiSdkProviderId: 'anthropic'

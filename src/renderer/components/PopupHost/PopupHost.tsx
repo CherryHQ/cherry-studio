@@ -1,5 +1,6 @@
-import { popupService } from '@renderer/services/popup'
 import { useSyncExternalStore } from 'react'
+
+import { popupService } from '@renderer/services/popup'
 
 import ConfirmPopupItem from './ConfirmPopupItem'
 

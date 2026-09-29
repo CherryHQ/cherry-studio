@@ -1,6 +1,7 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 

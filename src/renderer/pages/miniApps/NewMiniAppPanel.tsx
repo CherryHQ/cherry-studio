@@ -1,3 +1,8 @@
+import { ExternalLink, Globe, Package, Upload } from 'lucide-react'
+import type { ChangeEvent, FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -23,10 +28,6 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Globe, type LucideIcon, Package, Upload } from 'lucide-react'
-import type { ChangeEvent, FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { InstallMiniAppPicker } from './InstallMiniAppPanel'
 
@@ -39,14 +40,7 @@ interface Props {
 type AddTab = 'site' | 'app'
 
 const logger = loggerService.withContext('NewMiniAppPanel')
-
-/** What this tab adds, stated once at the top: a surface change, body size, foreground color. */
-const TabIntro: FC<{ icon: LucideIcon; text: string }> = ({ icon: Icon, text }) => (
-  <div className="mt-3 flex items-center gap-3 rounded-lg bg-muted px-3 py-2.5">
-    <Icon className="size-4 shrink-0 text-muted-foreground" />
-    <p className="text-sm">{text}</p>
-  </div>
-)
+const MINI_APP_DEVELOPER_DOCS_URL = 'https://github.com/CherryHQ/cherry-studio-miniapps'
 
 /**
  * The one "add" dialog. Creating offers two tabs — a custom website, or an installed
@@ -131,6 +125,15 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     previewObjectUrlRef.current = URL.createObjectURL(file)
     setLogo(previewObjectUrlRef.current)
     setStagedFile(file)
+  }
+
+  const handleOpenDeveloperDocs = async () => {
+    try {
+      await ipcApi.request('system.shell.open_website', MINI_APP_DEVELOPER_DOCS_URL)
+    } catch (error) {
+      logger.error('Failed to open mini app developer documentation', error as Error)
+      toast.error(t('miniApp.add.developer_docs_open_failed'))
+    }
   }
 
   const handleSubmit = async () => {
@@ -250,7 +253,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined} className="sm:max-w-md">
+      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t(isEditing ? 'settings.miniApps.custom.edit_title' : 'miniApp.add.title')}</DialogTitle>
         </DialogHeader>
@@ -258,7 +261,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         {isEditing ? (
           siteForm
         ) : (
-          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)}>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)} className="min-w-0">
             <TabsList className="w-full">
               <TabsTrigger value="site" className="flex-1">
                 <Globe className="size-4" />
@@ -269,14 +272,23 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                 {t('miniApp.add.tab_app')}
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="site">
-              <TabIntro icon={Globe} text={t('miniApp.add.site_description')} />
-              {siteForm}
-            </TabsContent>
+            <TabsContent value="site">{siteForm}</TabsContent>
             {/* Mounted only while chosen: its unmount releases any pending consent token. */}
             {tab === 'app' && (
               <TabsContent value="app">
-                <TabIntro icon={Package} text={t('miniApp.add.app_description')} />
+                <div className="mt-3 flex items-center gap-3 rounded-lg bg-muted px-3 py-2.5">
+                  <Package className="size-4 shrink-0 text-muted-foreground" />
+                  <p className="min-w-0 flex-1 text-sm">{t('miniApp.add.app_description')}</p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="shrink-0 px-0 text-link shadow-none hover:text-link focus-visible:text-link"
+                    onClick={handleOpenDeveloperDocs}>
+                    {t('miniApp.add.developer_docs')}
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                </div>
                 <InstallMiniAppPicker onClose={handleClose} />
               </TabsContent>
             )}

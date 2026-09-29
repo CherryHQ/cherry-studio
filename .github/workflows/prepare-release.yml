@@ -30,7 +30,7 @@ jobs:
       version: ${{ steps.release-version.outputs.version }}
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -38,7 +38,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
+          node-version-file: ".node-version"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5
@@ -75,9 +75,9 @@ jobs:
             exit 1
           fi
 
-          BASELINE_TAG="v$CURRENT_VERSION"
-          if [ "$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" != "$BASELINE_TAG" ]; then
-            echo "main records $BASELINE_TAG, but the latest published release is $(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" >&2
+          BASELINE_TAG="$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")"
+          if ! node -e "const semver = require('semver'); process.exit(semver.gte(process.argv[1], process.argv[2]) ? 0 : 1)" "$CURRENT_VERSION" "${BASELINE_TAG#v}"; then
+            echo "main records v$CURRENT_VERSION, but the latest published release is $BASELINE_TAG" >&2
             echo "Merge the latest Post Release metadata pull request before preparing another release" >&2
             exit 1
           fi
@@ -86,6 +86,7 @@ jobs:
             exit 1
           fi
 
+          COLLECTION_BASE="$BASELINE_TAG"
           if ! git merge-base --is-ancestor "$BASELINE_TAG" HEAD; then
             MARKER="release-metadata-boundary: $BASELINE_TAG"
             LEGACY_SUBJECT="chore(release): sync $BASELINE_TAG metadata"
@@ -109,9 +110,14 @@ jobs:
               echo "$BASELINE_TAG is not an ancestor of main and its metadata boundary is missing" >&2
               exit 1
             fi
+            COLLECTION_BASE="$BOUNDARY_SHA"
           fi
 
-          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$CURRENT_VERSION"
+            echo "tag=$BASELINE_TAG"
+            echo "collection-base=$COLLECTION_BASE"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve requested version
         id: release-version
@@ -161,8 +167,10 @@ jobs:
 
             The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks, push, or mutate any remote Git state. Local Git operations are temporary because the next step restores the frozen SHA.
 
-            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. The next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
-            You may create temporary helper files if needed; the workflow discards every change except those three release metadata files.
+            Use the verified published baseline tag ${{ steps.release-baseline.outputs.tag }} and collect release-note commits from ${{ steps.release-baseline.outputs.collection-base }}..HEAD. The package version may be ahead after a release withdrawal; do not use it as the release-note baseline.
+
+            Stop after updating package.json and electron-builder.yml. Do not edit release-history.json or the generated product manifest. The next workflow steps derive the release history from your electron-builder.yml notes, validate the contents, generate the manifest, and own release branch creation and the signed commit.
+            You may create temporary helper files if needed; the workflow discards every change except those two release metadata files.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
 
@@ -174,14 +182,20 @@ jobs:
           RELEASE_PATCH="$RUNNER_TEMP/prepared-release.patch"
           git diff --binary --full-index "$RELEASE_HEAD" -- \
             package.json \
-            electron-builder.yml \
-            resources/cherry-studio/release-history.json > "$RELEASE_PATCH"
+            electron-builder.yml > "$RELEASE_PATCH"
 
           git reset --hard "$RELEASE_HEAD"
           git clean -fd
           if [ -s "$RELEASE_PATCH" ]; then
             git apply "$RELEASE_PATCH"
           fi
+
+      - name: Sync release history from prepared release notes
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          node scripts/release/sync-release-history.js --target-version "$REQUESTED_VERSION"
 
       - name: Validate prepared release metadata
         shell: bash
@@ -214,7 +228,7 @@ jobs:
       contents: read
     steps:
       - name: Check out exact main commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -223,7 +237,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
+          node-version-file: ".node-version"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5

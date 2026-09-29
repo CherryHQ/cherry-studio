@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'llmman',
   name: 'llmman',
+  availableInEditions: ['global', 'cn'],
   authOptional: true,
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {

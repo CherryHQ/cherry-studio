@@ -1,11 +1,12 @@
+import { CheckCircle2, CircleX, KeyRound } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Switch } from '@cherrystudio/ui'
 import type { ApiKeyWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { healthCheckErrorToDisplayString } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { CheckCircle2, CircleX, KeyRound } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 interface ApiKeyCheckResultsProps {
   keyResults: ApiKeyWithStatus[]

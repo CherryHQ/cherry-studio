@@ -55,9 +55,8 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
   })
 
   it('constructs the in-memory credential/model/session/settings objects (no network)', async () => {
-    const { AuthStorage, ModelRegistry, SessionManager, SettingsManager, DefaultResourceLoader } = await import(
-      '@earendil-works/pi-coding-agent'
-    )
+    const { AuthStorage, ModelRegistry, SessionManager, SettingsManager, DefaultResourceLoader } =
+      await import('@earendil-works/pi-coding-agent')
 
     const authStorage = AuthStorage.inMemory()
     // Cherry owns the key; it lands as a runtime override, never a persisted pi file.

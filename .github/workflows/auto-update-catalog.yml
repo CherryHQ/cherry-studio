@@ -18,14 +18,14 @@ jobs:
 
     steps:
       - name: 🐈‍⬛ Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: 📦 Setting Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
+          node-version-file: ".node-version"
 
       - name: 📦 Install pnpm
         uses: pnpm/action-setup@v5
@@ -36,7 +36,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: 💾 Cache pnpm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -53,7 +53,7 @@ jobs:
       - name: 🔍 Check for changes
         id: git_status
         run: |
-          git diff --exit-code --quiet -- packages/provider-registry/data || echo "::set-output name=has_changes::true"
+          git diff --exit-code --quiet -- packages/provider-registry/data || echo "has_changes=true" >> "$GITHUB_OUTPUT"
           git status --porcelain -- packages/provider-registry/data
 
       - name: 📅 Set current date for PR title

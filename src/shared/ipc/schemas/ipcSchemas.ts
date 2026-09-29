@@ -4,26 +4,30 @@ import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGate
 import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { type BrowserEventSchemas, browserRequestSchemas } from './browser'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
+import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherryCloud'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
-import { type DeepSeekHarnessEventSchemas, deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
+import { doctorRequestSchemas } from './doctor'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
-import { type HermesDashboardEventSchemas, hermesDashboardRequestSchemas } from './hermesDashboard'
+import { hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
-import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
+import { localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
 import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
-import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
-import { type OpenClawEventSchemas, openclawRequestSchemas } from './openclaw'
+import { oauthRequestSchemas } from './oauth'
+import { openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
+import { pdfjsRequestSchemas } from './pdfjs'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
@@ -34,6 +38,7 @@ import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
+import { trashRequestSchemas } from './trash'
 import { webSearchRequestSchemas } from './webSearch'
 import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -51,12 +56,15 @@ export const ipcRequestSchemas = {
   ...appRequestSchemas,
   ...backupRequestSchemas,
   ...binaryRequestSchemas,
+  ...browserRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
+  ...doctorRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,
   ...hermesDashboardRequestSchemas,
@@ -71,6 +79,7 @@ export const ipcRequestSchemas = {
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
   ...ovmsRequestSchemas,
+  ...pdfjsRequestSchemas,
   ...printRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,
@@ -81,6 +90,7 @@ export const ipcRequestSchemas = {
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,
+  ...trashRequestSchemas,
   ...webSearchRequestSchemas,
   ...webviewRequestSchemas,
   ...windowRequestSchemas
@@ -100,17 +110,14 @@ export type IpcEventSchemas = AiEventSchemas &
   AppEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
+  BrowserEventSchemas &
   ChannelEventSchemas &
-  DeepSeekHarnessEventSchemas &
+  CherryCloudEventSchemas &
   FileEventSchemas &
-  HermesDashboardEventSchemas &
-  LocalModelEventSchemas &
   McpEventSchemas &
   MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
-  OAuthEventSchemas &
-  OpenClawEventSchemas &
   QuickAssistantEventSchemas &
   ScreenshotEventSchemas &
   SelectionEventSchemas &

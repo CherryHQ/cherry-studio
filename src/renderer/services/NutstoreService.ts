@@ -1,3 +1,5 @@
+import { type CreateDirectoryOptions } from 'webdav'
+
 /**
  * @deprecated v2 replacement pending. Like BackupService, this currently uses the retained v1
  * compatibility engine for real archives.
@@ -9,7 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import { type CreateDirectoryOptions } from 'webdav'
 
 import { recordManualBackupCompletion, type RemoteSyncState, setBackupSyncState } from './BackupService'
 

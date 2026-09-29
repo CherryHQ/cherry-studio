@@ -1,6 +1,7 @@
-import { useImageTools } from '@renderer/components/ActionTools'
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useImageTools } from '@renderer/components/ActionTools'
 
 import EChartsPreview from '../EChartsPreview'
 
@@ -75,7 +76,7 @@ describe('EChartsPreview', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 640, height: 256 } as DOMRect)
     vi.stubGlobal(
       'ResizeObserver',
-      vi.fn().mockImplementation((callback: ResizeObserverCallback) => {
+      vi.fn().mockImplementation(function ResizeObserverMock(callback: ResizeObserverCallback) {
         resizeCallback = callback
         return mocks.resizeObserver
       })
@@ -105,10 +106,7 @@ describe('EChartsPreview', () => {
 
   const fireResize = (width: number, height: number) => {
     act(() => {
-      resizeCallback?.(
-        [{ contentRect: { width, height } } as unknown as ResizeObserverEntry],
-        mocks.resizeObserver as unknown as ResizeObserver
-      )
+      resizeCallback?.([{ contentRect: { width, height } } as unknown as ResizeObserverEntry], mocks.resizeObserver)
     })
   }
 

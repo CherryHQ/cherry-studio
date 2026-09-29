@@ -1,9 +1,10 @@
+import mime from 'mime-types'
+
 import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
-import mime from 'mime-types'
 
 /**
  * 从文件路径中提取目录路径。

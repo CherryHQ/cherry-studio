@@ -1,6 +1,7 @@
+import { isEqual } from 'es-toolkit/compat'
+
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { isEqual } from 'es-toolkit/compat'
 
 interface SessionListItemSnapshot {
   entity: AgentSessionEntity

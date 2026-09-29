@@ -1,5 +1,7 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+extraMetadata:
+  cherryEdition: global
 electronLanguages:
   - zh-CN
   - zh-TW
@@ -21,9 +23,11 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!electron-builder.cn.config.cjs"
+  - "!electron.vite.entries.config.ts"
   - "!.*"
   - "!components.json"
-  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,.oxfmtrc.json}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
@@ -60,7 +64,9 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
+  # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
+  - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
   - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
@@ -78,7 +84,7 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
+  # DSH runs under bundled Bun: bundle its JS and unpack native/runtime files.
   - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
@@ -88,6 +94,7 @@ asarUnpack:
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
+  - "node_modules/@deepseek-ai/dsh-win32-process/**"
   - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
@@ -112,8 +119,12 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
+  # Preserve the existing global installer identity so either edition replaces the same Windows installation.
+  guid: 41a4ccd8-bcc0-5710-9eee-0e164da68057
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
@@ -142,6 +153,8 @@ mac:
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -173,222 +186,114 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.10 - Features, Fixes, and Experience Improvements
+    Cherry Studio 2.1.3 - New Features, Performance, and Reliability
 
     ✨ New Features
-    - [Mini Apps] Mini apps can now be real local apps: install a .miniapp package from a file or an https manifest, run it in an isolated sandbox, and grant it storage, file, AI, notification and network capabilities per app. Grants, updates, rollback, data and uninstall are managed from the app's detail panel.
-    - [Tool Approval] Users can provide an optional reason when rejecting Agent and MCP tool calls, and rejected decisions remain visible in tool history.
-    - [Diagnostics] Cherry Support and Home/Agent conversation errors can now open editable, user-reviewed diagnostic reports without submitting anything automatically.
-    - [Diagnostics] Diagnostic bundle export and anonymous upload can now optionally include regular chat and Agent session history for troubleshooting.
-    - [Diagnostics] Cherry Studio can now submit user-reviewed diagnostic reports directly to Cherry and display the returned report ID.
-    - [Providers] First-time API provider setup is now guided through explicit key saving, model selection, and verification before enablement.
-    - [Knowledge Base] Files can now be dragged into a knowledge base to start the existing upload flow.
-    - [Notes] The empty notes page now has a Create a new note button.
-    - [Sidebar] New installs now show Agent as the first left-sidebar entry, then Chat. Existing users keep their current sidebar order.
-    - [Files] Added Shift-click range selection for file checkboxes.
-    - [Web Search] Added built-in Parallel Search support with API-key and custom API-host configuration.
-    - [Models] Added quick token limit presets to the context window, maximum input, and maximum output fields in model settings.
-    - [CodeMate] Added Hermes Agent and its native web UI to CodeMate.
-    - [Markdown] Added support for rendering ECharts charts inside echarts code blocks in markdown messages, with theme-aware rendering, split view, copy image, and download image.
-    - [Export] Exporting conversations to Markdown no longer drops images: you can now embed them as base64 or export them into an assets/ folder.
-    - [Chat] Token usage details now prioritize complete input/output counts and generation speed, with runtime charts available on demand.
-    - [Agent] Right-clicking an opened file's header in the Agent workspace now shows a context menu with open-with targets plus edit/preview toggle, refresh, and close.
-    - [Tasks] Scheduled task cards now distinguish jobs waiting to run from jobs that are actively running, and show the latest run status and next automatic run time.
+    - [Remote] Device Connections: pair a compatible mobile client to import providers and use desktop Agents over an encrypted LAN connection, with reconnect recovery, execution failures, approvals and questions. Action required: legacy devices must pair again for the new identity-based protocol.
+    - [Document] Support self-hosted MinerU 4 document parsing while retaining compatibility with legacy Open MinerU servers.
+    - [Screenshot] Use system OCR on macOS and Windows to select and copy screenshot text without downloading a local model.
+    - [Models] Add Claude Opus 5.5 to API chat with updated model limits, pricing, reasoning controls, and web-tool eligibility.
+    - [Models] Add GPT-6 Sol and Luna catalog metadata, OpenAI web-search eligibility, and OpenAI Codex model entries.
+    - [Models] Add Grok 4.7 to the model catalog (xAI, OpenRouter, Vercel AI Gateway, OpenCode, Copilot) with the xhigh reasoning effort; Grok CLI now lists Grok 4.6, Grok 4.7 and Grok 4.7 Fast; Grok 4.6 gains the xhigh reasoning effort.
+    - [Models] Add Xiaomi MiMo V2.6 Flash, Pro and Pro-UltraSpeed to the model catalog for the MiMo, OpenRouter, Vercel AI Gateway and OpenCode providers, with the thinking on/off switch.
+    - [Skills] Adds protected automatic file saving and manual remote updates for Skills installed from exact supported paths.
+    - [Skills] Adds dedicated Skill detail pages, source labels, safer removal, and one-click launch into an Agent session.
+    - [Settings] Add an “Agent reply language” setting (default: follow the conversation language) with preset and custom values, plus a per-agent override with an effective-language preview, so users can pin the language agents reply in.
+    - [Shortcuts] On macOS, Command+W now closes the active tab instead of the window; closing the window moved to Command+Shift+W.
 
     🐛 Bug Fixes
-    - [Providers] Corrected DeepSeek V4 reasoning effort choices and displayed pricing.
-    - [Models] Fixed Kimi K2.5 and newer requests failing when assistant sampling settings were enabled.
-    - [Agent] Pi and DSH Agent runtimes on macOS can now use command-line tools configured in the user's login PATH.
-    - [Agent] Scheduled agent tasks now send one IM channel message per result instead of duplicating the same reply.
-    - [Startup] Fixed launch at login not being restored correctly after restarting Cherry Studio.
-    - [LM Studio] Fixed LM Studio vision requests so multiple images in one message are forwarded in order.
-    - [MCP] Allowed stdio MCP servers to use an existing absolute executable path as command, so migrated full-path configs start instead of being rejected.
-    - [Channels] Localized the close control name on channel log and edit dialogs to follow the selected app language.
-    - [Chat] Fixed chat sends failing when message history contains literal special-token text.
-    - [Network] Provider requests now retain authentication headers across safe same-host HTTP-to-HTTPS redirects.
-    - [Composer] Skill labels now show only in root mixed search results, avoiding redundant labels in the dedicated skills panel.
-    - [Security] HTML previews of model-generated content no longer run scripts in a same-origin iframe by default; interactive HTML artifacts open in a hardened isolated webview, and unclassified previews fail closed to a script-less sandbox.
-    - [Diagnostics] AI error diagnosis results now use the language selected in settings for all four output fields.
-    - [Agent] Show the selected model together with its provider in Agent conversations.
-    - [Agent] Fixed agent sessions failing every turn with "config.startsWith is not a function" when the provider had custom request headers, and stopped header values containing $ from being mangled.
-    - [Gemini] Fixed Gemini requests failing when an MCP tool exposes an array without a typed items schema; incompatible tools are skipped so remaining tools can be used.
-    - [Portable] Fixed provider and model lists disappearing after relaunching the Windows portable app; retryable errors are now shown when provider data cannot be loaded.
-    - [Sidebar] Fixed sessions/topics in the right-side panel showing new items under "Earlier" instead of "Today" after staying open across days.
-    - [Agent] Action required: Agent Sessions without a trusted notification target no longer expose notify. Channel Sessions now default to their source channel, while scheduled cron and heartbeat runs use only their configured task channels.
-    - [Moonshot] Fixed HTTP 400 errors from the official Moonshot API by omitting unsupported top_p values for Kimi K2.5 and K3 models.
-    - [Providers] Fixed GLM-5.3-Flash Auto requests on OpenRouter and OpenCode Go, and added its current multimodal and reasoning capabilities to the provider registry.
-    - [Claude Code] HuggingFace-hosted models (e.g. deepseek-ai/DeepSeek-V4-Pro-0813) no longer fail with "Request too large (max 32MB)" when used in a claude-code type Agent; tool descriptions with control characters are now sanitized.
-    - [About] GitHub icon and app logo now have accessible names for screen readers, and decorative images are hidden from the accessibility tree.
-    - [Pi] Fixed Pi agents returning empty responses after automatic context compaction.
-    - [Agent] DSH agents now receive the user's custom feedback after a tool call is rejected.
-    - [Chat] Fixed Regenerate continuing to use the previous response model after the current chat model was switched.
-    - [Model Selector] Show the selected model together with its provider and removed redundant provider labels from grouped model menu rows.
-    - [Agent] Made Cherry-managed command-line tools available to the built-in Pi agent Bash tool.
-    - [Usage] Capped the Usage Statistics dashboard width so cards and charts stay readable on ultrawide windows.
-    - [Network] Fixed ERR_CONNECTION_TIMED_OUT for third-party APIs requiring a proxy/VPN (e.g. yunwu.ai) when using Azure-hosted Claude models; the azure-anthropic provider variant now correctly forwards the proxy-aware fetch.
-    - [Chat] Fixed legacy conversations that could fail on Responses API providers after parallel tool calls.
-    - [Updater] Fixed Check for updates so unpublished/503 channels show a friendly message instead of the raw HTTP body.
-    - [Chat] Meta-tool cards now localize section titles and empty states with the UI language.
-    - [Notes] Fixed copying mathematical formulas from Notes so pasting into chat preserves them as LaTeX.
-    - [Web Search] Fixed SearXNG web search failing with "No enabled general web search engines found" when the instance tags enabled engines as general only.
-    - [Artifact Pane] Long lines now wrap when editing a file in the agent artifact preview overlay.
-    - [Chat] Improved Quick Assistant translation smoothness, prevented message action labels from being copied with AI replies, and kept streaming responses clear of the composer gap.
-    - [Chat] Fixed token usage details staying open or reopening after clicking the token count to locate a message.
-    - [Chat] Fixed intermittent keyboard scrolling jitter and stalls in long chat conversations.
-    - [Mini Apps] Fixed the mini app's loading mask briefly flashing over the tab when switching from an open mini app to Agents, Chat, or another view.
-    - [Copilot] Fixed GitHub Copilot authorization failures when custom request headers are configured.
-    - [Diagnostics] Error diagnosis now distinguishes real proxy connection failures from unrelated messages that merely mention a proxy.
-    - [CodeMate] Fixed inconsistent icon sizing and truncated tool names in the CodeMate sidebar.
-    - [Nutstore] Cleaned up abandoned Nutstore SSO attempts so stale callbacks and timers cannot affect later logins.
-    - [Moonshot] Fixed HTTP 400 errors by omitting unsupported top_p for Kimi K2.5 and K3 models.
-    - [Chat] Message token usage in the footer toolbar is now always shown, instead of being hidden by the "Show estimated tokens" input setting.
-    - [Quick Panel] Fixed quick panel submenus (knowledge base, quick phrases, notes, MCP, skills) not filtering as you type in the composer.
-    - [Assistant] Custom parameter string and number value fields now expose descriptive names to screen readers.
-    - [Tools] Managed DeepSeek Harness installations that are missing @deepseek-ai/dsh-scope are now reported as broken in Toolchain instead of appearing healthy and failing at startup, so Retry can reinstall them.
-    - [Gemini] Fixed 400 error "Please enable tool_config.include_server_side_tool_invocations" when using Gemini 3.x models with built-in web search / URL context together with MCP or other function tools on the official Gemini API.
-    - [Composer] Link chips now use a fixed link-blue instead of following the customizable theme color.
-    - [Selection Assistant] Selection Assistant custom-action dialogs now keep confirmation controls accessible when prompts are very long.
-    - [Artifact Pane] Fixed the maximized file pane in agent sessions: code preview and edit surfaces now extend full height under the floating message input instead of cutting off above it.
-    - [AI Provider] Fixed the OpenAI Responses protocol failing with AI_TypeValidationError against third-party providers (e.g. Volcano Ark Agent plan) that omit the annotations field in their replies.
-    - [Claude Code] Prevented Claude Code Agent sessions using text-only models from becoming unusable after the Read tool opens an image file.
-    - [Providers] Fixed MiniMax M3 Agent sessions to use the provider's native Anthropic Messages endpoint, avoiding intermittent reasoning-block translation failures while keeping ordinary chat on Chat Completions.
-    - [Analytics] Fixed duplicate app launch analytics events when data collection is re-enabled during the same app session.
-    - [API] OpenAI-compatible chat completions now report cached prompt tokens in their usage metadata.
-    - [Mini Apps] Fixed mini app orphaned tab pool state cleanup.
-    - [Chat] Fixed rapid previous and next message navigation jumping to the wrong conversation turn.
-    - [Input] Fixed an issue where completing Chinese IME input while renaming a conversation could leave a stuck drag preview and block subsequent dragging.
-    - [Web Search] Web Search now uses the current local date when interpreting requests such as "this month" or "the last 30 days", preventing stale-month queries across providers.
-    - [Skills] Refined Skill icons and type badges with a consistent light blue-violet treatment and improved detail header alignment.
-    - [Startup] Launch at login now uses the stable launcher path for portable Windows builds.
-    - [Agent] Improved subagent flow readability and fixed the sidebar running indicator for detached subagents.
-    - [Spell Check] Fixed spell check real-time highlighting and multi-language synchronization failures on Windows.
-    - [Markdown] Fixed chat message rendering where a bolded URL followed by punctuation (e.g. **https://…**（note）) produced a dead link with the markers swallowed into it; such text now renders as a bold clickable link, consistent with the Notes editor.
-
-    💄 Improvements
-    - [Files] File type filters now paginate matching rows directly instead of scanning and hydrating unrelated file pages.
-
-    ⚡ Performance
-    - [Files] Stabilized virtualized view callbacks for smoother scrolling.
-    - [Files] File type filters now paginate matching rows directly instead of scanning and hydrating unrelated file pages.
-    - [Home/Agents] Isolated tab-state side effects from page roots for smoother tab switching.
-    - [Notes] Lazy-loaded optional menu workflows.
-    - [Files] Hydrated only the visible view to reduce memory and CPU.
-    - [Chat] Lazy-loaded the agent tool renderer to speed up chat loading.
-    - [Translate] The Translate page no longer re-renders the full markdown document on every streaming frame, and one-shot code highlighting now runs in the shiki worker instead of blocking the main thread.
-    - [Agent] Stabilized the system prompt prefix to reduce per-turn overhead.
-    - [Backup] Parallelized device metadata reads so backup filename preparation no longer serializes independent system metadata reads.
-    - [CLI] CLI configuration drafts and clear operations now process independent files concurrently.
-    - [Composer] Preserved dependency-scoped registrations in composer tools.
-    - [Data Settings] Lazy-loaded inactive panels in data settings.
-    - [Files] File type filters paginate matching rows directly instead of scanning and hydrating unrelated file pages.
+    - [Settings] Restore scrolling the provider model list from outside the list and let group headings scroll with the page.
+    - [Settings] English search terms now find the V2 conversation style setting.
+    - [Settings] Automatically verify and enable providers after adding models, and prevent model-selection dialogs from jumping when large lists load.
+    - [Proxy] Fixed local services such as DeepSeek Harness failing to connect when IPv4 or IPv6 loopback requests were routed through a proxy.
+    - [Proxy] Fix model list synchronization failing behind a corporate proxy or with an intercepted TLS certificate, which previously failed even though the provider itself worked for chat.
+    - [Proxy] Fix proxy bypass rules written as bare IPv6 literals (`::1`, `fe80::1`, `2001:db8::1`) never matching, and match IPv6 addresses by value so equivalent notations are recognized.
+    - [Agent] Scheduled tasks can now be edited in place through the cron tool, with session-reuse controls and clearer name-conflict guidance.
+    - [Agent] The bundled Cherry tool guide now describes when the notify tool is available and how scheduled tasks get their notification recipients.
+    - [Agent] Fixed dsh-type Agent sessions failing on proxy-only networks by inheriting the configured proxy into the agent runtime process.
+    - [Agent] Keep multi-agent requests in one reply until all work finishes, with compact subtask lists and reliable nested-task navigation.
+    - [Agent] Fixed sent-message link chips and website hover previews opening separate tabs instead of using the Agent conversation's browser pane.
+    - [Chat] Improve the thinking panel height, scrolling, and text readability for long reasoning content.
+    - [Chat] Keep unsubmitted AskUserQuestion answers when switching conversations, so returning to a pending question resumes where the user left off.
+    - [Chat] Fixed token usage not being calculated or displayed for some models after message refresh.
+    - [Chat] Fixed chat messages failing to stay at the bottom after scrolling down with the mouse wheel or dragging the scrollbar.
+    - [Chat] Fixed Responses continuations that sent a UUID as an input item id and were rejected because the id must begin with rs or msg.
+    - [Chat] Fix migrated managed images that still point to an old data directory.
+    - [Skills] Fix skill ZIP import refusing a within-limit skill because the repository archive around it exceeded the old shared ceilings; skill packs may now hold up to 20,000 files.
+    - [Skills] Fixed ClawHub skill installation failing because the download size limit was undefined.
+    - [Skills] Skill installs from Claude Plugins and skills.sh now download only the skill's directory instead of the whole repository, and installing a larger skill from a GitHub link no longer times out.
+    - [Skills] Improve name readability in the two-column settings layout while preserving card size, and show full names and descriptions in tooltips.
+    - [Skills] Fix slash-command and Skills menus while editing messages and after cancelling edits.
+    - [Skills] Fixed CLI cards stuck on “Installing…” when no install was actually running; the status now reconciles against live operations instead of trusting leftover markers.
+    - [Screenshot] Fixed the screenshot toolbar being partly pushed off screen when the selection is near the left edge of a display.
+    - [File] Fixed workspace file trees stopping after a transient Windows file-lock watcher error.
+    - [File] Preserve directory state across brief page switches without keeping the page active.
+    - [AI] Fixed Gemini requests failing with unknown-field 400 errors when a tool schema contains propertyNames or additionalProperties keywords.
+    - [AI] Show clear HTTP 400 request-failure messages and preserve Claude Agent SDK HTTP status codes for accurate error classification.
+    - [AI] Explain HTTP 413 agent request failures and suggest reducing payload size before retrying.
+    - [Windows] Fixed a Windows startup crash when application control blocks the native shutdown handler.
+    - [Linux] Linux AppImages no longer require the system libfuse2 library.
+    - [Mini Apps] Fix the Add mini app dialog width so installation content remains within the dialog.
+    - [History] Chat and Agent history now use archive icons and labels that accurately describe their recoverable archive actions.
+    - [UI] Fixed tooltip content sometimes lingering pinned to the top-left corner after clicking a file path in agent sessions.
+    - [UI] Fixed tooltips lingering at the window's top-left corner after switching right-pane panels.
+    - [UI] Keep message, conversation, and clear actions accessible on devices without hover support, including Windows tablets with detached keyboards.
+    - [Error] Render error causes as text instead of HTML for safer display.
+    - [Citations] Citation panel sources now open in the sidebar browser on left click and in a separate application tab on middle click.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.10 - 新功能、修复与体验优化
+    Cherry Studio 2.1.3 - 新功能、性能与可靠性提升
 
     ✨ 新功能
-    - [小程序] 小程序现在可以是真正的本地应用：从文件或 https 清单安装 .miniapp 包，在隔离沙箱中运行，并按应用授予存储、文件、AI、通知和网络能力。授权、更新、回滚、数据清理和卸载均在应用详情面板管理。
-    - [工具审批] 拒绝 Agent 和 MCP 工具调用时可选择填写原因，拒绝决定会保留在工具历史中。
-    - [诊断] Cherry 支持和首页/Agent 对话错误现在可打开可编辑、用户审核的诊断报告，不会自动提交任何内容。
-    - [诊断] 诊断包导出和匿名上传现在可选包含常规聊天和 Agent 会话历史，用于排障。
-    - [诊断] Cherry Studio 现在可将用户审核后的诊断报告直接提交给 Cherry，并显示返回的报告 ID。
-    - [服务商] 首次 API 服务商设置现在会引导用户完成密钥保存、模型选择和验证后启用。
-    - [知识库] 现在可以将文件拖入知识库以启动上传流程。
-    - [笔记] 空白笔记页现在提供“新建笔记”按钮。
-    - [侧边栏] 全新安装现在会优先显示 Agent 为侧边栏首项，其次是聊天。已有用户保持当前侧边栏顺序。
-    - [文件] 文件复选框支持 Shift 点击范围选择。
-    - [联网搜索] 新增内置 Parallel Search 搜索服务，支持 API Key 和自定义 API Host。
-    - [模型] 模型设置中的上下文长度、最大输入和最大输出字段新增快捷 token 限制预设。
-    - [CodeMate] CodeMate 新增 Hermes Agent 及其原生 Web UI。
-    - [Markdown] 支持在 Markdown 消息中的 echarts 代码块内渲染 ECharts 图表，支持主题感知渲染、分屏、复制图片和下载图片。
-    - [导出] 导出到 Markdown 不再丢失图片：可将图片以 base64 嵌入 .md 文件，或导出到 assets/ 文件夹。
-    - [对话] Token 用量详情现在优先显示完整的输入/输出计数和生成速度，运行时图表按需展示。
-    - [Agent] 在 Agent 工作区中右键已打开文件的标题，现在会显示上下文菜单，包含“打开方式”、编辑/预览切换、刷新和关闭。
-    - [任务] 定时任务卡片现在区分等待运行和正在运行的任务，并显示最近运行状态和下次自动运行时间。
+    - [远程] 设备连接：配对兼容的移动客户端以导入供应商，并通过加密的局域网通道使用桌面 Agent，支持重连恢复、执行失败、审批和问答。注意：旧设备需要重新配对以使用新的身份协议。
+    - [文档] 支持自托管 MinerU 4 文档解析，同时保持与旧版 Open MinerU 服务器的兼容性。
+    - [截图] 在 macOS 和 Windows 上使用系统 OCR，无需下载本地模型即可选择和复制截图中的文字。
+    - [模型] 新增 Claude Opus 5.5，更新模型限制、定价、推理控制和网页工具资格。
+    - [模型] 新增 GPT-6 Sol 和 Luna 目录元数据、OpenAI 网页搜索资格和 OpenAI Codex 模型条目。
+    - [模型] 新增 Grok 4.7 到模型目录（xAI、OpenRouter、Vercel AI Gateway、OpenCode、Copilot），支持 xhigh 推理强度；Grok CLI 现在列出 Grok 4.6、Grok 4.7 和 Grok 4.7 Fast；Grok 4.6 新增 xhigh 推理强度。
+    - [模型] 新增小米 MiMo V2.6 Flash、Pro 和 Pro-UltraSpeed 到模型目录，支持 MiMo、OpenRouter、Vercel AI Gateway 和 OpenCode 供应商，提供思考模式开关。
+    - [技能] 为通过精确受支持路径安装的技能新增带冲突保护的文件自动保存和手动远程更新。
+    - [技能] 新增独立技能详情页、来源标签、更安全的删除操作，以及一键进入 Agent 会话试用技能。
+    - [设置] 新增”Agent 回复语言”设置（默认：跟随对话语言），支持预设值和自定义值，以及每个 Agent 的覆盖选项（使用全局/无约束/自定义）和有效语言预览，用户可以固定 Agent 回复使用的语言。
+    - [快捷键] 在 macOS 上，Command+W 现在关闭当前标签页而非窗口；关闭窗口改为 Command+Shift+W。
 
     🐛 问题修复
-    - [服务商] 修正 DeepSeek V4 的推理强度选项和显示价格。
-    - [模型] 修复开启助手采样设置时 Kimi K2.5 及更新模型请求失败的问题。
-    - [Agent] macOS 上的 Pi 和 DSH Agent 运行时现在可以使用用户登录 PATH 中配置的命令行工具。
-    - [Agent] 定时 Agent 任务现在每条结果只发送一条 IM 渠道消息，不再重复发送。
-    - [启动] 修复重启 Cherry Studio 后“开机启动”未正确恢复的问题。
-    - [LM Studio] 修复 LM Studio 视觉请求中多张图片未按顺序转发的问题。
-    - [MCP] 允许 stdio MCP 服务器使用已存在的绝对可执行文件路径作为 command，迁移后的完整路径配置可以正常启动。
-    - [渠道] 渠道日志和编辑对话框的关闭控件名称现在会按应用语言本地化。
-    - [对话] 修复消息历史包含字面特殊 token 文本时发送失败的问题。
-    - [网络] 服务商请求在安全的同主机 HTTP 到 HTTPS 重定向期间会保留认证头。
-    - [输入框] 技能标签现在仅在根混合搜索结果中显示，避免在专用技能面板中显示冗余标签。
-    - [安全] 模型生成内容的 HTML 预览默认不再在同源 iframe 中运行脚本；交互式 HTML 产物在加固的隔离 webview 中打开，未分类预览则以无脚本沙箱失败关闭。
-    - [诊断] AI 错误诊断结果的全部四个输出字段现在会使用设置中选择的语言。
-    - [Agent] Agent 对话中会同时显示所选模型及其服务商。
-    - [Agent] 修复服务商设置自定义请求头时 Agent 会话每轮都失败并报“config.startsWith is not a function”的问题，同时修复包含 $ 的请求头值被错误处理的问题。
-    - [Gemini] 修复 MCP 工具暴露无类型 items 的数组 schema 时 Gemini 请求失败的问题；不兼容的工具会被跳过，其余工具仍可使用。
-    - [便携版] 修复 Windows 便携版重新启动后服务商和模型列表消失的问题；服务商数据无法加载时会显示可重试的错误。
-    - [侧边栏] 修复右侧面板中的会话/话题在跨天后新条目显示在“更早”而非“今天”下的问题。
-    - [Agent] 需要操作：无受信任通知目标的 Agent 会话不再暴露 notify。渠道会话默认使用其源渠道，定时 cron 和心跳运行仅使用其配置的任务渠道。
-    - [Moonshot] 修复官方 Moonshot API 因 Kimi K2.5 和 K3 模型发送不支持的 top_p 而返回 HTTP 400 的问题。
-    - [服务商] 修复 OpenRouter 和 OpenCode Go 上 GLM-5.3-Flash Auto 请求失败的问题，并向服务商目录添加其当前多模态和推理能力。
-    - [Claude Code] 修复 claude-code 类型 Agent 使用 HuggingFace 托管模型（如 deepseek-ai/DeepSeek-V4-Pro-0813）时报“Request too large (max 32MB)”的问题；工具描述中的控制字符现在会被清理。
-    - [关于] GitHub 图标和应用 Logo 现在具有屏幕阅读器可读名称，装饰性图片已从无障碍树中隐藏。
-    - [Pi] 修复 Pi Agent 在自动上下文压缩后返回空响应的问题。
-    - [Agent] DSH Agent 现在会在工具调用被拒绝后收到用户自定义的反馈。
-    - [对话] 修复重新生成在切换聊天模型后仍使用上一个响应模型的问题。
-    - [模型选择器] 显示所选模型及其服务商，并移除分组模型菜单中的冗余服务商标签。
-    - [Agent] 让 Pi Agent 的 Bash 工具可以使用 Cherry 管理的命令行工具。
-    - [用量] 限制用量统计仪表板宽度，使卡片和图表在超宽窗口上保持可读。
-    - [网络] 修复使用 Azure 托管 Claude 模型时第三方 API（如 yunwu.ai）因需要代理/VPN 而报 ERR_CONNECTION_TIMED_OUT 的问题；azure-anthropic 服务商变体现在会正确转发支持代理的 fetch。
-    - [对话] 修复 Responses API 服务商在并行工具调用后旧会话可能失败的问题。
-    - [更新] 修复检查更新时未发布/503 渠道显示原始 HTTP 正文的问题，改为友好提示。
-    - [对话] 元工具卡片现在会按界面语言本地化区域标题和空状态。
-    - [笔记] 修复从笔记复制数学公式后粘贴到聊天时丢失 LaTeX 的问题。
-    - [联网搜索] 修复 SearXNG 实例将已启用引擎标记为 general 时报“No enabled general web search engines found”的问题。
-    - [产物面板] 在 Agent 产物预览浮层中编辑文件时长行现在会换行。
-    - [对话] 改善划词助手翻译流畅度，防止 AI 回复被复制时带上消息操作标签，并保持流式响应不遮挡输入框间隙。
-    - [对话] 修复点击 token 计数定位消息后 token 用量详情保持打开或重新打开的问题。
-    - [对话] 修复长对话中键盘滚动的间歇性抖动和卡顿。
-    - [小程序] 修复从已打开的小程序切换到 Agent、聊天或其他视图时加载遮罩短暂闪烁的问题。
-    - [Copilot] 修复配置自定义请求头时 GitHub Copilot 授权失败的问题。
-    - [诊断] 错误诊断现在能区分真正的代理连接失败和仅提及代理的无关消息。
-    - [CodeMate] 修复 CodeMate 侧边栏图标大小不一致和工具名称被截断的问题。
-    - [Nutstore] 清理被遗弃的 Nutstore SSO 尝试，避免过期回调和定时器影响后续登录。
-    - [Moonshot] 修复 Kimi K2.5 和 K3 模型因发送不支持的 top_p 而返回 HTTP 400 的问题。
-    - [对话] 消息底部工具栏的 Token 用量现在始终显示，不再被“显示估算 Token”输入设置隐藏。
-    - [快捷面板] 修复快捷面板子菜单（知识库、快捷短语、笔记、MCP、技能）在输入框中输入时不进行过滤的问题。
-    - [助手] 自定义参数字符串和数值输入框现在会向屏幕阅读器暴露描述性名称。
-    - [工具] 缺少 @deepseek-ai/dsh-scope 的托管 DeepSeek Harness 安装现在会在工具链中报告为损坏，而非看似健康但在启动时失败，以便重试可重新安装。
-    - [Gemini] 修复 Gemini 3.x 模型在官方 Gemini API 上同时使用内置联网搜索/URL 上下文与 MCP 或其他函数工具时报 400“Please enable tool_config.include_server_side_tool_invocations”的问题。
-    - [输入框] 链接标签现在使用固定的链接蓝色，不再跟随自定义主题色。
-    - [划词助手] 划词助手自定义操作对话框现在在提示词过长时仍保持确认控件可用。
-    - [产物面板] 修复 Agent 会话中最大化文件面板时代码预览和编辑界面在浮动输入框上方被截断的问题，最后一行也能滚动至输入框上方。
-    - [AI 服务商] 修复第三方服务商（如火山方舟 Agent Plan）回复中省略 annotations 字段时 OpenAI Responses 协议报 AI_TypeValidationError 的问题。
-    - [Claude Code] 防止使用纯文本模型的 Claude Code Agent 会话在 Read 工具打开图片文件后变得不可用。
-    - [服务商] 修复 MiniMax M3 Agent 会话使用服务商原生 Anthropic Messages 端点，避免间歇性推理块翻译失败，同时普通聊天仍使用 Chat Completions。
-    - [分析] 修复同一应用会话内重新启用数据收集时重复发送应用启动分析事件的问题。
-    - [API] OpenAI 兼容 Chat Completions 现在会在 usage 元数据中报告缓存 prompt token。
-    - [小程序] 修复小程序遗留标签池状态清理。
-    - [对话] 修复快速上一条/下一条消息导航跳转到错误对话轮次的问题。
-    - [输入] 修复重命名会话时确认中文输入法候选词后留下拖拽残影并阻止后续拖拽的问题。
-    - [联网搜索] 联网搜索现在会使用当前本地日期解释“本月”“最近 30 天”等请求，避免跨服务商的过期月份查询。
-    - [技能] 优化技能图标和类型徽章，统一使用浅蓝紫色并改善详情头部对齐。
-    - [启动] 便携版 Windows 构建的开机启动现在使用稳定的启动器路径。
-    - [Agent] 改善子 Agent 流程可读性，修复分离式子 Agent 在侧边栏运行指示器丢失的问题。
-    - [拼写检查] 修复 Windows 上拼写检查实时高亮和多语言同步失败的问题。
-    - [Markdown] 修复对话消息中加粗 URL 后跟标点（如 **https://…**（note））时标记被吞入链接导致死链的问题；此类文本现在渲染为加粗可点击链接，与笔记编辑器一致。
-
-    💄 改进
-    - [文件] 文件类型筛选现在直接对匹配行分页，而非扫描并填充无关文件页。
-
-    ⚡ 性能优化
-    - [文件] 稳定虚拟视图回调，滚动更流畅。
-    - [文件] 文件类型筛选直接对匹配行分页，避免扫描和填充无关文件页。
-    - [首页/Agent] 将标签状态副作用与页面根隔离，标签切换更流畅。
-    - [笔记] 懒加载可选菜单流程。
-    - [文件] 仅填充可见视图，降低内存和 CPU 占用。
-    - [对话] 懒加载 Agent 工具渲染器，加快聊天加载。
-    - [翻译] 翻译页不再在每个流式帧上重新渲染整个 Markdown 文档，一次性代码高亮移至 shiki worker 执行，不再阻塞主线程。
-    - [Agent] 稳定系统提示前缀，降低每轮开销。
-    - [备份] 并行读取设备元数据，备份文件名准备不再串行读取独立系统元数据。
-    - [CLI] CLI 配置草稿和清理操作现在并发处理独立文件。
-    - [输入框工具] 保留输入框工具中依赖作用域的注册。
-    - [数据设置] 数据设置中懒加载非活动面板。
-    - [文件] 文件类型筛选直接对匹配行分页，避免扫描和填充无关文件页。
+    - [设置] 修复在模型列表外无法滚动供应商模型的问题，并取消模型分组标题吸顶。
+    - [设置] 英文搜索词现在可以找到 V2 对话风格设置。
+    - [设置] 添加模型后自动验证并启用供应商，防止大型列表加载时模型选择对话框跳动。
+    - [代理] 修复 IPv4 或 IPv6 本地回环请求被代理路由时，DeepSeek Harness 等本地服务无法连接的问题。
+    - [代理] 修复在企业代理或 TLS 证书被拦截的网络环境下，模型列表同步失败的问题（之前即使供应商本身可以用于聊天，同步也会失败）。
+    - [代理] 修复以裸 IPv6 字面量（`::1`、`fe80::1`、`2001:db8::1`）写入的代理绕过规则无法匹配的问题，并按值匹配 IPv6 地址以识别等效表示法。
+    - [智能体] 计划任务现在可以通过 cron 工具原地编辑，支持会话重用控制和更清晰的名称冲突提示。
+    - [智能体] 内置 Cherry 工具指南现在描述 notify 工具何时可用以及计划任务如何获取通知接收者。
+    - [智能体] 修复 dsh 类型 Agent 会话在仅代理网络上失败的问题，通过将配置的代理继承到 agent 运行时进程。
+    - [智能体] 将多 Agent 请求保持在一个回复中直到所有工作完成，提供紧凑的子任务列表和可靠的嵌套任务导航。
+    - [智能体] 修复发送消息链接卡片和网站悬停预览打开单独标签页而非使用 Agent 对话的浏览器窗格的问题。
+    - [对话] 改进思考面板的高度、滚动和长推理内容的文本可读性。
+    - [对话] 切换对话时保留未提交的 AskUserQuestion 答案，返回待处理问题时可以继续之前的状态。
+    - [对话] 修复刷新消息后某些模型的 token 用量未被计算或显示的问题。
+    - [对话] 修复使用鼠标滚轮或拖动滚动条向下滚动后，聊天消息无法保持在底部的问题。
+    - [对话] 修复 Responses 延续发送 UUID 作为输入项 ID 被拒绝的问题（ID 必须以 rs 或 msg 开头）。
+    - [对话] 修复迁移后的托管图片仍指向旧数据目录的问题。
+    - [技能] 修复技能 ZIP 导入因仓库存档超过旧的共享上限而拒绝符合限制的技能的问题；技能包现在最多可包含 20,000 个文件。
+    - [技能] 修复 ClawHub 技能安装因下载大小限制未定义而失败的问题。
+    - [技能] 从 Claude Plugins 和 skills.sh 安装技能现在仅下载技能目录而非整个仓库，从 GitHub 链接安装较大的技能不再超时。
+    - [技能] 改进双列布局中的名称可读性，同时保持卡片大小，并在工具提示中显示完整名称和描述。
+    - [技能] 修复编辑消息和取消编辑后的斜杠命令和技能菜单问题。
+    - [技能] 修复 CLI 卡片卡在”安装中…”状态而实际上没有安装的问题；状态现在与实际操作协调而非信任残留标记。
+    - [截图] 修复选择靠近显示器左边缘时截图工具栏部分被推出屏幕的问题。
+    - [文件] 修复由于短暂的 Windows 文件锁定监视器错误导致工作区文件树停止的问题。
+    - [文件] 在短暂的页面切换期间保留目录状态，而无需保持页面活动。
+    - [AI] 修复工具模式包含 propertyNames 或 additionalProperties 关键字时 Gemini 请求因未知字段返回 400 错误的问题。
+    - [AI] 显示清晰的 HTTP 400 请求失败消息，并保留 Claude Agent SDK HTTP 状态代码以进行准确的错误分类。
+    - [AI] 解释 HTTP 413 Agent 请求失败并建议重试前减少有效负载大小。
+    - [Windows] 修复应用程序控制阻止本机关闭处理程序时的 Windows 启动崩溃。
+    - [Linux] Linux AppImage 不再需要系统 libfuse2 库。
+    - [小程序] 修复添加小程序对话框宽度，使安装内容保持在对话框内。
+    - [历史] 聊天和 Agent 历史现在使用准确描述其可恢复存档操作的存档图标和标签。
+    - [界面] 修复在 Agent 会话中点击文件路径后工具提示内容有时会固定在窗口左上角的问题。
+    - [界面] 修复切换右侧窗格面板后工具提示在窗口左上角残留的问题。
+    - [界面] 在不支持悬停的设备上（包括分离键盘的 Windows 平板电脑）保持消息、对话和清除操作可访问。
+    - [错误] 将错误原因以文本而非 HTML 形式渲染，以更安全地显示。
+    - [引用] 引用面板来源现在在左键单击时在侧边栏浏览器中打开，中键单击时在单独的应用程序标签页中打开。
     <!--LANG:END-->

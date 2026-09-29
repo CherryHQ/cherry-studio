@@ -1,10 +1,11 @@
+import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
 import { usePromptTargetMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget } from '@shared/data/types/prompt'
-import { useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export type PromptTargetOption = ComboboxOption<{ target: PromptBindingTarget }>
 

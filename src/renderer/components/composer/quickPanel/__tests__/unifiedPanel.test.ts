@@ -1,15 +1,21 @@
-import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
+
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
   close: vi.fn(),
   updateItemSelection: vi.fn(),
   updateList: vi.fn(),
+  updateFooterActions: vi.fn(),
   isVisible: false,
   symbol: '',
   list: [],
@@ -44,6 +50,7 @@ beforeEach(() => {
   quickPanel.close.mockReset()
   quickPanel.updateItemSelection.mockReset()
   quickPanel.updateList.mockReset()
+  quickPanel.updateFooterActions.mockReset()
   quickPanel.setFillToAvailableHeight.mockReset()
   quickPanel.dispatchKeyDown.mockReset()
   quickPanel.dispatchKeyDown.mockReturnValue(false)
@@ -54,6 +61,80 @@ beforeEach(() => {
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
+  it('flattens actionable leaves through nested submenus without looping on cycles', () => {
+    const leafAction = vi.fn()
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'outer',
+          kind: 'group',
+          label: 'Outer',
+          icon: 'outer',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'inner',
+              kind: 'group',
+              label: 'Inner',
+              icon: 'inner',
+              sources: ['popover'],
+              submenu: [
+                {
+                  id: 'leaf',
+                  kind: 'command',
+                  label: 'Nested leaf',
+                  icon: 'leaf',
+                  sources: ['popover'],
+                  action: leafAction
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    expect(labels(getVisibleItems(options, 'nested'))).toEqual(['Nested leaf'])
+    getVisibleItems(options, 'nested')[0].action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: getVisibleItems(options, 'nested')[0],
+      parentPanel: options,
+      searchText: 'nested'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'leaf', action: leafAction }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'nested' })
+    )
+  })
+
+  it('prepares a slash-triggered submenu search without tracking the consumed trigger', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalledOnce()
+  })
+
   it('keeps system actions above resource results while preserving business order during search', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
@@ -163,16 +244,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           label: 'Skills',
           icon: 'skill',
           sources: ['root-panel'],
-          rootSearchItems: [
-            { id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill },
-            {
-              id: 'agent-skills:manage',
-              label: 'Manage skills',
-              icon: 'settings',
-              fixedToBottom: true,
-              action: vi.fn()
-            }
-          ],
+          rootSearchItems: [{ id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill }],
           action: vi.fn()
         },
         {
@@ -217,6 +289,35 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       searchText: 'pdf'
     })
     expect(insertSkill).toHaveBeenCalledOnce()
+  })
+
+  it('does not expose search items owned by a disabled launcher', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-owner',
+          kind: 'panel',
+          label: 'Disabled owner',
+          icon: 'disabled',
+          sources: ['root-panel'],
+          disabled: true,
+          rootSearchItems: [{ id: 'owned-resource', label: 'Owned resource', icon: 'resource', action: vi.fn() }],
+          submenu: [
+            {
+              id: 'owned-command',
+              kind: 'command',
+              label: 'Owned command',
+              icon: 'command',
+              sources: ['root-panel'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'owned'))).toEqual([])
   })
 
   it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
@@ -274,7 +375,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     )
   })
 
-  it('excludes persistent launchers while keeping the bare-root customize footer', () => {
+  it('excludes persistent launchers from the button root', () => {
     const launchers = [
       {
         id: 'thinking',
@@ -291,24 +392,14 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         sources: ['popover'] as const
       }
     ]
-    const additionalItems = [
-      {
-        id: 'composer:customize-toolbar',
-        label: 'Customize toolbar',
-        icon: 'settings',
-        fixedToBottom: true
-      }
-    ]
-
     const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
       quickPanel,
-      additionalItems,
       excludedLauncherIds: new Set(['thinking'])
     })
-    expect(pinned.list.map((item) => item.id)).toEqual(['attachment', 'composer:customize-toolbar'])
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment'])
 
-    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, additionalItems })
-    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment'])
   })
 
   it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
@@ -323,26 +414,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
 
     const unpinned = createUnifiedQuickPanelOpenOptions([], { quickPanel, leadingItems })
     expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
-  })
-
-  it('drops bottom-pinned chrome from category views seeded with a search text', () => {
-    const additionalItems = [
-      { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },
-      { id: 'composer:customize-toolbar', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true }
-    ]
-
-    // Bare root panel keeps the fixedToBottom customize action.
-    const bareRoot = createUnifiedQuickPanelOpenOptions([], { quickPanel, additionalItems })
-    expect(labels(bareRoot.list)).toContain('Customize toolbar')
-
-    // A category view (opened via a toolbar shortcut that seeds a search text) drops it so it does
-    // not bypass the category filter.
-    const categoryView = createUnifiedQuickPanelOpenOptions([], {
-      quickPanel,
-      additionalItems,
-      initialSearchText: 'Skills'
-    })
-    expect(labels(categoryView.list)).toEqual(['Agent skill'])
   })
 
   it('does not reorder items when there is no search text', () => {
@@ -479,7 +550,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'popover',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -491,7 +562,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'root-panel',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -543,9 +614,10 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         title: 'Thinking',
         symbol: 'thinking',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -566,9 +638,59 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       expect.objectContaining({
         source: 'root-panel',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('opens a single-select submenu with the keyboard on the active child', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'panel',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            { id: 'mode-default', kind: 'command', label: 'Ask Every Time', icon: 'a', sources: ['popover'] },
+            {
+              id: 'mode-smart',
+              kind: 'command',
+              label: 'Smart Approval',
+              icon: 's',
+              active: true,
+              sources: ['popover']
+            },
+            { id: 'mode-full', kind: 'command', label: 'Full Access', icon: 'f', sources: ['popover'] }
+          ]
+        }
+      ],
+      { quickPanel, triggerInfo: { type: 'button' } }
+    )
+    const submenuLauncher = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    submenuLauncher.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: submenuLauncher,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: ''
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'permission-mode',
+        defaultIndex: 1,
+        list: [
+          expect.objectContaining({ label: 'Ask Every Time' }),
+          expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
+          expect.objectContaining({ label: 'Full Access' })
+        ]
       })
     )
   })

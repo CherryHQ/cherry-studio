@@ -1,8 +1,9 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('McpServer:Python')
 

@@ -15,6 +15,7 @@
  * silently inherit a finite global instead.
  */
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
 export interface ResolveContextSettingsInput {
   /** Resolved global defaults (from `chat.context_settings.*` prefs). */
@@ -34,7 +35,14 @@ export function resolveContextSettings(input: ResolveContextSettingsInput): Effe
       enabled: assistant?.compress?.enabled ?? globals.compress.enabled,
       // `??` treats null/undefined alike: users disable compression via
       // `compress.enabled = false`, never by nulling the modelId.
-      modelId: assistant?.compress?.modelId ?? globals.compress.modelId
+      modelId: assistant?.compress?.modelId ?? globals.compress.modelId,
+      // Clamped at the MERGE, not on the globals alone: the assistant layer is
+      // a JSON column that production never `.parse()`s, so a stored 0 would
+      // otherwise reach the trigger and fold on every step.
+      thresholdPercent:
+        assistant?.compress?.thresholdPercent === undefined
+          ? globals.compress.thresholdPercent
+          : clampThresholdPercent(assistant.compress.thresholdPercent)
     }
   }
 }

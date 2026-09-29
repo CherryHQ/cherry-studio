@@ -2,10 +2,11 @@
  * TODO：distinguish static and dynamic system prompt and xml-based user prompt
  */
 
+import type { ToolSet } from 'ai'
+
 import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
-import type { ToolSet } from 'ai'
 
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'

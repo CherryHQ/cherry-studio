@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useNutstoreSso')
 const NUTSTORE_SSO_TIMEOUT_MS = 5 * 60 * 1000
@@ -55,7 +56,8 @@ export function useNutstoreSso() {
 
         const encryptedToken = url.searchParams.get('s')
         const isSchemeRoot = url.hostname === '' && (url.pathname === '' || url.pathname === '/')
-        if (url.protocol !== 'cherrystudio:' || !isSchemeRoot || !encryptedToken) return
+        const isNutstoreSso = url.hostname === 'nutstore-sync' && url.pathname === '/sso'
+        if (url.protocol !== 'cherrystudio:' || !(isSchemeRoot || isNutstoreSso) || !encryptedToken) return
         finish(encryptedToken)
       }
 

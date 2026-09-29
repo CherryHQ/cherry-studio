@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 import { render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, TableHTMLAttributes, TdHTMLAttributes } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({

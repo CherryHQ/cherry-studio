@@ -1,8 +1,9 @@
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { filterSupportedFiles } from '@renderer/utils/file'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Props = {
   /** 支持选择的扩展名 */

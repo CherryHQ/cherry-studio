@@ -1,5 +1,6 @@
-import { formatApiHost, isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import { trim } from 'es-toolkit/compat'
+
+import { formatApiHost, isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
 // Re-export from shared, for backward compatibility
 export {
