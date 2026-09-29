@@ -66,6 +66,22 @@ function resolveExistingAncestor(value: string): { path: string; effectivePath: 
   return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
+function assertSourceHasNoSymbolicLinks(dirPath: string): void {
+  const walk = (currentPath: string) => {
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) {
+        invalid('source_contains_symlinks', `source contains a symbolic link: ${entry.name}`)
+      }
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        walk(entryPath)
+      }
+    }
+  }
+
+  walk(path.resolve(dirPath))
+}
+
 function assertNotesTargetDirectory(dirPath: string): void {
   if (!dirPath || typeof dirPath !== 'string') {
     invalid('invalid_target', 'target path is required')
@@ -90,7 +106,8 @@ function assertNotesTargetDirectory(dirPath: string): void {
     physicalPath === filesDir ||
     isPathInside(physicalPath, filesDir) ||
     physicalPath === defaultNotesDir ||
-    physicalPath === appDataPath
+    physicalPath === appDataPath ||
+    isPathInside(physicalPath, appDataPath)
   ) {
     invalid('invalid_target', `target is a protected directory: ${dirPath}`)
   }
@@ -129,6 +146,8 @@ export function assertNotesRelocationPaths(sourcePath: string, targetPath: strin
   } catch {
     invalid('source_missing', `source is not readable: ${sourcePath}`)
   }
+
+  assertSourceHasNoSymbolicLinks(sourcePath)
 
   if (sourceReal === targetEffective) {
     invalid('same_path', `source and target are the same path: ${targetPath}`)

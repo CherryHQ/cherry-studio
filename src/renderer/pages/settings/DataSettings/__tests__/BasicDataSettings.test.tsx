@@ -36,7 +36,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/notes/notesDirectoryMigration', () => ({
+vi.mock('@renderer/components/notes/notesDirectoryMigration', () => ({
   startNotesDirectoryMigration: vi.fn()
 }))
 
