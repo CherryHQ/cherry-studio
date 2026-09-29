@@ -863,8 +863,8 @@ describe('ArtifactPane', () => {
   })
 
   it('drops the quote chip when the same file is refreshed', async () => {
-    // Refreshing remounts the preview plugin, so the held reference describes content that is no
-    // longer on screen and carries a fileStamp from before the refresh.
+    // The host clears its captured reference even when the plugin stays mounted
+    // and does not emit a null callback during refresh.
     mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
     const onInsert = vi.fn()
 

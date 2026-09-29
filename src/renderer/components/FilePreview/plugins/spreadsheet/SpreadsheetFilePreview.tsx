@@ -114,42 +114,49 @@ export default function SpreadsheetFilePreview({
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
   // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
-  const [selectedCell, setSelectedCell] = useState<(SelectedCellInfo & { sheet: SheetRenderModel }) | null>(null)
+  const [selectedCell, setSelectedCell] = useState<
+    (SelectedCellInfo & { sheet: SheetRenderModel; refreshKey: number }) | null
+  >(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
-  const model = state.status === 'ready' ? state.model : null
+  const model = 'model' in state ? state.model : null
   const sheets = useMemo(() => (model ? visibleSheets(model) : []), [model])
   const activeSheet = sheets.find((sheet) => sheet.name === activeSheetName) ?? sheets[0] ?? null
 
   // Reset the selected cell when switching sheets or replacing the model, and clamp the active sheet to a valid value.
   useEffect(() => {
     setSelectedCell(null)
-    if (sheets.length === 0) {
-      setActiveSheetName(null)
-      return
-    }
+    if (sheets.length === 0) return
     if (!sheets.some((sheet) => sheet.name === activeSheetName)) {
       setActiveSheetName(sheets[0].name)
     }
   }, [sheets, activeSheetName])
 
   const handleSelectCell = useCallback(
-    (info: SelectedCellInfo | null) => setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet } : null),
-    [activeSheet]
+    (info: SelectedCellInfo | null) =>
+      setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet, refreshKey } : null),
+    [activeSheet, refreshKey]
   )
 
   // Derived from the selection rather than emitted by its callback, so any clear reports null on its own. The
   // sheet is compared rather than assumed: a sheet switch resets the selection in an effect, one commit later.
   const selectionReference = useMemo(() => {
-    if (!selectedCell || !activeSheet || selectedCell.sheet !== activeSheet) return null
+    if (
+      state.status !== 'ready' ||
+      !selectedCell ||
+      !activeSheet ||
+      selectedCell.sheet !== activeSheet ||
+      selectedCell.refreshKey !== refreshKey
+    )
+      return null
     return createSelectionReference({
       filePath,
       anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
       excerpt: buildRangeExcerpt(activeSheet, selectedCell.rect),
       metadata: { size: metadata.size, modifiedAt: metadata.modifiedAt }
     })
-  }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt])
+  }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt, refreshKey, state.status])
 
   // Capture arms empty so switching it on never turns a browsing selection into a pick the user never made.
   // The host's side of this (a steady callback identity) is in the FilePreview README, Selection References.
@@ -222,11 +229,11 @@ export default function SpreadsheetFilePreview({
 
   let content: ReactNode
 
-  if (state.status === 'loading' || state.status === 'idle') {
+  if ((state.status === 'loading' && !model) || state.status === 'idle') {
     content = (
       <div
         role="status"
-        className="flex h-full w-full items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+        className="text-muted-foreground flex h-full w-full items-center justify-center gap-2 bg-background text-sm">
         <LoaderCircle className="size-4 animate-spin" aria-hidden />
         <span>{t('file_preview.loading')}</span>
       </div>
@@ -274,7 +281,7 @@ export default function SpreadsheetFilePreview({
         role="region"
         aria-label={fileName}
         className="relative flex h-full w-full flex-col overflow-hidden bg-background">
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1" inert={state.status !== 'ready'}>
           <XlsxGrid
             // Remount the grid on sheet changes to reset its internal selection state.
             key={activeSheet.name}
@@ -283,12 +290,12 @@ export default function SpreadsheetFilePreview({
             imageUrls={imageUrls}
             zoom={zoom}
             onSelectCell={handleSelectCell}
-            pickerActive={onSelectionReference !== undefined}
+            pickerActive={state.status === 'ready' && onSelectionReference !== undefined}
             renderChart={renderChart}
           />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1">
+        <div className="flex shrink-0 items-center gap-2 border-t border-border-subtle bg-background px-2 py-1">
           <Tabs value={activeSheet.name} onValueChange={setActiveSheetName} variant="line" className="min-w-0 shrink">
             <TabsList aria-label={t('xlsx_preview.sheet_tabs_label')} className="min-w-0 gap-1 overflow-x-auto">
               {sheets.map((sheet) => (
@@ -299,9 +306,9 @@ export default function SpreadsheetFilePreview({
             </TabsList>
           </Tabs>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-muted-foreground text-xs">
+          <div className="text-muted-foreground flex min-w-0 flex-1 items-center justify-end gap-2 text-xs">
             {statusBarText ? (
-              <span className="selectable cursor-text select-text truncate" data-testid="xlsx-preview-status-bar">
+              <span className="selectable cursor-text truncate select-text" data-testid="xlsx-preview-status-bar">
                 {statusBarText}
               </span>
             ) : null}

@@ -2,7 +2,7 @@ import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -105,6 +105,19 @@ export default function PowerPointFilePreview({
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
+  const readingPositionRef = useRef<{ zoom: number; page: number; top: number; left: number } | null>(null)
+  const captureReadingPosition = useCallback(() => {
+    const viewer = viewerRef.current
+    const container = containerRef.current
+    if (!viewer || !container || container.clientHeight === 0) return
+    readingPositionRef.current = {
+      zoom: viewer.zoomPercent,
+      page: viewer.currentSlideIndex + 1,
+      top: container.scrollTop,
+      left: container.scrollLeft
+    }
+  }, [])
+  useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
   // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
   const presentationRef = useRef<PresentationData | null>(null)
   const controlsBusyRef = useRef(false)
@@ -188,12 +201,12 @@ export default function PowerPointFilePreview({
     const controller = new AbortController()
     let cancelled = false
     let viewer: PptxViewer | null = null
+    let initialized = false
 
     setError(null)
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
-    setZoom(PPTX_PREVIEW_DEFAULT_ZOOM)
     setPreviewControlsBusy(false)
     container.innerHTML = ''
 
@@ -215,7 +228,7 @@ export default function PowerPointFilePreview({
 
         viewer = new PptxViewer(container, {
           fitMode: 'contain',
-          zoomPercent: PPTX_PREVIEW_DEFAULT_ZOOM,
+          zoomPercent: readingPositionRef.current?.zoom ?? PPTX_PREVIEW_DEFAULT_ZOOM,
           scrollContainer: container,
           zipLimits: RECOMMENDED_ZIP_LIMITS,
           lazyMedia: true,
@@ -261,6 +274,14 @@ export default function PowerPointFilePreview({
         if (cancelled) return
 
         const nextPageCount = viewer.slideCount
+        const position = readingPositionRef.current
+        if (position && nextPageCount > 0) {
+          await viewer.goToSlide(clamp(position.page, 1, nextPageCount) - 1, { block: 'start' })
+          if (cancelled) return
+          container.scrollTop = position.top
+          container.scrollLeft = position.left
+        }
+        initialized = true
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
         focusContainer()
@@ -280,6 +301,7 @@ export default function PowerPointFilePreview({
     })()
 
     return () => {
+      if (initialized) captureReadingPosition()
       cancelled = true
       controller.abort()
       controlsBusyRef.current = false
@@ -290,7 +312,7 @@ export default function PowerPointFilePreview({
       viewer?.destroy()
       container.innerHTML = ''
     }
-  }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
+  }, [captureReadingPosition, filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
 
   // The marker goes on only after createSelectionReference confirms the host receives something: a slide
   // with no text must not look picked while the host gets null.
@@ -379,14 +401,14 @@ export default function PowerPointFilePreview({
             data-picker={onSelectionReference ? 'true' : undefined}
             role="region"
             aria-label={fileName}
-            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40"
             tabIndex={0}
             onClick={handlePick}
           />
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>

@@ -221,9 +221,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   reports as usual, including re-picking the same range. Arming resets only when capture is switched off, so
   a host must keep the callback's identity steady while capture stays on (the artifact pane passes a state
   setter).
-- The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
+- The host forwards selection results only for the current request. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
-- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+- The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
@@ -275,6 +275,20 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
 - Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
+- Refresh revalidates metadata and plugin selection without unmounting a compatible preview of the same path.
+  Plugins retain valid reading state (zoom, position, mode, worksheet) across content replacement and effect
+  reconnection. Different paths or format plugins (for example, HTML versus PDF) start a new preview;
+  this refers to plugin identity, not the `file`/`artifact` presentation context. Clamp positions to the new content and
+  discard content selections; never relabel an old selection with the refreshed file's stamp.
+  Ordinary HTML refreshes reload the restricted iframe document after the file read completes, even when
+  the HTML text is unchanged, so referenced resources are requested again. The outer preview/source mode
+  is retained; the iframe's internal document state is not retained across this reload.
+  The consumer that stores `onSelectionReference` results owns clearing its captured reference when it
+  requests a refresh, before asynchronous metadata resolution completes. Plugins clear their internal
+  picks and cancel stale selection work when the refresh reaches them. `ArtifactPane` implements the
+  consumer-side reset; plugins need not emit a duplicate null callback solely to acknowledge a refresh.
+  `FilePreview` also rejects selection callbacks from an older resolution as soon as a new request starts,
+  so delayed selection work cannot repopulate the consumer while refreshed metadata is still pending.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.

@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -242,7 +242,7 @@ const CellView = memo(function CellView({
   }
 
   return (
-    <div className="absolute px-1 text-foreground text-sm" style={finalCss}>
+    <div className="absolute px-1 text-sm text-foreground" style={finalCss}>
       {cell && (
         <span
           className={cn(cell.formulaState === 'unevaluated' && 'text-muted-foreground italic')}
@@ -289,7 +289,7 @@ const SelectedCellOverlay = ({ cell, style, rect }: SelectedCellOverlayProps) =>
   return (
     <div
       data-testid="xlsx-grid-selected-overlay"
-      className="z-10 px-1 text-foreground text-sm shadow-md outline outline-primary"
+      className="z-10 px-1 text-sm text-foreground shadow-md outline outline-primary"
       style={finalCss}>
       {cell && (
         <span
@@ -310,7 +310,7 @@ interface UnsupportedChartPlaceholderProps {
 const UnsupportedChartPlaceholder = ({ chart }: UnsupportedChartPlaceholderProps) => {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-border border-dashed text-center text-muted-foreground text-xs">
+    <div className="text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-center text-xs">
       <span>{t('xlsx_preview.chart_unsupported')}</span>
       {chart.rawTypeName && <span>{chart.rawTypeName}</span>}
     </div>
@@ -393,6 +393,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
+  // Updating estimateSize alone does not invalidate cached measurements. Keep the
+  // mounted viewport, but refresh each axis before painting changed dimensions.
+  useLayoutEffect(() => {
+    rowVirtualizer.measure()
+  }, [rowVirtualizer, rowLayout, zoom])
+  useLayoutEffect(() => {
+    colVirtualizer.measure()
+  }, [colVirtualizer, colLayout, zoom])
   const virtualRows = rowVirtualizer.getVirtualItems()
   const virtualCols = colVirtualizer.getVirtualItems()
 
@@ -532,6 +540,12 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // Only the off -> on edge clears: clearSelection's identity changes on every scroll (through findMerge ->
   // visibleMergeByCell), so depending on it directly would wipe the user's pick each time the grid scrolls.
   const pickerWasActiveRef = useRef(false)
+  const previousSheetRef = useRef(sheet)
+  useEffect(() => {
+    if (previousSheetRef.current === sheet) return
+    previousSheetRef.current = sheet
+    clearSelection()
+  }, [sheet, clearSelection])
   useEffect(() => {
     const isActive = Boolean(pickerActive)
     if (pickerWasActiveRef.current === isActive) return
@@ -856,13 +870,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
         {/* Column header (sticky top): A, B, C... The box is positioned in scroll coordinates; content is scaled. */}
         <div
-          className="sticky top-0 z-20 border-border border-b bg-muted"
+          className="sticky top-0 z-20 border-b border-border bg-muted"
           style={{ height: scaledHeaderHeight, marginLeft: scaledHeaderWidth, width: colLayout.totalSize * zoom }}>
           <div className="absolute" style={zoomTransform}>
             {virtualCols.map((vc) => (
               <div
                 key={vc.key}
-                className="absolute flex items-center justify-center border-border border-r text-muted-foreground text-xs"
+                className="text-muted-foreground absolute flex items-center justify-center border-r border-border text-xs"
                 style={{
                   left: axisOffset(colLayout, vc.index),
                   width: colLayout.sizes[vc.index],
@@ -876,13 +890,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
 
         {/* Row header (sticky left): 1, 2, 3... */}
         <div
-          className="sticky left-0 z-20 border-border border-r bg-muted"
+          className="sticky left-0 z-20 border-r border-border bg-muted"
           style={{ width: scaledHeaderWidth, height: rowLayout.totalSize * zoom, top: scaledHeaderHeight }}>
           <div className="absolute" style={zoomTransform}>
             {virtualRows.map((vr) => (
               <div
                 key={vr.key}
-                className="absolute flex items-center justify-center border-border border-b text-muted-foreground text-xs"
+                className="text-muted-foreground absolute flex items-center justify-center border-b border-border text-xs"
                 style={{
                   top: axisOffset(rowLayout, vr.index),
                   height: rowLayout.sizes[vr.index],

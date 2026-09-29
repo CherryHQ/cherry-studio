@@ -27,7 +27,7 @@ function TextPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -108,7 +108,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
 
   useEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -290,6 +291,36 @@ describe('SpreadsheetFilePreview', () => {
     expect(screen.queryByRole('tab', { name: 'HiddenSheet' })).not.toBeInTheDocument()
     // No selection → no status text (the sheet tabs already show the active sheet).
     expect(screen.queryByTestId('xlsx-preview-status-bar')).not.toBeInTheDocument()
+  })
+
+  it('keeps the active sheet and zoom during refresh and falls back when that sheet disappears', async () => {
+    const user = userEvent.setup()
+    const model = modelWithoutCharts()
+    setWorkbookState({ status: 'ready', model })
+    const { rerender } = renderPanel()
+    await user.click(screen.getByRole('tab', { name: 'Notes' }))
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    const view = () => (
+      <SpreadsheetFilePreview
+        filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
+        fileName="book.xlsx"
+        metadata={{ size: 1024, modifiedAt: 2 }}
+        refreshKey={1}
+      />
+    )
+    setWorkbookState({ status: 'loading', model })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('125%')).toBeInTheDocument()
+    const nextModel = modelWithoutCharts()
+    setWorkbookState({ status: 'ready', model: nextModel })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
+    nextModel.sheets = nextModel.sheets.filter((sheet) => sheet.name !== 'Notes')
+    setWorkbookState({ status: 'ready', model: { ...nextModel } })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('125%')).toBeInTheDocument()
   })
 
   it('falls back to the first sheet when every sheet is hidden', () => {
