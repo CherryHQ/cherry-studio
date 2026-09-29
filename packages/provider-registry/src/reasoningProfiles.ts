@@ -146,7 +146,16 @@ const formatProfiles = {
         { effortMap: { minimal: 'low' } }
       )
     },
-    budgetWire: anthropicBudgetWire
+    budgetWire: anthropicBudgetWire,
+    betweenToolsWire: {
+      default: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
+      off: mode([literal('thinking.type', 'between_tools')]),
+      auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
+      effort: mode(
+        [literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')],
+        { effortMap: { minimal: 'low' } }
+      )
+    }
   },
   gemini: {
     wire: {
@@ -170,15 +179,12 @@ const formatProfiles = {
 
 export const REASONING_FORMAT_PROFILES: Record<ReasoningFormatType, ReasoningFormatWireProfile> = formatProfiles
 
-/**
- * Pick the wire a model's generation speaks. Only a `budget` dialect on a format
- * that declares `budgetWire` diverges; everything else — including an undeclared
- * dialect — keeps the format's primary wire, so formats with a single dialect
- * and models with no declaration behave exactly as before.
- */
+/** Select a generation's native wire only when the serving format supports it. */
 export function selectFormatWire(
   profile: ReasoningFormatWireProfile,
   dialect: ReasoningWireDialect | undefined
 ): ReasoningWireProfile {
-  return dialect === 'budget' && profile.budgetWire ? profile.budgetWire : profile.wire
+  if (dialect === 'budget' && profile.budgetWire) return profile.budgetWire
+  if (dialect === 'adaptive-between-tools' && profile.betweenToolsWire) return profile.betweenToolsWire
+  return profile.wire
 }

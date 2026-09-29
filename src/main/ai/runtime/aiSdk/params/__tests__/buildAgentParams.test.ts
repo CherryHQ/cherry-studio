@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
@@ -783,6 +784,57 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.providerOptions).toMatchObject({ anthropic: { thinking: { type: 'adaptive' } } })
     expect(result.options.maxOutputTokens).toBe(10_000)
   })
+})
+
+describe('Sonnet 5.5 request boundary', () => {
+  // Catches omitted progress text at the default tier and rejected disabled/budget thinking.
+  it.each(['default', 'none', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
+    'sends the native %s mode through the catalog and SDK',
+    async (selection) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'anthropic', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const model = makeModel({
+        id: 'anthropic::claude-sonnet-5-5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-5-5',
+        presetModelId: 'claude-sonnet-5-5',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const { options } = await buildAgentParams({
+        request: { conversation: CONVERSATION, reasoningEffort: selection },
+        provider: makeProvider({
+          id: 'anthropic',
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        }),
+        model,
+        assistant: makeAssistant(),
+        signal: undefined
+      })
+      let body: Record<string, unknown> | undefined
+      const sdkModel = createAnthropic({
+        apiKey: 'test',
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body))
+          return new Response('{}')
+        }
+      })('claude-sonnet-5-5')
+      await sdkModel.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+        providerOptions: options.providerOptions
+      })
+      expect(body?.thinking).toEqual(
+        selection === 'none' ? { type: 'between_tools' } : { type: 'adaptive', display: 'summarized' }
+      )
+      if (selection === 'default' || selection === 'none') {
+        expect(body).not.toHaveProperty('output_config')
+      } else {
+        expect(body?.output_config).toEqual({ effort: selection })
+      }
+    }
+  )
 })
 
 describe('buildAgentParams web-tool routing', () => {

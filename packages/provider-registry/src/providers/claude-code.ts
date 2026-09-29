@@ -1,6 +1,7 @@
 import { defineProvider } from './types'
 
 const webFetchModels = [
+  'claude-sonnet-5-5',
   'claude-opus-4',
   'claude-sonnet-4',
   'claude-haiku-4',
@@ -72,6 +73,7 @@ export default defineProvider({
     }
   },
   overrides: [
+    { modelId: 'claude-sonnet-5-5' },
     { modelId: 'claude-fable-5' },
     { modelId: 'claude-sonnet-5' },
     { modelId: 'claude-opus-4-5' },
