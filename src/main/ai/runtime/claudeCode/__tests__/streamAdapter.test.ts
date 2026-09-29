@@ -676,6 +676,46 @@ describe('ClaudeCodeStreamAdapter', () => {
     ).toBe(thinking)
   })
 
+  it('routes buffered thinking deltas to reasoning when the stream ends without a block start', () => {
+    const { adapter, parts } = createAdapter()
+    const thinking = 'relay-only thinking'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking } })
+    )
+    adapter.handleMessage(successResult())
+
+    expect(parts.some((part) => part.type === 'text-start')).toBe(false)
+    expect(
+      parts
+        .filter((part) => part.type === 'reasoning-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    ).toBe(thinking)
+  })
+
+  it('keeps buffered deltas when block stop precedes block start', () => {
+    const { adapter, parts } = createAdapter()
+    const prefix = 'early relay prefix'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: prefix } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    expect(parts.some((part) => part.type === 'text-start')).toBe(false)
+    expect(
+      parts
+        .filter((part) => part.type === 'reasoning-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    ).toBe(prefix)
+  })
+
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 

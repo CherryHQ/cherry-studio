@@ -111,6 +111,8 @@ type PendingContentDelta = {
   value: string
 }
 
+const MAX_PENDING_CONTENT_DELTA_CHARS = 256_000
+
 type ToolStreamState = {
   name: string
   lastSerializedInput?: string
@@ -1042,7 +1044,6 @@ export class ClaudeCodeStreamAdapter {
     ctx.hasReceivedStreamEvents = true
     const blockIndex = event.index
     ctx.activeBlockTypeByIndex.delete(blockIndex)
-    ctx.pendingContentDeltasByIndex.delete(blockIndex)
 
     const toolId = ctx.toolBlocksByIndex.get(blockIndex)
     if (toolId) {
@@ -1992,6 +1993,15 @@ export class ClaudeCodeStreamAdapter {
     pending.push({ kind, value })
     ctx.pendingContentDeltasByIndex.set(blockIndex, pending)
     this.turnHasActivity = true
+    if (this.getPendingContentDeltaCharCount(pending) > MAX_PENDING_CONTENT_DELTA_CHARS) {
+      this.flushPendingContentDeltas(blockIndex, ctx)
+    }
+  }
+
+  private getPendingContentDeltaCharCount(pending: PendingContentDelta[]): number {
+    let chars = 0
+    for (const item of pending) chars += item.value.length
+    return chars
   }
 
   private getUnflushedTextBuffer(ctx: StreamContext): string {
@@ -2011,9 +2021,12 @@ export class ClaudeCodeStreamAdapter {
 
     const blockType = ctx.activeBlockTypeByIndex.get(blockIndex)
     for (const item of pending) {
-      if (blockType === 'thinking') {
+      const effectiveType = blockType === 'thinking' ? 'thinking' : blockType === 'text' ? 'text' : item.kind
+      if (effectiveType === 'thinking') {
+        this.ensureReasoningPartForBlockIndex(blockIndex, ctx)
         this.handleThinkingDelta(item.value, blockIndex, ctx)
       } else {
+        this.ensureTextPartForBlockIndex(blockIndex, ctx)
         this.handleTextDelta(item.value, blockIndex, ctx)
       }
     }
@@ -2021,11 +2034,26 @@ export class ClaudeCodeStreamAdapter {
 
   private flushAllPendingContentDeltas(ctx: StreamContext): void {
     for (const blockIndex of [...ctx.pendingContentDeltasByIndex.keys()]) {
-      if (!ctx.activeBlockTypeByIndex.has(blockIndex)) {
-        ctx.activeBlockTypeByIndex.set(blockIndex, 'text')
-      }
       this.flushPendingContentDeltas(blockIndex, ctx)
     }
+  }
+
+  private ensureReasoningPartForBlockIndex(blockIndex: number, ctx: StreamContext): void {
+    if (ctx.reasoningBlocksByIndex.has(blockIndex)) return
+    const reasoningPartId = generateId()
+    ctx.reasoningBlocksByIndex.set(blockIndex, reasoningPartId)
+    ctx.sink.enqueue({ type: 'reasoning-start', id: reasoningPartId })
+    ctx.currentReasoningPartId = reasoningPartId
+  }
+
+  private ensureTextPartForBlockIndex(blockIndex: number, ctx: StreamContext): void {
+    if (ctx.textBlocksByIndex.has(blockIndex)) return
+    ctx.activeBlockTypeByIndex.set(blockIndex, 'text')
+    const partId = generateId()
+    ctx.textBlocksByIndex.set(blockIndex, partId)
+    ctx.sink.enqueue({ type: 'text-start', id: partId })
+    ctx.textStreamedViaContentBlock = true
+    ctx.textPartId = partId
   }
 
   private closeActiveTextPartUnlessIndex(blockIndex: number, ctx: StreamContext): void {
