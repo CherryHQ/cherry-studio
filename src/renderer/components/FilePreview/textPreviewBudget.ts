@@ -4,9 +4,20 @@ const RICH_TEXT_PREVIEW_MAX_SIZE_BYTES = 1024 * 1024
 
 const RICH_TEXT_PREVIEW_MAX_AVERAGE_LINE_CHARS = 5000
 
+/** Line count without materializing the line array, and without a trailing newline counting twice. */
+function countLines(content: string): number {
+  if (content.length === 0) return 0
+  let newlines = 0
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) === 10) newlines++
+  }
+  return content.endsWith('\n') ? newlines : newlines + 1
+}
+
 function hasHighRatioOfLongLines(content: string): boolean {
-  if (content.length === 0) return false
-  return content.length / content.split('\n').length > RICH_TEXT_PREVIEW_MAX_AVERAGE_LINE_CHARS
+  const lines = countLines(content)
+  if (lines === 0) return false
+  return content.length / lines > RICH_TEXT_PREVIEW_MAX_AVERAGE_LINE_CHARS
 }
 
 /**
