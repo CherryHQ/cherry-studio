@@ -262,6 +262,34 @@ describe('PreferencesMigrator', () => {
       expect(settingsRows[0].value).toEqual({ binding: ['CommandOrControl', ','], enabled: false })
     })
 
+    it('records observable v1 sidebar shortcut provenance during migration', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            shortcuts: {
+              shortcuts: [
+                { key: 'toggle_show_assistants', shortcut: ['Command', '['], enabled: false },
+                { key: 'toggle_show_topics', shortcut: ['CommandOrControl', 'Shift', ']'], enabled: true }
+              ]
+            }
+          }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [appSidebar] = await selectByKey(dbh.db, 'shortcut.app.sidebar.toggle')
+      expect(appSidebar.value).toEqual({ binding: ['Command', '['], customized: true, enabled: false })
+
+      const [topicSidebar] = await selectByKey(dbh.db, 'shortcut.topic.sidebar.toggle')
+      expect(topicSidebar.value).toEqual({
+        binding: ['CommandOrControl', 'Shift', ']'],
+        customized: true,
+        enabled: true
+      })
+    })
+
     it('routes websearch.compressionConfig through complex mapping (1 → N split)', async () => {
       const ctx = createTestContext(
         {

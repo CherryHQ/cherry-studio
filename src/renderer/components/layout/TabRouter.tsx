@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { useTabHistoryNavigation } from '@renderer/hooks/useTabHistoryNavigation'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { AppRouter } from '@renderer/types/router'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -36,6 +37,8 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   // Create independent router instance per tab (only once)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const router = useMemo(() => createTabRouter(tab.url), [tab.id])
+
+  useTabHistoryNavigation(router.history, isActive)
 
   // External retargets update tab.url before an async route can replace the outgoing page.
   // Cover that interval so teardown effects cannot repaint stale page loading UI.

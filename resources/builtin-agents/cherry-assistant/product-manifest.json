@@ -148,10 +148,17 @@
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "CommandOrControl",
-          "["
-        ]
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "["
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "Alt",
+            "["
+          ]
+        }
       }
     },
     {
@@ -438,10 +445,63 @@
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "CommandOrControl",
-          "]"
-        ]
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "]"
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "Alt",
+            "]"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tab.history.back",
+      "titleKey": "settings.shortcuts.history_back",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "["
+          ],
+          "win32": [
+            "Alt",
+            "Left"
+          ],
+          "linux": [
+            "Alt",
+            "Left"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.history.forward",
+      "titleKey": "settings.shortcuts.history_forward",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "]"
+          ],
+          "win32": [
+            "Alt",
+            "Right"
+          ],
+          "linux": [
+            "Alt",
+            "Right"
+          ]
+        },
+        "when": "!webview.focused"
       }
     },
     {
