@@ -6,6 +6,20 @@ service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
+The remote stream listener coalesces adjacent deltas for the same message and part for
+up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
+text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
+full content digest. Journal disposal cancels pending delivery.
+
+Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
+immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.
+Compatibility tests feed journal checkpoints and events to the published protocol 0.1.0
+package, pinned as the test-only `@cherrystudio/remote-protocol-v0` alias.
+
+Session deletion goes through `AgentLifecycleService`: ordinary deletion rejects unsettled
+execution; destructive cleanup drains execution before deleting rows, so the terminal
+listener flushes pending text while the session still exists.
+
 | File | Owns |
 |---|---|
 | `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |

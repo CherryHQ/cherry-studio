@@ -13,6 +13,13 @@ version. Building or passing package tests alone does not qualify Desktop, Expo 
 Run `pnpm --filter @cherrystudio/remote-protocol test`, `typecheck` and `build`.
 External consumers enter through the package exports, never `src/` deep imports.
 
+The event reducer caches streaming text byte lengths by part snapshot without adding wire
+fields. Appends encode only new text after an initial length calculation; restored or replaced
+parts calculate their own length. Producers read `part.append` offsets through the exported
+`textByteLength`, so emitting and validating an append share one cache entry. Completion still checks the full content digest and does
+not inherit the streaming snapshot's cache. Older snapshots remain independently usable
+for atomic recovery; their weakly held cache entries disappear with those objects.
+
 ## Connection addresses
 
 `connection.hello.connectionEndpointsVersion: 1` advertises `connection.endpoints`.

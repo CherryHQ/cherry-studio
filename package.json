@@ -163,7 +163,7 @@
   },
   "devDependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.96",
-    "@ai-sdk/anthropic": "^3.0.103",
+    "@ai-sdk/anthropic": "^3.0.125",
     "@ai-sdk/azure": "^3.0.116",
     "@ai-sdk/bytedance": "1.0.29",
     "@ai-sdk/cerebras": "^2.0.78",
@@ -197,6 +197,7 @@
     "@cherrystudio/extension-table-plus": "workspace:^",
     "@cherrystudio/openai": "6.15.0",
     "@cherrystudio/provider-registry": "workspace:*",
+    "@cherrystudio/remote-protocol-v0": "npm:@cherrystudio/remote-protocol@0.1.0",
     "@cherrystudio/ui": "workspace:*",
     "@codemirror/lang-json": "6.0.2",
     "@codemirror/language": "6.12.2",

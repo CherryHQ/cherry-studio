@@ -3,37 +3,36 @@ import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { extractTableDataFromElement } from 'streamdown'
-import type { Node } from 'unist'
+import type { Node, Position } from 'unist'
 
 import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useMarkdownHost } from './useMarkdownHost'
 
 const logger = loggerService.withContext('Table')
 
 interface Props {
-  children: React.ReactNode
+  children?: React.ReactNode
   node?: Omit<Node, 'type'>
-  blockId?: string
 }
 
 /**
  * 自定义 Markdown 表格组件，提供 copy 功能。
  */
-const Table: React.FC<Props> = ({ children, node, blockId }) => {
+const MarkdownTable: React.FC<Props> = ({ children, node }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const mdCtx = useMarkdownBlockContext()
-  const actions = useOptionalMessageListActions()
+  const actions = useMarkdownHost()
   const tableRef = useRef<HTMLTableElement>(null)
   const canCopyTable = !!actions?.copyRichContent
   const canExportExcel = !!actions?.exportTableAsExcel
 
   const handleCopyTable = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
+    const tableMarkdown = extractTableMarkdown(node?.position, mdCtx?.content)
     if (!tableMarkdown) {
       actions?.notifyError?.(t('message.error.table.invalid'))
       return
@@ -53,7 +52,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to copy table to clipboard', { error })
       actions?.notifyError?.(t('message.copy.failed'))
     }
-  }, [actions, blockId, node?.position, setCopied, t, mdCtx?.content])
+  }, [actions, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
     if (!tableRef.current) {
@@ -101,24 +100,24 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         <div className="table-toolbar absolute top-2 right-2 z-10 flex transform-[translateZ(0)] gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
-              <div
+              <button
+                type="button"
                 className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
-                role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
                 {copied ? <Check size={14} color="var(--primary)" /> : <CopyIcon size={14} />}
-              </div>
+              </button>
             </Tooltip>
           )}
           {canExportExcel && (
             <Tooltip content={t('common.export.excel')} delay={800}>
-              <div
+              <button
+                type="button"
                 className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
-                role="button"
                 aria-label={t('common.export.excel')}
                 onClick={handleExportExcel}>
                 <FileSpreadsheet size={14} />
-              </div>
+              </button>
             </Tooltip>
           )}
         </div>
@@ -129,12 +128,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
 
 /**
  * 从原始 Markdown 内容中提取表格源代码
- * @param blockId 消息块 ID
  * @param position 表格节点的位置信息
  * @param markdownContent 原始 markdown 内容（来自 MarkdownBlockContext）
  * @returns 源代码
  */
-export function extractTableMarkdown(_blockId: string, position: any, markdownContent?: string): string {
+export function extractTableMarkdown(position: Position | null | undefined, markdownContent?: string): string {
   if (!position || !markdownContent) return ''
 
   const { start, end } = position
@@ -155,4 +153,4 @@ function convertMarkdownTableToHtml(markdownTable: string): string {
   return md.render(markdownTable)
 }
 
-export default memo(Table)
+export default memo(MarkdownTable)
