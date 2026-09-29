@@ -500,6 +500,9 @@ importers:
       '@cherrystudio/provider-registry':
         specifier: workspace:*
         version: link:packages/provider-registry
+      '@cherrystudio/remote-protocol-v0':
+        specifier: npm:@cherrystudio/remote-protocol@0.1.0
+        version: '@cherrystudio/remote-protocol@0.1.0(zod@4.3.4)'
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
@@ -3069,6 +3072,11 @@ packages:
         optional: true
       zod:
         optional: true
+
+  '@cherrystudio/remote-protocol@0.1.0':
+    resolution: {integrity: sha512-f0RA/cMJ1pY4V7YHo9WPyku93efDZBOpcAf+10bSuYD7Zty626Psq66cvtGiEU39JltKYZNRkD+cF/YEJiVHgA==}
+    peerDependencies:
+      zod: ^4.3.4
 
   '@chevrotain/cst-dts-gen@11.1.2':
     resolution: {integrity: sha512-XTsjvDVB5nDZBQB8o0o/0ozNelQtn2KrUVteIHSlPd2VAV2utEb6JzyCJaJ8tGxACR4RiBNWy5uYUHX2eji88Q==}
@@ -18106,6 +18114,11 @@ snapshots:
     optionalDependencies:
       ws: 8.21.3
       zod: 4.4.3
+
+  '@cherrystudio/remote-protocol@0.1.0(zod@4.3.4)':
+    dependencies:
+      json-canonicalize: 3.0.1
+      zod: 4.3.4
 
   '@chevrotain/cst-dts-gen@11.1.2':
     dependencies:

@@ -14,7 +14,8 @@ import {
   type AgentPart,
   type AgentProjection,
   applyAgentEvents,
-  encodeAgentCheckpointPage
+  encodeAgentCheckpointPage,
+  textByteLength
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
 import type { DbOrTx } from '@data/db/types'
@@ -42,7 +43,9 @@ import { toMessageUsage } from './agentUsage'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
-const APPEND_CHARS = 4096
+// Leave room for JSON escaping and event metadata within the 16 KiB batch limit.
+const APPEND_CHARS = 2048
+export const COALESCE_WINDOW_MS = 50
 const PAGE_BYTES = 48_000
 const MAX_JOURNALS = 128
 
@@ -61,6 +64,13 @@ interface LiveExecution {
   status: AgentExecution['status']
   approvals: Map<string, { toolCallId: string; status: 'pending' | 'approved' | 'denied' }>
   toolInputs: Map<string, { toolName: string; input: unknown }>
+}
+
+interface PendingDelta {
+  type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
+  identifier: string
+  anchorMessageId: string | undefined
+  text: string
 }
 
 export interface Checkpoint {
@@ -571,7 +581,7 @@ export class SessionJournal {
   }
 
   dispose(): void {
-    if (this.listener) this.listener.current = false
+    this.listener?.dispose()
     this.observers.clear()
   }
 
@@ -679,7 +689,7 @@ export class SessionJournal {
           partId,
           baseRevision: part.revision,
           revision: this.next(),
-          offsetUtf8: String(utf8(text).length),
+          offsetUtf8: String(textByteLength(part, text)),
           text: piece
         }
       })
@@ -777,6 +787,9 @@ class RemoteAgentListener implements StreamListener {
   readonly id: string
   readonly terminalPhase = 'cleanup' as const
   current = true
+  private pending?: PendingDelta
+  private pendingStartedAt = 0
+  private flushTimer?: ReturnType<typeof setTimeout>
 
   constructor(
     private readonly journal: SessionJournal,
@@ -786,22 +799,72 @@ class RemoteAgentListener implements StreamListener {
   }
 
   onChunk(chunk: UIMessageChunk, _sourceModelId?: unknown, anchorMessageId?: string): void {
-    if (this.current) this.guard(() => this.journal.onChunk(this, chunk, anchorMessageId))
+    if (!this.current) return
+    this.guard(() => {
+      if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
+        this.flushPending()
+        this.journal.onChunk(this, chunk, anchorMessageId)
+        return
+      }
+      const identifier = chunk.type === 'tool-input-delta' ? chunk.toolCallId : chunk.id
+      const text = chunk.type === 'tool-input-delta' ? chunk.inputTextDelta : chunk.delta
+      if (
+        this.pending &&
+        (this.pending.type !== chunk.type ||
+          this.pending.identifier !== identifier ||
+          this.pending.anchorMessageId !== anchorMessageId ||
+          this.pending.text.length + text.length > APPEND_CHARS)
+      )
+        this.flushPending()
+      if (this.pending) this.pending.text += text
+      else {
+        this.pending = { type: chunk.type, identifier, anchorMessageId, text }
+        this.pendingStartedAt = performance.now()
+        this.flushTimer = setTimeout(() => this.guard(() => this.flushPending()), COALESCE_WINDOW_MS)
+        this.flushTimer.unref()
+      }
+      if (this.pending.text.length >= APPEND_CHARS || performance.now() - this.pendingStartedAt >= COALESCE_WINDOW_MS)
+        this.flushPending()
+    })
   }
   onDone(result: StreamDoneResult): void {
-    this.guard(() => this.journal.onTerminal(this, result))
+    this.onTerminal(result)
   }
   onPaused(result: StreamPausedResult): void {
-    this.guard(() => this.journal.onTerminal(this, result))
+    this.onTerminal(result)
   }
   onError(result: StreamErrorResult): void {
-    this.guard(() => this.journal.onTerminal(this, result))
+    this.onTerminal(result)
+  }
+  dispose(): void {
+    this.current = false
+    this.pending = undefined
+    if (this.flushTimer) clearTimeout(this.flushTimer)
+    this.flushTimer = undefined
+  }
+  private onTerminal(result: StreamDoneResult | StreamPausedResult | StreamErrorResult): void {
+    this.guard(() => {
+      this.flushPending()
+      this.journal.onTerminal(this, result)
+    })
+  }
+  private flushPending(): void {
+    if (this.flushTimer) clearTimeout(this.flushTimer)
+    this.flushTimer = undefined
+    const pending = this.pending
+    this.pending = undefined
+    if (!pending || !this.current) return
+    const chunk: UIMessageChunk =
+      pending.type === 'tool-input-delta'
+        ? { type: pending.type, toolCallId: pending.identifier, inputTextDelta: pending.text }
+        : { type: pending.type, id: pending.identifier, delta: pending.text }
+    this.journal.onChunk(this, chunk, pending.anchorMessageId)
   }
   private guard(fn: () => void): void {
     try {
       fn()
     } catch (error) {
-      this.current = false
+      this.dispose()
       logger.error('Remote journal projection failed', error as Error)
     }
   }
