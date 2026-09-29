@@ -249,6 +249,7 @@ export interface AnchorMessage {
 }
 
 export interface MessageRenderConfig {
+  subagentListTitle?: string
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle
@@ -380,6 +381,7 @@ export interface MessageListActions {
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>

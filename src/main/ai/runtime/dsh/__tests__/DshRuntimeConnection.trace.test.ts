@@ -41,7 +41,8 @@ const runtimeMocks = vi.hoisted(() => ({
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn(),
-  resolveBun: vi.fn()
+  resolveBun: vi.fn(),
+  getGatewayConfig: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -163,6 +164,16 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'ApiGatewayService') return { getCurrentConfig: runtimeMocks.getGatewayConfig }
+    return get(name)
+  })
+  return result
+})
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
@@ -210,6 +221,7 @@ beforeEach(() => {
   runtimeMocks.forkDshSession.mockReset().mockResolvedValue({ resumeToken: 'child', checkpoints: [], publish: [] })
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
+  runtimeMocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()
@@ -252,6 +264,49 @@ describe('DshRuntimeConnection tracing', () => {
       expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
       expect(events.some((event) => event.type === 'error')).toBe(false)
       await vi.waitFor(() => expect(spans).toHaveLength(1))
+    } finally {
+      await connection.close()
+      await consume
+    }
+  })
+
+  it('holds background work until root idle and its final event boundary have both arrived', async () => {
+    const connection = await new DshRuntimeDriver().connect(connectInput)
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      const bridge = vi.mocked(DshBridgeServer).mock.calls[0][0]
+      bridge.onSubagentLifecycle!({
+        phase: 'start',
+        runId: 'run',
+        childSessionId: 'child',
+        parentSessionId: 'session-1',
+        provider: 'test'
+      })
+      bridge.onSessionState!({ sessionId: 'session-1', status: 'running', sessionEventSeq: SessionSeq(1) })
+      bridge.onSubagentLifecycle!({
+        phase: 'end',
+        runId: 'run',
+        childSessionId: 'child',
+        parentSessionId: 'session-1',
+        provider: 'test',
+        stopReason: 'completed'
+      })
+      await drain()
+      expect(events).not.toContainEqual({ type: 'background-work-state', active: false })
+      bridge.onSessionState!({ sessionId: 'session-1', status: 'idle', sessionEventSeq: SessionSeq(2) })
+      await drain()
+      expect(events).not.toContainEqual({ type: 'background-work-state', active: false })
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'session-1',
+          event: { type: 'turn/end', seq: 2, time: 0, data: { reason: { kind: 'completed' } } }
+        }
+      })
+      await vi.waitFor(() => expect(events).toContainEqual({ type: 'background-work-state', active: false }))
     } finally {
       await connection.close()
       await consume

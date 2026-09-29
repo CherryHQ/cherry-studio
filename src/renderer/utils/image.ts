@@ -848,18 +848,6 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
 
-  let svgBase64: string
-  try {
-    // 使用 TextEncoder 处理 Unicode 字符
-    const encoder = new TextEncoder()
-    const encodedData = encoder.encode(svgData)
-    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
-    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
-  } catch (error) {
-    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
-    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
-  }
-
   // 创建 Canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -874,6 +862,7 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
+    const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
     img.onload = () => {
       try {
@@ -882,14 +871,17 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
         resolve(canvas)
       } catch (error) {
         reject(new Error(`Failed to draw image on canvas: ${error}`))
+      } finally {
+        URL.revokeObjectURL(svgUrl)
       }
     }
 
     img.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
       reject(new Error('Failed to load SVG image'))
     }
 
-    img.src = svgBase64
+    img.src = svgUrl
   })
 }
 

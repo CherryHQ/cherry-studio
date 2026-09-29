@@ -3562,6 +3562,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-fable-5-1",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-haiku-4-5",
       "providerId": "claude-code"
     },
@@ -3622,6 +3626,11 @@
       "supportsFastMode": true
     },
     {
+      "modelId": "claude-opus-5-5",
+      "providerId": "claude-code",
+      "supportsFastMode": true
+    },
+    {
       "modelId": "claude-sonnet-4-5",
       "providerId": "claude-code"
     },
@@ -3638,6 +3647,10 @@
     },
     {
       "modelId": "claude-sonnet-5",
+      "providerId": "claude-code"
+    },
+    {
+      "modelId": "claude-sonnet-5-5",
       "providerId": "claude-code"
     },
     {
@@ -3804,6 +3817,29 @@
     {
       "apiModelId": "claude-sonnet-5",
       "modelId": "claude-sonnet-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -4128,6 +4164,25 @@
     {
       "apiModelId": "grok-4.6",
       "modelId": "grok-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "grok-4.7",
+      "modelId": "grok-4-7",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -11988,6 +12043,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "anthropic/claude-opus-5.5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "anthropic/claude-opus-5-fast",
       "modelId": "claude-opus-5-fast",
       "pricing": {
@@ -12082,6 +12160,29 @@
     {
       "apiModelId": "anthropic/claude-sonnet-5",
       "modelId": "claude-sonnet-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -14041,6 +14142,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "spacexai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "spacexai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -14630,6 +14750,63 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-flash",
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro",
+      "modelId": "mimo-v2-6-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.7
         }
       },
       "providerId": "gateway"
@@ -16150,6 +16327,87 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.6",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.7-build-fast",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition"]
+      },
+      "description": "Grok 4.7 Fast is the low-latency variant of Grok 4.7 billed at twice the standard rate, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7-build-fast",
+      "name": "Grok 4.7 Fast",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
         }
       },
       "providerId": "grok-cli"
@@ -17777,6 +18035,303 @@
       }
     },
     {
+      "modelId": "mimo-v2-6-flash",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "mimo-v2-6-pro",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -17958,6 +18513,28 @@
       "providerId": "minimax"
     },
     {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18137,6 +18714,28 @@
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "minimax-m3",
       "providerId": "minimax-global"
+    },
+    {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax-global",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "ZhipuAI/GLM-4.5",
@@ -20897,6 +21496,56 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6-luna",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-luna",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
+      "apiModelId": "gpt-6-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "deepseek-flash",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-flash",
@@ -21289,6 +21938,38 @@
       }
     },
     {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "hy3",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
@@ -21511,6 +22192,60 @@
       "apiModelId": "mimo-v2.5-pro",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "mimo-v2-5-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.6-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.6-pro",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "mimo-v2-6-pro",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -22868,6 +23603,44 @@
       }
     },
     {
+      "apiModelId": "anthropic/claude-opus-5.5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~anthropic/claude-opus-latest",
       "modelId": "claude-opus-latest",
       "pricing": {
@@ -23058,6 +23831,44 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -27925,6 +28736,40 @@
       }
     },
     {
+      "apiModelId": "x-ai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.8
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "x-ai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -29564,6 +30409,99 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-flash",
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro",
+      "modelId": "mimo-v2-6-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.7
         }
       },
       "providerId": "openrouter",
@@ -38984,6 +39922,29 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "claude-opus-5-5@default",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "claude-sonnet-4@20250514",
       "modelId": "claude-sonnet-4",
       "pricing": {
@@ -39055,6 +40016,29 @@
     {
       "apiModelId": "claude-sonnet-5@default",
       "modelId": "claude-sonnet-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "claude-sonnet-5-5@default",
+      "modelId": "claude-sonnet-5-5",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -39969,5 +40953,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f418fc7b44b466bb"
+  "version": "8fb0dde9d8d03bba"
 }

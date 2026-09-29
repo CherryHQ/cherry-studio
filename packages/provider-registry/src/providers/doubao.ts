@@ -121,7 +121,7 @@ const overrides: Partial<ProviderModelOverride>[] = [
 
 export default defineProvider({
   id: 'doubao',
-  name: 'doubao',
+  name: 'Doubao',
   availableInEditions: ['global', 'cn'],
   // Ark 低延迟推理 rides OpenAI's serviceTier option with its own value (docs/82379/1569618).
   fastMode: { transport: 'openai-priority' as const, serviceTier: 'fast' },

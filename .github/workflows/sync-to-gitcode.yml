@@ -22,8 +22,10 @@ permissions:
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.event.release.tag_name }}
+  SIGNED_ARTIFACTS_DIR: ${{ github.workspace }}/../gitcode-signed/${{ github.run_id }}
 
 jobs:
+  # Build and sync share local files and require the same physical signing runner.
   build-windows-signed:
     runs-on: [self-hosted, windows-signing]
     strategy:
@@ -146,25 +148,35 @@ jobs:
             pnpm build:win
           fi
 
-      - name: List built Windows artifacts
+      - name: Prepare local signed artifact directory
+        if: steps.build-windows.outputs.supported == 'true'
+        shell: pwsh
+        env:
+          EDITION: ${{ matrix.edition }}
+        run: |
+          $cacheRoot = [IO.Path]::GetFullPath($env:SIGNED_ARTIFACTS_DIR)
+          $artifactPath = [IO.Path]::GetFullPath((Join-Path $cacheRoot $env:EDITION))
+          if (-not $artifactPath.StartsWith($cacheRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Artifact directory is outside the signing cache"
+          }
+          if (Test-Path -LiteralPath $artifactPath) {
+            Remove-Item -LiteralPath $artifactPath -Recurse -Force
+          }
+
+      - name: Preserve signed Windows artifacts locally
         if: steps.build-windows.outputs.supported == 'true'
         shell: bash
         env:
+          EDITION: ${{ matrix.edition }}
           UPDATE_MANIFEST: ${{ steps.get-tag.outputs.update_manifest }}
         run: |
-          echo "Built Windows artifacts:"
           ls -la dist/*.exe "dist/$UPDATE_MANIFEST"
-
-      - name: Upload signed Windows artifacts
-        if: steps.build-windows.outputs.supported == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: signed-windows-artifacts-${{ matrix.edition }}
-          path: |
-            dist/*.exe
-            dist/${{ steps.get-tag.outputs.update_manifest }}
-          if-no-files-found: error
-          retention-days: 1
+          ARTIFACT_DIR="$SIGNED_ARTIFACTS_DIR/$EDITION"
+          mkdir -p "$ARTIFACT_DIR"
+          shopt -s nullglob
+          cp dist/*.exe dist/*.exe.blockmap "dist/$UPDATE_MANIFEST" "$ARTIFACT_DIR/"
+          cd "$ARTIFACT_DIR"
+          sha256sum *.exe *.exe.blockmap *.yml > "SHA256SUMS-$EDITION.txt"
 
   sync-to-gitcode:
     runs-on: [self-hosted, windows-signing]
@@ -176,31 +188,48 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.RELEASE_TAG }}
 
+      - name: Restore local signed Windows artifacts
+        shell: bash
+        run: |
+          EDITIONS=(global)
+          if [ -f electron-builder.cn.config.cjs ]; then
+            EDITIONS+=(cn)
+          fi
+          for edition in "${EDITIONS[@]}"; do
+            ARTIFACT_DIR="$SIGNED_ARTIFACTS_DIR/$edition"
+            if ! (cd "$ARTIFACT_DIR" && ls *.exe *.yml && sha256sum -c "SHA256SUMS-$edition.txt"); then
+              echo "ERROR: Local $edition artifacts are missing or invalid. Build and sync must use the same runner."
+              exit 1
+            fi
+          done
+          mkdir -p signed-windows-artifacts
+          for edition in "${EDITIONS[@]}"; do
+            cp "$SIGNED_ARTIFACTS_DIR/$edition/"* signed-windows-artifacts/
+          done
+
       - name: Download GitHub release assets
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ env.RELEASE_TAG }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          echo "Downloading release assets for $TAG_NAME..."
+          echo "Downloading other release assets for $TAG_NAME..."
           mkdir -p release-assets
-          cd release-assets
-
-          # Download all assets from the release
-          gh release download "$TAG_NAME" \
-            --repo "${{ github.repository }}" \
-            --pattern "*" \
-            --skip-existing
-
-          echo "Downloaded GitHub release assets:"
-          ls -la
-
-      - name: Download signed Windows artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: signed-windows-artifacts-*
-          path: signed-windows-artifacts
-          merge-multiple: true
+          ASSETS=$(gh release view "$TAG_NAME" --json assets --jq '.assets[].name')
+          PATTERNS=()
+          while IFS= read -r asset; do
+            case "$asset" in
+              ''|*.exe|*.exe.blockmap) continue ;;
+            esac
+            if [ ! -f "signed-windows-artifacts/$asset" ]; then
+              PATTERNS+=(--pattern "$asset")
+            fi
+          done <<< "$ASSETS"
+          if [ "${#PATTERNS[@]}" -gt 0 ]; then
+            gh release download "$TAG_NAME" --dir release-assets "${PATTERNS[@]}"
+          fi
+          ls -la release-assets/
 
       - name: Replace Windows files with signed versions
         shell: bash
@@ -217,15 +246,17 @@ jobs:
             exit 1
           fi
 
-          # Remove unsigned Windows files from downloaded assets
-          rm -f release-assets/*.exe 2>/dev/null || true
-
           # Copy signed Windows files with error checking
           cp signed-windows-artifacts/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
           cp signed-windows-artifacts/*.yml release-assets/ || {
             echo "ERROR: Failed to copy update manifests"
             exit 1
           }
+          for file in signed-windows-artifacts/*.exe.blockmap; do
+            if [ -f "$file" ]; then
+              cp "$file" release-assets/
+            fi
+          done
 
           echo "Final release assets:"
           ls -la release-assets/
@@ -466,6 +497,19 @@ jobs:
         run: |
           rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
           rm -rf release-assets/
+
+      - name: Cleanup local signed Windows artifacts
+        if: success()
+        shell: pwsh
+        run: |
+          $cacheRoot = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../gitcode-signed'))
+          $artifactPath = [IO.Path]::GetFullPath($env:SIGNED_ARTIFACTS_DIR)
+          if (-not $artifactPath.StartsWith($cacheRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Artifact directory is outside the signing cache"
+          }
+          if (Test-Path -LiteralPath $artifactPath) {
+            Remove-Item -LiteralPath $artifactPath -Recurse -Force
+          }
 
   notify:
     runs-on: ubuntu-latest

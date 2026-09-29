@@ -98,6 +98,7 @@ import {
   hasAgentSessionRuntimeBackgroundWork,
   hasAgentSessionRuntimeOpenStream,
   isAgentSessionRuntimeAutonomous,
+  isAgentSessionRuntimeAwaitingBackground,
   isAgentSessionRuntimeBusy,
   isAgentSessionRuntimeCompacting,
   isAgentSessionRuntimeTransitioning,
@@ -366,12 +367,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionWritable(sessionId: string): void {
-    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
     if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
-    if (!ownEdit || this.failedClosures.has(sessionId)) this.assertSessionWritable(sessionId)
+    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (!ownEdit) this.assertSessionWritable(sessionId)
     const entry = this.entries.get(sessionId)
     if (
       this.isShuttingDown ||
@@ -420,6 +421,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    if (this.failedClosures.has(sourceSessionId)) throw new AgentSessionEditError('close_failed')
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
     return this.forks.fork(sourceSessionId, messageId)
@@ -721,7 +723,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return
+    if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1219,7 +1221,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return true
+    if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -1896,7 +1898,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
-        this.handleBackgroundWorkState(entry, event.active, connection)
+        this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
         break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
@@ -1907,6 +1909,10 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'autonomous-turn-state': {
         if (event.state === 'finished') {
           this.handleAutonomousGenerationFinished(entry, connection)
+          break
+        }
+        if (event.origin.kind === 'background-work' && isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+          this.applyRuntimeStateEvent(entry, event)
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
@@ -2164,7 +2170,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleBackgroundWorkState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
-    connection = this.currentConnection(entry)
+    connection = this.currentConnection(entry),
+    awaitingReply = active
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
@@ -2172,6 +2179,7 @@ export class AgentSessionRuntimeService extends BaseService {
       type: 'connection-occupancy',
       occupancy: 'background',
       active,
+      awaitingReply,
       ...(active
         ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
         : {})
@@ -2204,6 +2212,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+    }
+
+    const turn = this.liveTurn(entry)
+    if (turn?.assistantMessageId === messageId && turn.controller) {
+      this.enqueueTurnChunk(entry, turn, chunk)
+      return
     }
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
@@ -2454,6 +2468,13 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+    if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-agent-task-event',
+        id: uuidv7(),
+        data: merged as unknown as AgentTaskEventPartData
+      })
+    }
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {

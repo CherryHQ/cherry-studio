@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-09-15T02:04:30.876Z
- * Total icons: 163
+ * Generated at: 2026-09-29T16:16:09.654Z
+ * Total icons: 164
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -37,6 +37,7 @@ export { CherryinIcon as Cherryin } from './cherryin'
 export { ClaudeCodeIcon as ClaudeCode } from './claude-code'
 export { CloudflareIcon as Cloudflare } from './cloudflare'
 export { CohereIcon as Cohere } from './cohere'
+export { ComfyuiIcon as Comfyui } from './comfyui/comfyui'
 export { ComposioIcon as Composio } from './composio'
 export { CozeIcon as Coze } from './coze'
 export { DangbeiIcon as Dangbei } from './dangbei'

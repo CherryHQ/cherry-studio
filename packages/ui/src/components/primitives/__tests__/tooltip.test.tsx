@@ -3,9 +3,18 @@ import '@testing-library/jest-dom/vitest'
 import { Root as RadixTooltipRoot } from '@radix-ui/react-tooltip'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
+import { Activity } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { NormalTooltip, Tooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger } from '../tooltip'
+import {
+  NormalTooltip,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipRoot,
+  TooltipSurface,
+  TooltipTrigger
+} from '../tooltip'
 
 // 时序契约（独立字面量，刻意不复用生产常量）：缩短契约必须改这里并让测试显式失败
 const EXIT_WINDOW_MS = 150
@@ -106,6 +115,126 @@ describe('Tooltip', () => {
       )
       const trigger = container.querySelector('[data-state]')
       expect(trigger).toBeInTheDocument()
+    })
+  })
+
+  describe('surface gating', () => {
+    it('drops an open tooltip when its TooltipSurface turns inactive, including under <Activity>', () => {
+      // Mirrors RightPanel: the surface provider sits outside the Activity that hides the anchor.
+      function Harness({ active }: { active: boolean }) {
+        return (
+          <TooltipSurface active={active}>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <Tooltip content="surface-tip" isOpen>
+                <button type="button">Trigger</button>
+              </Tooltip>
+            </Activity>
+          </TooltipSurface>
+        )
+      }
+
+      const { rerender } = render(<Harness active />)
+      expect(getTooltipContentElement('surface-tip')).toBeInTheDocument()
+
+      rerender(<Harness active={false} />)
+
+      // The context update must reach the Activity-hidden subtree and drop the content at
+      // once; a tooltip kept open over a display:none anchor parks at the viewport origin.
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+
+      rerender(<Harness active />)
+      expect(getTooltipContentElement('surface-tip')).toBeInTheDocument()
+    })
+
+    it('drops an open compound NormalTooltip when its TooltipSurface turns inactive', () => {
+      function Harness({ active }: { active: boolean }) {
+        return (
+          <TooltipSurface active={active}>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <NormalTooltip content="compound-tip" open>
+                <button type="button">Trigger</button>
+              </NormalTooltip>
+            </Activity>
+          </TooltipSurface>
+        )
+      }
+
+      const { rerender } = render(<Harness active />)
+      expect(getTooltipContentElement('compound-tip')).toBeInTheDocument()
+
+      rerender(<Harness active={false} />)
+
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+
+      rerender(<Harness active />)
+      expect(getTooltipContentElement('compound-tip')).toBeInTheDocument()
+    })
+
+    it('drops open raw compound tooltip content when its TooltipSurface turns inactive', () => {
+      function Harness({ active }: { active: boolean }) {
+        return (
+          <TooltipSurface active={active}>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <TooltipRoot open>
+                <TooltipTrigger asChild>
+                  <button type="button">Trigger</button>
+                </TooltipTrigger>
+                <TooltipContent>raw-compound-tip</TooltipContent>
+              </TooltipRoot>
+            </Activity>
+          </TooltipSurface>
+        )
+      }
+
+      const { rerender } = render(<Harness active />)
+      expect(getTooltipContentElement('raw-compound-tip')).toBeInTheDocument()
+
+      rerender(<Harness active={false} />)
+
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+    })
+
+    it('does not resurface an unhovered tooltip when the surface reactivates', () => {
+      // The close is deterministic: after the exit window elapses, a deactivated surface must not
+      // bring the tooltip back without a new hover — the internal open state is reset, not latched.
+      vi.useFakeTimers()
+      try {
+        function Harness({ active }: { active: boolean }) {
+          return (
+            <TooltipSurface active={active}>
+              <Tooltip content="stale-tip">
+                <button type="button">Trigger</button>
+              </Tooltip>
+            </TooltipSurface>
+          )
+        }
+
+        const { rerender } = render(<Harness active />)
+        const trigger = screen.getByText('Trigger')
+        const matchesSpy = vi.spyOn(trigger, 'matches').mockImplementation((selector) => {
+          return selector === ':focus-visible'
+        })
+
+        try {
+          fireEvent.focus(trigger)
+          expect(screen.getByRole('tooltip')).toBeInTheDocument()
+        } finally {
+          matchesSpy.mockRestore()
+        }
+
+        // A deactivation drops the tooltip like a real anchor loss would (display:none blurs a
+        // focused element), and the exit window elapses while it stays inactive.
+        rerender(<Harness active={false} />)
+        act(() => {
+          vi.advanceTimersByTime(EXIT_WINDOW_MS)
+        })
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+        rerender(<Harness active />)
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

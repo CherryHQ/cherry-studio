@@ -14,6 +14,8 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import type { StreamErrorResult } from '../../types'
+
 const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
 const messageFinalizeMock = vi.fn()
@@ -73,6 +75,32 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
 }
 
 describe('PersistenceListener + TemporaryChatBackend', () => {
+  it('retains the execution failure and reports a distinct persistence failure to cleanup observers', async () => {
+    const result: StreamErrorResult = {
+      status: 'error',
+      anchorMessageId: 'owner-message',
+      error: { name: 'Error', message: '403 forbidden', stack: null }
+    }
+    let attempted: CherryUIMessage | undefined
+    const listener = new PersistenceListener({
+      topicId: 'abc',
+      backend: {
+        kind: 'test',
+        persistAssistant: ({ finalMessage }) => {
+          attempted = finalMessage
+          throw new Error('Disk full')
+        }
+      },
+      onPersistFailed: () => {}
+    })
+    await expect(listener.onError(result)).rejects.toThrow('Terminal persistence failed')
+    expect(attempted?.id).toBe('owner-message')
+    expect(result.failure?.failure.reasonCode).toBe('permission')
+    expect(result.persistence).toMatchObject({
+      status: 'failed',
+      failure: { failure: { reasonCode: 'internal', source: { layer: 'host' } } }
+    })
+  })
   beforeEach(() => {
     appendAssistantMessageMock.mockReset()
     appendAssistantMessageMock.mockReturnValue({ id: 'msg-a' })
@@ -294,7 +322,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.status).toBe('error')
     const parts = payload.data.parts as Array<{ type: string }>
     expect(parts).toHaveLength(1)
-    expect(parts[0]).toEqual({ type: 'data-error', data: err })
+    expect(parts[0]).toMatchObject({
+      type: 'data-error',
+      data: { ...err, executionFailure: { message: 'boom', failure: { reasonCode: 'unknown' } } }
+    })
   })
 
   it('skips persistence when onDone arrives without a finalMessage', async () => {

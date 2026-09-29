@@ -6,6 +6,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
@@ -208,6 +209,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -273,6 +275,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
           })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
+          if (error.reason === 'unsupported_checkpoint') {
+            throw new AgentSessionEditError('checkpoint_unsupported')
+          }
           const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
           throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
         }

@@ -17,7 +17,7 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '@main/features/knowledge'
-import { copy, ensureDir } from '@main/utils/file'
+import { copy, ensureDir, foldPathSegment } from '@main/utils/file'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
@@ -33,7 +33,6 @@ import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSource
 import { BaseMigrator } from './BaseMigrator'
 import {
   expandLegacyDirectoryItem,
-  foldPathSegment,
   inferKnowledgeItemStatus,
   type LegacyKnowledgeBase,
   type LegacyKnowledgeBaseWithIdentity,
