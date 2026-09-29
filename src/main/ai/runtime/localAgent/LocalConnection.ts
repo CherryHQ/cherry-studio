@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
-import type { UIMessageChunk } from 'ai'
+import type { FinishReason, UIMessageChunk } from 'ai'
 
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -93,7 +93,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     }
     this.chunk({ type: 'text-delta', id: this.textId, delta })
   }
-  protected finish(error?: unknown) {
+  protected finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     if (!this.active) return
     this.active = false
     this.completeTurn?.()
@@ -101,8 +101,8 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.textId = undefined
     if (error) this.events.push({ type: 'error', error })
     else {
-      this.chunk({ type: 'finish', finishReason: 'stop' })
-      this.events.push({ type: 'turn-complete' })
+      if (finishReason !== 'cancelled') this.chunk({ type: 'finish', finishReason })
+      this.events.push({ type: 'turn-complete', ...(finishReason === 'cancelled' ? { cancelled: true } : {}) })
     }
   }
   protected tool(id: string, name: string, input: unknown, update = false) {

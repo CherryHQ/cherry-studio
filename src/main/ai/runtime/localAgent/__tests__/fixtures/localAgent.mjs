@@ -16,11 +16,30 @@ const text = (value) =>
 let turn = 0
 let cwd
 let terminalId
+let thoughtValue = 'balanced'
+let thoughtPending = false
+const thought = () => ({
+  id: 'reasoning-budget',
+  name: 'Reasoning',
+  category: 'thought_level',
+  type: 'select',
+  currentValue: thoughtValue,
+  options: [
+    {
+      group: 'levels',
+      name: 'Levels',
+      options: [
+        { value: 'balanced', name: 'Balanced' },
+        { value: 'deep', name: 'Deep' }
+      ]
+    }
+  ]
+})
 let promptId
 const finish = () => {
   if (protocol === 'acp')
     reply(promptId, {
-      stopReason: 'end_turn',
+      stopReason: scenario.startsWith('stop:') ? scenario.slice(5) : scenario === 'cancel' ? 'cancelled' : 'end_turn',
       ...(scenario === 'usage'
         ? {
             usage:
@@ -54,6 +73,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       protocol === 'acp'
         ? {
             protocolVersion: 1,
+            agentInfo: { name: 'fixture', version: '1.0' },
             agentCapabilities: { loadSession: scenario !== 'no-resume', promptCapabilities: { image: true } },
             authMethods: []
           }
@@ -62,23 +82,74 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (method === 'session/new' || method === 'session/load') {
     cwd = message.params.cwd
     if (method === 'session/load') text('REPLAY MUST NOT APPEAR')
+    if (scenario === 'initial-updates') {
+      update({
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [{ name: 'review', description: 'Review code' }]
+      })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: {
+            sessionUpdate: 'available_commands_update',
+            availableCommands: [{ name: 'wrong', description: 'Wrong session' }]
+          }
+        }
+      })
+      update({
+        sessionUpdate: 'config_option_update',
+        configOptions: [
+          {
+            id: 'model',
+            category: 'model',
+            name: 'Model',
+            type: 'select',
+            currentValue: 'updated-model',
+            options: [{ value: 'updated-model', name: 'Updated model' }]
+          }
+        ]
+      })
+    }
     reply(id, {
+      ...(scenario === 'legacy-models' || scenario === 'both-models'
+        ? {
+            models: {
+              currentModelId: 'legacy-default',
+              availableModels: [{ modelId: 'legacy-model', name: 'Legacy model' }]
+            }
+          }
+        : {}),
       sessionId: 'native-session',
       configOptions:
-        scenario === 'no-models'
+        scenario === 'no-models' || scenario === 'legacy-models'
           ? []
           : [
+              ...(scenario.startsWith('thought') ? [thought()] : []),
               {
                 id: 'model',
                 category: 'model',
                 name: 'Model',
                 type: 'select',
-                currentValue: 'fixture-model',
+                currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
                 options: [{ value: 'fixture-model', name: 'Fixture model' }]
               }
             ]
     })
   } else if (method === 'session/set_config_option') {
+    if (message.params.configId === 'reasoning-budget') {
+      if (scenario === 'thought-error') return emit({ id, error: { code: -32602, message: 'Reasoning unavailable' } })
+      if (scenario === 'thought-delayed') {
+        thoughtPending = true
+        return setTimeout(() => {
+          thoughtValue = message.params.value
+          thoughtPending = false
+          reply(id, { configOptions: [thought()] })
+        }, 40)
+      }
+      thoughtValue = message.params.value
+      return reply(id, { configOptions: scenario === 'thought-removed' ? [] : [thought()] })
+    }
     reply(id, {
       configOptions: [
         {
@@ -96,6 +167,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (method === 'thread/start' || method === 'thread/resume') {
     reply(id, { thread: { id: 'native-session' }, model: 'fixture-model' })
   } else if (method === 'session/prompt' || method === 'turn/start') {
+    if (thoughtPending)
+      return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
     if (protocol === 'codex') {

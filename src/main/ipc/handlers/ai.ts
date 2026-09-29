@@ -187,6 +187,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.local_agents.set_thought_level': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalThoughtLevel(sessionId, configId, value),
   'ai.local_agents.session_info': async ({ sessionId }) =>
     application.get('AgentSessionRuntimeService').getLocalSessionInfo(sessionId),
   'ai.local_agents.detect': detectLocalAgents,

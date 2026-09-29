@@ -84,7 +84,13 @@ export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<
           .then((value) => value.trim().split('\n')[0].slice(0, 128))
           .catch(() => undefined)
       : undefined
-    return { ok: true, status: 'ready', path: launch.executable, version }
+    return {
+      ok: true,
+      status: 'ready',
+      path: launch.executable,
+      version,
+      protocolInfo: live.localSessionInfo.protocolInfo
+    }
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
     return {

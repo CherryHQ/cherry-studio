@@ -54,12 +54,45 @@ arguments and environment values. CLI credentials are neither scanned nor copied
 |---|---|---|---|
 | Claude Code | SDK native session ID | SDK model catalog, CLI default otherwise | SDK `canUseTool` requests |
 | Codex | App Server thread ID | `model/list`, CLI default otherwise | Native decisions and permission requests |
-| ACP | ACP session ID | Negotiated model config option | Original option IDs and scopes |
+| ACP | ACP session ID | Model config option, with legacy `models` / `session/set_model` fallback | Original option IDs and scopes |
 
 ACP declares implemented text-file and terminal callbacks. Writes and terminal
 creation require user approval; terminals belong to their connection. Working
 directories are not OS sandboxes. ACP replay during session loading is suppressed
 because Cherry already owns the displayed transcript.
+
+During session creation/loading, command and configuration notifications are buffered
+and applied only to the matching native session. Transcript/tool replay is not
+rendered again. Modern model configuration takes precedence when both model
+interfaces are advertised; a failed model selection is not silently ignored.
+
+Connection checks expose `protocolInfo`: protocol version, reported agent identity,
+advertised capabilities, authentication method names, and completed verification
+stages. A handshake-only check records only `handshake`; a live session adds
+`session`, then `prompt` after a protocol prompt response. These stages do not
+certify tool execution, cancellation or recovery, and are not persisted as a
+blanket compatibility claim. Logs contain agent identity/version, not credentials.
+
+ACP stop reasons map to stream finish reasons: `end_turn` → `stop`,
+`max_tokens` / `max_turn_requests` → `length`, and `refusal` → `content-filter`.
+`cancelled` uses the stream cancellation path and persists a paused turn. Limit
+and refusal reasons are preserved in the stream; the existing shared message
+status still describes completion of the stream, not completion of the user's task.
+
+ACP `thought_level` select options use the shared response-settings control. Known
+levels use translated labels and the same slider as provider models; custom values
+retain their native names and IDs. Fixed single-value options are not shown as
+adjustable controls. Changes apply to the current native session, not the global
+Agent. The UI updates on confirmed protocol state and does not invent a default
+option. Pending changes settle before the next prompt; running turns cannot be
+reconfigured through this control.
+
+Enabled local sessions prewarm on opening so their options are available before
+the first message. Config notifications refresh the controls, including when a model
+change removes thought levels. On reconnect, native session configuration is the
+source of truth: Cherry does not reselect an already-matching model and thereby
+reset the restored effort. Persistence of unused settings depends on the CLI; Cherry
+does not store a second copy of native thought settings.
 
 Tools merge by native call ID. Standalone permission IDs settle their own cards.
 Unknown tool results use generic cards. Missing token/cost/model data is not
@@ -77,7 +110,7 @@ non-resumable.
 
 ## Compatibility record
 
-Validation environment: macOS, 2026-09-28. Other platforms require real CLI
+Validation environment: macOS, 2026-09-28; ACP P0 checks refreshed 2026-09-29. Other platforms require real CLI
 acceptance before being marked verified. Presets are discoverable configuration
 entries, not a claim that every installed version implements the protocol.
 
@@ -95,9 +128,9 @@ entries, not a claim that every installed version implements the protocol.
 | Kiro | `kiro-cli acp` | — | Not tested |
 | Qoder | `qoderclicn --acp` (aliases supported) | — | Not tested |
 | Trae | `traecli acp serve` | — | Not tested |
-| Hermes | `hermes acp` | CLI did not report `--version` | Handshake, multi-turn context, edit approval and file write passed |
+| Hermes | `hermes acp` | 0.21.1 (ACP `agentInfo`) | Handshake, multi-turn context, edit approval and file write passed; application restart, stop with partial output, and continuation passed (2026-09-29) |
 | Cline | `cline --acp` | — | Registry launch definition checked (3.0.65); real CLI acceptance pending |
-| Kilo | `kilo acp` | — | Registry launch definition checked (7.8.1); real CLI acceptance pending |
+| Kilo | `kilo acp` | 7.8.1 | Real handshake, model catalog, thought-level selection and restored value passed (2026-09-29); GPT-6 Sol prompt blocked by CLI sign-in requirement; text and token persistence previously verified with Auto Free |
 | goose | `goose acp` | — | Registry launch definition checked (1.52.0); real CLI acceptance pending |
 | Codebuddy Code | `codebuddy --acp` | — | Registry launch definition checked (2.159.0); real CLI acceptance pending |
 | Auggie CLI | `auggie --acp` | — | Registry launch definition checked (0.36.0); real CLI acceptance pending |

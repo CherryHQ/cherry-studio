@@ -321,7 +321,24 @@ export const LocalAgentModelCatalogSchema = z.object({
 })
 export type LocalAgentModelCatalog = z.infer<typeof LocalAgentModelCatalogSchema>
 
+export const LocalAgentProtocolInfoSchema = z.object({
+  protocolVersion: z.number(),
+  agent: z.object({ name: z.string(), version: z.string(), title: z.string().optional() }).optional(),
+  capabilities: z.record(z.string(), z.unknown()),
+  authMethods: z.array(z.object({ id: z.string(), name: z.string() })),
+  verified: z.array(z.enum(['handshake', 'session', 'prompt']))
+})
+export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema>
+
+export interface LocalAgentThoughtLevel {
+  id: string
+  currentValue: string
+  options: Array<{ value: string; name: string }>
+}
+
 export interface LocalAgentSessionInfo {
+  thoughtLevel?: LocalAgentThoughtLevel
+  protocolInfo?: LocalAgentProtocolInfo
   models: Array<{ id: string; name: string }>
   activeModel?: { id: string; name?: string }
   images: boolean
@@ -344,7 +361,8 @@ export const LocalAgentCheckResultSchema = z.object({
   status: z.enum(['ready', 'not-installed', 'authentication-required', 'incompatible', 'failed']),
   error: z.string().optional(),
   path: z.string().optional(),
-  version: z.string().optional()
+  version: z.string().optional(),
+  protocolInfo: LocalAgentProtocolInfoSchema.optional()
 })
 export type LocalAgentCheckResult = z.infer<typeof LocalAgentCheckResultSchema>
 

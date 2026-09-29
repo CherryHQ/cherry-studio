@@ -277,6 +277,7 @@ const pdfSkillToken = {
 } as const
 
 vi.mock('@renderer/ipc', () => ({
+  useIpcOn: vi.fn(),
   ipcApi: {
     request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
   }

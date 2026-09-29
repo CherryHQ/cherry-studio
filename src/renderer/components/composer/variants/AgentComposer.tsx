@@ -63,7 +63,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -809,7 +809,27 @@ const AgentComposerInner = ({
     [pinnedToolIds]
   )
   const [localInfo, setLocalInfo] = useState<LocalAgentSessionInfo | null>(null)
+  const [localThoughtSaving, setLocalThoughtSaving] = useState(false)
+  useIpcOn('ai.local_agents.session_updated', ({ sessionId: updatedSessionId, info }) => {
+    if (updatedSessionId === sessionId) setLocalInfo(info)
+  })
+  const selectLocalThoughtLevel = async (value: string) => {
+    if (!localInfo?.thoughtLevel || localThoughtSaving) return
+    setLocalThoughtSaving(true)
+    try {
+      await ipcApi.request('ai.local_agents.set_thought_level', {
+        sessionId,
+        configId: localInfo.thoughtLevel.id,
+        value
+      })
+    } catch (error) {
+      toast.error(String(error))
+    } finally {
+      setLocalThoughtSaving(false)
+    }
+  }
   useEffect(() => {
+    setLocalInfo(null)
     if (agent?.type !== 'local') return
     let cancelled = false
     void ipcApi
@@ -821,7 +841,7 @@ const AgentComposerInner = ({
     return () => {
       cancelled = true
     }
-  }, [agent?.type, sessionId, isStreaming])
+  }, [agent?.id, agent?.type, sessionId, isStreaming])
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
@@ -1803,6 +1823,16 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
+      {agent?.type === 'local' && localInfo?.thoughtLevel && !launchOptions?.editing ? (
+        <ModelSpeedControl
+          nativeReasoning={{
+            value: localInfo.thoughtLevel.currentValue,
+            options: localInfo.thoughtLevel.options,
+            onChange: selectLocalThoughtLevel
+          }}
+          disabled={isStreaming || localThoughtSaving}
+        />
+      ) : null}
       {model && !launchOptions?.editing ? (
         <ModelSpeedControl
           model={model}

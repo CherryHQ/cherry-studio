@@ -772,6 +772,20 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.runtimeState.launch).toEqual({ kind: 'scheduled', target: 'queued-turn' })
     })
 
+    it('retains cancellation when the agent finishes before stream admission', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete', cancelled: true })
+
+      expect(entry.runtimeState.execution).toMatchObject({
+        stream: 'unopened',
+        terminal: { status: 'paused' }
+      })
+      expect(mocks.abortStream).toHaveBeenCalledWith('agent-session:session-1', 'local-agent-cancelled')
+    })
+
     it('keeps a follow-up queued while the completed turn is awaiting persistence', async () => {
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4259,6 +4273,61 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
+    it.each([true, false])('opens an enabled local agent without a Cherry model (enabled=%s)', async (enabled) => {
+      const info = {
+        models: [],
+        images: false,
+        resume: true,
+        thoughtLevel: {
+          id: 'budget',
+          currentValue: 'low',
+          options: [
+            { value: 'low', name: 'Low' },
+            { value: 'high', name: 'High' }
+          ]
+        }
+      }
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        localSessionInfo: info,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        setThoughtLevel: async (_id: string, value: string) => ({
+          ...info,
+          thoughtLevel: { ...info.thoughtLevel, currentValue: value }
+        })
+      }
+      runtimeDriverRegistry.register({
+        type: 'local',
+        capabilities: ['agent-session'],
+        connect: async () => connection,
+        validateSession: vi.fn(),
+        listAvailableTools: async () => []
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'local',
+        model: null,
+        configuration: { localRuntime: { enabled } }
+      })
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      if (!enabled) {
+        expect(service.getLocalSessionInfo('session-1')).toBeNull()
+        await expect(service.setLocalThoughtLevel('session-1', 'budget', 'high')).rejects.toThrow('unavailable')
+        return
+      }
+      expect(service.getLocalSessionInfo('session-1')).toEqual(info)
+      expect(service.inspect('session-1')?.status).toBe('idle')
+      await expect(service.setLocalThoughtLevel('session-1', 'budget', 'high')).resolves.toMatchObject({
+        thoughtLevel: { currentValue: 'high' }
+      })
+      service.beginTurn({ ...baseTurnInput, agentType: 'local', modelId: 'runtime:agent-1' })
+      await expect(service.setLocalThoughtLevel('session-1', 'budget', 'low')).rejects.toThrow('busy')
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()

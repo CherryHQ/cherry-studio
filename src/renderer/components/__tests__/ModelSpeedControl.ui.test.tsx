@@ -55,7 +55,8 @@ vi.mock('@cherrystudio/ui', () => ({
     className,
     getThumbAriaLabel,
     getThumbAriaValueText,
-    onValueChange
+    onValueChange,
+    onValueCommit
   }: {
     max: number
     value: number[]
@@ -63,6 +64,7 @@ vi.mock('@cherrystudio/ui', () => ({
     getThumbAriaLabel?: (index: number) => string
     getThumbAriaValueText?: (value: number, index: number) => string
     onValueChange: (value: number[]) => void
+    onValueCommit?: (value: number[]) => void
   }) => (
     <div
       role="slider"
@@ -72,10 +74,22 @@ vi.mock('@cherrystudio/ui', () => ({
       className={className}
       data-max={max}
       data-value={value[0]}>
-      <button type="button" data-testid="select-slider-min" onClick={() => onValueChange([0])}>
+      <button
+        type="button"
+        data-testid="select-slider-min"
+        onClick={() => {
+          onValueChange([0])
+          onValueCommit?.([0])
+        }}>
         select minimum
       </button>
-      <button type="button" data-testid="select-slider-max" onClick={() => onValueChange([max])}>
+      <button
+        type="button"
+        data-testid="select-slider-max"
+        onClick={() => {
+          onValueChange([max])
+          onValueCommit?.([max])
+        }}>
         select maximum
       </button>
     </div>
@@ -532,5 +546,83 @@ describe('ModelSpeedControl service tiers', () => {
       'data-value',
       'standard'
     )
+  })
+})
+
+describe('native ACP thought levels', () => {
+  it('shows only advertised levels and sends the original value', async () => {
+    function NativeControl() {
+      const [value, setValue] = useState('balanced')
+      return (
+        <ModelSpeedControl
+          nativeReasoning={{
+            value,
+            options: [
+              { value: 'balanced', name: 'Balanced reasoning' },
+              { value: 'deep', name: 'Deep reasoning' }
+            ],
+            onChange: setValue
+          }}
+        />
+      )
+    }
+    render(<NativeControl />)
+    expect(screen.queryByText('assistants.settings.reasoning_effort.default')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reasoning-slider')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText('Deep reasoning'))
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('Deep reasoning')
+    expect(screen.getByTestId('reasoning-menu')).toHaveAttribute('data-value', 'deep')
+  })
+
+  it('uses the shared slider and translated labels for standard levels', async () => {
+    function NativeControl() {
+      const [value, setValue] = useState('low')
+      return (
+        <ModelSpeedControl
+          nativeReasoning={{
+            value,
+            options: [
+              { value: 'low', name: 'Low' },
+              { value: 'high', name: 'High' }
+            ],
+            onChange: setValue
+          }}
+        />
+      )
+    }
+    render(<NativeControl />)
+    await userEvent.click(screen.getByTestId('select-slider-max'))
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.high'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides a fixed level and prevents changes while disabled', async () => {
+    const changed = vi.fn()
+    const { rerender } = render(
+      <ModelSpeedControl
+        nativeReasoning={{ value: 'thinking', options: [{ value: 'thinking', name: 'Thinking' }], onChange: changed }}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
+    rerender(
+      <ModelSpeedControl
+        disabled
+        nativeReasoning={{
+          value: 'low',
+          options: [
+            { value: 'low', name: 'Low' },
+            { value: 'high', name: 'High' }
+          ],
+          onChange: changed
+        }}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toBeDisabled()
+    await userEvent.click(screen.getByTestId('select-slider-max'))
+    expect(changed).not.toHaveBeenCalled()
   })
 })

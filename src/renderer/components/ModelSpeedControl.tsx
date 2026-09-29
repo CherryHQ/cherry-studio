@@ -7,7 +7,7 @@
  */
 
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
@@ -59,15 +59,21 @@ const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
 interface ModelSpeedControlProps {
-  model: Model
-  reasoningEffort: ThinkingOption
+  model?: Model
+  reasoningEffort?: ThinkingOption
+  nativeReasoning?: {
+    value: string
+    options: Array<{ value: string; name: string }>
+    onChange: (value: string) => void
+  }
+  disabled?: boolean
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
   /** Which way the popover opens; defaults to 'top', but a top bar wants 'bottom'. */
   side?: ComponentProps<typeof PopoverContent>['side']
   /** Omit both to hide the summary row — surfaces where the selection has nowhere to persist. */
   reasoningSummary?: ReasoningSummary
-  onReasoningEffortChange: (effort: ThinkingOption) => void
+  onReasoningEffortChange?: (effort: ThinkingOption) => void
   onReasoningSummaryChange?: (summary: ReasoningSummary) => void
   onServiceTierChange?: (tier: ServiceTierSelection) => void
   /** Omitting the handler hides the fast toggle — a surface with nowhere to persist it. */
@@ -167,7 +173,9 @@ export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelec
 
 export function ModelSpeedControl({
   model,
-  reasoningEffort,
+  reasoningEffort = 'default',
+  nativeReasoning,
+  disabled = false,
   reasoningSummary,
   serviceTier = 'standard',
   fastMode = false,
@@ -178,28 +186,41 @@ export function ModelSpeedControl({
   onFastModeChange
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
+  const [draggedEffort, setDraggedEffort] = useState<string>()
   const reasoningOptions = useMemo(() => {
-    const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
+    const declaredEfforts = new Set(model ? (deriveThinkingOptions(model) ?? []) : [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
-  const supportsReasoning = reasoningOptions.length > 1
-  const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
-  const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
+  const supportsReasoning = nativeReasoning ? nativeReasoning.options.length > 1 : reasoningOptions.length > 1
+  const supportsFast = onFastModeChange !== undefined && model?.supportsFastMode === true
+  const serviceTierOptions = onServiceTierChange ? (model?.requestControls?.serviceTier?.options ?? []) : []
   const supportsServiceTier = serviceTierOptions.length > 0
   // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
-  const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
+  const summaryOptions = onReasoningSummaryChange ? (model?.reasoning?.summaryOptions ?? []) : []
   const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
 
   if (!supportsReasoning && !supportsServiceTier && !supportsFast) return null
 
-  const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
-  const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
+  const sliderEfforts: string[] = nativeReasoning
+    ? nativeReasoning.options.map((option) => option.value)
+    : reasoningOptions.filter((effort) => effort !== 'default')
+  const showEffortSlider =
+    sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1 &&
+    (!nativeReasoning ||
+      sliderEfforts.every((effort, index) => {
+        const rank = SLIDER_EFFORT_ORDER.indexOf(effort as ThinkingOption)
+        return (
+          rank >= 0 && (index === 0 || rank > SLIDER_EFFORT_ORDER.indexOf(sliderEfforts[index - 1] as ThinkingOption))
+        )
+      }))
 
   // A model swap reconciles in an effect owned by the caller. During that one render, preserve
   // provider Default rather than displaying an explicit value the new model rejects.
-  const effectiveReasoningEffort = resolveSupportedReasoningEffort(model, reasoningEffort)
+  const effectiveReasoningEffort =
+    (nativeReasoning ? (draggedEffort ?? nativeReasoning.value) : undefined) ??
+    (model ? resolveSupportedReasoningEffort(model, reasoningEffort) : 'default')
   const selectedOption = supportsReasoning ? effectiveReasoningEffort : undefined
-  const defaultSliderEffort = model.reasoning?.defaultEffort
+  const defaultSliderEffort = model?.reasoning?.defaultEffort
   const sliderSelection =
     effectiveReasoningEffort === 'default' &&
     defaultSliderEffort !== undefined &&
@@ -209,25 +230,38 @@ export function ModelSpeedControl({
   const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
-  const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
+  const getEffortLabel = (effort: string) =>
+    Object.hasOwn(EFFORT_LABEL_KEYS, effort)
+      ? t(EFFORT_LABEL_KEYS[effort as ThinkingOption])
+      : (nativeReasoning?.options.find((option) => option.value === effort)?.name ?? effort)
+  const effortLabel = displayedEffort ? getEffortLabel(displayedEffort) : ''
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
-  const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
+  const effectiveServiceTier = model ? resolveSupportedServiceTier(model, serviceTier) : 'standard'
   const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+  const selectEffort = (effort: string) => {
+    if (disabled) return
+    if (nativeReasoning) nativeReasoning.onChange(effort)
+    else onReasoningEffortChange?.(effort as ThinkingOption)
+  }
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
-    if (effort) onReasoningEffortChange(effort)
+    if (effort) selectEffort(effort)
   }
 
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) setDraggedEffort(undefined)
+      }}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
+          disabled={disabled}
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
           <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
@@ -257,14 +291,14 @@ export function ModelSpeedControl({
             )}
             {showEffortSlider || supportsFast ? (
               <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                {showEffortSlider && effectiveReasoningEffort !== 'default' ? (
+                {showEffortSlider && !nativeReasoning && effectiveReasoningEffort !== 'default' ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
                     aria-pressed={false}
-                    onClick={() => onReasoningEffortChange('default')}>
+                    onClick={() => selectEffort('default')}>
                     {t(EFFORT_LABEL_KEYS.default)}
                   </Button>
                 ) : null}
@@ -297,6 +331,7 @@ export function ModelSpeedControl({
               className="relative mt-1.5 h-7"
               onValueChange={handleSliderValueChange}>
               <Slider
+                disabled={disabled}
                 value={[currentIndex]}
                 min={0}
                 max={sliderEfforts.length - 1}
@@ -312,7 +347,18 @@ export function ModelSpeedControl({
                   '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
-                onValueChange={([index]) => handleSliderValueChange(index)}
+                onValueChange={([index]) => {
+                  if (nativeReasoning) setDraggedEffort(sliderEfforts[index])
+                  else handleSliderValueChange(index)
+                }}
+                onValueCommit={
+                  nativeReasoning
+                    ? ([index]) => {
+                        setDraggedEffort(undefined)
+                        handleSliderValueChange(index)
+                      }
+                    : undefined
+                }
               />
               <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
                 {sliderEfforts.map((effort, index) =>
@@ -334,13 +380,14 @@ export function ModelSpeedControl({
             value={displayedEffort}
             aria-label={effortControlLabel}
             className="mt-2 gap-0"
-            onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
-            {reasoningOptions.map((effort) => (
+            disabled={disabled}
+            onValueChange={selectEffort}>
+            {(nativeReasoning ? sliderEfforts : reasoningOptions).map((effort) => (
               <label
                 key={effort}
                 className="flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
                 <RadioGroupItem value={effort} size="sm" />
-                <span>{t(EFFORT_LABEL_KEYS[effort])}</span>
+                <span>{getEffortLabel(effort)}</span>
               </label>
             ))}
           </RadioGroup>

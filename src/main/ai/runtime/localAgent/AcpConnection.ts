@@ -8,10 +8,15 @@ import {
   ndJsonStream,
   type ClientConnection,
   type PromptResponse,
+  type NewSessionResponse,
+  type LoadSessionResponse,
   type SessionConfigOption,
-  type SessionUpdate
+  type SessionUpdate,
+  type SetSessionConfigOptionResponse
 } from '@agentclientprotocol/sdk'
+import * as z from 'zod'
 
+import { loggerService } from '@logger'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 
 import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
@@ -19,6 +24,13 @@ import { CursorQuestionSchema, CursorPlanSchema, cursorQuestionInput, cursorQues
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
+
+const logger = loggerService.withContext('AcpConnection')
+const LegacyModelsSchema = z.object({
+  currentModelId: z.string(),
+  availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
+})
+type SessionResponse = (NewSessionResponse | LoadSessionResponse) & { models?: unknown }
 
 type Terminal = {
   child: ChildProcess
@@ -42,6 +54,9 @@ export class AcpConnection extends LocalConnection {
   private readonly terminals = new Map<string, Terminal>()
   private loading = false
   private modelConfigId?: string
+  private legacyModels = false
+  private thoughtChange?: Promise<void>
+  private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
   private readonly toolInputs = new Map<string, { name: string; input: unknown }>()
 
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
@@ -63,7 +78,13 @@ export class AcpConnection extends LocalConnection {
     if (!child.stdin || !child.stdout) throw new Error('Local agent stdio is unavailable')
     const app = client({ name: 'cherry-studio' })
       .onNotification('session/update', ({ params }) => {
-        if (!this.loading && params.sessionId === this.nativeId) this.update(params.update)
+        if (this.loading) {
+          if (
+            params.update.sessionUpdate === 'available_commands_update' ||
+            params.update.sessionUpdate === 'config_option_update'
+          )
+            this.pendingUpdates.push(params)
+        } else if (params.sessionId === this.nativeId) this.update(params.update)
       })
       .onRequest('session/request_permission', async ({ params }) => {
         const id = params.toolCall.toolCallId
@@ -220,6 +241,24 @@ export class AcpConnection extends LocalConnection {
       clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true }
     })
     if (response.protocolVersion !== 1) throw new Error('Unsupported ACP protocol version')
+    this.localSessionInfo.protocolInfo = {
+      protocolVersion: response.protocolVersion,
+      agent: response.agentInfo
+        ? {
+            name: response.agentInfo.name,
+            version: response.agentInfo.version,
+            ...(response.agentInfo.title ? { title: response.agentInfo.title } : {})
+          }
+        : undefined,
+      capabilities: response.agentCapabilities ?? {},
+      authMethods: (response.authMethods ?? []).map(({ id, name }) => ({ id, name })),
+      verified: ['handshake']
+    }
+    logger.info('ACP handshake completed', {
+      agentId: this.agentId,
+      protocolVersion: response.protocolVersion,
+      agent: this.localSessionInfo.protocolInfo.agent
+    })
     this.localSessionInfo.resume = response.agentCapabilities?.loadSession === true
     this.localSessionInfo.images = response.agentCapabilities?.promptCapabilities?.image === true
     if (probe === true) return this
@@ -228,37 +267,111 @@ export class AcpConnection extends LocalConnection {
       if (resume) {
         if (!response.agentCapabilities?.loadSession)
           throw new Error('This agent cannot restore the previous conversation; create a new session')
-        const session = await this.connection.agent.request('session/load', { cwd, sessionId: resume, mcpServers: [] })
-        this.readConfigOptions(session.configOptions)
+        const session = await this.connection.agent.request<SessionResponse>('session/load', {
+          cwd,
+          sessionId: resume,
+          mcpServers: []
+        })
+        this.readSessionModels(session)
         this.nativeId = resume
       } else {
-        const session = await this.connection.agent.request('session/new', { cwd, mcpServers: [] })
-        this.nativeId = session.sessionId
-        this.readConfigOptions(session.configOptions)
-      }
-      if (this.config.nativeModel) {
-        if (!this.modelConfigId) throw new Error('This agent does not support model selection')
-        const updated = await this.connection.agent.request('session/set_config_option', {
-          sessionId: this.nativeId,
-          configId: this.modelConfigId,
-          value: this.config.nativeModel
+        const session = await this.connection.agent.request<NewSessionResponse & { models?: unknown }>('session/new', {
+          cwd,
+          mcpServers: []
         })
-        this.readConfigOptions(updated.configOptions)
+        this.nativeId = session.sessionId
+        this.readSessionModels(session)
       }
+      for (const pending of this.pendingUpdates.splice(0)) {
+        if (pending.sessionId === this.nativeId) this.update(pending.update)
+      }
+      if (this.config.nativeModel && this.localSessionInfo.activeModel?.id !== this.config.nativeModel) {
+        if (this.modelConfigId) {
+          const updated = await this.connection.agent.request<SetSessionConfigOptionResponse>(
+            'session/set_config_option',
+            {
+              sessionId: this.nativeId,
+              configId: this.modelConfigId,
+              value: this.config.nativeModel
+            }
+          )
+          this.readConfigOptions(updated.configOptions)
+        } else if (this.legacyModels) {
+          await this.connection.agent.request('session/set_model', {
+            sessionId: this.nativeId,
+            modelId: this.config.nativeModel
+          })
+          this.localSessionInfo.activeModel = { id: this.config.nativeModel }
+        } else throw new Error('This agent does not support model selection')
+      }
+      this.localSessionInfo.protocolInfo.verified.push('session')
+      this.events.push({ type: 'resume-token', token: this.nativeId })
     } finally {
       this.loading = false
+      for (const pending of this.pendingUpdates.splice(0)) {
+        if (pending.sessionId === this.nativeId) this.update(pending.update)
+      }
     }
-    this.events.push({ type: 'resume-token', token: this.nativeId })
     return this
   }
+  private readSessionModels(session: SessionResponse) {
+    const legacy = LegacyModelsSchema.safeParse(session.models)
+    this.legacyModels = legacy.success
+    if (legacy.success) {
+      this.localSessionInfo.models = legacy.data.availableModels.map((model) => ({
+        id: model.modelId,
+        name: model.name
+      }))
+      this.localSessionInfo.activeModel = { id: legacy.data.currentModelId }
+    }
+    this.readConfigOptions(session.configOptions)
+  }
+  async setThoughtLevel(configId: string, value: string) {
+    if (!this.connection || !this.nativeId || this.closed || this.active || this.thoughtChange)
+      throw new Error('ACP session is unavailable or busy')
+    const thought = this.localSessionInfo.thoughtLevel
+    if (thought?.id !== configId || !thought.options.some((option) => option.value === value))
+      throw new Error('This reasoning level is no longer available')
+    this.thoughtChange = this.connection.agent
+      .request<SetSessionConfigOptionResponse>('session/set_config_option', {
+        sessionId: this.nativeId,
+        configId,
+        value
+      })
+      .then((response) => {
+        this.readConfigOptions(response.configOptions)
+      })
+    try {
+      await this.thoughtChange
+      return this.localSessionInfo
+    } finally {
+      this.thoughtChange = undefined
+    }
+  }
+
   private readConfigOptions(options?: SessionConfigOption[] | null) {
+    const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
+    this.localSessionInfo.thoughtLevel =
+      thought?.type === 'select'
+        ? {
+            id: thought.id,
+            currentValue: thought.currentValue,
+            options: thought.options
+              .flatMap((option) => ('group' in option ? option.options : [option]))
+              .map(({ value, name }) => ({ value, name }))
+          }
+        : undefined
     const model = options?.find((option) => option.category === 'model' && option.type === 'select')
-    if (model?.type !== 'select') return
+    if (model?.type !== 'select') {
+      this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+      return
+    }
     this.modelConfigId = model.id
     this.localSessionInfo.activeModel = { id: model.currentValue }
     this.localSessionInfo.models = model.options
       .flatMap((option) => ('group' in option ? option.options : [option]))
       .map((option) => ({ id: option.value, name: option.name }))
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private terminal(id: string): Terminal {
     const terminal = this.terminals.get(id)
@@ -296,6 +409,7 @@ export class AcpConnection extends LocalConnection {
   }
   async send(input: AgentRuntimeUserInput) {
     const prompt = await localContent(input, this.localSessionInfo.images)
+    await this.thoughtChange?.catch(() => {})
     this.toolInputs.clear()
     this.begin()
     try {
@@ -325,7 +439,20 @@ export class AcpConnection extends LocalConnection {
           }
         })
       }
-      this.finish()
+      if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
+        this.localSessionInfo.protocolInfo?.verified.push('prompt')
+      this.finish(
+        undefined,
+        response.stopReason === 'cancelled'
+          ? 'cancelled'
+          : response.stopReason === 'refusal'
+            ? 'content-filter'
+            : response.stopReason === 'max_tokens' || response.stopReason === 'max_turn_requests'
+              ? 'length'
+              : response.stopReason === 'end_turn'
+                ? 'stop'
+                : 'other'
+      )
     } catch (error) {
       this.finish(error)
     }

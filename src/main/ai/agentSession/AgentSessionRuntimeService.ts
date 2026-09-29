@@ -745,7 +745,8 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
+      if (!agent || (!agent.model && agent.type !== 'local')) return
+      if (agent.type === 'local' && !agent.configuration?.localRuntime?.enabled) return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -767,7 +768,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.model,
+        modelId: agent.type === 'local' ? `runtime:${agent.id}` : agent.model!,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -1909,6 +1910,11 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'context-usage':
         this.persistContextUsage(entry, event.usage)
         break
+      case 'local-session-info':
+        application
+          .get('IpcApiService')
+          .broadcast('ai.local_agents.session_updated', { sessionId: entry.sessionId, info: event.info })
+        break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
         // composer and channel `/help` reflect commands discovered after the initial read.
@@ -1957,6 +1963,9 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'turn-complete':
+        if (event.cancelled) {
+          application.get('AiStreamManager').abort(entry.topicId, 'local-agent-cancelled')
+        }
         {
           const turn = this.currentTurn(entry)
           if (turn)
@@ -1970,7 +1979,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         this.applyRuntimeStateEvent(entry, {
           type: 'runtime-terminal',
-          outcome: { status: 'success' }
+          outcome: { status: event.cancelled ? 'paused' : 'success' }
         })
         this.refreshContextUsage(entry)
         break
@@ -3326,6 +3335,14 @@ export class AgentSessionRuntimeService extends BaseService {
       onPersistFailed: (error) =>
         application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
     })
+  }
+
+  async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    if (!connection?.setThoughtLevel || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    return connection.setThoughtLevel(configId, value)
   }
 
   getLocalSessionInfo(sessionId: string) {

@@ -335,6 +335,10 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.set_thought_level': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
   'ai.local_agents.session_info': defineRoute({
     input: z.object({ sessionId: z.string() }),
     output: z.custom<LocalAgentSessionInfo | null>()
@@ -509,6 +513,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload

@@ -56,6 +56,140 @@ describe('local protocol processes', () => {
     return { connection, events, drained, text }
   }
 
+  it('preserves restored thought settings when the native model already matches', async () => {
+    const { connection } = create('acp', 'thought-resume', 'fixture-model')
+    await connection.start(cwd, 'native-session')
+    expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
+  })
+
+  it('uses advertised thought option IDs and values and publishes confirmed state', async () => {
+    const { connection, events } = create('acp', 'thought')
+    await connection.start(cwd)
+    const acp = connection as AcpConnection
+    expect(acp.localSessionInfo.thoughtLevel).toMatchObject({
+      id: 'reasoning-budget',
+      currentValue: 'balanced',
+      options: [
+        { value: 'balanced', name: 'Balanced' },
+        { value: 'deep', name: 'Deep' }
+      ]
+    })
+    await expect(acp.setThoughtLevel('reasoning-budget', 'high')).rejects.toThrow('no longer available')
+    await acp.setThoughtLevel('reasoning-budget', 'deep')
+    expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'local-session-info',
+          info: expect.objectContaining({ thoughtLevel: expect.objectContaining({ currentValue: 'deep' }) })
+        })
+      )
+    )
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(
+      wire.filter((message) => message.method === 'session/set_config_option').map((message) => message.params)
+    ).toEqual([{ sessionId: 'native-session', configId: 'reasoning-budget', value: 'deep' }])
+  })
+
+  it('waits for a pending thought change before prompting and rejects concurrent changes', async () => {
+    const { connection, events, text } = create('acp', 'thought-delayed')
+    await connection.start(cwd)
+    const changing = (connection as AcpConnection).setThoughtLevel('reasoning-budget', 'deep')
+    await expect((connection as AcpConnection).setThoughtLevel('reasoning-budget', 'balanced')).rejects.toThrow('busy')
+    await Promise.all([changing, connection.send(input)])
+    await vi.waitFor(() => expect(text()).toBe('turn 1: hello'))
+    expect(events.some((event) => event.type === 'error')).toBe(false)
+    expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+  })
+
+  it('preserves the previous thought value on rejection and removes withdrawn options', async () => {
+    const failed = create('acp', 'thought-error')
+    await failed.connection.start(cwd)
+    await expect((failed.connection as AcpConnection).setThoughtLevel('reasoning-budget', 'deep')).rejects.toThrow(
+      'Reasoning unavailable'
+    )
+    expect(failed.connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
+    const removed = create('acp', 'thought-removed')
+    await removed.connection.start(cwd)
+    await (removed.connection as AcpConnection).setThoughtLevel('reasoning-budget', 'deep')
+    expect(removed.connection.localSessionInfo.thoughtLevel).toBeUndefined()
+  })
+
+  it('selects legacy ACP models and prefers config options when both interfaces exist', async () => {
+    const legacy = create('acp', 'legacy-models', 'legacy-model')
+    await legacy.connection.start(cwd)
+    expect(legacy.connection.localSessionInfo.models).toEqual([{ id: 'legacy-model', name: 'Legacy model' }])
+    expect(legacy.connection.localSessionInfo.activeModel?.id).toBe('legacy-model')
+    const modern = create('acp', 'both-models', 'fixture-model')
+    await modern.connection.start(cwd)
+    expect(modern.connection.localSessionInfo.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(
+      wire.filter((message) => message.method === 'session/set_model').map((message) => message.params.modelId)
+    ).toEqual(['legacy-model'])
+    expect(
+      wire.filter((message) => message.method === 'session/set_config_option').map((message) => message.params.value)
+    ).toEqual(['fixture-model'])
+  })
+
+  it.each([undefined, 'native-session'])(
+    'keeps initial commands and config while suppressing replay (resume=%s)',
+    async (resume) => {
+      const { connection, events, text } = create('acp', 'initial-updates')
+      await connection.start(cwd, resume)
+      await vi.waitFor(() => expect(events.some((event) => event.type === 'supported-commands')).toBe(true))
+      expect(events.filter((event) => event.type === 'supported-commands')).toEqual([
+        { type: 'supported-commands', commands: [{ name: 'review', description: 'Review code', argumentHint: '' }] }
+      ])
+      expect(connection.localSessionInfo.activeModel?.id).toBe('updated-model')
+      expect(text()).toBe('')
+    }
+  )
+
+  it.each([
+    ['end_turn', 'stop'],
+    ['max_tokens', 'length'],
+    ['max_turn_requests', 'length'],
+    ['refusal', 'content-filter'],
+    ['cancelled', undefined]
+  ])('preserves termination semantics for %s', async (reason, finishReason) => {
+    const { connection, events, drained } = create('acp', `stop:${reason}`)
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    const finishes = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'finish' ? [event.chunk.finishReason] : []
+    )
+    expect(finishes).toEqual(finishReason ? [finishReason] : [])
+    expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
+      { type: 'turn-complete', ...(reason === 'cancelled' ? { cancelled: true } : {}) }
+    ])
+  })
+
+  it('records advertised capabilities separately from successful protocol checks', async () => {
+    const { connection } = create('acp')
+    await connection.start(cwd, undefined, true)
+    expect(connection.localSessionInfo.protocolInfo).toEqual({
+      protocolVersion: 1,
+      agent: { name: 'fixture', version: '1.0' },
+      capabilities: { loadSession: true, promptCapabilities: { image: true } },
+      authMethods: [],
+      verified: ['handshake']
+    })
+  })
+
   it('records only reported prompt usage, includes cache and reasoning, and resets between turns', async () => {
     const { connection, events, drained } = create('acp', 'usage')
     await connection.start(cwd)
