@@ -16,6 +16,7 @@
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
@@ -47,6 +48,8 @@ export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
+  /** Cross-model fallback: refresh or clear Ollama context metadata on stream errors. */
+  streamErrorOllamaNumCtx?: OllamaNumCtxRequestSnapshot | null
 }
 
 /**

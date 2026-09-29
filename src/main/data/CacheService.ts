@@ -34,6 +34,7 @@ import type {
   ProcessKey,
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
@@ -825,13 +826,28 @@ export class CacheService extends BaseService {
         // This path bypasses setShared/deleteShared and must notify independently.
         const oldValue = this.peekShared(message.key)
 
-        if (message.value === undefined) {
+        let nextValue = message.value
+        if (
+          message.key === OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY &&
+          nextValue !== undefined &&
+          typeof nextValue === 'object' &&
+          nextValue !== null &&
+          !Array.isArray(nextValue)
+        ) {
+          const prior =
+            typeof oldValue === 'object' && oldValue !== null && !Array.isArray(oldValue)
+              ? (oldValue as Record<string, number>)
+              : {}
+          nextValue = { ...prior, ...(nextValue as Record<string, number>) }
+        }
+
+        if (nextValue === undefined) {
           // Handle deletion
           this.sharedCache.delete(message.key)
         } else {
           // Handle set - use expireAt directly (absolute timestamp)
           const entry: CacheEntry = {
-            value: message.value,
+            value: nextValue,
             expireAt: message.expireAt
           }
           this.sharedCache.set(message.key, entry)
@@ -839,11 +855,14 @@ export class CacheService extends BaseService {
 
         // Relay to other windows first so cross-window state is coherent before
         // main-process subscribers observe the change.
-        this.broadcastSync(message, senderWindowId)
+        this.broadcastSync(
+          nextValue === message.value ? message : { ...message, value: nextValue },
+          senderWindowId
+        )
 
         // Only fire when the value actually changed, matching main-origin paths.
-        if (!isEqual(oldValue, message.value)) {
-          this.sharedNotifier.notify(message.key, message.value, oldValue)
+        if (!isEqual(oldValue, nextValue)) {
+          this.sharedNotifier.notify(message.key, nextValue, oldValue)
         }
         return
       }
