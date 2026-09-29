@@ -27,6 +27,44 @@ function fakeConnection(usageCapture = 'capture') {
   }
 }
 
+describe('fallback error classification', () => {
+  it('routes on structured provider facts rather than the prose beside them', () => {
+    expect(classifyRuntimeFallbackError({ message: 'disk quota exceeded', status: 429 })).toBe('http 429')
+    expect(classifyRuntimeFallbackError({ message: 'rate limit exceeded', status: 400 })).toBeUndefined()
+    expect(classifyRuntimeFallbackError({ message: 'quota exceeded', code: 'AUTH' })).toBeUndefined()
+    expect(classifyRuntimeFallbackError({ code: 'RATE_LIMITED' })).toBe('rate_limited')
+    expect(classifyRuntimeFallbackError({ code: 'QUOTA' })).toBe('quota')
+    expect(classifyRuntimeFallbackError({ code: 'HTTP_503' })).toBe('http 503')
+    expect(classifyRuntimeFallbackError({ code: 'HTTP_404' })).toBeUndefined()
+  })
+
+  it('reads the serializable facts an LlmError keeps beside itself', () => {
+    expect(classifyRuntimeFallbackError({ failure: { message: 'provider failed', code: 'SERVER', status: 529 } })).toBe(
+      'http 529'
+    )
+    expect(classifyRuntimeFallbackError({ failure: { message: 'provider failed', code: 'TRANSPORT' } })).toBe(
+      'transport'
+    )
+  })
+
+  it('names a provider outcome in prose before treating it as one', () => {
+    // Pi reports a provider failure as prose only, so its messages must still qualify.
+    expect(classifyRuntimeFallbackError(new Error('API Error: 429 {"type":"rate_limit_error"}'))).toBe('http 429')
+    expect(classifyRuntimeFallbackError(new Error('429 Too Many Requests'))).toBe('429 Too Many Requests')
+    expect(classifyRuntimeFallbackError(new Error('500 Internal Server Error'))).toBe('http 500')
+    expect(classifyRuntimeFallbackError({ message: 'HTTP 503 service overloaded', code: 'UNKNOWN' })).toBe('http 503')
+    expect(classifyRuntimeFallbackError(new Error('rate limit exceeded for gpt-x'))).toBe(
+      'rate limit exceeded for gpt-x'
+    )
+    // The same vocabulary also describes runtime, gateway, and local failures; failing over there
+    // would replay the whole turn on another model for a problem no provider caused.
+    expect(classifyRuntimeFallbackError(new Error('EDQUOT: disk quota exceeded'))).toBeUndefined()
+    expect(classifyRuntimeFallbackError(new Error('listen EADDRINUSE: address already in use :::500'))).toBeUndefined()
+    expect(classifyRuntimeFallbackError(new Error('gateway returned 502 while proxying the request'))).toBeUndefined()
+    expect(classifyRuntimeFallbackError(new Error('worker overload protection triggered'))).toBeUndefined()
+  })
+})
+
 describe('Pi/DSH connection fallback', () => {
   it('classifies retryable provider failures without swallowing ordinary errors', () => {
     expect(classifyRuntimeFallbackError(new Error('HTTP 429 rate limit'))).toBe('http 429')
@@ -57,6 +95,24 @@ describe('Pi/DSH connection fallback', () => {
     expect(fallback.send).toHaveBeenCalledWith(userInput)
     fallback.events.push({ type: 'turn-complete' })
     await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    await wrapper.close()
+  })
+
+  it('does not replay the turn on another model for a local runtime failure', async () => {
+    const primary = fakeConnection()
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('listen EADDRINUSE: address already in use :::500') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    // Replaying on another model is the harm here: a local bind failure is not the provider's.
+    expect(driver.connect).not.toHaveBeenCalled()
     await wrapper.close()
   })
 
