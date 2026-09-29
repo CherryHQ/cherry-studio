@@ -121,6 +121,8 @@ export const ListAssistantsQuerySchema = z.strictObject({
   inTrash: z.boolean().optional(),
   /** Free-text match against name OR description (case-insensitive LIKE) */
   search: z.string().trim().min(1).optional(),
+  /** Match any of these personal library tags before pagination. */
+  libraryTagIds: z.array(z.string().min(1)).optional(),
   /** Return assistants assigned to this group */
   groupId: GroupIdSchema.optional(),
   /** Filter by assistant updatedAt timestamp, inclusive (`updatedAt >= updatedAtFrom`). */

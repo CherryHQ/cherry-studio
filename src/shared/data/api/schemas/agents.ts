@@ -266,6 +266,10 @@ export const ListAgentsQuerySchema = z.strictObject({
   inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
+  /** Match any of these personal library tags before pagination. */
+  libraryTagIds: z.array(z.string().min(1)).optional(),
+  sortBy: z.enum(['createdAt', 'updatedAt', 'name']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */

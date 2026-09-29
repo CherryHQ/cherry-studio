@@ -1,6 +1,7 @@
 import { shell } from 'electron'
 
 import { loggerService } from '@logger'
+import { getMarketplaceSkill, listMarketplaceSkills } from '@main/ai/skills/cherrySkillMarketplace'
 import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
@@ -25,6 +26,10 @@ async function toSkillResult<T>(op: () => Promise<T>, failMessage: string): Prom
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
+  'skill.export': ({ skillId }) => skillService.exportArchive(skillId),
+  'skill.marketplace.list': (input) => listMarketplaceSkills(input),
+  'skill.marketplace.detail': ({ id }) => getMarketplaceSkill(id, true),
+  'skill.marketplace.install': ({ id }) => skillService.installMarketplace(id),
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),

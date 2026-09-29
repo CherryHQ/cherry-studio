@@ -35,7 +35,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
     error: allPromptsError,
     isLoading: isAllPromptsLoading,
     refetch: refetchAllPrompts
-  } = useQuery('/prompts', { enabled, query: { visibility: 'restricted' } })
+  } = useQuery('/prompts', { enabled })
   const bindingParams =
     bindingTarget.type === 'assistant'
       ? { targetType: 'assistant' as const, targetId: bindingTarget.id }
@@ -77,9 +77,11 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
     return (allPromptsData ?? []).map((prompt) => ({
       id: prompt.id,
       name: prompt.title,
-      description: prompt.content.replace(/\s+/g, ' ').trim()
+      description: prompt.content.replace(/\s+/g, ' ').trim(),
+      pickable: prompt.visibility === 'restricted',
+      statusBadge: prompt.visibility === 'global' ? t('settings.prompts.visibility.global.badge') : undefined
     }))
-  }, [allPromptsData])
+  }, [allPromptsData, t])
 
   const handleBindingChange = useCallback(
     async (promptId: string, shouldBind: boolean) => {

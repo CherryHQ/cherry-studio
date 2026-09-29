@@ -407,6 +407,9 @@ export function EditDialogShell<TValues extends FieldValues>({
   setDialogContentElement,
   tabs,
   title,
+  footer,
+  busy = false,
+  preventOutsideClose = false,
   groupExpansion = 'collapsed',
   groupPresentation = 'grouped'
 }: {
@@ -422,6 +425,9 @@ export function EditDialogShell<TValues extends FieldValues>({
   setDialogContentElement: (element: HTMLDivElement | null) => void
   tabs: EditDialogTab[]
   title: string
+  footer?: ReactNode
+  busy?: boolean
+  preventOutsideClose?: boolean
 }) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
@@ -467,6 +473,10 @@ export function EditDialogShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
+        closeOnOverlayClick={!preventOutsideClose}
+        onPointerDownOutside={(event) => {
+          if (preventOutsideClose) event.preventDefault()
+        }}
         className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-180', resourceDialogCloseButtonClassName)}>
         <Form {...form}>
           {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
@@ -483,6 +493,7 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
             </div>
             <Tabs
+              inert={busy || undefined}
               value={activeTab}
               onValueChange={handleTabValueChange}
               orientation="vertical"
@@ -565,6 +576,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </div>
               </div>
             </Tabs>
+            {footer}
           </form>
         </Form>
       </DialogContent>

@@ -6,6 +6,7 @@ import {
   addSidebarShortcut,
   createSidebarShortcutTarget,
   getSidebarDefaultLandingUrl,
+  getOrderedLaunchpadApps,
   getVisibleSidebarShortcutItems,
   normalizeSidebarShortcutItems,
   removeSidebarShortcut,
@@ -18,6 +19,16 @@ const shortcut = (providerId: string, resourceId: string, activationId?: string)
 }
 
 describe('sidebar shortcut storage transforms', () => {
+  it('inserts a new marketplace after paintings without resetting a saved launchpad order', () => {
+    const order = getOrderedLaunchpadApps(['files', 'paintings', 'translate', 'agents'])
+    expect(order.slice(0, 5)).toEqual(['files', 'paintings', 'marketplace', 'translate', 'agents'])
+    expect(getOrderedLaunchpadApps(['marketplace', ...order]).slice(0, 4)).toEqual([
+      'marketplace',
+      'files',
+      'paintings',
+      'translate'
+    ])
+  })
   it('preserves prototype-named future items without treating them as legacy resource types', () => {
     const future = ['constructor', 'toString', '__proto__'].map((type) => ({ type, id: `future-${type}` }))
     expect(normalizeSidebarShortcutItems(future)).toEqual(future)

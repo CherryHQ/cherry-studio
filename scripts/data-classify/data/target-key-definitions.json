@@ -255,6 +255,13 @@
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
     },
     {
+      "targetKey": "ui.marketplace.skill_tags",
+      "type": "PreferenceTypes.SkillLibraryTags",
+      "defaultValue": { "assignments": {}, "custom": [] },
+      "status": "classified",
+      "description": "User labels and installed-skill label assignments in My Resources; separate from SKILL.md metadata"
+    },
+    {
       "targetKey": "ui.custom_css",
       "type": "string",
       "defaultValue": "",
