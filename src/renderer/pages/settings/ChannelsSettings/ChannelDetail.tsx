@@ -265,7 +265,10 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-125" closeLabel={t('common.close')}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="max-h-[calc(100dvh-2rem)] max-w-125 overflow-y-auto"
+        closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
             <DialogHeader>
