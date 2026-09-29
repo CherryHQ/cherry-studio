@@ -2096,7 +2096,6 @@ describe('HomePage', () => {
     await act(async () => {
       rerender(<HomePage />)
     })
-    expect(cacheService.setPersistIfEqual).toHaveBeenCalledWith('ui.chat.last_used_topic_id', 'topic-deleted', null)
     expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBeNull()
     const recoveryNavigations = homeMocks.navigate.mock.calls.filter(
       (call) => call[0]?.to === '/app/chat' && call[0]?.search && Object.keys(call[0].search).length === 0
@@ -2124,7 +2123,6 @@ describe('HomePage', () => {
         replace: true
       })
     )
-    expect(cacheService.setPersistIfEqual).toHaveBeenCalledWith('ui.chat.last_used_topic_id', 'topic-deleted', null)
     expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBe('topic-still-valid')
   })
 })

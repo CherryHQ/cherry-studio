@@ -23,8 +23,6 @@ export interface CacheSyncMessage {
   key: string
   value: any
   expireAt?: number // Absolute Unix timestamp for precise cross-window sync
-  /** When set, receivers apply the persist write only if their local value still matches. */
-  ifValue?: any
 }
 
 /**

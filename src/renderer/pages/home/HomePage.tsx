@@ -203,7 +203,7 @@ const HomePage: FC = () => {
   const reenterChatRoute = useCallback(() => {
     const staleTopicId = activeTopicId ?? routeTopicId
     if (staleTopicId) {
-      cacheService.setPersistIfEqual('ui.chat.last_used_topic_id', staleTopicId, null)
+      cacheService.setPersist('ui.chat.last_used_topic_id', (current) => (current === staleTopicId ? null : current))
     }
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
