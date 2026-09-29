@@ -9,9 +9,11 @@ import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/co
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
+import type { MessageExportTarget } from '@renderer/types/messageExport'
 import { cn } from '@renderer/utils/style'
 
-import type { MessageMenuExportOptions, SelectAllState, SelectedMessagesExportTarget } from './types'
+import { messageExportTargets } from './messageExportTargets'
+import type { MessageMenuExportOptions, SelectAllState } from './types'
 
 interface Props {
   selectedMessageIds: readonly string[]
@@ -22,30 +24,12 @@ interface Props {
   onToggleSelectAll?: (checked: boolean) => void
   onSave?: () => void
   onCopy?: () => void
-  onExport?: (target: SelectedMessagesExportTarget) => void
+  onExport?: (target: MessageExportTarget) => void
   exportMenuOptions?: MessageMenuExportOptions
   onDelete?: () => void
   deleteDisabledReason?: Extract<MessageDeleteAvailability, { enabled: false }>['reason']
   onClose: () => void
 }
-
-// Same destinations/order/grouping as the single-message Export menu minus
-// the per-message-capture and Save-group variants, which stay single-message.
-const EXPORT_TARGETS: {
-  target: SelectedMessagesExportTarget
-  option: keyof MessageMenuExportOptions
-  labelKey: string
-  group: 'file' | 'external'
-}[] = [
-  { target: 'markdown', option: 'markdown', labelKey: 'chat.topics.export.md.label', group: 'file' },
-  { target: 'markdown-reason', option: 'markdown_reason', labelKey: 'chat.topics.export.md.reason', group: 'file' },
-  { target: 'word', option: 'docx', labelKey: 'chat.topics.export.word', group: 'file' },
-  { target: 'notion', option: 'notion', labelKey: 'chat.topics.export.notion', group: 'external' },
-  { target: 'yuque', option: 'yuque', labelKey: 'chat.topics.export.yuque', group: 'external' },
-  { target: 'obsidian', option: 'obsidian', labelKey: 'chat.topics.export.obsidian', group: 'external' },
-  { target: 'joplin', option: 'joplin', labelKey: 'chat.topics.export.joplin', group: 'external' },
-  { target: 'siyuan', option: 'siyuan', labelKey: 'chat.topics.export.siyuan', group: 'external' }
-]
 
 const MultiSelectActionPopup: FC<Props> = ({
   selectedMessageIds,
@@ -65,13 +49,13 @@ const MultiSelectActionPopup: FC<Props> = ({
   const { t } = useTranslation()
   const exportItems = useMemo<CommandContextMenuExtraItem[]>(() => {
     if (!onExport) return []
-    const toItem = ({ target, labelKey }: (typeof EXPORT_TARGETS)[number]): CommandContextMenuExtraItem => ({
+    const toItem = ({ target, labelKey }: (typeof messageExportTargets)[number]): CommandContextMenuExtraItem => ({
       type: 'item',
       id: `multi-select-export.${target}`,
       label: t(labelKey),
       onSelect: () => onExport(target)
     })
-    const enabledTargets = EXPORT_TARGETS.filter(({ option }) => exportMenuOptions?.[option])
+    const enabledTargets = messageExportTargets.filter(({ option }) => exportMenuOptions?.[option])
     const fileItems = enabledTargets.filter(({ group }) => group === 'file').map(toItem)
     const externalItems = enabledTargets.filter(({ group }) => group === 'external').map(toItem)
     const separator: CommandContextMenuExtraItem = { type: 'separator' }

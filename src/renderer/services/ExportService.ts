@@ -20,7 +20,12 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
-import type { ExportableMessage } from '@renderer/types/messageExport'
+import type {
+  ExportableMessage,
+  ExportMessagesToObsidian,
+  MessageExportTarget,
+  MessageExportView
+} from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
@@ -702,56 +707,7 @@ export const exportMessageAsMarkdown = async (
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
-  if (getExportState()) {
-    toast.warning(i18n.t('message.warn.export.exporting'))
-    return
-  }
-
-  setExportingState(true)
-
-  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> => {
-    const rawContentOverride = overrides?.get(message.id)
-    return exportReasoning
-      ? await messageToMarkdownWithReasoning(message, excludeCitations, rawContentOverride)
-      : await messageToMarkdown(message, excludeCitations, rawContentOverride)
-  }
-
-  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
-  if (!markdownExportPath) {
-    try {
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const result = await window.api.file.save(fileName, built.markdown)
-      if (result) {
-        await exportImageAssets(result, built.markdown, built.pendingWrites)
-        toast.success(i18n.t('message.success.markdown.export.specified'))
-      }
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.specified'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
-  } else {
-    try {
-      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const mdPath = markdownExportPath + '/' + fileName
-      await window.api.file.write(mdPath, built.markdown)
-      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
-      toast.success(i18n.t('message.success.markdown.export.preconf'))
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.preconf'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
-  }
+  await exportMessagesAsMarkdown([message], exportReasoning, undefined, chooseImageMode, excludeCitations)
 }
 
 export const exportMessagesAsMarkdown = async (
@@ -767,51 +723,69 @@ export const exportMessagesAsMarkdown = async (
     return false
   }
 
-  // Resolve before taking the lock: title naming can reject (offline AI call)
-  // and must never leave the export mutex stuck.
-  const trimmedTitle = title?.trim()
-  const fileTitle = trimmedTitle ? trimmedTitle : await getMessageTitle(messages[0])
-  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> =>
-    messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides)
-
-  // Same save-dialog vs preconfigured-directory contract as the single-message
-  // path; the caller supplies the title (usually the topic name).
   setExportingState(true)
+  let markdownExportPath: string | null = null
   try {
-    const markdownExportPath = await preferenceService.get('data.export.markdown.path')
-    if (!markdownExportPath) {
-      try {
-        const fileName = removeSpecialCharactersForFileName(fileTitle) + '.md'
-        const built = await buildMarkdownWithImages(messages, buildWithOverrides, chooseImageMode)
-        if (!built) return false
-        const result = await window.api.file.save(fileName, built.markdown)
-        if (!result) return false
-        await exportImageAssets(result, built.markdown, built.pendingWrites)
-        toast.success(i18n.t('message.success.markdown.export.specified'))
-        return true
-      } catch (error: any) {
-        toast.error(i18n.t('message.error.markdown.export.specified'))
-        logger.error('Failed to export messages as markdown:', error)
-        return false
-      }
-    }
-    try {
-      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(fileTitle) + ` ${timestamp}.md`
-      const built = await buildMarkdownWithImages(messages, buildWithOverrides, chooseImageMode)
-      if (!built) return false
-      const mdPath = markdownExportPath + '/' + fileName
-      await window.api.file.write(mdPath, built.markdown)
-      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
-      toast.success(i18n.t('message.success.markdown.export.preconf'))
-      return true
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.preconf'))
-      logger.error('Failed to export messages as markdown:', error)
-      return false
-    }
+    markdownExportPath = await preferenceService.get('data.export.markdown.path')
+    const fileTitle = title?.trim() || (await getMessageTitle(messages[0]))
+    const timestamp = markdownExportPath ? ` ${dayjs().format('YYYY-MM-DD-HH-mm-ss')}` : ''
+    const fileName = removeSpecialCharactersForFileName(fileTitle) + timestamp + '.md'
+    const built = await buildMarkdownWithImages(
+      messages,
+      (overrides) => messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides),
+      chooseImageMode
+    )
+    if (!built) return false
+
+    const filePath = markdownExportPath
+      ? markdownExportPath + '/' + fileName
+      : await window.api.file.save(fileName, built.markdown)
+    if (!filePath) return false
+    if (markdownExportPath) await window.api.file.write(filePath, built.markdown)
+    await exportImageAssets(filePath, built.markdown, built.pendingWrites)
+    toast.success(
+      i18n.t(
+        markdownExportPath ? 'message.success.markdown.export.preconf' : 'message.success.markdown.export.specified'
+      )
+    )
+    return true
+  } catch (error) {
+    toast.error(
+      i18n.t(markdownExportPath ? 'message.error.markdown.export.preconf' : 'message.error.markdown.export.specified')
+    )
+    logger.error('Failed to export messages as markdown:', error as Error)
+    return false
   } finally {
     setExportingState(false)
+  }
+}
+
+export async function exportMessagesToTarget(
+  messages: MessageExportView[],
+  target: MessageExportTarget,
+  options: { title?: string; exportToObsidian: ExportMessagesToObsidian; chooseImageMode: ImageModeChooser }
+): Promise<boolean> {
+  if (messages.length === 0) return false
+  if (target === 'markdown' || target === 'markdown-reason') {
+    return exportMessagesAsMarkdown(messages, target === 'markdown-reason', options.title, options.chooseImageMode)
+  }
+  const title = options.title ?? (await getMessageTitle(messages[0]))
+  switch (target) {
+    case 'word':
+      return ipcApi.request('export.word.from_markdown', {
+        markdown: await messagesToMarkdown(messages),
+        fileName: removeSpecialCharactersForFileName(title)
+      })
+    case 'notion':
+      return exportMessagesToNotion(title, messages)
+    case 'yuque':
+      return (await exportMarkdownToYuque(title, await messagesToMarkdown(messages))) != null
+    case 'obsidian':
+      return options.exportToObsidian(title.replace(/\\/g, '_'), messages)
+    case 'joplin':
+      return (await exportMarkdownToJoplin(title, messages)) != null
+    case 'siyuan':
+      return exportMarkdownToSiyuan(title, await messagesToMarkdown(messages))
   }
 }
 
