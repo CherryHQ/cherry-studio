@@ -234,7 +234,7 @@ describe('runAgentTask', () => {
   beforeEach(() => {
     vi.mocked(application.getPath).mockReturnValue('/agent-data')
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(jobScheduleService.getById).mockReset()
+    vi.mocked(jobScheduleService.getById).mockReset().mockReturnValue(makeSchedule())
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
     vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()

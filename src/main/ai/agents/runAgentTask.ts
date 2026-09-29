@@ -103,8 +103,10 @@ function createTaskSession(
   dto: Parameters<typeof agentSessionService.create>[0],
   sessionType: AgentSessionType
 ): ReturnType<typeof agentSessionService.create> {
-  return taskId
-    ? agentSessionService.create(dto, sessionType, { taskId })
+  // Heartbeat I/O and session admission can outlive the schedule; provenance must use its live state.
+  const task = taskId ? jobScheduleService.getById(taskId) : null
+  return task?.type === 'agent.task'
+    ? agentSessionService.create(dto, sessionType, { taskId: task.id })
     : agentSessionService.create(dto, sessionType)
 }
 
