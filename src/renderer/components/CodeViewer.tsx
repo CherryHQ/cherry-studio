@@ -414,7 +414,7 @@ const CodeViewer = ({
     overscan: 20
   })
 
-  const skipValueMeasureRef = useRef(true)
+  const previousRawLinesRef = useRef<string[] | null>(null)
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
@@ -433,14 +433,33 @@ const CodeViewer = ({
     return () => observer.disconnect()
   }, [expanded, virtualizer, wrapped])
 
+  const previousWrapLayoutSignatureRef = useRef<string | null>(null)
+
   useLayoutEffect(() => {
     if (!wrapped || expanded) return
-    if (skipValueMeasureRef.current) {
-      skipValueMeasureRef.current = false
+    const signature = `${lineNumbers}:${gutterDigits}:${fontSize}`
+    if (previousWrapLayoutSignatureRef.current === signature) return
+    previousWrapLayoutSignatureRef.current = signature
+    virtualizer.measure()
+  }, [expanded, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+
+  useLayoutEffect(() => {
+    if (!wrapped || expanded) {
+      previousRawLinesRef.current = rawLines
       return
     }
-    virtualizer.measure()
-  }, [expanded, value, virtualizer, wrapped])
+
+    const previous = previousRawLinesRef.current
+    previousRawLinesRef.current = rawLines
+    if (!previous) return
+
+    const maxIndex = Math.max(previous.length, rawLines.length) - 1
+    for (let index = 0; index <= maxIndex; index++) {
+      if (previous[index] !== rawLines[index]) {
+        virtualizer.resizeItem(index, estimateSize(index))
+      }
+    }
+  }, [estimateSize, expanded, rawLines, virtualizer, wrapped])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()

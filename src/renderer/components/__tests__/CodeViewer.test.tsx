@@ -6,22 +6,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeViewer from '../CodeViewer'
 
+type VirtualizerOptions = { count: number; estimateSize?: (index: number) => number }
+
+function createVirtualizerMock(options: VirtualizerOptions) {
+  const sizes = Array.from({ length: options.count }, (_, index) => options.estimateSize?.(index) ?? 20)
+  let totalSize = 0
+  const virtualItems = sizes.map((size, index) => {
+    const start = totalSize
+    totalSize += size
+    return { index, key: `row-${index}`, start, size }
+  })
+
+  return {
+    getTotalSize: () => totalSize,
+    getVirtualItems: () => virtualItems,
+    measureElement: vi.fn(),
+    measure: mocks.measure,
+    resizeItem: mocks.resizeItem
+  }
+}
+
 const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
   resetHighlight: vi.fn(),
   measureElement: vi.fn(),
   measure: vi.fn(),
-  useVirtualizer: vi.fn((options: { count: number; estimateSize?: (index: number) => number }) => ({
-    getTotalSize: () => options.count * 20,
-    getVirtualItems: () =>
-      Array.from({ length: options.count }, (_, index) => ({
-        index,
-        key: `row-${index}`,
-        start: index * 20
-      })),
-    measureElement: vi.fn(),
-    measure: mocks.measure
-  }))
+  resizeItem: vi.fn(),
+  useVirtualizer: vi.fn((options: VirtualizerOptions) => createVirtualizerMock(options))
 }))
 
 vi.mock('@renderer/hooks/useCodeHighlight', () => ({
@@ -202,35 +213,33 @@ describe('CodeViewer', () => {
   })
 
   it('estimates taller virtual rows for wrapped long lines than short lines', () => {
-    let estimateSize: ((index: number) => number) | undefined
-    mocks.useVirtualizer.mockImplementation((options: { count: number; estimateSize?: (index: number) => number }) => {
-      estimateSize = options.estimateSize
-      return {
-        getTotalSize: () => options.count * 20,
-        getVirtualItems: () =>
-          Array.from({ length: options.count }, (_, index) => ({
-            index,
-            key: `row-${index}`,
-            start: index * 20
-          })),
-        measureElement: vi.fn(),
-        measure: mocks.measure
-      }
-    })
-
     const longLine = 'x'.repeat(500)
-    const { rerender } = render(
-      <CodeViewer value={`${longLine}\nshort`} language="python" wrapped expanded={false} maxHeight="350px" />
-    )
+    const props = {
+      value: `${longLine}\nshort`,
+      language: 'python',
+      wrapped: true,
+      expanded: false,
+      maxHeight: '350px'
+    } as const
+    const { rerender } = render(<CodeViewer {...props} />)
 
-    expect(estimateSize).toBeDefined()
-    expect(estimateSize!(0)).toBeGreaterThan(estimateSize!(1))
+    // Re-render once so estimateSize sees the mounted scroller width.
+    rerender(<CodeViewer {...props} />)
 
+    const virtualizerOptions = mocks.useVirtualizer.mock.calls.at(-1)?.[0] as VirtualizerOptions
+    expect(virtualizerOptions.estimateSize?.(0)).toBeGreaterThan(virtualizerOptions.estimateSize?.(1) ?? 0)
+
+    const virtualItems = createVirtualizerMock(virtualizerOptions).getVirtualItems()
+    expect(virtualItems[0]?.size).toBeGreaterThan(virtualItems[1]?.size ?? 0)
+    expect(virtualItems[1]?.start).toBe(virtualItems[0]?.size)
+
+    mocks.resizeItem.mockClear()
     mocks.measure.mockClear()
-    rerender(
-      <CodeViewer value={`${longLine}more\nshort`} language="python" wrapped expanded={false} maxHeight="350px" />
-    )
-    expect(mocks.measure).toHaveBeenCalled()
+    rerender(<CodeViewer {...props} value={`${longLine}more\nshort`} />)
+
+    const updatedOptions = mocks.useVirtualizer.mock.calls.at(-1)?.[0] as VirtualizerOptions
+    expect(mocks.resizeItem).toHaveBeenCalledWith(0, updatedOptions.estimateSize?.(0))
+    expect(mocks.measure).not.toHaveBeenCalled()
   })
 
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
