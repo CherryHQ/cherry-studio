@@ -1033,7 +1033,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(stagedLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
     }
 
-    it('quiesces Chromium storage after aside, before staging move on Windows', async () => {
+    it('copies Chromium aside, quiesces on live path, then moves staging on Windows', async () => {
       if (process.platform !== 'win32') {
         return
       }
@@ -1044,8 +1044,10 @@ describe('runRestorePromotion', () => {
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
       const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
       let asideExistedBeforeQuiesce = false
+      let liveExistedBeforeQuiesce = false
       quiesceSpy.mockImplementation(async () => {
         asideExistedBeforeQuiesce = existsSync(join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live'))
+        liveExistedBeforeQuiesce = existsSync(join(liveLocalStorageDir(), 'leveldb-live'))
       })
 
       await runRestorePromotion()
@@ -1053,6 +1055,7 @@ describe('runRestorePromotion', () => {
       expect(quiesceSpy).toHaveBeenCalledOnce()
       expect(quiesceSpy).toHaveBeenCalledWith('Local Storage')
       expect(asideExistedBeforeQuiesce).toBe(true)
+      expect(liveExistedBeforeQuiesce).toBe(true)
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
       expect(journalState()).toBe('completed')
       expect(existsSync(stagingDir())).toBe(false)
@@ -1077,9 +1080,8 @@ describe('runRestorePromotion', () => {
       clearData.mockImplementation(async () => {
         const asideMarkerPath = join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live')
         asideExistedWhenClearDataRan = existsSync(asideMarkerPath)
-        asideMarkerWhenClearDataRan = asideExistedWhenClearDataRan
-          ? readFileSync(asideMarkerPath, 'utf8')
-          : ''
+        asideMarkerWhenClearDataRan = asideExistedWhenClearDataRan ? readFileSync(asideMarkerPath, 'utf8') : ''
+        rmSync(liveLocalStorageDir(), { recursive: true, force: true })
       })
       renameFailure.injectPermanentFailureFor = stagedLocalStorageDir()
 

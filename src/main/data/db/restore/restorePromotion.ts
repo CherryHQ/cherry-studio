@@ -518,20 +518,28 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
       const live = resolveEntry(ctx, entry.livePath)
       const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
+      const chromiumOverwrite = entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)
+      const stagingPending = fs.existsSync(staging)
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
-        renameDurable(live, aside)
+        if (chromiumOverwrite) {
+          // Copy, do not rename: clearData runs on the live path while Chromium
+          // still holds handles there; renaming aside first would risk clearing
+          // the rollback tree through those handles.
+          copyAsideDurable(live, aside)
+        } else {
+          renameDurable(live, aside)
+        }
       }
-      // Quiesce only while the staging move is still pending, after parking aside,
-      // so clearData never runs against live user data that has not yet been moved
-      // into the aside rollback slot. A crash after the move but before its step
-      // marker must not re-run quiesce on restored data.
-      if (fs.existsSync(staging) && entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
-        logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
+      // Quiesce only while the staging move is still pending. A crash after the
+      // move but before its step marker must not re-run quiesce on restored data.
+      if (stagingPending && chromiumOverwrite) {
+        logger.info('Quiescing Chromium runtime storage before staging move', {
           restoreId: ctx.journal.restoreId,
           livePath: entry.livePath
         })
         await quiesceChromiumStorageForRestore(entry.livePath)
+        fs.rmSync(live, { recursive: true, force: true })
       }
       moveIdempotent(staging, live)
       return
@@ -718,6 +726,15 @@ function renameDurable(source: string, target: string): void {
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
   }
+}
+
+function copyAsideDurable(source: string, target: string): void {
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  retrySyncOnTransientFsLock(() => {
+    fs.cpSync(source, target, { recursive: true, force: true })
+  })
+  fsyncDir(path.dirname(target))
+  fsyncDir(path.dirname(source))
 }
 
 function retrySyncOnTransientFsLock(operation: () => void): void {
