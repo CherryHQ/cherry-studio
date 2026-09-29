@@ -57,29 +57,23 @@ describe('findAllSkillDirectories', () => {
     expect(result.map((candidate) => fwd(candidate.sourcePath))).toEqual(['skills/my-skill'])
   })
 
-  it('finds skills under dot-prefixed community convention directories', async () => {
+  it('allows dot-prefixed community convention directories only at the root', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
     tempDirs.push(root)
-    const geminiSkill = path.join(root, '.gemini', 'skills', 'github-issue-creator')
-    const agentsSkill = path.join(root, '.agents', 'skills', 'gh-create-pr')
-    const claudeSkill = path.join(root, '.claude', 'skills', 'review')
-    await Promise.all([
-      fs.promises.mkdir(geminiSkill, { recursive: true }),
-      fs.promises.mkdir(agentsSkill, { recursive: true }),
-      fs.promises.mkdir(claudeSkill, { recursive: true })
-    ])
-    await Promise.all([
-      fs.promises.writeFile(path.join(geminiSkill, 'SKILL.md'), '# gemini'),
-      fs.promises.writeFile(path.join(agentsSkill, 'SKILL.md'), '# agents'),
-      fs.promises.writeFile(path.join(claudeSkill, 'SKILL.md'), '# claude')
-    ])
+    await Promise.all(
+      ['.agents', '.claude', '.gemini', 'nested/.agents', 'nested/.claude', 'nested/.gemini'].map(async (dir) => {
+        const skillDir = path.join(root, dir, 'skills', 'my-skill')
+        await fs.promises.mkdir(skillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
+      })
+    )
 
     const result = await findAllSkillDirectories(root, root)
 
     expect(result.map((candidate) => fwd(candidate.sourcePath)).sort()).toEqual([
-      '.agents/skills/gh-create-pr',
-      '.claude/skills/review',
-      '.gemini/skills/github-issue-creator'
+      '.agents/skills/my-skill',
+      '.claude/skills/my-skill',
+      '.gemini/skills/my-skill'
     ])
   })
 })
