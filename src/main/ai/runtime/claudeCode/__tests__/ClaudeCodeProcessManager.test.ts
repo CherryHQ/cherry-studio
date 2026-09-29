@@ -287,11 +287,24 @@ describe('ClaudeCodeProcessManager', () => {
 
     expect(manager.getActiveProcessCount()).toBe(1)
     manager.releaseWarmQueryProcess('warm-ref')
-    expect(manager.getActiveProcessCount()).toBe(0)
+    expect(manager.getActiveProcessCount()).toBe(1)
     child.kill.mockClear()
 
     manager.killAll('SIGTERM')
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+
+  it('releases a warm-eviction cap slot only after the child exits', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('warm-ref')
+    manager.spawn(spawnOptions, diagnostics)
+
+    manager.releaseWarmQueryProcess('warm-ref')
+    expect(manager.getActiveProcessCount()).toBe(1)
+
+    child.emitExit()
+    await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(0))
   })
 
   it('absorbs child kill failures', () => {

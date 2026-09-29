@@ -179,7 +179,7 @@ export class ClaudeCodeProcessManager extends BaseService {
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
 
   getActiveProcessCount(): number {
-    return this.processes.size
+    return this.processes.size + this.evictingProcesses.size
   }
 
   /**
