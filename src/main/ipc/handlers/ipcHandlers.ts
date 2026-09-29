@@ -14,6 +14,7 @@ import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
+import { doctorHandlers } from './doctor'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -28,6 +29,7 @@ import { notificationHandlers } from './notification'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
 import { ovmsHandlers } from './ovms'
+import { pdfjsHandlers } from './pdfjs'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
@@ -38,6 +40,7 @@ import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
+import { trashHandlers } from './trash'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -65,6 +68,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...codeCliHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
+  ...doctorHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
@@ -79,6 +83,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...oauthHandlers,
   ...openclawHandlers,
   ...ovmsHandlers,
+  ...pdfjsHandlers,
   ...printHandlers,
   ...profileHandlers,
   ...providerHandlers,
@@ -89,6 +94,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,
+  ...trashHandlers,
   ...webSearchHandlers,
   ...webviewHandlers,
   ...windowHandlers

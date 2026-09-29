@@ -9,7 +9,8 @@ const logger = loggerService.withContext('useAgentBrowserGuest')
 export function useAgentBrowserGuest(
   sessionId: string | undefined,
   guest: WebviewTag | null,
-  revision: number
+  revision: number,
+  scope?: 'agent' | 'topic'
 ): string | undefined {
   const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string }>()
   const operations = useRef<Promise<void>>(Promise.resolve())
@@ -18,7 +19,8 @@ export function useAgentBrowserGuest(
     let cancelled = false
     let attaching = false
     let tabId: string | undefined
-    const detach = (id: string) => ipcApi.request('browser.pane.detach', { sessionId, tabId: id })
+    const detach = (id: string) =>
+      ipcApi.request('browser.pane.detach', { sessionId, tabId: id, ...(scope ? { scope } : {}) })
     const attach = () => {
       if (attaching || tabId) return
       attaching = true
@@ -27,7 +29,11 @@ export function useAgentBrowserGuest(
           if (cancelled) return
           const webviewId = guest.getWebContentsId()
           if (!webviewId) return
-          const result = await ipcApi.request('browser.pane.attach', { sessionId, webviewId })
+          const result = await ipcApi.request('browser.pane.attach', {
+            sessionId,
+            webviewId,
+            ...(scope ? { scope } : {})
+          })
           if (cancelled) await detach(result.tabId)
           else {
             tabId = result.tabId
@@ -52,6 +58,6 @@ export function useAgentBrowserGuest(
           .catch((error) => logger.debug('Browser guest already detached', { error }))
       }
     }
-  }, [sessionId, guest, revision])
+  }, [sessionId, guest, revision, scope])
   return binding?.guest === guest && binding?.sessionId === sessionId ? binding?.tabId : undefined
 }

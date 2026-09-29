@@ -1,12 +1,7 @@
-/**
- * Off-chat markdown rendering: `<StaticMarkdown>` renders prompt previews, agent tool
- * output and Markdown file previews through `@cherrystudio/ui`'s `<Markdown>` with the
- * full plugin preset and Cherry Studio's code, table, link and media renderers. Hosts may
- * inject surface-specific behavior such as opening local file links.
- */
-
+/** Application Markdown pipeline shared by messages, translation and previews. */
+export { AppMarkdown, type AppMarkdownProps } from './AppMarkdown'
 export { MarkdownHostProvider } from './MarkdownHostProvider'
-export { MarkdownImageRenderer, scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from './MarkdownRenderers'
-export { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
-export { remarkLatexMath } from './remarkLatexMath'
+export { MarkdownLinkRenderer } from './MarkdownRenderers'
 export { StaticMarkdown } from './StaticMarkdown'
+export { INLINE_CODE_CLASS, useMarkdownCode } from './useMarkdownCode'
+export { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'

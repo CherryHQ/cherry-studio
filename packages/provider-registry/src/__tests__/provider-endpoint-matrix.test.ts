@@ -78,21 +78,13 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
+        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
     ])
   })
 
-  /**
-   * The Anthropic-compatible endpoint (api-docs.deepseek.com/zh-cn/guides/anthropic_api,
-   * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
-   * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
-   * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
-   * different model than the one selected. It trails the other two on every V4 SKU because
-   * `endpointTypes[0]` is what routes in-app chat.
-   */
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])(
     'prefers Responses for %s while keeping Chat Completions selectable',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual([
@@ -103,12 +95,9 @@ describe('deepseek endpoint matrix', () => {
     }
   )
 
-  it.each(['deepseek-chat', 'deepseek-reasoner'])(
-    'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
-    (modelId) => {
-      expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
-    }
-  )
+  it('lists only the current official DeepSeek model IDs', () => {
+    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+  })
 })
 
 describe('MiniMax endpoint matrix', () => {

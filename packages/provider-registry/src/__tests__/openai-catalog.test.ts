@@ -14,6 +14,74 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it.each([
+    ['gpt-6-sol', 'GPT-6 Sol', 2, 0.2, 2.5, 10],
+    ['gpt-6-luna', 'GPT-6 Luna', 0.1, 0.01, 0.125, 0.5]
+  ] as const)(
+    'catalogs %s with official API limits, pricing, and reasoning',
+    (id, name, input, cacheRead, cacheWrite, output) => {
+      expect(loader.findModel(id)).toMatchObject({
+        name,
+        ownedBy: 'openai',
+        contextWindow: 1050000,
+        maxInputTokens: 922000,
+        maxOutputTokens: 128000,
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        capabilities: expect.arrayContaining([
+          'reasoning',
+          'function-call',
+          'image-recognition',
+          'structured-output',
+          'file-search'
+        ]),
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: input },
+          cacheRead: { currency: 'USD', perMillionTokens: cacheRead },
+          cacheWrite: { currency: 'USD', perMillionTokens: cacheWrite },
+          output: { currency: 'USD', perMillionTokens: output }
+        },
+        reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] }
+      })
+      expect(isServerToolModelEligible(id, 'openai', 'web-search')).toBe(true)
+    }
+  )
+
+  it.each([
+    ['gpt-6-sol', 4, 0.4, 5, 15],
+    ['gpt-6-luna', 0.2, 0.02, 0.25, 0.75]
+  ] as const)('prices %s long-context requests above 272K input tokens', (id, input, cacheRead, cacheWrite, output) => {
+    expect(loader.findModel(id)?.pricing?.inputTokenTiers).toEqual([
+      {
+        minInputTokens: 272001,
+        input: { currency: 'USD', perMillionTokens: input },
+        cacheRead: { currency: 'USD', perMillionTokens: cacheRead },
+        cacheWrite: { currency: 'USD', perMillionTokens: cacheWrite },
+        output: { currency: 'USD', perMillionTokens: output }
+      }
+    ])
+  })
+
+  it.each([
+    ['gpt-6-sol', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']],
+    ['gpt-6-luna', ['low', 'medium', 'high', 'xhigh', 'max']]
+  ] as const)('offers %s on Codex with subscription-specific limits and reasoning', (id, values) => {
+    expect(loader.findOverride('openai-codex', id)).toMatchObject({
+      apiModelId: id,
+      endpointTypes: ['openai-responses'],
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      supportsFastMode: true,
+      reasoningContracts: {
+        'openai-responses': {
+          support: {
+            controls: [{ kind: 'effort', values, default: 'medium' }],
+            defaultEffort: 'medium'
+          }
+        }
+      }
+    })
+  })
+
   it('catalogs GPT-6 Astra with its documented capabilities, limits, and reasoning controls', () => {
     expect(loader.findModel('gpt-6-astra')).toMatchObject({
       id: 'gpt-6-astra',

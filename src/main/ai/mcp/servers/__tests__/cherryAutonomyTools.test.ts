@@ -4,6 +4,8 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ChannelsModule from '@main/ai/channels'
+
 // Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
@@ -12,17 +14,21 @@ const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
 const mockSendFile = vi.fn()
 const mockGetAgent = vi.fn()
+const mockListAgents = vi.fn()
 const mockUpdateAgent = vi.fn()
-const mockSyncChannel = vi.fn()
-const mockDisconnectChannel = vi.fn()
-const mockWaitForQrUrl = vi.fn()
 const mockQRCodeToDataURL = vi.fn()
 const mockListChannels = vi.fn()
 const mockCreateChannel = vi.fn()
+const mockCreateChannelAndWaitForQr = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
+const mockUpdateChannelAndWaitForQr = vi.fn()
 const mockDeleteChannel = vi.fn()
+const mockReconnectChannel = vi.fn()
+const mockReconnectChannelWithQr = vi.fn()
 const mockGetSession = vi.fn()
+const mockReadConversation = vi.fn()
+const mockFindPersistedToolOutput = vi.fn()
 const mockListSessions = vi.fn()
 const mockSearchSessions = vi.fn()
 const mockSearchSessionMessages = vi.fn()
@@ -42,8 +48,16 @@ vi.mock('@data/services/AgentTaskService', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
+    listAgents: mockListAgents,
     updateAgent: mockUpdateAgent
   }
+}))
+
+vi.mock('@main/ai/messages/readConversation', () => ({
+  readConversation: mockReadConversation
+}))
+vi.mock('@main/ai/messages/persistedToolOutput', () => ({
+  findPersistedToolOutput: mockFindPersistedToolOutput
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -88,10 +102,7 @@ vi.mock('@application', async () => {
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
       getAgentAdapters: mockGetNotifyAdapters,
-      getAdapterStatuses: vi.fn().mockReturnValue([]),
-      syncChannel: mockSyncChannel,
-      disconnectChannel: mockDisconnectChannel,
-      waitForQrUrl: mockWaitForQrUrl
+      getAdapterStatuses: vi.fn().mockReturnValue([])
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -103,20 +114,23 @@ vi.mock('qrcode', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: mockListChannels,
-    createChannel: mockCreateChannel,
-    getChannel: mockGetChannel,
-    updateChannel: mockUpdateChannel,
-    deleteChannel: mockDeleteChannel
+    getChannel: mockGetChannel
   }
 }))
 
-vi.mock('@data/services/AgentChannelWorkflowService', () => ({
-  agentChannelWorkflowService: {
-    createChannel: mockCreateChannel,
-    updateChannel: mockUpdateChannel,
-    deleteChannel: mockDeleteChannel
+vi.mock('@main/ai/channels', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChannelsModule>()
+  return {
+    ...actual,
+    createAgentChannel: mockCreateChannel,
+    createAgentChannelAndWaitForQr: mockCreateChannelAndWaitForQr,
+    updateAgentChannel: mockUpdateChannel,
+    updateAgentChannelAndWaitForQr: mockUpdateChannelAndWaitForQr,
+    deleteAgentChannel: mockDeleteChannel,
+    reconnectAgentChannel: mockReconnectChannel,
+    reconnectAgentChannelWithQr: mockReconnectChannelWithQr
   }
-}))
+})
 
 vi.mock('@main/services/MainWindowService', () => ({
   windowService: {
@@ -164,6 +178,8 @@ describe('CherryAutonomyTools', () => {
     vi.clearAllMocks()
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockGetAgent.mockReturnValue({ id: 'agent_test', name: 'Agent A', model: 'provider::model' })
+    mockListAgents.mockReturnValue({ agents: [], total: 0 })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
     mockSearchSessionMessages.mockReturnValue([])
@@ -171,20 +187,15 @@ describe('CherryAutonomyTools', () => {
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
-  it('should list all tools', () => {
+  it('advertises the read contract, search limit and configured notification recipient', () => {
     const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
-    expect(tools).toHaveLength(8)
-    expect(tools.map((t) => t.name)).toEqual([
-      'cron',
-      'notify',
-      'config',
-      'session_list',
-      'session_search',
-      'session_create',
-      'session_deliveries',
-      'session_send'
-    ])
+    expect(tools.map((tool) => tool.name)).toContain('agent_list')
+    const readSchema = tools.find((tool) => tool.name === 'session_read')?.inputSchema
+    expect(readSchema?.required).toContain('session_id')
+    expect(readSchema?.properties?.limit).toMatchObject({ type: 'integer', exclusiveMinimum: 0 })
+    expect(readSchema).not.toHaveProperty('$schema')
+    expect(readSchema?.properties).not.toHaveProperty('type')
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
@@ -209,31 +220,226 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
-    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
-      'denies %s from a headless turn before reading or mutating another Session',
-      async (toolName) => {
-        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
-        const args =
-          toolName === 'session_search'
-            ? { query: 'secret' }
-            : toolName === 'session_create'
-              ? { message: 'delegate' }
-              : toolName === 'session_send'
-                ? { target_session_id: 'session_b', message: 'delegate' }
-                : {}
+    it('lists public Agent identity and runtime readiness without configuration', async () => {
+      mockListAgents.mockReturnValue({
+        agents: [
+          { id: 'agent-a', name: 'Builder', description: 'Builds things', type: 'claude-code', model: 'p::m' },
+          { id: 'agent-b', name: 'Unconfigured', description: '', type: 'pi', model: null }
+        ],
+        total: 2
+      })
 
-        const result = await callTool(createServer(), args, toolName)
+      const result = await callTool(createServer(), {}, 'agent_list')
 
-        expect(result.isError).toBe(true)
-        expect(JSON.parse(result.content[0].text)).toMatchObject({
-          ok: false,
-          error: { code: 'SESSION_TOOL_FORBIDDEN' }
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        agents: [
+          {
+            id: 'agent-a',
+            name: 'Builder',
+            description: 'Builds things',
+            runtime: { type: 'claude-code', available: false },
+            modelConfigured: true
+          },
+          {
+            id: 'agent-b',
+            name: 'Unconfigured',
+            description: '',
+            runtime: { type: 'pi', available: false },
+            modelConfigured: false
+          }
+        ]
+      })
+    })
+    it.each([
+      'agent_list',
+      'session_list',
+      'session_search',
+      'session_read',
+      'session_deliveries',
+      'session_create',
+      'session_send'
+    ])('denies %s from a headless turn before reading or mutating another Session', async (toolName) => {
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const args =
+        toolName === 'session_search'
+          ? { query: 'secret' }
+          : toolName === 'session_create'
+            ? { message: 'delegate' }
+            : toolName === 'session_send'
+              ? { target_session_id: 'session_b', message: 'delegate' }
+              : {}
+
+      const result = await callTool(createServer(), args, toolName)
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SESSION_TOOL_FORBIDDEN' }
+      })
+      expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+      expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+    })
+
+    it('reads a conversation through the unified session_read facade', async () => {
+      mockReadConversation.mockReturnValue({
+        source: 'topic',
+        sessionId: 'topic-1',
+        messages: [{ message: { id: 'message-1', role: 'user', data: { parts: [] } } }],
+        nextCursor: 'cursor-1'
+      })
+
+      const result = await callTool(createServer(), { session_id: 'topic-1', limit: 10 }, 'session_read')
+
+      expect(mockReadConversation).toHaveBeenCalledWith({
+        sessionId: 'topic-1',
+        cursor: undefined,
+        limit: 10,
+        nodeId: undefined,
+        includeSiblings: undefined,
+        messageId: undefined
+      })
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        source: 'topic',
+        messages: [{ message: { id: 'message-1' } }],
+        nextCursor: 'cursor-1'
+      })
+    })
+
+    it.each(['topic', 'agent', 'temporary', 'exact-topic', 'exact-agent', 'tool-result'])(
+      'does not expose attachment locators or runtime metadata through %s reads',
+      async (mode) => {
+        const privatePath = '/private/handoff-unselected.pdf'
+        const message = {
+          id: 'message-1',
+          role: 'user',
+          metadata: { attachmentPath: privatePath },
+          data: {
+            metadata: { attachmentPath: privatePath },
+            parts: [
+              { type: 'text', text: 'Keep the factual evidence.', providerMetadata: { cherry: { path: privatePath } } },
+              {
+                type: 'file',
+                filename: privatePath,
+                mediaType: 'application/pdf',
+                url: `file://${privatePath}`,
+                providerMetadata: { cherry: { fileEntryId: 'private-entry' } }
+              },
+              {
+                type: 'file',
+                filename: 'remote.pdf',
+                mediaType: 'application/pdf',
+                url: 'https://private.example/signed-secret'
+              },
+              { type: 'data-video', data: { filePath: privatePath, url: `file://${privatePath}` } },
+              { type: 'data-agent-task-event', data: { outputFile: privatePath } },
+              { type: 'reasoning', text: 'private reasoning' },
+              { type: 'source-url', sourceId: 'citation-1', url: 'https://example.com/evidence', title: 'Evidence' },
+              {
+                type: 'tool-search',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: { query: 'failure' },
+                output: 'Found the cause.',
+                callProviderMetadata: { path: privatePath }
+              }
+            ]
+          }
+        }
+        const before = structuredClone(message)
+        const exact = mode.startsWith('exact-') || mode === 'tool-result'
+        const source = mode === 'tool-result' ? 'agent' : mode.replace('exact-', '')
+        mockReadConversation.mockReturnValue({
+          source,
+          sessionId: 'source-1',
+          ...(exact
+            ? { message }
+            : {
+                messages: source === 'topic' ? [{ message, siblingsGroup: [message] }] : [message],
+                nextCursor: 'next-page'
+              })
         })
-        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
-        expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
-        expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+        mockFindPersistedToolOutput.mockResolvedValue({ found: true, output: 'Complete tool evidence.' })
+        const result = await callTool(
+          createServer(),
+          {
+            session_id: 'source-1',
+            ...(exact ? { message_id: 'message-1' } : {}),
+            ...(mode === 'tool-result' ? { tool_call_id: 'call-1' } : {})
+          },
+          'session_read'
+        )
+        expect(result.isError).not.toBe(true)
+        const serialized = result.content[0].text
+        for (const secret of [
+          privatePath,
+          'file://',
+          'private-entry',
+          'signed-secret',
+          'private reasoning',
+          'ProviderMetadata'
+        ]) {
+          expect(serialized).not.toContain(secret)
+        }
+        expect(serialized).toContain('Keep the factual evidence.')
+        expect(serialized).toContain('handoff-unselected.pdf')
+        expect(serialized).toContain('https://example.com/evidence')
+        expect(serialized).toContain('Found the cause.')
+        expect(serialized).toContain('call-1')
+        const evidence = JSON.parse(serialized)
+        if (!exact) expect(evidence.nextCursor).toBe('next-page')
+        if (mode === 'tool-result')
+          expect(evidence.toolResult).toEqual({ found: true, output: 'Complete tool evidence.' })
+        expect(message).toEqual(before)
       }
     )
+
+    it('adds a persisted tool result to an exact session_read', async () => {
+      mockReadConversation.mockReturnValue({
+        source: 'agent',
+        sessionId: 'session-a',
+        message: { id: 'message-1', role: 'assistant', data: { parts: [] } }
+      })
+      mockFindPersistedToolOutput.mockResolvedValue({ found: true, output: 'full tool output' })
+
+      const result = await callTool(
+        createServer(),
+        { session_id: 'session-a', message_id: 'message-1', tool_call_id: 'call-1' },
+        'session_read'
+      )
+
+      expect(mockFindPersistedToolOutput).toHaveBeenCalledWith('agent-session:session-a', 'message-1', 'call-1')
+      expect(JSON.parse(result.content[0].text).toolResult).toEqual({ found: true, output: 'full tool output' })
+    })
+
+    it('rejects session_read input without a session id', async () => {
+      const result = await callTool(createServer(), {}, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Invalid input')
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
+    it('rejects a caller-supplied session type because Main identifies the source by id', async () => {
+      const result = await callTool(createServer(), { session_id: 'topic-1', type: 'topic' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Unrecognized key')
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
+    it('keeps the existing sender identity gate for session_read', async () => {
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'another-agent' })
+
+      const result = await callTool(createServer(), { session_id: 'topic-1' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SENDER_FORBIDDEN' }
+      })
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
 
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
@@ -485,6 +691,42 @@ describe('CherryAutonomyTools', () => {
         sessionId: 'session-new',
         delivery: { id: 'delivery-1', status: 'accepted' }
       })
+    })
+
+    it('creates a Session for an explicit target Agent while retaining the trusted sender', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(createServer(), { message: 'Delegate this', target_agent_id: 'agent-target' }, 'session_create')
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        targetAgentId: 'agent-target',
+        sessionName: '',
+        workspace: WORKSPACE_SOURCE,
+        content: 'Delegate this'
+      })
+    })
+
+    it('rejects a missing explicit target Agent with a target-owned error', async () => {
+      mockGetAgent.mockReturnValue(null)
+
+      const result = await callTool(
+        createServer(),
+        { message: 'Delegate this', target_agent_id: 'missing' },
+        'session_create'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+      expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
     })
   })
 
@@ -1137,12 +1379,11 @@ describe('CherryAutonomyTools', () => {
     }
 
     beforeEach(() => {
-      mockSyncChannel.mockResolvedValue(undefined)
-      mockDisconnectChannel.mockResolvedValue(undefined)
       mockListChannels.mockReturnValue([])
       mockGetChannel.mockReturnValue(null)
-      mockDeleteChannel.mockResolvedValue(undefined)
+      mockDeleteChannel.mockResolvedValue(true)
       mockUpdateChannel.mockResolvedValue(undefined)
+      mockReconnectChannel.mockResolvedValue(undefined)
     })
 
     describe('status action', () => {
@@ -1272,8 +1513,10 @@ describe('CherryAutonomyTools', () => {
       })
 
       it('should add a wechat channel without a token path and return QR code image', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://login.weixin.qq.com/l/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true },
+          qrUrl: 'https://login.weixin.qq.com/l/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1289,10 +1532,11 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             config: { type: 'wechat', token_path: '', allowed_chat_ids: ['chat-1'] }
-          })
+          }),
+          30_000
         )
         expect(result.content).toHaveLength(2)
         expect(result.content[0].type).toBe('text')
@@ -1300,13 +1544,13 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[1].type).toBe('image')
         expect(result.content[1].data).toBe('iVBORw0KGgo=')
         expect(result.content[1].mimeType).toBe('image/png')
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_wc1')
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_wc1', 30_000)
       })
 
       it('should add a feishu channel without app credentials and return QR code image', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_fs1', type: 'feishu', name: 'My Feishu', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.feishu.cn/device/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_fs1', type: 'feishu', name: 'My Feishu', isActive: true },
+          qrUrl: 'https://accounts.feishu.cn/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1329,7 +1573,7 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             config: {
               type: 'feishu',
@@ -1340,7 +1584,8 @@ describe('CherryAutonomyTools', () => {
               allowed_chat_ids: ['chat-1'],
               domain: 'lark'
             }
-          })
+          }),
+          30_000
         )
         expect(result.content).toHaveLength(2)
         expect(result.content[0].text).toContain('Feishu channel created')
@@ -1349,8 +1594,6 @@ describe('CherryAutonomyTools', () => {
           data: 'iVBORw0KGgo=',
           mimeType: 'image/png'
         })
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_fs1')
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_fs1', 30_000)
       })
 
       it('should allow adding another Feishu channel when one already exists', async () => {
@@ -1361,8 +1604,10 @@ describe('CherryAutonomyTools', () => {
             config: { ...feishuChannel.config, app_id: 'app-id', app_secret: 'app-secret' }
           }
         ])
-        mockCreateChannel.mockReturnValue({ id: 'ch_fs2', type: 'feishu', name: 'Second Feishu', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.feishu.cn/device/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_fs2', type: 'feishu', name: 'Second Feishu', isActive: true },
+          qrUrl: 'https://accounts.feishu.cn/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1372,14 +1617,14 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'feishu',
             name: 'Second Feishu',
             agentId: 'agent_1'
-          })
+          }),
+          30_000
         )
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_fs2', 30_000)
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
 
@@ -1404,7 +1649,10 @@ describe('CherryAutonomyTools', () => {
           existingChannel
         ])
         mockGetChannel.mockReturnValue(updatedChannel)
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.larksuite.com/device/abc123')
+        mockUpdateChannelAndWaitForQr.mockResolvedValue({
+          channel: updatedChannel,
+          qrUrl: 'https://accounts.larksuite.com/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1426,20 +1674,24 @@ describe('CherryAutonomyTools', () => {
         )
 
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockUpdateChannel).toHaveBeenCalledWith('ch_existing', {
-          name: 'Updated Feishu',
-          config: {
-            type: 'feishu',
-            app_id: '',
-            app_secret: '',
-            encrypt_key: '',
-            verification_token: '',
-            allowed_chat_ids: ['chat-1'],
-            domain: 'lark'
+        expect(mockUpdateChannelAndWaitForQr).toHaveBeenCalledWith(
+          'ch_existing',
+          'agent_1',
+          {
+            name: 'Updated Feishu',
+            config: {
+              type: 'feishu',
+              app_id: '',
+              app_secret: '',
+              encrypt_key: '',
+              verification_token: '',
+              allowed_chat_ids: ['chat-1'],
+              domain: 'lark'
+            },
+            isActive: true
           },
-          isActive: true
-        })
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_existing', 30_000)
+          30_000
+        )
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
 
@@ -1465,12 +1717,11 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[0].text).toContain('Multiple unverified Feishu channels already exist')
         expect(result.content[0].text).toContain('reconnect_channel')
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockWaitForQrUrl).not.toHaveBeenCalled()
+        expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
 
       it('should clean up orphan channel when wechat QR times out', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_wc2', type: 'wechat', name: 'My WeChat', isActive: true })
-        mockWaitForQrUrl.mockRejectedValue(new Error('Timed out waiting for QR code'))
+        mockCreateChannelAndWaitForQr.mockRejectedValue(new Error('Timed out waiting for QR code'))
 
         const server = createServer('agent_1')
         const result = await callTool(
@@ -1483,10 +1734,7 @@ describe('CherryAutonomyTools', () => {
         expect(result.content).toHaveLength(1)
         expect(result.content[0].text).toContain('Timed out')
         expect(result.content[0].text).toContain('not saved')
-        // Should have deleted the orphan channel
-        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // syncChannel runs once for the initial fire-and-forget add.
-        expect(mockSyncChannel).toHaveBeenCalledTimes(1)
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledOnce()
       })
 
       it('should error when required config field is missing', async () => {
@@ -1537,7 +1785,7 @@ describe('CherryAutonomyTools', () => {
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('QR authentication requires the channel to be enabled')
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockWaitForQrUrl).not.toHaveBeenCalled()
+        expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
     })
 
@@ -1640,7 +1888,7 @@ describe('CherryAutonomyTools', () => {
         const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
 
         expect(result.content[0].text).toContain('reconnected')
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
+        expect(mockReconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {
@@ -1669,7 +1917,7 @@ describe('CherryAutonomyTools', () => {
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('Channel "ch_1" not found')
-        expect(mockSyncChannel).not.toHaveBeenCalled()
+        expect(mockReconnectChannel).not.toHaveBeenCalled()
       })
     })
 

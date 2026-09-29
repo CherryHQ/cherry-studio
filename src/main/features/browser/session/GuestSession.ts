@@ -5,6 +5,7 @@ import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import type { DownloadItem } from 'electron'
 
 import { loggerService } from '@logger'
+import { snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
 import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
@@ -15,7 +16,6 @@ import {
   type CommandOptions,
   type SessionOwnership,
   type SnapshotOptions,
-  snapshotOptionsSchema,
   type TabRetention
 } from '../browserUse'
 import type { AccessibilityCaptureBudget, CdpAccessibilityNode } from '../snapshot/accessibilityTypes'

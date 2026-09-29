@@ -12,16 +12,26 @@ export const browserRequestSchemas = {
     output: z.void()
   }),
   'browser.pane.attach': defineRoute({
-    input: z.strictObject({ sessionId: z.uuid(), webviewId: z.number().int().positive() }),
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      scope: z.enum(['agent', 'topic']).optional(),
+      webviewId: z.number().int().positive()
+    }),
     output: z.strictObject({ tabId: z.uuid() })
   }),
   'browser.cursor.present': defineRoute({
-    input: z.strictObject({ sessionId: z.uuid(), tabId: z.uuid(), presented: z.boolean() }),
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      scope: z.enum(['agent', 'topic']).optional(),
+      tabId: z.uuid(),
+      presented: z.boolean()
+    }),
     output: z.void()
   }),
   'browser.cursor.arrive': defineRoute({
     input: z.strictObject({
       sessionId: z.uuid(),
+      scope: z.enum(['agent', 'topic']).optional(),
       tabId: z.uuid(),
       documentId: z.string().min(1),
       sequence: z.number().int().positive()
@@ -29,13 +39,13 @@ export const browserRequestSchemas = {
     output: z.void()
   }),
   'browser.pane.detach': defineRoute({
-    input: z.strictObject({ sessionId: z.uuid(), tabId: z.uuid() }),
+    input: z.strictObject({ sessionId: z.uuid(), scope: z.enum(['agent', 'topic']).optional(), tabId: z.uuid() }),
     output: z.void()
   })
 }
 
 export type BrowserEventSchemas = {
   'browser.cursor.state': BrowserCursorState
-  'browser.guest.ensure_requested': { sessionId: string; url?: string }
-  'browser.pane.open_requested': { sessionId: string; url?: string }
+  'browser.guest.ensure_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
+  'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
 }

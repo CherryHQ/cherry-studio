@@ -50,8 +50,9 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: () => ({ data: [] })
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
+  useQuery: () => ({ data: [], refetch: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({

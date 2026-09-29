@@ -103,6 +103,22 @@ export class AgentBrowserRuntimeService {
     }
   }
 
+  syncOwners(sessionByTab: ReadonlyMap<string, string>): void {
+    this.owners.clear()
+    for (const [tabId, sessionId] of sessionByTab) {
+      const owners = this.owners.get(sessionId) ?? new Set<string>()
+      owners.add(tabId)
+      this.owners.set(sessionId, owners)
+    }
+    for (const sessionId of this.resources.keys()) {
+      if (!this.owners.has(sessionId)) this.resources.delete(sessionId)
+    }
+    if (this.ids.length !== this.resources.size) {
+      this.ids = [...this.resources.keys()]
+      this.emit()
+    }
+  }
+
   close(sessionId: string): void {
     this.owners.delete(sessionId)
     if (!this.resources.delete(sessionId)) return
@@ -123,3 +139,5 @@ export class AgentBrowserRuntimeService {
 }
 
 export const agentBrowserRuntimeService = new AgentBrowserRuntimeService()
+
+export const topicBrowserRuntimeService = new AgentBrowserRuntimeService()

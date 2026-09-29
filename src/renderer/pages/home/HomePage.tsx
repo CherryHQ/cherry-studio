@@ -201,9 +201,13 @@ const HomePage: FC = () => {
     setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
+    const staleTopicId = activeTopicId ?? routeTopicId
+    if (staleTopicId) {
+      cacheService.setPersist('ui.chat.last_used_topic_id', (current) => (current === staleTopicId ? null : current))
+    }
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
-  }, [clearActiveTopic, navigate])
+  }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -629,6 +633,7 @@ const HomePage: FC = () => {
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        activeTopicId={visibleTopic?.id ?? null}
         dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {

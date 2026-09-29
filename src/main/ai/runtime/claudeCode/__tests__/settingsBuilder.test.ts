@@ -499,6 +499,46 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
+  })
+
+  it('only overrides commit attribution when the preference explicitly turns it off', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    // Route the shared preference mock in so the shipping default decides the first assertion.
+    // The pane browser stays off to match the stub every neighbouring test builds against.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? MockMainPreferenceServiceExport.preferenceService : priorGet(name)
+    )
+
+    try {
+      const attributed = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(attributed.settings).not.toHaveProperty('attribution')
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', false)
+      const hidden = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(hidden.settings).toMatchObject({ attribution: { commit: '', pr: '' } })
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', true)
+    }
+  })
+
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -892,6 +932,63 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
     expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
+  it('keeps Task management available on newer models while leaving TodoWrite disabled', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList']))
+    expect(settings.allowedTools).not.toContain('TodoWrite')
+    expect(settings.disallowedTools).toContain('TodoWrite')
+  })
+
+  it('skips SDK-incompatible skill names without renaming or dropping valid skills', async () => {
+    const invalidNames = [
+      '',
+      ' padded',
+      'trailing ',
+      'bad(name)',
+      'bad,name',
+      'bad\nname',
+      'bad\u007fname',
+      '*',
+      'plugin:*',
+      'name *',
+      '/name',
+      'bad\\\\name',
+      'name\\',
+      '\ud800'
+    ]
+    const validNames = ['pdf-tools', 'my skill', '技能', 'plugin:skill', 'emoji-😀']
+    mocks.listSkills.mockResolvedValue([
+      { folderName: 'managed,bad', isEnabled: true },
+      { folderName: 'managed-good', isEnabled: true },
+      { folderName: 'disabled', isEnabled: false }
+    ])
+    mocks.listLocalSkillFolderNames.mockResolvedValue([...invalidNames, ...validNames, 'managed-good'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['managed-good', ...validNames])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping'),
+      expect.objectContaining({ agentId: 'agent-1', cwd: '/workspace/project', skillName: 'managed,bad' })
+    )
+  })
+
+  it('keeps an empty skill whitelist when every discovered name is incompatible', async () => {
+    mocks.listLocalSkillFolderNames.mockResolvedValue(['bad(name)', '*'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual([])
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {

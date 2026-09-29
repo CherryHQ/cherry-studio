@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { browserRefSchema, snapshotOptionsSchema } from '../browserUse'
+import { browserRefSchema, snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
+
 import { GuestSession } from '../session/GuestSession'
 import { buildSnapshotTree } from '../snapshot/buildSnapshotTree'
 import type { RawSnapshot } from '../snapshot/captureSnapshot'

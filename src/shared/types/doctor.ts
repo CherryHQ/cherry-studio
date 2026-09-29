@@ -1,0 +1,589 @@
+import type { AppEdition } from './appEdition'
+
+/**
+ * System Doctor contract shared by main (produces reports) and renderer (renders them).
+ *
+ * `DOCTOR_CHECK_CATALOG` is the single source of truth for which checks exist, what
+ * they can fix and which detail variants they emit. Every other type here is derived
+ * from it, so adding a check means adding one catalog entry — the main registry then
+ * fails to compile until the check is implemented, and a renderer cannot reference a
+ * fix or detail the check never declared.
+ */
+
+export type DoctorDomain =
+  | 'install'
+  | 'permission'
+  | 'storage'
+  | 'config'
+  | 'provider'
+  | 'network'
+  | 'mcp'
+  | 'runtime'
+  | 'health'
+  | 'logs'
+
+export type DoctorTier = 'quick' | 'live' | 'deep'
+
+/** Who can act on a finding: mirrors the log-scan attribution so both surfaces speak one language. */
+export type DoctorAttribution = 'user-fixable' | 'app-bug' | 'transient'
+
+/**
+ * How far a piece of report data may travel. `public` is safe to paste in an issue,
+ * `local_only` stays on this machine (paths, hostnames), `consent_required` needs an
+ * explicit opt-in per export/upload (crash dumps, raw error bodies).
+ */
+export type DoctorDataClass = 'public' | 'local_only' | 'consent_required'
+
+export interface DoctorFixMeta {
+  readonly id: string
+  readonly targeted?: true
+  readonly reversible: boolean
+  /** The fix only takes effect after `app.relaunch`. */
+  readonly relaunch: boolean
+}
+
+/**
+ * Facts a contextual run carries. A context is the *shape* of this bag, not a named kind:
+ * a check declares which facts it reads (`scope`), and runs whenever the bag has them.
+ */
+export interface DoctorSubject {
+  readonly providerId?: string
+  readonly modelId?: string
+  readonly agentId?: string
+  readonly mcpServerIds?: readonly string[]
+}
+export type DoctorSubjectKey = keyof DoctorSubject
+
+/**
+ * What a caller names; main resolves it into a `DoctorSubject`. `kind` exists for the IPC
+ * union and the UI label only — check selection never reads it.
+ */
+export type DoctorSubjectRef =
+  | { readonly kind: 'global' }
+  | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
+  | ({ readonly kind: 'agent'; readonly agentId: string } & (
+      | { readonly providerId?: never; readonly modelId?: never }
+      | { readonly providerId: string; readonly modelId: string }
+    ))
+
+/** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
+export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`
+
+/**
+ * Where a check runs. Three distinct types, not three shapes of one array:
+ * - `'global'` — only in a global run
+ * - `'any'` — in every run; reads no facts
+ * - `[k, ...]` — when the subject carries every listed fact; in a global run it falls back to defaults
+ */
+export type DoctorCheckScope = 'global' | 'any' | readonly [DoctorSubjectKey, ...DoctorSubjectKey[]]
+
+export const DOCTOR_CHECK_IDS = [
+  'install-architecture-match',
+  'install-version-channel',
+  'install-update-available',
+  'install-native-modules',
+  'permission-screen-capture',
+  'permission-accessibility',
+  'storage-userdata-location',
+  'storage-disk-space',
+  'storage-diagnostic-data-size',
+  'config-boot-config-valid',
+  'config-hardware-acceleration',
+  'provider-model',
+  'provider-api-key-present',
+  'provider-cherry-account',
+  'network-model-endpoint',
+  'provider-model-list',
+  'provider-model-conversation',
+  'network-online',
+  'network-dns-resolution',
+  'network-tls-handshake',
+  'network-proxy-applied',
+  'network-endpoint-update',
+  'network-endpoint-registry',
+  'network-endpoint-cloud',
+  'network-endpoint-diagnostics',
+  'network-provider-endpoint',
+  'mcp-servers-connected',
+  'mcp-launch-commands',
+  'runtime-managed-tools',
+  'runtime-claude-login',
+  'logs-recent-findings'
+] as const
+export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
+
+/** The domain a check id is prefixed with — enforced on the catalog at compile time. */
+type DomainOfId<Id extends string> = Id extends `${infer Domain}-${string}` ? Domain : never
+
+export interface DoctorCheckMeta<Id extends DoctorCheckId> {
+  readonly domain: DomainOfId<Id> & DoctorDomain
+  readonly tier: DoctorTier
+  readonly scope: DoctorCheckScope
+  readonly execution?: 'automatic' | 'confirmation'
+  /** Checks enabled through an explicit request, not the default system sweep. */
+  readonly includeByDefault?: false
+  /** Fixes this check may offer. The main registry must implement every one. */
+  readonly fixes: readonly DoctorFixMeta[]
+  /** Detail variants; the i18n key is `settings.doctor.checks.<id>.detail.<variant>`. */
+  readonly details: readonly string[]
+  /** Checks that must pass first; on their fail/error this check is skipped. */
+  readonly requires: readonly Exclude<DoctorCheckId, Id>[]
+}
+
+const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
+
+export const DOCTOR_CHECK_CATALOG = {
+  'install-architecture-match': {
+    domain: 'install',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['translated'],
+    requires: []
+  },
+  'install-version-channel': {
+    domain: 'install',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['mismatch'],
+    requires: []
+  },
+  'install-update-available': {
+    domain: 'install',
+    tier: 'live',
+    scope: 'global',
+    fixes: [],
+    details: ['available', 'unsupported'],
+    requires: ['network-endpoint-update']
+  },
+  'install-native-modules': {
+    domain: 'install',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['unavailable'],
+    requires: []
+  },
+  'permission-screen-capture': {
+    domain: 'permission',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
+    details: ['denied', 'restricted'],
+    requires: []
+  },
+  'permission-accessibility': {
+    domain: 'permission',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
+    details: ['denied'],
+    requires: []
+  },
+  'storage-userdata-location': {
+    domain: 'storage',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['fallback_to_default'],
+    requires: []
+  },
+  'storage-disk-space': {
+    domain: 'storage',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['critical', 'low'],
+    requires: []
+  },
+  'storage-diagnostic-data-size': {
+    domain: 'storage',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['large', 'large_partial'],
+    requires: []
+  },
+  'config-boot-config-valid': {
+    domain: 'config',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [{ id: 'repair', reversible: true, relaunch: true }],
+    details: ['invalid_keys', 'parse_error', 'read_error'],
+    requires: []
+  },
+  'config-hardware-acceleration': {
+    domain: 'config',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['disabled_without_recent_crash'],
+    requires: []
+  },
+  'provider-model': {
+    domain: 'provider',
+    tier: 'quick',
+    scope: ['providerId', 'modelId'],
+    fixes: [],
+    details: ['not_configured', 'invalid_id', 'provider_unavailable', 'provider_disabled', 'model_unavailable'],
+    requires: []
+  },
+  'provider-api-key-present': {
+    domain: 'provider',
+    tier: 'quick',
+    scope: ['providerId'],
+    fixes: [],
+    details: ['missing', 'provider_unavailable'],
+    requires: ['provider-model']
+  },
+  'provider-cherry-account': {
+    domain: 'provider',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['signed_out'],
+    requires: []
+  },
+  'network-online': { domain: 'network', tier: 'quick', scope: 'any', fixes: [], details: ['offline'], requires: [] },
+  'network-model-endpoint': {
+    scope: ['providerId', 'modelId'],
+    domain: 'network',
+    tier: 'live',
+    execution: 'automatic',
+    includeByDefault: false,
+    fixes: [],
+    details: ['no_base_url', 'unreachable'],
+    requires: []
+  },
+  'provider-model-list': {
+    scope: ['providerId', 'modelId'],
+    domain: 'provider',
+    tier: 'live',
+    execution: 'automatic',
+    includeByDefault: false,
+    fixes: [],
+    details: ['unsupported', 'endpoint_unavailable', 'not_listed', 'request_failed'],
+    requires: []
+  },
+  'provider-model-conversation': {
+    scope: ['providerId', 'modelId'],
+    domain: 'provider',
+    tier: 'live',
+    execution: 'confirmation',
+    includeByDefault: false,
+    fixes: [],
+    details: ['external_cli', 'not_chat_model', 'request_failed'],
+    requires: []
+  },
+  'network-dns-resolution': {
+    domain: 'network',
+    tier: 'live',
+    scope: ['providerId'],
+    fixes: [],
+    details: ['resolved', 'via_proxy', 'unresolved', 'no_response', 'provider_unavailable'],
+    requires: ['network-online']
+  },
+  'network-tls-handshake': {
+    domain: 'network',
+    tier: 'live',
+    scope: ['providerId'],
+    fixes: [],
+    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable', 'provider_unavailable'],
+    requires: ['network-dns-resolution']
+  },
+  'network-proxy-applied': {
+    domain: 'network',
+    tier: 'live',
+    scope: ['providerId'],
+    fixes: [],
+    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed', 'provider_unavailable'],
+    requires: []
+  },
+  'network-endpoint-update': {
+    domain: 'network',
+    tier: 'live',
+    scope: 'global',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online']
+  },
+  'network-endpoint-registry': {
+    domain: 'network',
+    tier: 'live',
+    scope: 'global',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online']
+  },
+  'network-endpoint-cloud': {
+    domain: 'network',
+    tier: 'live',
+    scope: 'global',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online']
+  },
+  'network-endpoint-diagnostics': {
+    domain: 'network',
+    tier: 'live',
+    scope: 'global',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online']
+  },
+  'network-provider-endpoint': {
+    domain: 'network',
+    tier: 'live',
+    scope: ['providerId'],
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online', 'provider-model']
+  },
+  'mcp-servers-connected': {
+    domain: 'mcp',
+    tier: 'quick',
+    scope: ['mcpServerIds'],
+    fixes: [{ id: 'restart', reversible: true, relaunch: false, targeted: true }],
+    details: ['server_errors'],
+    requires: []
+  },
+  'mcp-launch-commands': {
+    domain: 'mcp',
+    tier: 'quick',
+    scope: ['mcpServerIds'],
+    fixes: [],
+    details: ['unresolved', 'query_failed'],
+    requires: []
+  },
+  'runtime-managed-tools': {
+    domain: 'runtime',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['failed'],
+    requires: []
+  },
+  'runtime-claude-login': {
+    domain: 'runtime',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['not_logged_in'],
+    requires: []
+  },
+  'logs-recent-findings': {
+    domain: 'logs',
+    tier: 'quick',
+    scope: 'global',
+    fixes: [],
+    details: ['findings'],
+    requires: []
+  }
+} as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }
+
+export type DoctorCheckCatalog = typeof DOCTOR_CHECK_CATALOG
+export type DoctorFixId<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['fixes'][number]['id']
+export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> =
+  Extract<DoctorCheckCatalog[Id]['fixes'][number], { id: Fix }> extends { targeted: true }
+    ? { readonly target: string }
+    : { readonly target?: never }
+
+type DoctorFixAction<Id extends DoctorCheckId> = {
+  [Fix in DoctorFixId<Id>]: { readonly kind: 'fix'; readonly fixId: Fix } & DoctorFixTarget<Id, Fix>
+}[DoctorFixId<Id>]
+export type DoctorDetailVariant<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['details'][number]
+export type DoctorFixableCheckId = {
+  [Id in DoctorCheckId]: [DoctorFixId<Id>] extends [never] ? never : Id
+}[DoctorCheckId]
+
+/**
+ * The subject a check's `run` receives, derived from its catalog `scope` so the body cannot
+ * read a fact the declaration never asked for. `null` is a global run: fall back to defaults.
+ * `'global'` and `'any'` checks read no facts at all, so they get nothing.
+ */
+export type DoctorSubjectFor<Id extends DoctorCheckId> =
+  DoctorCheckCatalog[Id]['scope'] extends readonly (infer K extends DoctorSubjectKey)[]
+    ? Pick<Required<DoctorSubject>, K> | null
+    : undefined
+
+/** Settings routes a finding may deep-link to. Keep in sync with the renderer settings menu. */
+export type DoctorNavigateTarget =
+  | '/settings/about'
+  | '/settings/data'
+  | '/settings/dependencies'
+  | '/settings/general'
+  | '/settings/mcp'
+  | '/settings/provider'
+  | '/settings/provider?id=claude-code'
+
+export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
+  | DoctorFixAction<Id>
+  | { readonly kind: 'navigate'; readonly target: DoctorNavigateTarget }
+  /** Absolute path already resolved by main; the renderer only forwards it to `system.shell.open_path`. */
+  | { readonly kind: 'open_path'; readonly path: string }
+  | { readonly kind: 'open_external'; readonly url: string }
+  | { readonly kind: 'relaunch' }
+  | { readonly kind: 'report' }
+
+export interface DoctorDetail<Id extends DoctorCheckId = DoctorCheckId> {
+  readonly variant: DoctorDetailVariant<Id>
+  readonly params?: Readonly<Record<string, string | number>>
+}
+
+/** One raw fact behind a finding, classified so views can drop what must not travel. */
+export interface DoctorEvidenceItem {
+  readonly key: string
+  readonly value: string | number | boolean
+  readonly dataClass: DoctorDataClass
+}
+
+/** Checks may skip inapplicable operations; the engine also skips failed prerequisites. */
+export type DoctorCheckOutcome<Id extends DoctorCheckId = DoctorCheckId> =
+  | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id> }
+  | { readonly status: 'skip'; readonly detail: DoctorDetail<Id> }
+  | {
+      readonly status: 'warn' | 'fail'
+      readonly attribution: DoctorAttribution
+      readonly detail: DoctorDetail<Id>
+      readonly actions: readonly DoctorAction<Id>[]
+    }
+
+export type DoctorCheckStatus = DoctorCheckOutcome['status'] | 'skip' | 'error'
+
+export type DoctorCheckResultFor<Id extends DoctorCheckId> = {
+  readonly id: Id
+  readonly durationMs: number
+  /** English, developer-facing; travels only inside diagnostic bundles. */
+  readonly devMessage?: string
+  readonly evidence?: readonly DoctorEvidenceItem[]
+} & (
+  | DoctorCheckOutcome<Id>
+  | { readonly status: 'skip'; readonly skippedBy: DoctorCheckId }
+  | { readonly status: 'error'; readonly message: string }
+)
+
+export type DoctorCheckResult = { [Id in DoctorCheckId]: DoctorCheckResultFor<Id> }[DoctorCheckId]
+
+export type DoctorConfirmationCheckId = {
+  [Id in DoctorCheckId]: DoctorCheckCatalog[Id] extends { execution: 'confirmation' } ? Id : never
+}[DoctorCheckId]
+
+export interface DoctorConfirmation<Id extends DoctorCheckId = DoctorCheckId> {
+  readonly messageKey: `settings.doctor.checks.${Id}.confirmation`
+  readonly params: Readonly<Record<string, string | number>>
+}
+
+export interface DoctorPendingCheck {
+  readonly checkId: DoctorCheckId
+  readonly requestId: string
+  readonly confirmation: DoctorConfirmation
+}
+
+export interface DoctorExecutionSnapshot {
+  readonly results: readonly DoctorCheckResult[]
+  readonly pendingChecks: readonly DoctorPendingCheck[]
+}
+
+export type DoctorConfirmResult =
+  | ({ readonly status: 'completed'; readonly scope: DoctorScopeKey; readonly runId: string } & DoctorExecutionSnapshot)
+  | { readonly status: 'stale' | 'busy' | 'canceled' }
+
+/** `quick` runs the quick tier; `live` runs quick + live so a live report is always complete. */
+export type DoctorRunTier = 'quick' | 'live'
+
+export interface DoctorBasics {
+  readonly version: string
+  readonly edition: AppEdition
+  readonly channel: 'latest' | 'rc' | 'beta'
+  readonly platform: NodeJS.Platform
+  readonly arch: string
+  readonly osRelease: string
+  readonly runtime: {
+    readonly electron?: string
+    readonly node?: string
+    readonly chrome?: string
+    readonly v8?: string
+  }
+  readonly isPackaged: boolean
+  readonly isPortable: boolean
+  /** `local_only`: present in display/export views, stripped from copy/upload. */
+  readonly userDataPath?: string
+}
+
+/** A report older than this is stale: the dialog asks for a re-run before offering fixes. */
+export const DOCTOR_REPORT_TTL_MS = 10 * 60 * 1000
+
+export interface DoctorReport {
+  readonly schemaVersion: 1
+  /** Identity of the run that produced it; every event and fix request is bound to it. */
+  readonly runId: string
+  readonly scope: DoctorScopeKey
+  readonly tier: DoctorRunTier
+  /** Checks selected by Main for this subject, including transitive prerequisites. */
+  readonly selectedCheckIds: readonly DoctorCheckId[]
+  readonly startedAt: string
+  readonly finishedAt: string
+  readonly expiresAt: string
+  readonly basics: DoctorBasics
+  readonly results: readonly DoctorCheckResult[]
+  readonly pendingChecks?: readonly DoctorPendingCheck[]
+  readonly summary: Readonly<Record<DoctorCheckStatus, number>>
+}
+
+/**
+ * Live state of one scope, published through `doctorStateCacheKey(scope)` so every
+ * window renders the same run without an IPC subscription. Runs in one scope never coexist;
+ * a completed run replaces the previous report wholesale (a live run is a superset of quick).
+ */
+export type DoctorState =
+  | { readonly status: 'idle' }
+  | {
+      readonly status: 'running'
+      readonly runId: string
+      readonly tier: DoctorRunTier
+      readonly selectedCheckIds: readonly DoctorCheckId[]
+      readonly startedAt: string
+      readonly results: readonly DoctorCheckResult[]
+      readonly activeCheckIds: readonly DoctorCheckId[]
+    }
+  | { readonly status: 'completed'; readonly report: DoctorReport }
+  | {
+      readonly status: 'canceled' | 'failed'
+      readonly runId: string
+      readonly selectedCheckIds: readonly DoctorCheckId[]
+    }
+
+/** `busy` carries the in-flight run's id so the caller can cancel it. */
+export type DoctorRunResult =
+  | { readonly status: 'completed'; readonly report: DoctorReport }
+  | { readonly status: 'canceled'; readonly runId: string }
+  | { readonly status: 'busy'; readonly runId: string }
+
+export type DoctorCancelResult = { readonly status: 'canceled' | 'not_running' }
+
+export type DoctorFixRequest = {
+  [Id in DoctorFixableCheckId]: {
+    [Fix in DoctorFixId<Id>]: {
+      readonly scope: DoctorScopeKey
+      readonly runId: string
+      readonly checkId: Id
+      readonly fixId: Fix
+    } & DoctorFixTarget<Id, Fix>
+  }[DoctorFixId<Id>]
+}[DoctorFixableCheckId]
+
+/**
+ * `stale` means the fix was refused: the run was superseded, or a fresh probe no longer
+ * offers that fix (someone else already fixed it, or the situation changed).
+ */
+export type DoctorFixResult =
+  | { readonly status: 'fixed' | 'requires_relaunch'; readonly result: DoctorCheckResult }
+  | { readonly status: 'failed'; readonly message: string; readonly result: DoctorCheckResult }
+  | {
+      readonly status: 'stale'
+      readonly reason: 'run_superseded' | 'report_expired' | 'finding_changed'
+      readonly result?: DoctorCheckResult
+    }
+
+/** Guards, the view projection and the settings-path/i18n-key builders live in `@shared/utils/doctor`. */
