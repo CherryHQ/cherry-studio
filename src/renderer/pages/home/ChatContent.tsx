@@ -38,7 +38,7 @@ interface Props {
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
-  composerActiveModelId?: UniqueModelId
+  composerModelId?: UniqueModelId
 }
 
 /**
@@ -62,7 +62,7 @@ const ChatContent: FC<Props> = ({
   assistantContext,
   providers,
   onConversationControlsChange,
-  composerActiveModelId
+  composerModelId
 }) => {
   const {
     uiMessages,
@@ -89,7 +89,7 @@ const ChatContent: FC<Props> = ({
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
-      composerActiveModelId={composerActiveModelId}
+      composerModelId={composerModelId}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -137,7 +137,7 @@ const ChatContentInner: FC<InnerProps> = ({
   assistantContext,
   providers,
   onConversationControlsChange,
-  composerActiveModelId,
+  composerModelId,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -163,6 +163,7 @@ const ChatContentInner: FC<InnerProps> = ({
     activeNodeId,
     messagesCacheMutate,
     assistant,
+    composerModelId,
     onBranchLiveStateChange
   })
   const locateRuntimeMessage = runtime.locateMessage
@@ -232,7 +233,6 @@ const ChatContentInner: FC<InnerProps> = ({
         selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
-        composerActiveModelId={composerActiveModelId}
       />
     </div>
   )

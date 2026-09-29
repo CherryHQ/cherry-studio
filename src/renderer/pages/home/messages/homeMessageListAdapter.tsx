@@ -55,7 +55,6 @@ import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } fr
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
-import { resolveRegenerateModelOverride } from './resolveRegenerateModelOverride'
 import {
   consumePendingTopicImageActions,
   rejectPendingTopicImageActions,
@@ -81,7 +80,6 @@ interface HomeMessageListParams {
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
-  composerActiveModelId?: UniqueModelId
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -101,7 +99,6 @@ export function useHomeMessageListProviderValue({
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
-  composerActiveModelId,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -726,12 +723,8 @@ export function useHomeMessageListProviderValue({
   )
 
   const regenerateMessage = useCallback<NonNullable<MessageListActions['regenerateMessage']>>(
-    (messageId) => {
-      const target = messages.find((message) => message.id === messageId)
-      const modelId = resolveRegenerateModelOverride(target, composerActiveModelId)
-      return requireChatWrite('regenerateMessage').regenerate(messageId, modelId ? { modelId } : undefined)
-    },
-    [composerActiveModelId, messages, requireChatWrite]
+    (messageId) => requireChatWrite('regenerateMessage').regenerate(messageId),
+    [requireChatWrite]
   )
 
   const regenerateMessageUsingModel = useCallback(

@@ -10,7 +10,6 @@ import type {
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
@@ -28,7 +27,6 @@ interface ChatMainProps {
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
-  composerActiveModelId?: UniqueModelId
 }
 
 const ChatMain: FC<ChatMainProps> = ({
@@ -44,8 +42,7 @@ const ChatMain: FC<ChatMainProps> = ({
   hasOlder,
   selectAllPagination,
   openCitationsPanel,
-  onStartBranchDraft,
-  composerActiveModelId
+  onStartBranchDraft
 }) => {
   const value = useHomeMessageListProviderValue({
     topic,
@@ -60,8 +57,7 @@ const ChatMain: FC<ChatMainProps> = ({
     hasOlder,
     selectAllPagination,
     openCitationsPanel,
-    onStartBranchDraft,
-    composerActiveModelId
+    onStartBranchDraft
   })
   return (
     <MessageListProvider value={value}>

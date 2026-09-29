@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -37,7 +37,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
-import { resolveComposerActiveModelId } from './messages/resolveComposerActiveModelId'
 import type { AddNewTopicPayload } from './types'
 
 const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
@@ -111,10 +110,12 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  const composerActiveModelId = useMemo(
-    () => resolveComposerActiveModelId(activeConversationControlsSnapshot?.mentionedModelSelectorValue ?? []),
-    [activeConversationControlsSnapshot]
-  )
+  const composerModels = activeConversationControlsSnapshot
+    ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
+      ? activeConversationControlsSnapshot.lockedMentionedModels
+      : activeConversationControlsSnapshot.mentionedModelSelectorValue
+    : EMPTY_MODELS
+  const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
@@ -243,7 +244,7 @@ const Chat: FC<Props> = (props) => {
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
-        composerActiveModelId={composerActiveModelId}
+        composerModelId={composerModelId}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
