@@ -17,9 +17,7 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
 
-  return (
-    <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
-  )
+  return <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
 }
 
 export function useNotesFileEditSession(): FileEditSession {
