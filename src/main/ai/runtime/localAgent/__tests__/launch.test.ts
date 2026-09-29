@@ -10,7 +10,11 @@ import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 import { detectLocalAgents, resolveLocalAgentLaunch } from '../launch'
 
-const inventory = vi.hoisted(() => ({ snapshots: {} as Record<string, BinaryToolSnapshot> }))
+const inventory = vi.hoisted(() => ({
+  snapshots: {} as Record<string, BinaryToolSnapshot>,
+  bundledGitDir: null as string | null
+}))
+vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({ BinaryManager: { getToolSnapshots: async () => inventory.snapshots } })
@@ -27,6 +31,7 @@ describe('local agent installation resolution', () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
     vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
     inventory.snapshots = {}
+    inventory.bundledGitDir = null
   })
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
@@ -59,6 +64,18 @@ describe('local agent installation resolution', () => {
     const result = await resolveLocalAgentLaunch({ ...config, env: { CUSTOM: 'value' } })
     expect(result.env).toEqual({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home', CUSTOM: 'value' })
     expect(result.args).toEqual(['app-server'])
+  })
+
+  it('provides bundled Git as a last fallback without injecting managed state into system CLIs', async () => {
+    inventory.bundledGitDir = 'C:\\Cherry\\MinGit\\cmd'
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    const result = await resolveLocalAgentLaunch(config)
+    expect(result.env.PATH.split(';')).toEqual(['/user/bin', inventory.bundledGitDir])
+    expect(result.env.MISE_DATA_DIR).toBe('/user/mise')
+    expect(result.env.HOME).toBe('/user/home')
+    expect((await resolveLocalAgentLaunch({ ...config, env: { PATH: '/explicit/bin' } })).env.PATH).toBe(
+      '/explicit/bin'
+    )
   })
 
   it('honors a path containing spaces and never falls back when an explicit path disappears', async () => {

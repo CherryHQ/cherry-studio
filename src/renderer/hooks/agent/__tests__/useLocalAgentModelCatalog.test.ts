@@ -28,12 +28,16 @@ beforeEach(() => {
 })
 
 describe('local agent model catalog cache', () => {
-  it('reports an initial load failure when there is no cached list', async () => {
-    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Authentication required'))
-    const { result } = renderHook(() => useLocalAgentModelCatalog('agent-one', config, true))
-    await waitFor(() => expect(result.current.error).toContain('Authentication required'))
+  it('loads on demand even before hashing completes, and remembers an empty result', async () => {
+    vi.mocked(ipcApi.request).mockResolvedValueOnce({ models: [] })
+    const { result } = renderHook(() => useLocalAgentModelCatalog('on-demand', config, false))
     expect(result.current.catalog).toBeUndefined()
-    expect(result.current.loading).toBe(false)
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    await act(async () => {
+      await result.current.refresh()
+    })
+    expect(result.current.freshCatalog).toEqual({ models: [] })
+    expect(result.current.catalog).toEqual({ models: [] })
   })
 
   it('shows a persisted list on remount while refreshing and replaces it after success', async () => {
@@ -51,8 +55,10 @@ describe('local agent model catalog cache', () => {
     const next = renderHook(() => useLocalAgentModelCatalog('agent-one', config, true))
     await waitFor(() => expect(next.result.current.loading).toBe(true))
     expect(next.result.current.catalog).toEqual(first)
+    expect(next.result.current.freshCatalog).toBeUndefined()
     await act(async () => resolve(second))
     expect(next.result.current.catalog).toEqual(second)
+    expect(next.result.current.freshCatalog).toEqual(second)
   })
 
   it('retains the last successful list on failed refresh and propagates manual retry errors', async () => {
@@ -69,6 +75,7 @@ describe('local agent model catalog cache', () => {
     })
     expect(next.result.current.catalog).toEqual(first)
     expect(next.result.current.error).toBeUndefined()
+    expect(next.result.current.refreshError).toContain('offline')
   })
 
   it('isolates configuration changes and does not let an old request replace the new catalog', async () => {
@@ -84,7 +91,30 @@ describe('local agent model catalog cache', () => {
     await waitFor(() => expect(result.current.catalog).toEqual(second))
     await act(async () => resolveOld(first))
     expect(result.current.catalog).toEqual(second)
+    expect(result.current.freshCatalog).toEqual(second)
     expect(JSON.stringify(cacheService.getPersist('local_agent.model_catalogs'))).not.toContain('another-secret')
+  })
+
+  it('does not replace the current connection error with a late failure from old credentials', async () => {
+    let rejectOld!: (error: Error) => void
+    vi.mocked(ipcApi.request)
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOld = reject
+          })
+      )
+      .mockRejectedValueOnce(new Error('Authentication required'))
+    const { result, rerender } = renderHook(({ config }) => useLocalAgentModelCatalog('one', config, true), {
+      initialProps: { config }
+    })
+    await waitFor(() => expect(result.current.loading).toBe(true))
+    rerender({ config: { ...config, env: { API_KEY: 'new' } } })
+    await waitFor(() => expect(result.current.error).toContain('Authentication required'))
+    expect(result.current.catalog).toBeUndefined()
+    expect(result.current.loading).toBe(false)
+    await act(async () => rejectOld(new Error('Old connection timed out')))
+    expect(result.current.error).toContain('Authentication required')
   })
 
   it('reuses the catalog across model selections but separates different agents', async () => {

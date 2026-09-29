@@ -59,3 +59,8 @@ export async function loadPiApiStreamSimple(api: PiApi): Promise<PiStreamSimple>
       return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as unknown as PiStreamSimple
   }
 }
+
+export async function createPiModelRuntime() {
+  const [pi, ai] = await Promise.all([loadPiSdk(), loadPiAi()])
+  return pi.ModelRuntime.create({ credentials: new ai.InMemoryCredentialStore(), modelsPath: null })
+}

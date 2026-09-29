@@ -1,8 +1,10 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import { createPiModelRuntime } from './piSdk'
 
 /**
  * Phase 0 bundling spike (GO/NO-GO gate).
@@ -46,7 +48,7 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
 
     expect(typeof pi.createAgentSession).toBe('function')
     expect(typeof pi.DefaultResourceLoader).toBe('function')
-    expect(typeof pi.AuthStorage).toBe('function')
+    expect(typeof pi.ModelRuntime).toBe('function')
     expect(typeof pi.ModelRegistry).toBe('function')
     expect(typeof pi.SessionManager).toBe('function')
     expect(typeof pi.SettingsManager).toBe('function')
@@ -54,27 +56,18 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     expect(typeof pi.hasTrustRequiringProjectResources).toBe('function')
   })
 
-  it('constructs the in-memory credential/model/session/settings objects (no network)', async () => {
-    const { AuthStorage, ModelRegistry, SessionManager, SettingsManager, DefaultResourceLoader } =
-      await import('@earendil-works/pi-coding-agent')
+  it('isolates runtime credentials between sessions without writing Pi auth or model files', async () => {
+    const runtime = await createPiModelRuntime()
+    const otherRuntime = await createPiModelRuntime()
+    const provider = { baseUrl: 'https://example.invalid/v1', api: 'openai-completions' as const }
+    runtime.registerProvider('cherry-test', provider)
+    otherRuntime.registerProvider('cherry-test', provider)
+    await runtime.setRuntimeApiKey('cherry-test', 'synthetic-test-key')
 
-    const authStorage = AuthStorage.inMemory()
-    // Cherry owns the key; it lands as a runtime override, never a persisted pi file.
-    authStorage.setRuntimeApiKey('cherry-placeholder-provider', 'cherry-runtime-key')
-
-    const modelRegistry = ModelRegistry.inMemory(authStorage)
-    const sessionManager = SessionManager.inMemory(workspace)
-    const settingsManager = SettingsManager.inMemory()
-    const loader = new DefaultResourceLoader({
-      cwd: workspace,
-      agentDir: piHome,
-      settingsManager
-    })
-
-    expect(authStorage).toBeTruthy()
-    expect(modelRegistry).toBeTruthy()
-    expect(sessionManager).toBeTruthy()
-    expect(loader).toBeTruthy()
+    expect(await runtime.getAuth('cherry-test')).toMatchObject({ auth: { apiKey: 'synthetic-test-key' } })
+    expect(await otherRuntime.getAuth('cherry-test')).not.toMatchObject({ auth: { apiKey: 'synthetic-test-key' } })
+    expect(existsSync(join(piHome, 'auth.json'))).toBe(false)
+    expect(existsSync(join(piHome, 'models.json'))).toBe(false)
   })
 
   it('honors the isolated Cherry-owned agent dir', async () => {

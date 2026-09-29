@@ -43,6 +43,7 @@ export function LocalAgentModelList({
   onSelect: (value?: string) => Promise<boolean>
 }) {
   const { t } = useTranslation()
+  const [refreshing, setRefreshing] = useState(false)
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
@@ -123,9 +124,18 @@ export function LocalAgentModelList({
             variant="ghost"
             className={iconButtonClass}
             aria-label={t('common.refresh')}
-            disabled={loading || disabled || loadDisabled}
-            onClick={() => void onLoad()}>
-            <RefreshCw className={cn('lucide-custom size-3 text-muted-foreground', loading && 'animate-spin')} />
+            aria-busy={refreshing}
+            disabled={disabled || loadDisabled}
+            onClick={async () => {
+              if (loading || refreshing) return
+              setRefreshing(true)
+              try {
+                await onLoad()
+              } finally {
+                setRefreshing(false)
+              }
+            }}>
+            <RefreshCw className={cn('lucide-custom size-3 text-muted-foreground', refreshing && 'animate-spin')} />
           </Button>
         </Tooltip>
       </div>

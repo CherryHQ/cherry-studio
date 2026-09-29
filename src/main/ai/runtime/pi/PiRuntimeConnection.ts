@@ -80,7 +80,7 @@ import {
   type PiMcpToolBridge,
   warmMcpToolCatalogs
 } from './piMcpToolAdapter'
-import { loadPiAiCompat, loadPiSdk } from './piSdk'
+import { createPiModelRuntime, loadPiAiCompat, loadPiSdk } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -287,9 +287,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       api: runtimeApi,
       models: providerConfig.models?.map((model) => ({ ...model, api: runtimeApi }))
     }
-    const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
-    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
+    const modelRuntime = await createPiModelRuntime()
+    await modelRuntime.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
+    const modelRegistry = new pi.ModelRegistry(modelRuntime)
     modelRegistry.registerProvider(runtimeProviderName, isolatedProviderConfig)
     this.apiProviderSourceId = `provider:${runtimeProviderName}`
     try {
@@ -423,8 +423,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const created = await pi.createAgentSession({
         cwd: workspacePath,
         agentDir,
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         settingsManager,
         sessionManager,
         resourceLoader,

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
+import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 export function LocalAgentLogin({
@@ -49,13 +50,13 @@ export function LocalAgentLogin({
     []
   )
   const showError = (failure: unknown) => {
-    const message = failure instanceof Error ? failure.message : String(failure)
+    const { kind, message } = classifyLocalAgentError(failure)
     setError(
-      /not (?:currently )?available in your (?:location|region)/i.test(message)
+      kind === 'region'
         ? t('local_agents.auth_region_unavailable')
-        : /timed out/i.test(message)
+        : kind === 'timeout'
           ? t('error.request_timeout')
-          : message.replace(/^(?:IpcError|Error):\s*/, '')
+          : message
     )
   }
   const discover = async () => {

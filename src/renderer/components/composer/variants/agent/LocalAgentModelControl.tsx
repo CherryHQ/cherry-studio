@@ -7,10 +7,10 @@ import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { ipcApi } from '@renderer/ipc'
+import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { cn } from '@renderer/utils/style'
-import type { LocalAgentModelCatalog, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import {
@@ -35,49 +35,28 @@ export function LocalAgentModelControl({
 }) {
   const { t } = useTranslation()
   const { updateAgent } = useUpdateAgent()
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [catalog, setCatalog] = useState<{ key: string; value: LocalAgentModelCatalog }>()
-  const [error, setError] = useState<string>()
   const config = agent.configuration?.localRuntime
-  const catalogKey = JSON.stringify([
-    config?.protocol,
-    config?.presetId,
-    config?.executableOverride,
-    config?.args,
-    config?.env
-  ])
-  const models = catalog?.key === catalogKey ? catalog.value.models : (info?.models ?? [])
+  const { catalog, freshCatalog, loading, refreshError, refresh } = useLocalAgentModelCatalog(
+    config?.presetId ?? agent.id,
+    config,
+    false
+  )
+  const models = freshCatalog?.models ?? info?.models ?? catalog?.models ?? []
   const label = config?.nativeModel
     ? models.find((model) => model.id === config.nativeModel)?.name || config.nativeModel
     : t('local_agents.follow_cli')
 
   const selectedModel = config?.nativeModel ? { id: config.nativeModel, name: label } : undefined
 
-  const loadModels = async () => {
-    if (!config || loading) return
-    setLoading(true)
-    setError(undefined)
-    try {
-      const value = await ipcApi.request('ai.local_agents.models', config)
-      setCatalog({ key: catalogKey, value })
-    } catch (error) {
-      setError(String(error))
-    } finally {
-      setLoading(false)
-    }
-  }
+  const loadModels = () => refresh().catch(() => {})
   const selectModel = async (nativeModel?: string) => {
     if (!config || disabled || saving) return false
     if (nativeModel === config.nativeModel) return true
     setSaving(true)
-    setError(undefined)
     try {
-      await updateAgent({ id: agent.id, configuration: { localRuntime: { ...config, nativeModel } } })
-      return true
-    } catch (error) {
-      setError(String(error))
-      return false
+      const updated = await updateAgent({ id: agent.id, configuration: { localRuntime: { ...config, nativeModel } } })
+      return !!updated
     } finally {
       setSaving(false)
     }
@@ -89,8 +68,8 @@ export function LocalAgentModelControl({
       value={config.nativeModel}
       disabled={disabled || saving}
       loading={loading}
-      loaded={catalog?.key === catalogKey || models.length > 0}
-      error={error}
+      loaded={!!freshCatalog || !!info?.models?.length}
+      error={refreshError}
       onOpenSettings={() =>
         openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(config.presetId ?? agent.id)}`)
       }

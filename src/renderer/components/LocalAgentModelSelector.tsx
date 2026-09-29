@@ -19,6 +19,7 @@ import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import { ModelTag } from '@renderer/components/tags/Model'
+import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
@@ -28,14 +29,13 @@ interface LocalAgentModelSelectorProps {
   value?: string
   disabled?: boolean
   loading?: boolean
-  loadDisabled?: boolean
   loaded?: boolean
   error?: string
   onOpenSettings?: () => void
   footer?: ReactNode
   side?: 'top' | 'bottom'
   onLoad: () => void | Promise<void>
-  onSelect: (value?: string) => void | boolean | Promise<void | boolean>
+  onSelect: (value?: string) => Promise<boolean>
 }
 
 export function LocalAgentModelSelector({
@@ -44,7 +44,6 @@ export function LocalAgentModelSelector({
   value,
   disabled,
   loading,
-  loadDisabled,
   loaded,
   error,
   onOpenSettings,
@@ -54,10 +53,9 @@ export function LocalAgentModelSelector({
   onSelect
 }: LocalAgentModelSelectorProps) {
   const { t } = useTranslation()
-  const regionRestricted =
-    !!error && /not (?:currently )?available in your (?:location|region)|unsupported (?:location|region)/i.test(error)
-  const authenticationRequired =
-    regionRestricted || (!!error && /authentication required|not authenticated|login required/i.test(error))
+  const classifiedError = error ? classifyLocalAgentError(error) : undefined
+  const regionRestricted = classifiedError?.kind === 'region'
+  const authenticationRequired = regionRestricted || classifiedError?.kind === 'authentication'
   const [open, setOpen] = useState(false)
   const positionedRef = useRef(false)
   const scrollToSelected = useCallback((node: HTMLDivElement | null) => {
@@ -72,7 +70,7 @@ export function LocalAgentModelSelector({
     value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
   const select = async (next?: string) => {
     if (disabled) return
-    if (next === value || (await onSelect(next)) !== false) setOpen(false)
+    if (next === value || (await onSelect(next))) setOpen(false)
   }
   return (
     <Popover
@@ -80,7 +78,7 @@ export function LocalAgentModelSelector({
       onOpenChange={(next) => {
         positionedRef.current = false
         setOpen(next)
-        if (next && !loaded && !loading && !loadDisabled && !disabled) void onLoad()
+        if (next && !loaded && !loading && !disabled) void onLoad()
       }}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
@@ -161,7 +159,7 @@ export function LocalAgentModelSelector({
                 <p className={cn('break-words', !authenticationRequired && 'text-destructive')}>
                   {authenticationRequired
                     ? t(regionRestricted ? 'local_agents.auth_region_unavailable' : 'local_agents.sign_in_required')
-                    : error.replace(/^(?:IpcError|Error):\s*/, '')}
+                    : classifiedError?.message}
                 </p>
               </div>
             </div>
@@ -182,11 +180,7 @@ export function LocalAgentModelSelector({
                 {t('local_agents.open_login_settings')}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={loading || disabled || loadDisabled}
-              onClick={() => void onLoad()}>
+            <Button variant="ghost" size="sm" disabled={loading || disabled} onClick={() => void onLoad()}>
               <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
               {t(loading ? 'common.loading' : 'common.refresh')}
             </Button>

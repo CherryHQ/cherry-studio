@@ -22,7 +22,7 @@ import { crossPlatformSpawn } from '@main/utils/processRunner'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
-import { CursorQuestionSchema, CursorPlanSchema, cursorQuestionInput, cursorQuestionOutcome } from './cursorExtension'
+import { registerCursorExtension } from './cursorExtension'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
@@ -121,49 +121,6 @@ export class AcpConnection extends LocalConnection {
         if (!knownTool) this.result(id, outcome)
         return { outcome }
       })
-      .onRequest('cursor/ask_question', CursorQuestionSchema, async ({ params }) => {
-        if (!this.active || this.abort.signal.aborted) return { outcome: { outcome: 'cancelled' } }
-        const answer = await this.approve(params.toolCallId, 'AskUserQuestion', cursorQuestionInput(params))
-        const outcome =
-          answer.approved && !this.abort.signal.aborted
-            ? cursorQuestionOutcome(params, answer.updatedInput)
-            : { outcome: 'cancelled' as const }
-        this.result(params.toolCallId, {
-          ...cursorQuestionInput(params),
-          answers:
-            outcome.outcome === 'answered'
-              ? Object.fromEntries(
-                  outcome.answers.map((answer) => [
-                    answer.questionId,
-                    answer.selectedOptionIds
-                      .map(
-                        (id) =>
-                          params.questions
-                            .find((question) => question.id === answer.questionId)!
-                            .options.find((option) => option.id === id)!.label
-                      )
-                      .join(', ')
-                  ])
-                )
-              : {},
-          cursorOutcome: outcome
-        })
-        return { outcome }
-      })
-      .onRequest('cursor/create_plan', CursorPlanSchema, async ({ params }) => {
-        if (!this.active || this.abort.signal.aborted) return { outcome: { outcome: 'cancelled' } }
-        this.text(`${params.plan}\n`)
-        const answer = await this.approve(params.toolCallId, `ACP: ${params.name ?? 'Plan'}`, {
-          plan: params.plan,
-          localPermissionOptions: [
-            { optionId: 'accept', name: 'Accept', label: 'allow', kind: 'allow_once' },
-            { optionId: 'reject', name: 'Reject', label: 'deny', kind: 'reject_once' }
-          ]
-        })
-        const outcome = { outcome: this.abort.signal.aborted ? 'cancelled' : answer.approved ? 'accepted' : 'rejected' }
-        this.result(params.toolCallId, outcome)
-        return { outcome }
-      })
       .onRequest('fs/read_text_file', async ({ params }) => {
         const content = await fs.readFile(params.path, 'utf8')
         const lines = content.split('\n')
@@ -258,6 +215,13 @@ export class AcpConnection extends LocalConnection {
         this.terminals.delete(params.terminalId)
         return {}
       })
+    registerCursorExtension(app, {
+      isActive: () => this.active && !this.abort.signal.aborted,
+      signal: this.abort.signal,
+      approve: (id, name, input) => this.approve(id, name, input),
+      text: (text) => this.content(text),
+      result: (id, output) => this.result(id, output)
+    })
     this.connection = app.connect(
       ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>)
     )
@@ -423,15 +387,13 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined
     const model = options?.find((option) => option.category === 'model' && option.type === 'select')
-    if (model?.type !== 'select') {
-      this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
-      return
+    if (model?.type === 'select') {
+      this.modelConfigId = model.id
+      this.localSessionInfo.activeModel = { id: model.currentValue }
+      this.localSessionInfo.models = model.options
+        .flatMap((option) => ('group' in option ? option.options : [option]))
+        .map((option) => ({ id: option.value, name: option.name }))
     }
-    this.modelConfigId = model.id
-    this.localSessionInfo.activeModel = { id: model.currentValue }
-    this.localSessionInfo.models = model.options
-      .flatMap((option) => ('group' in option ? option.options : [option]))
-      .map((option) => ({ id: option.value, name: option.name }))
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private terminal(id: string): Terminal {
@@ -446,14 +408,15 @@ export class AcpConnection extends LocalConnection {
       this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     }
     if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text')
-      this.reasoning(update.content.text)
+      this.content(update.content.text, 'reasoning')
     if (update.sessionUpdate === 'plan' && this.active) {
       this.endContent()
       this.planId ??= randomUUID()
       this.chunk({ type: 'data-agent-plan', id: this.planId, data: { entries: update.entries } })
     }
     if (update.sessionUpdate === 'config_option_update') this.readConfigOptions(update.configOptions)
-    if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text') this.text(update.content.text)
+    if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text')
+      this.content(update.content.text)
     if ((update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') && this.active) {
       this.endContent()
       const previous = this.toolInputs.get(update.toolCallId)

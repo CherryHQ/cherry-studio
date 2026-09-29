@@ -11,6 +11,9 @@ packageExtensions:
       devlop: "1.1.0"
 
 overrides:
+  # pi 0.81.1 core requires a stream initializer absent from the 0.81.0 SDK.
+  "@earendil-works/pi-coding-agent@0.81.0>@earendil-works/pi-agent-core": "0.81.0"
+  "@earendil-works/pi-agent-core@0.81.0>@earendil-works/pi-ai": "0.81.0"
   # Temporary: the SDK umbrella is only needed without dshBin; Cherry always supplies its bundled runtime.
   # Remove when upstream makes this optional/peer (PR #20214, discussion_r3965278746).
   "@deepseek-ai/dsh-sdk-client@0.2.0-rc.2>@deepseek-ai/dsh": "-"
@@ -110,8 +113,8 @@ patchedDependencies:
   # Preserve main's ultra reasoning support until the adapter accepts that level upstream.
   "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2": patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch
   "@earendil-works/pi-ai@0.87.1": patches/@earendil-works__pi-ai@0.87.1.patch
-  "@earendil-works/pi-ai@0.80.6": patches/@earendil-works__pi-ai@0.80.6.patch
-  "@earendil-works/pi-coding-agent@0.80.3": patches/@earendil-works__pi-coding-agent@0.80.3.patch
+  "@earendil-works/pi-ai@0.81.0": patches/@earendil-works__pi-ai@0.81.0.patch
+  "@earendil-works/pi-coding-agent@0.81.0": patches/@earendil-works__pi-coding-agent@0.81.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch

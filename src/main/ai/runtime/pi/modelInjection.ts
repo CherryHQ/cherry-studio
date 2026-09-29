@@ -7,7 +7,7 @@
  * never placed in the `registerProvider` config — the config carries only a
  * non-secret placeholder so keys that start with `$`/`!` never hit pi's config
  * interpolation semantics. The driver injects the real key at runtime via
- * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
+ * `ModelRuntime.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
@@ -87,7 +87,7 @@ interface PiProviderInjectionBase {
   api: PiApi
   /** Config for `pi.registerProvider(providerName, config)`. `apiKey` is the placeholder. */
   providerConfig: ProviderConfig
-  /** The real Cherry API key — inject via `AuthStorage.setRuntimeApiKey`, never into the config. */
+  /** The real Cherry API key — inject via `ModelRuntime.setRuntimeApiKey`, never into the config. */
   apiKey: string
   /** The pi model id to select for the session (Cherry's `apiModelId`). */
   modelId: string

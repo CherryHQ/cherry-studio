@@ -11,7 +11,11 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService,
+  type ExpectedAgent
+} from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -183,7 +187,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
+    expectedAgent?: ExpectedAgent
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(

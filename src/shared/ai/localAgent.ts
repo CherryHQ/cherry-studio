@@ -328,12 +328,10 @@ export interface LocalAgentSelection {
   options: Array<{ value: string; name: string; description?: string }>
 }
 
-export interface LocalAgentSessionInfo {
+export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   mode?: LocalAgentSelection
   thoughtLevel?: LocalAgentSelection
   protocolInfo?: LocalAgentProtocolInfo
-  models: Array<{ id: string; name: string }>
-  activeModel?: { id: string; name?: string }
   images: boolean
   resume: boolean
 }

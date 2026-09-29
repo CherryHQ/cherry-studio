@@ -20,8 +20,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
   protected readonly abort = new AbortController()
-  protected textId?: string
-  private reasoningId?: string
+  private contentPart?: { type: 'text' | 'reasoning'; id: string }
   protected active = false
   protected closed = false
   private closing?: Promise<void>
@@ -87,28 +86,17 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.chunk({ type: 'start' })
   }
   protected endContent() {
-    if (this.textId) this.chunk({ type: 'text-end', id: this.textId })
-    if (this.reasoningId) this.chunk({ type: 'reasoning-end', id: this.reasoningId })
-    this.textId = undefined
-    this.reasoningId = undefined
+    if (this.contentPart) this.chunk({ type: `${this.contentPart.type}-end`, id: this.contentPart.id })
+    this.contentPart = undefined
   }
-  protected reasoning(delta: string) {
+  protected content(delta: string, type: 'text' | 'reasoning' = 'text') {
     if (!this.active || !delta) return
-    if (!this.reasoningId) {
+    if (this.contentPart?.type !== type) {
       this.endContent()
-      this.reasoningId = randomUUID()
-      this.chunk({ type: 'reasoning-start', id: this.reasoningId })
+      this.contentPart = { type, id: randomUUID() }
+      this.chunk({ type: `${type}-start`, id: this.contentPart.id })
     }
-    this.chunk({ type: 'reasoning-delta', id: this.reasoningId, delta })
-  }
-  protected text(delta: string) {
-    if (!this.active || !delta) return
-    if (!this.textId) {
-      this.endContent()
-      this.textId = randomUUID()
-      this.chunk({ type: 'text-start', id: this.textId })
-    }
-    this.chunk({ type: 'text-delta', id: this.textId, delta })
+    this.chunk({ type: `${type}-delta`, id: this.contentPart.id, delta })
   }
   protected finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     if (!this.active) return

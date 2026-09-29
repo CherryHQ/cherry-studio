@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LocalAgentModelList } from '../LocalAgentModelList'
@@ -6,6 +7,36 @@ import { LocalAgentModelList } from '../LocalAgentModelList'
 vi.unmock('@cherrystudio/ui')
 
 describe('local agent model search', () => {
+  it('shows refresh progress only after a manual click, not during background loading', async () => {
+    const user = userEvent.setup()
+    const pending = Promise.withResolvers<void>()
+    const props = {
+      models: [{ id: 'alpha', name: 'Alpha' }],
+      loaded: true,
+      disabled: false,
+      loadDisabled: false,
+      onLoad: vi.fn(() => pending.promise),
+      onSelect: async () => true
+    }
+    const { rerender } = render(<LocalAgentModelList {...props} loading />)
+    const button = screen.getByRole('button', { name: '刷新' })
+    expect(button).toHaveAttribute('aria-busy', 'false')
+    expect(button).toBeEnabled()
+    await user.click(button)
+    expect(props.onLoad).not.toHaveBeenCalled()
+    expect(button).toHaveAttribute('aria-busy', 'false')
+    expect(screen.getByRole('button', { name: /Alpha$/ })).toBeVisible()
+    rerender(<LocalAgentModelList {...props} loading={false} />)
+    await user.click(button)
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button).toBeEnabled()
+    await user.click(button)
+    expect(props.onLoad).toHaveBeenCalledTimes(1)
+    await act(async () => pending.resolve())
+    expect(button).toHaveAttribute('aria-busy', 'false')
+    expect(button).toBeEnabled()
+  })
+
   it('expands and focuses search, filters models, and restores the list when collapsed', () => {
     render(
       <LocalAgentModelList

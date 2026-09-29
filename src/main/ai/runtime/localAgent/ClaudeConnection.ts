@@ -1,10 +1,12 @@
 import type { ChildProcess } from 'node:child_process'
 
 import { query, type Query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { FinishReason } from 'ai'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
+import { ClaudeCodeStreamAdapter } from '../claudeCode'
 import type { AgentRuntimeUserInput } from '../types'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
@@ -101,40 +103,49 @@ export class ClaudeConnection extends LocalConnection {
     const stream = this.createQuery(messages)
     this.begin()
     this.query = stream
+    let finishReason: FinishReason = 'stop'
+    const adapter = new ClaudeCodeStreamAdapter({
+      sessionId: this.sessionId,
+      streamOptions: { prompt: [] },
+      sink: {
+        enqueue: (chunk) => {
+          if (chunk.type === 'finish') {
+            finishReason = chunk.finishReason ?? 'stop'
+            if (chunk.messageMetadata)
+              this.events.push({
+                type: 'chunk',
+                chunk: { type: 'message-metadata', messageMetadata: chunk.messageMetadata }
+              })
+          } else this.events.push({ type: 'chunk', chunk })
+        }
+      },
+      statusSink: {
+        emit: (event) => {
+          // This connection owns one query per turn, so it cannot retain background work after its result.
+          if (event.type !== 'background-work-state' && event.type !== 'autonomous-turn-state') this.events.push(event)
+        }
+      },
+      onSessionId: (token) => {
+        if (token === this.resume) return
+        this.resume = token
+        this.events.push({ type: 'resume-token', token })
+      }
+    })
+    adapter.beginTurn()
     try {
       this.events.push({ type: 'supported-commands', commands: await stream.supportedCommands() })
       this.localSessionInfo.models = (await stream.supportedModels()).map((m) => ({ id: m.value, name: m.displayName }))
       for await (const message of stream) {
-        if (message.session_id && message.session_id !== this.resume) {
-          this.resume = message.session_id
-          this.events.push({ type: 'resume-token', token: message.session_id })
-        }
-        if (
-          message.type === 'stream_event' &&
-          message.event.type === 'content_block_delta' &&
-          message.event.delta.type === 'text_delta'
-        )
-          this.text(message.event.delta.text)
-        if (message.type === 'assistant') {
+        if (message.type === 'assistant' && !message.parent_tool_use_id)
           this.localSessionInfo.activeModel = { id: message.message.model }
-          for (const part of message.message.content)
-            if (part.type === 'tool_use') this.tool(part.id, part.name, part.input)
-        }
-        if (message.type === 'user' && Array.isArray(message.message.content)) {
-          for (const part of message.message.content)
-            if (part.type === 'tool_result') this.result(part.tool_use_id, part.content, part.is_error)
-        }
-        if (message.type === 'result') {
-          this.finish(
-            message.is_error
-              ? new Error(message.subtype === 'success' ? message.result : message.errors.join('\n'))
-              : undefined
-          )
+        if (adapter.handleMessage(message).type === 'result') {
+          this.finish(undefined, finishReason)
           break
         }
       }
-      if (this.active) this.finish(new Error('Claude exited before completing the turn'))
+      if (this.active) throw new Error('Claude exited before completing the turn')
     } catch (error) {
+      adapter.finalizeOpenTextParts()
       this.finish(error)
     } finally {
       messages.close()

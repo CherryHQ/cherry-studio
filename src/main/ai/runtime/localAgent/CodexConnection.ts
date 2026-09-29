@@ -192,7 +192,7 @@ export class CodexConnection extends LocalConnection {
       return
     }
     if (params.threadId && params.threadId !== this.threadId) return
-    if (message.method === 'item/agentMessage/delta' && typeof params.delta === 'string') this.text(params.delta)
+    if (message.method === 'item/agentMessage/delta' && typeof params.delta === 'string') this.content(params.delta)
     if (message.method === 'turn/started') {
       const turn = z.object({ id: z.string() }).parse(params.turn)
       this.turnId = turn.id

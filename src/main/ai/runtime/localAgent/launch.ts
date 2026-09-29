@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { isPathWithin, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { appendBundledGitPathTail, isPathWithin, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
@@ -82,9 +82,8 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   const env =
-    source === 'system'
-      ? shellEnv
-      : { ...shellEnv, ...mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')]) }
+    source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
+  appendBundledGitPathTail(env)
   return {
     executable,
     args: config.args.length

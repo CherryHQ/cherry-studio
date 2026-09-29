@@ -11,8 +11,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
+import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -54,21 +53,6 @@ const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
 
-/**
- * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
- * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
- * while any git already on PATH keeps winning (#16402).
- */
-function appendBundledGitPathTail(env: Record<string, string>): void {
-  const gitDir = getBundledGitDir()
-  if (!gitDir) return
-  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const canonicalKey = pathKeys[0] ?? 'Path'
-  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
-  const updated = dedupePathSegments([...segments, gitDir]).join(';')
-  for (const key of pathKeys) env[key] = updated
-  if (pathKeys.length === 0) env[canonicalKey] = updated
-}
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',

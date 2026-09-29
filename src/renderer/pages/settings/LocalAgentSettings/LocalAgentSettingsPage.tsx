@@ -1,8 +1,7 @@
-import { useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   CheckCircle2,
   Download,
-  Trash2,
   CircleAlert,
   ExternalLink,
   Loader2,
@@ -16,18 +15,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  PageSidePanel,
   Badge,
   Button,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
   Tooltip,
-  Label,
-  Switch,
-  Textarea
+  Switch
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
@@ -38,9 +33,9 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   LOCAL_AGENT_PRESETS,
-  LocalAgentConfigurationSchema,
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
   type LocalAgentDetection,
@@ -48,6 +43,7 @@ import {
 } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
+import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
 import { LocalAgentLogin } from './LocalAgentLogin'
 import { LocalAgentModelList } from './LocalAgentModelList'
 
@@ -68,7 +64,23 @@ export function LocalAgentSettingsPage() {
   const [detecting, setDetecting] = useState(false)
   const [query, setQuery] = useState('')
   const search = useSearch({ strict: false }) as { id?: string }
+  const navigate = useNavigate()
   const [selected, setSelected] = useState(search.id ?? 'claude')
+  const [pendingSelection, setPendingSelection] = useState<string>()
+  useEffect(() => {
+    if (search.id) setPendingSelection(search.id)
+  }, [search.id])
+  const navigateToSelection = useCallback(() => {
+    if (pendingSelection) {
+      setSelected(pendingSelection)
+      void navigate({ to: '/settings/local-agents', search: { id: pendingSelection }, replace: true })
+    }
+    setPendingSelection(undefined)
+  }, [navigate, pendingSelection])
+  const cancelNavigation = useCallback(() => {
+    setPendingSelection(undefined)
+    void navigate({ to: '/settings/local-agents', search: { id: selected }, replace: true })
+  }, [navigate, selected])
   const refresh = useCallback(async () => {
     setDetecting(true)
     try {
@@ -173,7 +185,7 @@ export function LocalAgentSettingsPage() {
                     )}
                     aria-pressed={entry?.id === e.id}
                     aria-label={`${e.name} · ${status}`}
-                    onClick={() => setSelected(e.id)}>
+                    onClick={() => setPendingSelection(e.id)}>
                     <LocalAgentIcon presetId={e.preset?.id} size={26} />
                     <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
                     {notInstalled ? (
@@ -196,21 +208,32 @@ export function LocalAgentSettingsPage() {
             variant="outline"
             size="sm"
             className="h-8 w-full gap-1.5 text-xs shadow-none"
-            onClick={() => setSelected('custom-new')}>
+            onClick={() => setPendingSelection('custom-new')}>
             <Plus className="size-3.5" />
             {t('local_agents.custom')}
           </Button>
         </div>
       </aside>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <LocalAgentEditor
+        <LocalAgentDetails
           key={entry?.id ?? selected}
+          pendingSelection={
+            pendingSelection &&
+            pendingSelection !== selected &&
+            pendingSelection !== entry?.id &&
+            pendingSelection !== entry?.agent?.id
+              ? pendingSelection
+              : undefined
+          }
+          onNavigate={navigateToSelection}
+          onCancelNavigation={cancelNavigation}
           preset={entry?.preset}
           agent={entry?.agent}
           detection={detections.find((d) => d.presetId === entry?.preset?.id)}
           onSaved={async (id, refreshInstallations = true) => {
             await refetch()
             setSelected(id)
+            void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
             if (refreshInstallations) await refresh()
           }}
         />
@@ -219,12 +242,18 @@ export function LocalAgentSettingsPage() {
   )
 }
 
-function LocalAgentEditor({
+function LocalAgentDetails({
+  pendingSelection,
+  onNavigate,
+  onCancelNavigation,
   preset,
   agent,
   detection,
   onSaved
 }: {
+  pendingSelection?: string
+  onNavigate: () => void
+  onCancelNavigation: () => void
   preset?: LocalAgentPreset
   agent?: AgentEntity
   detection?: LocalAgentDetection
@@ -239,10 +268,6 @@ function LocalAgentEditor({
     args: [],
     env: {}
   }
-  const [config, setConfig] = useState(initial)
-  const [name, setName] = useState(agent?.name ?? preset?.name ?? '')
-  const [args, setArgs] = useState(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
-  const [env, setEnv] = useState(JSON.stringify(initial.env, null, 2))
   const [busyAction, setBusyAction] = useState<
     'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model'
   >()
@@ -259,25 +284,26 @@ function LocalAgentEditor({
   const busy = busyAction !== undefined
   const [result, setResult] = useState<string>()
   const [resultOk, setResultOk] = useState(false)
-  const [dirty, setDirty] = useState(false)
   const [editing, setEditing] = useState(!preset && !agent)
-  const [confirmClose, setConfirmClose] = useState(false)
+  useEffect(() => {
+    if (pendingSelection && !editing && !busy) onNavigate()
+  }, [pendingSelection, editing, busy, onNavigate])
   const openEditor = () => {
-    setConfig(initial)
-    setName(agent?.name ?? preset?.name ?? '')
-    setArgs(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
-    setEnv(JSON.stringify(initial.env, null, 2))
-    setDirty(false)
-    setConfirmClose(false)
     setResult(undefined)
     setEditing(true)
   }
   const closeEditor = () => {
-    if (busy) return
-    if (dirty) setConfirmClose(true)
-    else setEditing(false)
+    setEditing(false)
+    setResult(undefined)
+    if (pendingSelection) onNavigate()
   }
-  const parsed = () => LocalAgentConfigurationSchema.parse({ ...config, args: JSON.parse(args), env: JSON.parse(env) })
+  const persistLocalRuntime = (localRuntime: LocalAgentConfiguration, name?: string) =>
+    agent
+      ? updateAgent({ id: agent.id, name, configuration: { localRuntime } })
+      : createAgentAndRefresh(
+          { type: 'local', name: name ?? preset?.name ?? '', model: null, configuration: { localRuntime } },
+          async () => {}
+        )
   const checkError = (response: LocalAgentCheckResult) =>
     response.status === 'not-installed'
       ? t('local_agents.install_required')
@@ -308,12 +334,7 @@ function LocalAgentEditor({
     setResult(undefined)
     try {
       const localRuntime = { ...initial, nativeModel }
-      const updated = agent
-        ? await updateAgent({ id: agent.id, configuration: { localRuntime } })
-        : await createAgentAndRefresh(
-            { type: 'local', name: preset!.name, model: null, configuration: { localRuntime } },
-            async () => {}
-          )
+      const updated = await persistLocalRuntime(localRuntime)
       if (updated) await onSaved(updated.id, false)
       return !!updated
     } catch (error) {
@@ -397,54 +418,36 @@ function LocalAgentEditor({
       setBusyAction(undefined)
     }
   }
-  const save = async (enabled?: boolean) => {
-    if (busy) return
-    setBusyAction(enabled === undefined ? 'save' : 'toggle')
+  const save = async (localRuntime: LocalAgentConfiguration, savedName: string, action: 'save' | 'toggle') => {
+    if (busy) return false
+    setBusyAction(action)
     setResult(undefined)
     try {
-      const localRuntime = enabled === undefined ? parsed() : { ...initial, enabled }
-      const savedName = enabled === undefined ? name.trim() : (agent?.name ?? preset?.name ?? '')
       if (!savedName) throw new Error(t('local_agents.name_required'))
       if (localRuntime.enabled || (!preset && !agent)) {
         const response = await ipcApi.request('ai.local_agents.check', localRuntime)
         if (!response.ok) {
           setResultOk(false)
           setResult(checkError(response))
-          return
+          return false
         }
       }
-      const updated = agent
-        ? await updateAgent({ id: agent.id, name: savedName, configuration: { localRuntime } })
-        : await createAgentAndRefresh(
-            { type: 'local', name: savedName, model: null, configuration: { localRuntime } },
-            async () => {}
-          )
+      const updated = await persistLocalRuntime(localRuntime, savedName)
       if (updated) {
-        setDirty(false)
-        setEditing(false)
         toast.success(t('common.saved'))
         await onSaved(updated.id)
       }
+      return !!updated
     } catch (error) {
       setResultOk(false)
       setResult(String(error))
+      return false
     } finally {
       setBusyAction(undefined)
     }
   }
-  const pathField = (
-    <div className="space-y-2">
-      <Label htmlFor="local-agent-path">{t('local_agents.executable')}</Label>
-      <Input
-        id="local-agent-path"
-        className="h-8 font-mono text-xs"
-        placeholder={detection?.path ?? preset?.executable}
-        value={config.executableOverride ?? ''}
-        onChange={(e) => setConfig({ ...config, executableOverride: e.target.value || undefined })}
-      />
-    </div>
-  )
   const feedbackMessage = result ?? modelsError
+  const classifiedError = feedbackMessage ? classifyLocalAgentError(feedbackMessage) : undefined
   const feedback = feedbackMessage && (
     <div
       role="status"
@@ -456,9 +459,11 @@ function LocalAgentEditor({
       )}>
       {resultOk ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
       <p className="min-w-0 whitespace-pre-wrap break-words">
-        {/authentication required|not authenticated|login required/i.test(feedbackMessage)
+        {classifiedError?.kind === 'authentication'
           ? t('local_agents.sign_in_required')
-          : feedbackMessage}
+          : classifiedError?.kind === 'region'
+            ? t('local_agents.auth_region_unavailable')
+            : classifiedError?.message}
       </p>
     </div>
   )
@@ -487,7 +492,9 @@ function LocalAgentEditor({
             aria-label={t('local_agents.enable')}
             checked={initial.enabled}
             disabled={busy || (!preset && !agent)}
-            onCheckedChange={(enabled) => void save(enabled)}
+            onCheckedChange={(enabled) =>
+              void save({ ...initial, enabled }, agent?.name ?? preset?.name ?? '', 'toggle')
+            }
           />
         </div>
       </header>
@@ -524,12 +531,7 @@ function LocalAgentEditor({
                   disabled={busy || (!detection?.path && !initial.executableOverride)}
                   helpUrl={preset?.helpUrl}
                   onAuthenticated={async (localRuntime) => {
-                    const updated = agent
-                      ? await updateAgent({ id: agent.id, configuration: { localRuntime } })
-                      : await createAgentAndRefresh(
-                          { type: 'local', name: preset?.name ?? name, model: null, configuration: { localRuntime } },
-                          async () => {}
-                        )
+                    const updated = await persistLocalRuntime(localRuntime)
                     if (!updated) throw new Error(t('common.error'))
                     try {
                       const response = await ipcApi.request('ai.local_agents.check', localRuntime)
@@ -611,92 +613,27 @@ function LocalAgentEditor({
           </section>
         </div>
       </Scrollbar>
-      <PageSidePanel
-        open={editing}
-        onClose={closeEditor}
-        title={t('common.advanced_settings')}
-        closeLabel={t('common.close')}
-        footer={
-          <div className="space-y-3">
-            {confirmClose ? (
-              <div className="space-y-2" role="alert">
-                <p className="text-sm">{t('agent.preview_pane.edit.leave.title')}</p>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setConfirmClose(false)}>
-                    {t('common.cancel')}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setDirty(false)
-                      setEditing(false)
-                      setConfirmClose(false)
-                      setResult(undefined)
-                    }}>
-                    {t('agent.preview_pane.edit.discard')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-end gap-2">
-                {preset && detection?.path && !initial.executableOverride && (
-                  <Button variant="outline" className="mr-auto" disabled={busy} onClick={() => void uninstall()}>
-                    {busyAction === 'uninstall' ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="lucide-custom size-4 text-muted-foreground" />
-                    )}
-                    {t(busyAction === 'uninstall' ? 'local_agents.uninstalling' : 'local_agents.uninstall')}
-                  </Button>
-                )}
-                <Button variant="outline" disabled={busy} onClick={closeEditor}>
-                  {t('common.cancel')}
-                </Button>
-                <Button disabled={busy || (!dirty && !!agent)} onClick={() => void save()}>
-                  {busyAction === 'save' && <Loader2 className="size-4 animate-spin" />}
-                  {t('common.save')}
-                </Button>
-              </div>
-            )}
-          </div>
-        }>
-        <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>
-        <fieldset
-          disabled={busy}
-          className="min-w-0 space-y-5"
-          onChange={() => {
-            setDirty(true)
-            setConfirmClose(false)
-            setResult(undefined)
-          }}>
-          <div className="space-y-2">
-            <Label htmlFor="local-agent-name">{t('common.name')}</Label>
-            <Input id="local-agent-name" className="h-8" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          {pathField}
-          <div className="space-y-2">
-            <Label htmlFor="local-agent-args">{t('local_agents.arguments')}</Label>
-            <Textarea.Input
-              id="local-agent-args"
-              className="min-h-16 font-mono text-xs"
-              value={args}
-              onChange={(e) => setArgs(e.target.value)}
-              spellCheck={false}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="local-agent-env">{t('local_agents.environment')}</Label>
-            <Textarea.Input
-              id="local-agent-env"
-              className="min-h-24 font-mono text-xs"
-              value={env}
-              onChange={(e) => setEnv(e.target.value)}
-              spellCheck={false}
-            />
-          </div>
-        </fieldset>
-        {feedback}
-      </PageSidePanel>
+      {editing && (
+        <LocalAgentAdvancedSettings
+          config={initial}
+          name={agent?.name ?? preset?.name ?? ''}
+          preset={preset}
+          detection={detection}
+          hasAgent={!!agent}
+          busyAction={busyAction}
+          pendingSelection={pendingSelection}
+          feedback={feedback}
+          onClose={closeEditor}
+          onCancelNavigation={onCancelNavigation}
+          onChange={() => setResult(undefined)}
+          onError={(error) => {
+            setResultOk(false)
+            setResult(error)
+          }}
+          onUninstall={uninstall}
+          onSave={(localRuntime, name) => save(localRuntime, name, 'save')}
+        />
+      )}
     </>
   )
 }
