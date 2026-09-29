@@ -110,6 +110,11 @@ describe('isSameOrInside', () => {
     expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
   })
 
+  it('recognizes descendants whose names begin with two dots', () => {
+    expect(isSameOrInside('/foo/..cache/file.txt', '/foo')).toBe(true)
+    expect(isSameOrInside('/foo/../bar/file.txt', '/foo')).toBe(false)
+  })
+
   it('rejects ancestors and siblings', () => {
     expect(isSameOrInside('/foo', '/foo/bar')).toBe(false)
     expect(isSameOrInside('/foo/baz', '/foo/bar')).toBe(false)

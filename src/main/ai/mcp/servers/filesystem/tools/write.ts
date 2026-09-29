@@ -1,11 +1,13 @@
-import fs from 'fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { withMutationLockForRequest } from '../mutationLock'
-import { logger, validatePath, verifyWrittenContent } from '../types'
+import { ensureDir, stat, writeInPlace } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { filesystemMutationService } from '../FilesystemMutationService'
+import { logger, validatePath } from '../types'
 
 // Schema definition
 export const WriteToolSchema = z.object({
@@ -29,14 +31,12 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  // Hold the mutation lock across validation and mutation so concurrent calls queue in
-  // call order even when file existence flips the lock key mid-operation (e.g. creates).
-  return withMutationLockForRequest(filePath, baseDir, async () => {
+  return filesystemMutationService.runExclusive(filePath, baseDir, async () => {
     const validPath = await validatePath(filePath, baseDir)
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
     try {
-      await fs.mkdir(parentDir, { recursive: true })
+      await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
     } catch (error: any) {
       if (error.code !== 'EEXIST') {
         throw new Error(`Failed to create parent directory: ${error.message}`)
@@ -46,7 +46,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
     // Check if file exists (for logging)
     let isOverwrite = false
     try {
-      await fs.stat(validPath)
+      await stat(validPath)
       isOverwrite = true
     } catch {
       // File doesn't exist, that's fine
@@ -54,12 +54,10 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
 
     // Write the file
     try {
-      await fs.writeFile(validPath, args.content, 'utf-8')
+      await writeInPlace(validPath, args.content)
     } catch (error: any) {
       throw new Error(`Failed to write file: ${error.message}`)
     }
-
-    await verifyWrittenContent(validPath, args.content)
 
     // Log the operation
     logger.info('File written', {
