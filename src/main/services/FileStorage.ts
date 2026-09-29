@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises'
 import * as path from 'path'
 
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { dialog, net, shell } from 'electron'
+import { BrowserWindow, dialog, net, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -51,6 +51,12 @@ function resolveHomeRelativeFilePath(filePath: string): string {
 
 function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
+// Missing or destroyed sender window falls back to the unparented overload.
+function resolveSaveDialogParent(event: Electron.IpcMainInvokeEvent): Electron.BrowserWindow | undefined {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  return window && !window.isDestroyed() ? window : undefined
 }
 
 class FileStorage {
@@ -773,17 +779,21 @@ class FileStorage {
   }
 
   public save = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     fileName: string,
     content: string,
     options?: SaveDialogOptions
   ): Promise<string | null> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
-      })
+      }
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (result.canceled || !result.filePath) {
         return null
@@ -799,12 +809,16 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
+  public saveImage = async (event: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
-      })
+      }
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (!result.canceled && result.filePath) {
         await assertOutsideManagedStorageMutation(result.filePath)

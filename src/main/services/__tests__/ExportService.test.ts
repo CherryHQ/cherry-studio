@@ -48,6 +48,57 @@ describe('ExportService.exportToWord', () => {
     })
   })
 
+  // A parented native dialog avoids the unparented-save crash with Unicode file
+  // names on Windows; the Unicode defaultPath must reach the dialog verbatim.
+  describe('dialog parenting (Unicode file names)', () => {
+    const senderId = 'main-1'
+
+    async function serviceWithWindow(ownerWindow: unknown) {
+      const service = await freshService()
+      const { application } = await import('@application')
+      const windowManager = vi.mocked(application.get)('WindowManager') as unknown as {
+        getWindow: ReturnType<typeof vi.fn>
+      }
+      vi.mocked(windowManager.getWindow).mockReturnValue(ownerWindow)
+      return { service, windowManager }
+    }
+
+    it('parents the save dialog to the caller window, keeping a Unicode file name', async () => {
+      const ownerWindow = { id: 'owner-window', isDestroyed: () => false }
+      const { service, windowManager } = await serviceWithWindow(ownerWindow)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await service.exportToWord('# Title', '测试-笔记.docx', senderId)
+
+      expect(windowManager.getWindow).toHaveBeenCalledWith(senderId)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: '测试-笔记.docx' })
+      )
+    })
+
+    it('falls back to an unparented dialog when the caller window is gone', async () => {
+      const { service, windowManager } = await serviceWithWindow(undefined)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await service.exportToWord('# Title', '测试-笔记.docx', null)
+
+      expect(windowManager.getWindow).not.toHaveBeenCalled()
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记.docx' }))
+    })
+
+    it('falls back to an unparented dialog when the caller window is destroyed', async () => {
+      const { service } = await serviceWithWindow({ id: 'owner-window', isDestroyed: () => true })
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await service.exportToWord('# Title', '测试-笔记.docx', senderId)
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]).toHaveLength(1)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记.docx' }))
+    })
+  })
+
   // Catches the confirm path breaking in the reorder: a wrong canceled/filePath check
   // or lost write leaves no file; broken conversion leaves document.xml without paragraphs.
   describe('confirm path (docx product)', () => {
