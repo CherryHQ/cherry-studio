@@ -163,4 +163,24 @@ describe('resolveAgentIdFromConversationSelection', () => {
     expect(id).toBeNull()
     expect(onMissingModel).toHaveBeenCalled()
   })
+
+  it('waits for model context before materializing a catalog preset', async () => {
+    const onPresetModelContextLoading = vi.fn()
+    const createAgent = vi.fn()
+
+    const id = await resolveAgentIdFromConversationSelection(
+      { type: 'catalog', preset: { id: 'preset-1', name: 'New Preset' } },
+      [],
+      {
+        defaultModelId: 'openai::gpt-4o',
+        createAgent,
+        isPresetModelContextReady: false,
+        onPresetModelContextLoading
+      }
+    )
+
+    expect(id).toBeNull()
+    expect(onPresetModelContextLoading).toHaveBeenCalled()
+    expect(createAgent).not.toHaveBeenCalled()
+  })
 })

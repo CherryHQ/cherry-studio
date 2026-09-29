@@ -11,7 +11,8 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
-import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import { useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import type { AssistantCatalogPreset } from '@renderer/types/assistantCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import {
   buildCreateAgentCommand,
@@ -41,6 +42,7 @@ type AgentConversationPickerDialogProps = {
   onOpenChange: (open: boolean) => void
   agents: readonly AgentEntity[]
   agentsLoading?: boolean
+  catalogContextLoading?: boolean
   onSelect: (selection: AgentConversationSelection) => void | Promise<void>
 }
 
@@ -49,6 +51,7 @@ export function AgentConversationPickerDialog({
   onOpenChange,
   agents,
   agentsLoading = false,
+  catalogContextLoading = false,
   onSelect
 }: AgentConversationPickerDialogProps) {
   const { t } = useTranslation()
@@ -188,10 +191,10 @@ export function AgentConversationPickerDialog({
         pageSize={AGENT_CATALOG_PAGE_SIZE}
         isLoading={
           activeTab === 'catalog'
-            ? catalogLoading
+            ? catalogLoading || catalogContextLoading
             : activeTab === 'mine'
               ? agentsLoading
-              : agentsLoading || catalogLoading
+              : agentsLoading || catalogLoading || catalogContextLoading
         }
         showCloseButton={false}
         onSelect={handleSelect}
@@ -216,10 +219,17 @@ export async function resolveAgentIdFromConversationSelection(
     defaultModelId: UniqueModelId | null | undefined
     createAgent: (command: ReturnType<typeof toCreateAgentCommandFromCatalogPreset>) => Promise<AgentEntity>
     isModelIdSelectable?: (modelId: UniqueModelId) => boolean
+    isPresetModelContextReady?: boolean
+    onPresetModelContextLoading?: () => void
     onMissingModel?: () => void
   }
 ): Promise<string | null> {
   if (selection.type === 'agent') return selection.agentId
+
+  if (options.isPresetModelContextReady === false) {
+    options.onPresetModelContextLoading?.()
+    return null
+  }
 
   const presetName = selection.preset.name.trim()
   const existing = agents.find((agent) => agent.name === presetName)

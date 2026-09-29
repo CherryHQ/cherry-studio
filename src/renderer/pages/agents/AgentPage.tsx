@@ -143,10 +143,18 @@ const AgentPage = () => {
   const sessionListPosition: TopicTabPosition =
     !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const { agents, isLoading: isAgentsLoading } = useAgents()
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
+  const presetModelContextEnabled = agentCreateOpen
   const { createAgent } = useAgentMutations()
-  const { models: availableModels } = useModels({ enabled: true })
-  const { defaultModel } = useDefaultModel({ enabled: true })
-  const { providers } = useProviders()
+  const { models: availableModels, isLoading: isModelsLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: presetModelContextEnabled }
+  )
+  const { defaultModel } = useDefaultModel({ enabled: presetModelContextEnabled })
+  const { providers, isLoading: isProvidersLoading } = useProviders(undefined, {
+    enabled: presetModelContextEnabled
+  })
+  const isPresetModelContextReady = !presetModelContextEnabled || (!isModelsLoading && !isProvidersLoading)
   const agentModelFilter = useAgentModelFilter('claude-code')
   const isModelDisabled = useAgentModelDisabled()
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
@@ -245,7 +253,6 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [pendingSessionDefaults, setPendingSessionDefaults] = useState<CreateAgentSessionDefaults | null>(null)
-  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
@@ -629,17 +636,32 @@ const AgentPage = () => {
         defaultModelId: selectableDefaultModelId,
         createAgent,
         isModelIdSelectable: isAgentPresetModelIdSelectable,
+        isPresetModelContextReady,
+        onPresetModelContextLoading: () => {
+          toast.error(t('common.loading'))
+        },
         onMissingModel: () => {
           toast.error(t('selector.agent.preset_missing_model'))
         }
       })
     },
-    [agents, createAgent, isAgentPresetModelIdSelectable, selectableDefaultModelId, t]
+    [
+      agents,
+      createAgent,
+      isAgentPresetModelIdSelectable,
+      isPresetModelContextReady,
+      selectableDefaultModelId,
+      t
+    ]
   )
 
   const handleAgentConversationSelect = useCallback(
     async (selection: AgentConversationSelection) => {
       if (isCreatingEmptySessionRef.current) return
+      if (selection.type === 'catalog' && !isPresetModelContextReady) {
+        toast.error(t('common.loading'))
+        return
+      }
       isCreatingEmptySessionRef.current = true
       setAgentCreateOpen(false)
       try {
@@ -657,7 +679,14 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, pendingSessionDefaults, resolveAgentIdForSelection, resolveEmptySession, t]
+    [
+      activateSession,
+      isPresetModelContextReady,
+      pendingSessionDefaults,
+      resolveAgentIdForSelection,
+      resolveEmptySession,
+      t
+    ]
   )
 
   const requestSessionNavigation = useCallback(
@@ -1156,6 +1185,7 @@ const AgentPage = () => {
           onOpenChange={setAgentCreateOpen}
           agents={agents}
           agentsLoading={isAgentsLoading}
+          catalogContextLoading={agentCreateOpen && !isPresetModelContextReady}
           onSelect={handleAgentConversationSelect}
         />
       </Container>
