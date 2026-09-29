@@ -267,6 +267,17 @@ describe('filesystem MCP security', () => {
   })
 
   describe('same-file mutation safety', () => {
+    it.skipIf(process.platform === 'win32')('edits a regular file through a symlink inside the workspace', async () => {
+      const workspaceRoot = await createTempDir('edit-symlink-file-root-')
+      const targetPath = path.join(workspaceRoot, 'target.txt')
+      await fs.writeFile(targetPath, 'before')
+      await fs.symlink(targetPath, path.join(workspaceRoot, 'link.txt'))
+
+      await handleEditTool({ file_path: 'link.txt', old_string: 'before', new_string: 'after' }, workspaceRoot)
+
+      await expect(fs.readFile(targetPath, 'utf-8')).resolves.toBe('after')
+    })
+
     it('serializes concurrent edits for the same file so both changes land', async () => {
       const workspaceRoot = await createTempDir('edit-serialization-root-')
       const filePath = path.join(workspaceRoot, 'recipe.py')

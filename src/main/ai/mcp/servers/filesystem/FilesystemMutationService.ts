@@ -21,8 +21,8 @@ class FilesystemMutationService {
     fn: () => Promise<T>,
     opts?: { subtreeRoot?: boolean }
   ): Promise<T> {
-    // Serialize path/identity resolution and registration, not the mutations themselves.
-    // This preserves call order across aliases without synchronous filesystem I/O.
+    // Serialize registration only (not mutations). O(n) over pending ops is acceptable:
+    // n is bounded by concurrent in-flight MCP calls, not workspace size.
     const { result } = await this.registrationMutex.runExclusive(async () => {
       const canonicalPath = await validatePath(requestedPath, baseDir)
       const path = normalizePathForComparison(canonicalPath)
