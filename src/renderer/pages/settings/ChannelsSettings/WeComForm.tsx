@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Input, Label } from '@cherrystudio/ui'
 
+import { ChannelQrRegistration } from './ChannelQrRegistration'
 import type { ChannelData } from './channelTypes'
 
 export function WeComForm({
@@ -22,6 +23,7 @@ export function WeComForm({
   ]
   return (
     <div className="flex flex-col gap-3">
+      <ChannelQrRegistration channel={channel} />
       <p className="text-xs text-muted-foreground">{t('agent.channels.wecom.setupHint')}</p>
       <div className="grid grid-cols-2 gap-3">
         {fields.map((field) => {
