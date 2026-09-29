@@ -6,7 +6,13 @@ import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
-import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  type KnowledgeFileItemData,
+  resolveFileEntryDataFromFile,
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
@@ -41,15 +47,7 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
-const resolveFileEntryDataFromFile = (file: File) => {
-  const filePath = window.api.file.getPathForFile(file)
-
-  if (!filePath) {
-    return Promise.reject(new Error(`Failed to resolve a local path for "${file.name}"`))
-  }
-
-  return resolveKnowledgeFileData(filePath, file.name)
-}
+const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
@@ -210,6 +208,25 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       })
   }, [buildPanelSubmitItems, canSubmit, ensureWithinAddLimit, isResolvingSubmit, submitWithStrategy, t])
 
+  const collectResolvedFileInputs = useCallback(
+    async <T,>(
+      files: T[],
+      resolveItem: (item: T) => Promise<KnowledgeFileItemData>,
+      describeItem: (item: T) => string | undefined
+    ): Promise<KnowledgeAddItemInput[]> => {
+      const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
+      const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+      if (fileOutcome.fatal !== undefined) {
+        throw fileOutcome.fatal
+      }
+      if (fileOutcome.skipped.length > 0) {
+        toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
+      }
+      return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
+    },
+    [t]
+  )
+
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
   const collectFileInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
@@ -219,8 +236,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       if (skippedCount > 0) {
         toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
-      const fileData = await Promise.all(supportedFiles.map(resolveFileEntryDataFromFile))
-      return fileData.map((data) => ({ type: 'file' as const, data }))
+      return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
 
     const selected = await window.api.file.select({
@@ -237,9 +253,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
-    const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
-    return fileData.map((data) => ({ type: 'file' as const, data }))
-  }, [pendingAddFiles, t])
+    return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
+  }, [collectResolvedFileInputs, pendingAddFiles, t])
 
   const collectDirectoryInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     const directoryPath = await window.api.file.selectFolder()
