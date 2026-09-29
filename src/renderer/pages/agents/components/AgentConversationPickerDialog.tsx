@@ -23,6 +23,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+// Parallels AssistantConversationPickerDialog; shared list UI is ConversationPickerDialog.
 const logger = loggerService.withContext('AgentConversationPickerDialog')
 
 const AGENT_CATALOG_PAGE_SIZE = 50
