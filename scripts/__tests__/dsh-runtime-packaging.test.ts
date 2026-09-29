@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -15,6 +16,109 @@ import {
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 
 describe('DSH runtime packaging', () => {
+  it('migrates a 0.1.2 session with the bundled worker and remaps its fork checkpoints', () => {
+    const require = createRequire(path.join(projectRoot, 'packages/dsh-bridge/package.json'))
+    const persistence = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-session-persistence-jsonl')).href
+    const fork = pathToFileURL(resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/fork')).href
+    const script = `
+      import assert from 'node:assert/strict';
+      import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+      import { tmpdir } from 'node:os';
+      import { join } from 'node:path';
+      import { zstdCompressSync } from 'node:zlib';
+      import { Context } from ${JSON.stringify(pathToFileURL(require.resolve('@deepseek-ai/cordis')).href)};
+      import Persistence from ${JSON.stringify(persistence)};
+      import { forkSession } from ${JSON.stringify(fork)};
+      const root = await mkdtemp(join(tmpdir(), 'cherry-dsh-upgrade-'));
+      const ctx = new Context();
+      const child = new Context();
+      try {
+        const directory = join(root, 'source', '--legacy-project--', 'legacy-upgrade');
+        await mkdir(directory, { recursive: true });
+        const text = await readFile(${JSON.stringify(path.join(import.meta.dirname, 'fixtures/dsh-session-v0.jsonl'))}, 'utf8');
+        const cut = text.indexOf('\\n') + 1;
+        const original = Buffer.concat([zstdCompressSync(text.slice(0, cut)), zstdCompressSync(text.slice(cut))]);
+        const source = join(directory, 'session.jsonl.zstd');
+        await writeFile(source, original);
+        await ctx.plugin(Persistence, { root: join(root, 'source') });
+        const writer = await ctx.sessionPersistence.open('legacy-upgrade', 'write');
+        const { events } = await writer.read();
+        assert.equal(writer.header.version, 4);
+        assert(events.some(event => event.type === 'assistant/message' && event.data.message.content[0].text === 'The legacy answer is preserved.'));
+        const boundary = events.find(event => event.type === 'turn/end').seq;
+        assert.notEqual(boundary, 9);
+        await writer.close();
+        assert.deepEqual(await readFile(source), original);
+        const result = await forkSession({ sourceRoot: join(root, 'source'), targetRoot: join(root, 'child'), sourceSessionId: 'legacy-upgrade', targetSessionId: 'child', targetCwd: '/child/project', boundary: 9, formatVersion: 0, checkpoints: [{ boundary: 9, formatVersion: 0 }] });
+        assert.deepEqual(result.checkpoints, [{ boundary, formatVersion: 4 }]);
+        await assert.rejects(forkSession({ sourceRoot: join(root, 'source'), targetRoot: join(root, 'invalid'), sourceSessionId: 'legacy-upgrade', targetSessionId: 'invalid', targetCwd: '/child/project', boundary: 8, formatVersion: 0, checkpoints: [] }), /history_changed/);
+        await child.plugin(Persistence, { root: join(root, 'child') });
+        const reader = await child.sessionPersistence.open('child', 'read');
+        const copied = (await reader.read()).events;
+        assert.deepEqual(copied.slice(0, boundary + 1), events.slice(0, boundary + 1));
+        assert.equal(copied.at(-1).type, 'session/end-seed');
+        await reader.close();
+      } finally {
+        await Promise.all([ctx.fiber.dispose(), child.fiber.dispose()]);
+        await rm(root, { recursive: true, force: true });
+      }
+    `
+    expect(() =>
+      execFileSync(process.execPath, ['--input-type=module', '-e', script], { timeout: 30_000 })
+    ).not.toThrow()
+  })
+
+  it('includes the Windows ACL diagnostic assets despite the general documentation exclusion', () => {
+    const require = createRequire(import.meta.url)
+    const builderRequire = createRequire(require.resolve('electron-builder'))
+    const { FileMatcher } = builderRequire('app-builder-lib/out/fileMatcher')
+    const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as { files: string[] }
+    const filter = new FileMatcher(projectRoot, projectRoot, (value: string) => value, config.files).createFilter()
+    const bridgeRequire = createRequire(path.join(projectRoot, 'packages/dsh-bridge/package.json'))
+    const packageRoot = path.dirname(bridgeRequire.resolve('@deepseek-ai/dsh-sandbox-windows-acl/package.json'))
+    const assets = readdirSync(path.join(packageRoot, 'assets'), { recursive: true }) as string[]
+    expect(assets.some((file) => file.endsWith('SKILL.md'))).toBe(true)
+    for (const file of assets) {
+      const stat = statSync(path.join(packageRoot, 'assets', file))
+      if (!stat.isFile()) continue
+      const packagedPath = path.join(projectRoot, 'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets', file)
+      expect(filter(packagedPath, stat), file).toBe(true)
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('loads the session file lock through unpacked native dependencies', () => {
+    const entry = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-session-persistence-jsonl')).href
+    const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+      asarUnpack: string[]
+    }
+    const script = `
+      import { registerHooks } from 'node:module';
+      import { fileURLToPath } from 'node:url';
+      import { matchesGlob, sep } from 'node:path';
+      import assert from 'node:assert/strict';
+      const patterns = ${JSON.stringify(config.asarUnpack)}.filter(pattern => !pattern.startsWith('!'));
+      let loadedNative = false;
+      registerHooks({ resolve(specifier, context, nextResolve) {
+        const result = nextResolve(specifier, context);
+        if (result.url.startsWith('file:')) {
+          const filename = fileURLToPath(result.url).split(sep).join('/');
+          const packagePath = filename.slice(filename.lastIndexOf('/node_modules/') + 1);
+          assert(patterns.some(pattern => matchesGlob(packagePath, pattern)), 'Not unpacked: ' + packagePath);
+          if (filename.endsWith('.node')) loadedNative = true;
+        }
+        return result;
+      }});
+      const { tryLockExclusive } = await import(import.meta.resolve('@deepseek-ai/node-addon-system/flock', ${JSON.stringify(entry)}));
+      await assert.rejects(tryLockExclusive(-1), { code: 'EBADF' });
+      assert(loadedNative, 'Session locking did not load its native library');
+    `
+    expect(() =>
+      execFileSync(process.execPath, ['--experimental-import-meta-resolve', '--input-type=module', '-e', script], {
+        timeout: 30_000
+      })
+    ).not.toThrow()
+  })
+
   it('builds every DSH subprocess entry into a bounded bundle directory', () => {
     for (const specifier of Object.keys(DSH_RUNTIME_ENTRY_NAMES) as DshRuntimeEntrySpecifier[]) {
       expect(existsSync(resolveBundledDshRuntimeEntry(specifier)), specifier).toBe(true)
@@ -41,7 +145,7 @@ describe('DSH runtime packaging', () => {
     expect(Object.keys(lock.packages).some((key) => key.startsWith('@deepseek-ai/dsh-web-frontend@'))).toBe(false)
   })
 
-  it.each(['@deepseek-ai/dsh-lazy-require', '@deepseek-ai/dsh-subprocess/control'])(
+  it.each(['@deepseek-ai/dsh-lazy-require', '@deepseek-ai/dsh-subprocess/control', '@deepseek-ai/dsh-skill', 'yaml'])(
     'loads the Windows ACL dependency %s using only unpacked files',
     (specifier) => {
       const entry = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-sandbox-local')).href
@@ -91,17 +195,6 @@ describe('DSH runtime packaging', () => {
     expect(() =>
       execFileSync(process.execPath, ['--input-type=module', '-e', script], { timeout: 30_000 })
     ).not.toThrow()
-  })
-
-  it('installs Landlock platform executables as direct optional dependencies', () => {
-    const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')) as {
-      optionalDependencies: Record<string, string>
-    }
-
-    expect(manifest.optionalDependencies).toMatchObject({
-      '@deepseek-ai/node-addon-landlock-run-linux-arm64': '0.1.1',
-      '@deepseek-ai/node-addon-landlock-run-linux-x64': '0.1.1'
-    })
   })
 
   it('fails closed on Windows when the ACL package is missing', () => {

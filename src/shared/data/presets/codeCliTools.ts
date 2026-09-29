@@ -84,7 +84,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'dsh',
     skillFolderName: 'code-mate-deepseek-harness',
     packageName: '@deepseek-ai/dsh',
-    requestedVersion: '0.1.7-rc.2',
+    requestedVersion: '0.2.0-rc.2',
     install: 'npm',
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
