@@ -267,14 +267,14 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
         closeOnOverlayClick={false}
-        className="max-h-[calc(100dvh-2rem)] max-w-125 overflow-y-auto"
+        className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col overflow-hidden"
         closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
-            <DialogHeader>
+            <DialogHeader className="shrink-0">
               <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-4">
+            <Scrollbar className="flex min-h-0 flex-col gap-4">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
@@ -324,7 +324,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   onRemove={() => channel && onDelete(channel.id)}
                 />
               )}
-            </div>
+            </Scrollbar>
           </>
         )}
       </DialogContent>
