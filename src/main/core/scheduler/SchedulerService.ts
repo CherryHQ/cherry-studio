@@ -62,7 +62,8 @@ export class SchedulerService extends BaseService {
    * re-arms dispose the prior registration BEFORE re-registering, so the
    * deadline-carrying path must consult these tombstones or persisted
    * schedules would lose their pending fire on every re-arm. Overwritten on
-   * each unregister; only entries with a still-pending deadline carry.
+   * each unregister; only entries with a still-pending deadline carry, and
+   * the tombstone is consumed by the next registration for the id either way.
    */
   private replacedIntervals = new Map<string, TimeoutEntry>()
 
