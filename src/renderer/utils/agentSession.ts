@@ -18,12 +18,14 @@ import qqIcon from '@renderer/assets/images/channel/qq.svg'
 import slackIcon from '@renderer/assets/images/channel/slack.svg'
 import telegramIcon from '@renderer/assets/images/channel/telegram.png'
 import wechatIcon from '@renderer/assets/images/channel/wechat.png'
+import wecomIcon from '@renderer/assets/images/channel/wecom.png'
 
 const CHANNEL_TYPE_ICONS: Record<string, string> = {
   telegram: telegramIcon,
   feishu: feishuIcon,
   qq: qqIcon,
   wechat: wechatIcon,
+  wecom: wecomIcon,
   discord: discordIcon,
   slack: slackIcon
 }

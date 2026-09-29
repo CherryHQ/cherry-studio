@@ -30,6 +30,8 @@ import { FlushController } from '../../FlushController'
 // Conservative limits until the deployed bot's stream/markdown limits are verified.
 const TEXT_BYTES = 2048
 const STREAM_WINDOW_MS = 170_000
+// Ordinary-file upload bounds: https://developer.work.weixin.qq.com/document/path/101463
+const MIN_UPLOAD_FILE_BYTES = 5
 const FILE_BYTES = 20 * 1024 * 1024
 const MESSAGE_BYTES = 40 * 1024 * 1024
 
@@ -495,7 +497,8 @@ export class WeComAdapter extends ChannelAdapter {
     if (file.size > FILE_BYTES || file.data.length > Math.ceil(FILE_BYTES / 3) * 4)
       throw new Error(t('common.wecom_attachment_failed'))
     const buffer = Buffer.from(file.data, 'base64')
-    if (buffer.length > FILE_BYTES) throw new Error(t('common.wecom_attachment_failed'))
+    if (buffer.length < MIN_UPLOAD_FILE_BYTES || buffer.length > FILE_BYTES)
+      throw new Error(t('common.wecom_attachment_failed'))
     try {
       await this.waitConnected()
       const client = this.client!

@@ -348,15 +348,40 @@ describe('WeCom channel contract', () => {
     expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.[2]).toBe(t('common.wecom_attachment_failed'))
   })
 
-  it('uploads real file bytes and uses the returned media ID for the intended chat', async () => {
+  it.each([
+    { bytes: 0, reportedSize: 5 },
+    { bytes: 4, reportedSize: 4 },
+    { bytes: 20 * 1024 * 1024 + 1, reportedSize: 20 * 1024 * 1024 + 1 },
+    { bytes: 20 * 1024 * 1024 + 1, reportedSize: 5 }
+  ])(
+    'rejects a $bytes-byte upload before contacting WeCom (reported size $reportedSize)',
+    async ({ bytes, reportedSize }) => {
+      const { instance, client } = await adapter()
+      await expect(
+        instance.sendFile('group:team', {
+          data: Buffer.alloc(bytes, 1).toString('base64'),
+          filename: 'result.txt',
+          size: reportedSize,
+          media_type: 'text/plain'
+        })
+      ).rejects.toThrow(t('common.wecom_attachment_failed'))
+      expect(client.uploadMedia).not.toHaveBeenCalled()
+      expect(client.sendMediaMessage).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([5, 20 * 1024 * 1024])('delivers a permitted %i-byte file to the intended chat', async (size) => {
     const { instance, client } = await adapter()
+    const bytes = Buffer.alloc(size, 1)
     await instance.sendFile('group:team', {
-      data: Buffer.from('data').toString('base64'),
+      data: bytes.toString('base64'),
       filename: 'result.txt',
-      size: 4,
+      size,
       media_type: 'text/plain'
     })
-    expect(client.uploadMedia).toHaveBeenCalledWith(Buffer.from('data'), { type: 'file', filename: 'result.txt' })
+    const [uploaded, options] = client.uploadMedia.mock.calls[0]
+    expect(uploaded.equals(bytes)).toBe(true)
+    expect(options).toEqual({ type: 'file', filename: 'result.txt' })
     expect(client.sendMediaMessage).toHaveBeenCalledWith('team', 'file', 'media-1')
   })
 })
