@@ -4530,7 +4530,9 @@ describe('ComposerSurface', () => {
   })
 
   it('prefers a supported clipboard image over long text when the input is full', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} supportedExts={['.png', '.txt']} />)
+    render(
+      <ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} supportedExts={['.png', '.txt']} />
+    )
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
