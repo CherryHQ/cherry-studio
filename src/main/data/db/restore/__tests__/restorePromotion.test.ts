@@ -1033,7 +1033,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(stagedLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
     }
 
-    it('quiesces Chromium storage before aside, before staging move on Windows', async () => {
+    it('quiesces Chromium storage after aside, before staging move on Windows', async () => {
       if (process.platform !== 'win32') {
         return
       }
@@ -1052,7 +1052,7 @@ describe('runRestorePromotion', () => {
 
       expect(quiesceSpy).toHaveBeenCalledOnce()
       expect(quiesceSpy).toHaveBeenCalledWith('Local Storage')
-      expect(asideExistedBeforeQuiesce).toBe(false)
+      expect(asideExistedBeforeQuiesce).toBe(true)
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
       expect(journalState()).toBe('completed')
       expect(existsSync(stagingDir())).toBe(false)
@@ -1073,15 +1073,21 @@ describe('runRestorePromotion', () => {
       Object.assign(electron.session.defaultSession, { clearData })
       vi.spyOn(electron.app, 'whenReady').mockResolvedValue()
       let asideExistedWhenClearDataRan = false
+      let asideMarkerWhenClearDataRan = ''
       clearData.mockImplementation(async () => {
-        asideExistedWhenClearDataRan = existsSync(join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live'))
+        const asideMarkerPath = join(stagingDir(), 'aside', 'Local Storage', 'leveldb-live')
+        asideExistedWhenClearDataRan = existsSync(asideMarkerPath)
+        asideMarkerWhenClearDataRan = asideExistedWhenClearDataRan
+          ? readFileSync(asideMarkerPath, 'utf8')
+          : ''
       })
       renameFailure.injectPermanentFailureFor = stagedLocalStorageDir()
 
       await runRestorePromotion()
 
       expect(clearData).toHaveBeenCalledOnce()
-      expect(asideExistedWhenClearDataRan).toBe(false)
+      expect(asideExistedWhenClearDataRan).toBe(true)
+      expect(asideMarkerWhenClearDataRan).toBe('LIVE')
       expect(readMarker(livePath())).toBe('old')
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
       expect(existsSync(join(liveLocalStorageDir(), 'leveldb-restored'))).toBe(false)

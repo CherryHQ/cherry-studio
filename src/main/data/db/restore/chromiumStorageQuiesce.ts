@@ -32,9 +32,11 @@ function clearDataTypesForDir(livePath: ChromiumRuntimeDirName): Array<'indexedD
 }
 
 /**
- * Release Chromium LevelDB handles on the default session while the runtime
- * directory still lives at its userData-relative path, before promotion renames
- * it aside or replaces it with staged backup content.
+ * Release Chromium LevelDB handles on the default session after promotion has
+ * parked the live runtime directory in aside, and before the staged backup
+ * replaces the vacant live slot. Callers must not invoke this while user data
+ * still sits at the live path — `clearData` would delete it before rollback
+ * could recover the aside copy.
  *
  * Uses `clearData` rather than `clearStorageData` because the pinned Electron
  * version does not reliably release IndexedDB handles via the legacy API.

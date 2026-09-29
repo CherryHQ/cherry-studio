@@ -518,20 +518,20 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
       const live = resolveEntry(ctx, entry.livePath)
       const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
-      // Quiesce while the staging move is still pending and before parking aside,
-      // so clearData runs against the canonical live path (not LevelDB handles that
-      // would still reference files after they are renamed into aside). A crash after
-      // the move but before its step marker must not re-run quiesce on restored data.
+      // Aside-first: the original must be parked before the overwrite lands.
+      if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
+        renameDurable(live, aside)
+      }
+      // Quiesce only while the staging move is still pending, after parking aside,
+      // so clearData never runs against live user data that has not yet been moved
+      // into the aside rollback slot. A crash after the move but before its step
+      // marker must not re-run quiesce on restored data.
       if (fs.existsSync(staging) && entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
-        logger.info('Quiescing Chromium runtime storage before aside, before staging move', {
+        logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
           restoreId: ctx.journal.restoreId,
           livePath: entry.livePath
         })
         await quiesceChromiumStorageForRestore(entry.livePath)
-      }
-      // Aside-first: the original must be parked before the overwrite lands.
-      if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
-        renameDurable(live, aside)
       }
       moveIdempotent(staging, live)
       return
