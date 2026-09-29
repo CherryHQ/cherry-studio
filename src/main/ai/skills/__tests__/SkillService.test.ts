@@ -2649,12 +2649,9 @@ describe('SkillService', () => {
         'skills',
         'demo'
       )
-      expect(installSpy).toHaveBeenCalledWith(
-        installedDirectory,
-        'marketplace',
-        'https://skills.sh/owner/repo/demo',
-        { allowFolderMigration: false }
-      )
+      expect(installSpy).toHaveBeenCalledWith(installedDirectory, 'marketplace', 'https://skills.sh/owner/repo/demo', {
+        allowFolderMigration: false
+      })
       await expect(fs.promises.access(path.join(installedDirectory, 'notes.md'))).resolves.toBeUndefined()
     })
 
