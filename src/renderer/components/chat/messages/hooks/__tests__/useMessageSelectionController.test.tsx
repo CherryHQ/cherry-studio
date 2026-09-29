@@ -625,6 +625,35 @@ describe('useMessageSelectionController', () => {
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
 
+    it('preserves a newer selection when a long-running export succeeds later', async () => {
+      let finish!: (success: boolean) => void
+      exportMessages.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      const { result } = renderExportController()
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(true)
+        result.current.actions.selectMessage?.('a', true)
+      })
+      let exporting!: Promise<void>
+      act(() => {
+        exporting = result.current.actions.exportSelectedMessages!(['a'], 'markdown') as Promise<void>
+      })
+      act(() => {
+        result.current.actions.selectMessage?.('a', false)
+        result.current.actions.selectMessage?.('b', true)
+      })
+      await act(async () => {
+        finish(true)
+        await exporting
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+    })
+
     it.each(['cancelled', 'failed'] as const)('preserves the selection when export is %s', async (outcome) => {
       if (outcome === 'failed') exportMessages.mockRejectedValueOnce(new Error('export failed'))
       else exportMessages.mockResolvedValueOnce(false)

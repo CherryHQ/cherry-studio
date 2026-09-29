@@ -1345,19 +1345,18 @@ export const exportMarkdownToJoplin = async (
 
   setExportingState(true)
 
-  let content: string
-  if (typeof contentOrMessages === 'string') {
-    content = contentOrMessages
-  } else if (Array.isArray(contentOrMessages)) {
-    content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
-  } else {
-    // 单条Message
-    content = joplinExportReasoning
-      ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
-      : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
-  }
-
   try {
+    let content: string
+    if (typeof contentOrMessages === 'string') {
+      content = contentOrMessages
+    } else if (Array.isArray(contentOrMessages)) {
+      content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
+    } else {
+      content = joplinExportReasoning
+        ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+        : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
+    }
+
     const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
     const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
       method: 'POST',

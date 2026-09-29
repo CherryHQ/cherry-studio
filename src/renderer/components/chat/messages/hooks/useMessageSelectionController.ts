@@ -73,6 +73,7 @@ export function useMessageSelectionController({
   latestExportDataRef.current = { messages, partsByMessageId, copyRichContent }
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
+  const exportSelectionEpochRef = useRef(0)
 
   // Set while a select-all is waiting for load-all pagination to finish.
   const selectAllPendingRef = useRef(false)
@@ -105,9 +106,18 @@ export function useMessageSelectionController({
 
   const selectMessage = useCallback(
     (messageId: string, selected: boolean) => {
-      setSelectedMessageIds((prev) =>
-        selected ? (prev.includes(messageId) ? [...prev] : [...prev, messageId]) : prev.filter((id) => id !== messageId)
-      )
+      setSelectedMessageIds((prev) => {
+        const previous = prev ?? []
+        const next = selected
+          ? previous.includes(messageId)
+            ? previous
+            : [...previous, messageId]
+          : previous.filter((id) => id !== messageId)
+        if (next.length !== previous.length || next.some((id, index) => id !== previous[index])) {
+          exportSelectionEpochRef.current += 1
+        }
+        return next
+      })
       if (selectAllPendingRef.current) {
         // Last action per message wins: untick excludes it from the deferred
         // select-all; re-ticking puts it back.
@@ -137,6 +147,7 @@ export function useMessageSelectionController({
 
   const performSelectAll = useCallback(() => {
     const deselected = manualDeselectedRef.current
+    exportSelectionEpochRef.current += 1
     setSelectedMessageIds(latestSelectableIdsRef.current.filter((id) => !deselected.has(id)))
   }, [setSelectedMessageIds])
 
@@ -160,6 +171,7 @@ export function useMessageSelectionController({
     (checked: boolean) => {
       if (!checked) {
         selectAllPendingRef.current = false
+        exportSelectionEpochRef.current += 1
         setSelectedMessageIds([])
         return
       }
@@ -293,10 +305,14 @@ export function useMessageSelectionController({
         return
       }
 
+      const exportEpoch = exportSelectionEpochRef.current
+
       try {
         const succeeded = await exportMessages?.(exportViews, target)
         if (!succeeded) return
-        toggleMultiSelectMode(false)
+        if (exportEpoch === exportSelectionEpochRef.current) {
+          toggleMultiSelectMode(false)
+        }
       } catch (error) {
         logger.error('Failed to export selected messages:', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('chat.topics.export.failed')))
