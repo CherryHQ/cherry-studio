@@ -6,7 +6,9 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { CONVERSATION_ROUTES } from '@shared/utils/conversationRoute'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import type { SessionToolTarget } from './sessionToolResult'
+import type { ToolResponseLike } from '../toolResponse'
+import { useResolvedToolResponse } from '../useResolvedToolResponse'
+import { getSessionToolTargets, type SessionToolTarget } from './sessionToolResult'
 
 const KIND_LABEL_KEYS = {
   create: 'message.tools.sessionCreate.created',
@@ -16,17 +18,29 @@ const KIND_LABEL_KEYS = {
 } as const satisfies Record<SessionToolTarget['kind'], string>
 
 export const SessionResultCards = React.memo(function SessionResultCards({
-  targets
+  toolResponses
 }: {
-  targets: SessionToolTarget[]
+  toolResponses: ToolResponseLike[]
 }) {
+  return (
+    <div className="mt-3 flex w-[calc(100%-2.5rem)] flex-col gap-2 empty:hidden" data-testid="session-result-cards">
+      {toolResponses.map((toolResponse) => (
+        <SessionToolResultCards key={toolResponse.toolCallId ?? toolResponse.id} toolResponse={toolResponse} />
+      ))}
+    </div>
+  )
+})
+
+function SessionToolResultCards({ toolResponse }: { toolResponse: ToolResponseLike }) {
+  const resolvedToolResponse = useResolvedToolResponse(toolResponse)
+  const targets = getSessionToolTargets(resolvedToolResponse)
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
 
   if (targets.length === 0) return null
 
   return (
-    <div className="mt-3 flex w-[calc(100%-2.5rem)] flex-col gap-2" data-testid="session-result-cards">
+    <>
       {targets.map((target) => {
         const label = t(KIND_LABEL_KEYS[target.kind])
         const openLabel = t('message.tools.sessionCreate.open')
@@ -66,6 +80,6 @@ export const SessionResultCards = React.memo(function SessionResultCards({
           </div>
         )
       })}
-    </div>
+    </>
   )
-})
+}
