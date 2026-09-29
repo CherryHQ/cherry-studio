@@ -12,7 +12,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { detectLocalAgents } from '@main/ai/runtime/localAgent/launch'
-import { checkLocalAgent } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
+import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { PathStaleVersionError } from '@main/utils/file'
@@ -191,6 +191,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').getLocalSessionInfo(sessionId),
   'ai.local_agents.detect': detectLocalAgents,
   'ai.local_agents.check': checkLocalAgent,
+  'ai.local_agents.models': listLocalAgentModels,
   'ai.local_agents.uninstall': ({ presetId, expectedPath }) =>
     application.get('LocalAgentInstallService').uninstall(presetId, expectedPath),
   'ai.local_agents.install': ({ presetId }) => application.get('LocalAgentInstallService').install(presetId),

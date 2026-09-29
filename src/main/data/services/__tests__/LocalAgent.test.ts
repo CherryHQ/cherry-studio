@@ -12,6 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { LocalRuntimeDriver } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
@@ -70,6 +71,21 @@ describe('local agents on migrated SQLite', () => {
     expect(database.db.select().from(userModelTable).all()).toHaveLength(0)
   })
 
+  it('persists a native model choice and clears it when following the CLI again', async () => {
+    const agent = await createAgent(request())
+    const session = agentSessionService.create({
+      name: 'Model selection',
+      agentId: agent.id,
+      workspace: { type: 'system' }
+    })
+    agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config, nativeModel: 'cli-model' } } })
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('cli-model')
+    agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config } } })
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
+    expect(agentSessionService.getById(session.id).agentId).toBe(agent.id)
+    expect(database.db.select().from(userModelTable).all()).toHaveLength(0)
+  })
+
   it('routes and persists a native-model reply without a provider/model foreign key', async () => {
     const agent = await createAgent(request())
     const session = agentSessionService.create({
@@ -100,11 +116,47 @@ describe('local agents on migrated SQLite', () => {
       runtimeResumeToken: 'native-thread',
       messageSnapshot: () => snapshot
     })
+    const usageRecord = {
+      requestId: 'acp:test-turn',
+      context: {
+        providerId: 'local-agent:kilo',
+        providerName: null,
+        modelId: 'kilo/kilo-auto/free',
+        modelName: null,
+        pricingSnapshot: null,
+        trustProviderReportedCost: false,
+        reportedCostCurrency: null,
+        credentialReceipt: { attribution: 'auth' as const, method: 'external-cli' as const },
+        source: { type: 'agent' as const, id: agent.id, name: agent.name, icon: null },
+        messageRef: { kind: 'agent-session' as const, id: persisted.assistantMessageId }
+      },
+      modality: 'language' as const,
+      usage: {
+        inputTokens: 150,
+        outputTokens: 25,
+        totalTokens: 175,
+        noCacheTokens: 100,
+        cacheReadTokens: 40,
+        cacheWriteTokens: 10,
+        reasoningTokens: 5
+      },
+      completedAt: Date.now()
+    }
+    aiUsageRecordService.recordInvocation(usageRecord)
+    aiUsageRecordService.recordInvocation(usageRecord)
     backend.persistAssistant({
       status: 'success',
       finalMessage: { id: persisted.assistantMessageId, role: 'assistant', parts: [{ type: 'text', text: 'world' }] }
     })
     const message = agentSessionMessageService.getSessionMessage(session.id, persisted.assistantMessageId)
+    expect(message.stats).toMatchObject({
+      inputTokens: 150,
+      outputTokens: 25,
+      totalTokens: 175,
+      inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 40, cacheWriteTokens: 10 },
+      outputTokenDetails: { reasoningTokens: 5 }
+    })
+    expect(message.stats?.timeCompletionMs).toBeUndefined()
     expect(message.modelId).toBeNull()
     expect(message.messageSnapshot).toEqual(snapshot)
     expect(message.runtimeResumeToken).toBe('native-thread')

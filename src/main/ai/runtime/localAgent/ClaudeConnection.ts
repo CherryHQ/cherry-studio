@@ -17,7 +17,7 @@ export class ClaudeConnection extends LocalConnection {
   private cwd = ''
   private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
 
-  async start(cwd: string, resume?: string, probe = false): Promise<this> {
+  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
     this.resume = resume
     this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
@@ -27,6 +27,11 @@ export class ClaudeConnection extends LocalConnection {
       const stream = this.createQuery(input)
       try {
         await stream.initializationResult()
+        if (probe === 'models')
+          this.localSessionInfo.models = (await stream.supportedModels()).map((model) => ({
+            id: model.value,
+            name: model.displayName
+          }))
       } finally {
         input.close()
         stream.close()

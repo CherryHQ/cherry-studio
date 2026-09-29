@@ -315,6 +315,12 @@ export interface LocalAgentDetection {
   version?: string
 }
 
+export const LocalAgentModelCatalogSchema = z.object({
+  models: z.array(z.object({ id: z.string().min(1), name: z.string() })),
+  activeModel: z.object({ id: z.string(), name: z.string().optional() }).optional()
+})
+export type LocalAgentModelCatalog = z.infer<typeof LocalAgentModelCatalogSchema>
+
 export interface LocalAgentSessionInfo {
   models: Array<{ id: string; name: string }>
   activeModel?: { id: string; name?: string }

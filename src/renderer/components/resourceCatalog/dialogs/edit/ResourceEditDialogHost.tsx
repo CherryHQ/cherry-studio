@@ -59,12 +59,30 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
     [clearCloseTimer, onOpenChange]
   )
 
+  const handleOpenSettings = useCallback(
+    (id: string) => {
+      clearCloseTimer()
+      setOpen(false)
+      // Navigation hides this host and cancels its delayed dialog cleanup.
+      onOpenChange(false)
+      openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(id)}`)
+    },
+    [clearCloseTimer, onOpenChange]
+  )
+
   if (target?.kind === 'assistant') {
     return <AssistantEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
   }
 
   if (target?.kind === 'agent') {
-    return <AgentEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
+    return (
+      <AgentEditDialogHost
+        target={target}
+        open={open}
+        onOpenChange={handleOpenChange}
+        onOpenSettings={handleOpenSettings}
+      />
+    )
   }
 
   return null
@@ -103,10 +121,12 @@ function AssistantEditDialogHost({
 function AgentEditDialogHost({
   target,
   open,
-  onOpenChange
+  onOpenChange,
+  onOpenSettings
 }: ResourceEditDialogHostProps & {
   target: Extract<ResourceEditDialogTarget, { kind: 'agent' }>
   open: boolean
+  onOpenSettings: (id: string) => void
 }) {
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
@@ -114,10 +134,9 @@ function AgentEditDialogHost({
   const isModelDisabled = useAgentModelDisabled(open)
   useEffect(() => {
     if (open && agent?.type === 'local') {
-      openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(agent.id)}`)
-      onOpenChange(false)
+      onOpenSettings(agent.id)
     }
-  }, [agent?.id, agent?.type, open, onOpenChange])
+  }, [agent?.id, agent?.type, open, onOpenSettings])
 
   useEffect(() => {
     if (!error) return

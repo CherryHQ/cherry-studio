@@ -125,9 +125,9 @@ export type AgentRuntimeEvent =
           outputTokens: number
           totalTokens: number
           reasoningTokens?: number
-          noCacheTokens: number
-          cacheReadTokens: number
-          cacheWriteTokens: number
+          noCacheTokens?: number
+          cacheReadTokens?: number
+          cacheWriteTokens?: number
         }
         metrics?: {
           timeFirstTokenMs?: number

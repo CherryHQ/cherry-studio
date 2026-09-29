@@ -28,6 +28,7 @@ import {
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -683,6 +684,11 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
+            avatarIcon={
+              activeAgent?.configuration?.localRuntime ? (
+                <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={48} />
+              ) : undefined
+            }
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
             title={homeWelcomeText ?? ''}
           />

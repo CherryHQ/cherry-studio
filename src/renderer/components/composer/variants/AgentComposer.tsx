@@ -115,7 +115,6 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
-import { LocalAgentModelControl } from './agent/LocalAgentModelControl'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
@@ -1777,6 +1776,8 @@ const AgentComposerInner = ({
   )
 
   const controlSlots = renderControls({
+    localInfo,
+    localModelDisabled: isStreaming,
     agent,
     model,
     workspace,
@@ -1813,7 +1814,6 @@ const AgentComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
-      {agent?.type === 'local' && <LocalAgentModelControl agent={agent} info={localInfo} disabled={isStreaming} />}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
     </>
   )

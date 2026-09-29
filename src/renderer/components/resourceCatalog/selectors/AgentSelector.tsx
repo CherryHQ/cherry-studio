@@ -2,6 +2,7 @@ import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } fro
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
@@ -111,6 +112,9 @@ export function AgentSelector(props: AgentSelectorProps) {
           id: agent.id,
           name: agent.name,
           description: getAgentDescriptionForDisplay(agent, t),
+          icon: agent.configuration?.localRuntime ? (
+            <LocalAgentIcon presetId={agent.configuration.localRuntime.presetId} size={20} />
+          ) : undefined,
           emoji: getAgentAvatarFromConfiguration(agent.configuration)
         })),
       ...(additionalItems ?? [])

@@ -5,7 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { executeCommand } from '@main/utils/processRunner'
-import type { LocalAgentCheckResult } from '@shared/ai/localAgent'
+import type { LocalAgentCheckResult, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -64,6 +64,16 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 }
 
+export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
+  const live = await connection(`local-agent-models:${randomUUID()}`, '', { ...config, nativeModel: undefined })
+  try {
+    await startWithTimeout(live, application.getPath('cherry.bin'), undefined, 'models')
+    return { models: live.localSessionInfo.models, activeModel: live.localSessionInfo.activeModel }
+  } finally {
+    await live.close()
+  }
+}
+
 export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<LocalAgentCheckResult> {
   const live = await connection(`local-agent-check:${randomUUID()}`, '', config)
   try {
@@ -98,7 +108,7 @@ async function startWithTimeout(
   live: Awaited<ReturnType<typeof connection>>,
   cwd: string,
   resume?: string,
-  probe = false
+  probe: boolean | 'models' = false
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {

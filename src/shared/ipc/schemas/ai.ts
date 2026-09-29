@@ -5,6 +5,7 @@ import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import {
   LocalAgentConfigurationSchema,
   LocalAgentInstallResultSchema,
+  LocalAgentModelCatalogSchema,
   LocalAgentUninstallResultSchema,
   LocalAgentCheckResultSchema,
   type LocalAgentSessionInfo,
@@ -347,6 +348,7 @@ export const aiRequestSchemas = {
     input: z.object({ presetId: z.string().min(1) }),
     output: LocalAgentInstallResultSchema
   }),
+  'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.check': defineRoute({
     input: LocalAgentConfigurationSchema,
     output: LocalAgentCheckResultSchema

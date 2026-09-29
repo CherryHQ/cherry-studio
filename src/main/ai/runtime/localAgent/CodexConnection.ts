@@ -31,7 +31,7 @@ export class CodexConnection extends LocalConnection {
     { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
   >()
 
-  async start(cwd: string, resume?: string, probe = false): Promise<this> {
+  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
@@ -57,7 +57,7 @@ export class CodexConnection extends LocalConnection {
     this.write({ method: 'initialized' })
     this.localSessionInfo.resume = true
     this.localSessionInfo.images = true
-    if (probe) return this
+    if (probe === true) return this
     const models: Array<{ id: string; model?: string; displayName: string; inputModalities?: string[] }> = []
     let cursor: string | null = null
     do {
@@ -78,6 +78,7 @@ export class CodexConnection extends LocalConnection {
       cursor = catalog.nextCursor ?? null
     } while (cursor)
     this.localSessionInfo.models = models.map((model) => ({ id: model.model ?? model.id, name: model.displayName }))
+    if (probe === 'models') return this
     const response = await this.request(resume ? 'thread/resume' : 'thread/start', {
       ...(resume ? { threadId: resume } : {}),
       cwd,

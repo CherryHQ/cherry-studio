@@ -18,7 +18,25 @@ let cwd
 let terminalId
 let promptId
 const finish = () => {
-  if (protocol === 'acp') reply(promptId, { stopReason: 'end_turn' })
+  if (protocol === 'acp')
+    reply(promptId, {
+      stopReason: 'end_turn',
+      ...(scenario === 'usage'
+        ? {
+            usage:
+              turn === 1
+                ? {
+                    inputTokens: 100,
+                    outputTokens: 20,
+                    totalTokens: 175,
+                    thoughtTokens: 5,
+                    cachedReadTokens: 40,
+                    cachedWriteTokens: 10
+                  }
+                : { inputTokens: 3, outputTokens: 2, totalTokens: 5 }
+          }
+        : {})
+    })
   else
     emit({
       method: 'turn/completed',
@@ -46,13 +64,29 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (method === 'session/load') text('REPLAY MUST NOT APPEAR')
     reply(id, {
       sessionId: 'native-session',
+      configOptions:
+        scenario === 'no-models'
+          ? []
+          : [
+              {
+                id: 'model',
+                category: 'model',
+                name: 'Model',
+                type: 'select',
+                currentValue: 'fixture-model',
+                options: [{ value: 'fixture-model', name: 'Fixture model' }]
+              }
+            ]
+    })
+  } else if (method === 'session/set_config_option') {
+    reply(id, {
       configOptions: [
         {
           id: 'model',
           category: 'model',
           name: 'Model',
           type: 'select',
-          currentValue: 'fixture-model',
+          currentValue: message.params.value,
           options: [{ value: 'fixture-model', name: 'Fixture model' }]
         }
       ]

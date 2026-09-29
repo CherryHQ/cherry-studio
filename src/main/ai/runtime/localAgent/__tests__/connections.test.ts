@@ -5,12 +5,14 @@ import { fileURLToPath } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { CodexConnection } from '../CodexConnection'
+import { listLocalAgentModels } from '../LocalRuntimeDriver'
 
 vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: async () => ({ ...process.env }) }))
 
@@ -22,15 +24,17 @@ describe('local protocol processes', () => {
   const connections: Array<AcpConnection | CodexConnection> = []
   beforeEach(async () => {
     cwd = await mkdtemp(path.join(tmpdir(), 'local-agent-contract-'))
+    vi.mocked(application.getPath).mockReturnValue(cwd)
   })
   afterEach(async () => {
     await Promise.all(connections.splice(0).map((connection) => connection.close()))
     await rm(cwd, { recursive: true, force: true })
   })
 
-  function create(protocol: 'acp' | 'codex', scenario = 'normal') {
+  function create(protocol: 'acp' | 'codex', scenario = 'normal', nativeModel?: string) {
     const config: LocalAgentConfiguration = {
       protocol,
+      nativeModel,
       enabled: true,
       executableOverride: process.execPath,
       args: [fixture, protocol, scenario],
@@ -51,6 +55,84 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
+
+  it('records only reported prompt usage, includes cache and reasoning, and resets between turns', async () => {
+    const { connection, events, drained } = create('acp', 'usage')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    const invocations = events.flatMap((event) => (event.type === 'usage' ? [event.invocation] : []))
+    expect(invocations).toHaveLength(2)
+    expect(invocations[0].usage).toEqual({
+      inputTokens: 150,
+      outputTokens: 25,
+      totalTokens: 175,
+      noCacheTokens: 100,
+      reasoningTokens: 5,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10
+    })
+    expect(invocations[1].usage).toEqual({ inputTokens: 3, outputTokens: 2, totalTokens: 5, noCacheTokens: 3 })
+    expect(invocations[0].requestId).not.toBe(invocations[1].requestId)
+    expect(
+      invocations.every((invocation) => invocation.messageAssociation === 'current-turn' && !invocation.metrics)
+    ).toBe(true)
+  })
+
+  it('does not invent usage when the agent omits it', async () => {
+    const { connection, events, drained } = create('acp')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    expect(events.filter((event) => event.type === 'usage')).toEqual([])
+  })
+
+  // Enumeration must not infer, apply a stale saved model, or create a Codex thread.
+  it.each(['acp', 'codex'] as const)('%s loads real model IDs without sending a prompt', async (protocol) => {
+    const catalog = await listLocalAgentModels({
+      protocol,
+      enabled: false,
+      nativeModel: 'stale-model',
+      executableOverride: process.execPath,
+      args: [fixture, protocol, 'normal'],
+      env: { FIXTURE_LOG: path.join(cwd, 'models.jsonl') }
+    })
+    expect(catalog.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
+    const wire = (await readFile(path.join(cwd, 'models.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(
+      wire.some((message) =>
+        ['session/prompt', 'turn/start', 'thread/start', 'session/set_config_option'].includes(message.method)
+      )
+    ).toBe(false)
+  })
+
+  it('keeps an empty catalog when an ACP agent does not advertise model selection', async () => {
+    const { connection } = create('acp', 'no-models')
+    await connection.start(cwd, undefined, 'models')
+    expect(connection.localSessionInfo.models).toEqual([])
+  })
+
+  it.each(['acp', 'codex'] as const)('%s applies the selected native model on connection', async (protocol) => {
+    const { connection } = create(protocol, 'normal', 'fixture-model')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.activeModel?.id).toBe('fixture-model')
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const request = wire.find(
+      (message) => message.method === (protocol === 'acp' ? 'session/set_config_option' : 'thread/start')
+    )
+    expect(request.params).toMatchObject(
+      protocol === 'acp' ? { configId: 'model', value: 'fixture-model' } : { model: 'fixture-model' }
+    )
+  })
 
   it.each(['acp', 'codex'] as const)('%s handshake never sends a prompt', async (protocol) => {
     const { connection } = create(protocol)

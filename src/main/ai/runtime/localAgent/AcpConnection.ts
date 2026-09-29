@@ -7,13 +7,14 @@ import {
   client,
   ndJsonStream,
   type ClientConnection,
+  type PromptResponse,
   type SessionConfigOption,
   type SessionUpdate
 } from '@agentclientprotocol/sdk'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 
-import type { AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
 import { CursorQuestionSchema, CursorPlanSchema, cursorQuestionInput, cursorQuestionOutcome } from './cursorExtension'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
@@ -27,6 +28,14 @@ type Terminal = {
 }
 
 export class AcpConnection extends LocalConnection {
+  readonly usageCapture: AgentSessionUsageCapture = {
+    owner: 'agent-sdk',
+    credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+    providerId: `local-agent:${this.config.presetId ?? this.agentId}`,
+    providerName: null,
+    source: { type: 'agent', id: this.agentId, name: null, icon: null },
+    frozenModels: []
+  }
   private process?: ChildProcess
   private connection?: ClientConnection
   private nativeId?: string
@@ -35,7 +44,7 @@ export class AcpConnection extends LocalConnection {
   private modelConfigId?: string
   private readonly toolInputs = new Map<string, { name: string; input: unknown }>()
 
-  async start(cwd: string, resume?: string, probe = false): Promise<this> {
+  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
@@ -213,7 +222,7 @@ export class AcpConnection extends LocalConnection {
     if (response.protocolVersion !== 1) throw new Error('Unsupported ACP protocol version')
     this.localSessionInfo.resume = response.agentCapabilities?.loadSession === true
     this.localSessionInfo.images = response.agentCapabilities?.promptCapabilities?.image === true
-    if (probe) return this
+    if (probe === true) return this
     this.loading = true
     try {
       if (resume) {
@@ -291,7 +300,31 @@ export class AcpConnection extends LocalConnection {
     this.begin()
     try {
       if (!this.connection || !this.nativeId) throw new Error('ACP session is not connected')
-      await this.connection.agent.request('session/prompt', { sessionId: this.nativeId, prompt })
+      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? 'unknown'
+      const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
+        sessionId: this.nativeId,
+        prompt
+      })
+      const usage = response.usage
+      if (usage) {
+        this.events.push({
+          type: 'usage',
+          invocation: {
+            requestId: `acp:${randomUUID()}`,
+            model,
+            messageAssociation: 'current-turn',
+            usage: {
+              inputTokens: usage.inputTokens + (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0),
+              outputTokens: usage.outputTokens + (usage.thoughtTokens ?? 0),
+              totalTokens: usage.totalTokens,
+              noCacheTokens: usage.inputTokens,
+              ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
+              ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
+              ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})
+            }
+          }
+        })
+      }
       this.finish()
     } catch (error) {
       this.finish(error)

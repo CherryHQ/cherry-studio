@@ -1,5 +1,6 @@
 import { useSearch } from '@tanstack/react-router'
 import {
+  ChevronDown,
   CheckCircle2,
   Download,
   Trash2,
@@ -10,8 +11,7 @@ import {
   RefreshCw,
   Settings2,
   Search,
-  X,
-  Terminal
+  X
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +30,10 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { CliIcon } from '@renderer/components/icons/CliIcon'
+import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
+import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -43,10 +46,12 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
   type LocalAgentDetection,
+  type LocalAgentModelCatalog,
   type LocalAgentPreset
 } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+
+type ModelCatalogState = { key: string; value: LocalAgentModelCatalog }
 
 const installErrorKeys = {
   registry: 'local_agents.install_error.registry',
@@ -63,6 +68,7 @@ export function LocalAgentSettingsPage() {
   const { agents, refetch } = useAgents({ includeDisabledLocal: true })
   const [detections, setDetections] = useState<LocalAgentDetection[]>([])
   const [detecting, setDetecting] = useState(false)
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalogState>()
   const [query, setQuery] = useState('')
   const search = useSearch({ strict: false }) as { id?: string }
   const [selected, setSelected] = useState(search.id ?? 'claude')
@@ -171,7 +177,7 @@ export function LocalAgentSettingsPage() {
                     aria-pressed={entry?.id === e.id}
                     aria-label={`${e.name} · ${status}`}
                     onClick={() => setSelected(e.id)}>
-                    <LocalAgentIcon preset={e.preset} />
+                    <LocalAgentIcon presetId={e.preset?.id} size={26} />
                     <span className="min-w-0 flex-1 truncate text-sm leading-[1.35]">{e.name}</span>
                     {notInstalled ? (
                       <span className="shrink-0 text-xs font-normal text-foreground-tertiary">
@@ -202,6 +208,8 @@ export function LocalAgentSettingsPage() {
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         <LocalAgentEditor
           key={`${entry?.agent?.id ?? selected}:${entry?.agent?.updatedAt ?? ''}`}
+          modelCatalog={modelCatalog}
+          onModelCatalog={setModelCatalog}
           preset={entry?.preset}
           agent={entry?.agent}
           detection={detections.find((d) => d.presetId === entry?.preset?.id)}
@@ -216,23 +224,9 @@ export function LocalAgentSettingsPage() {
   )
 }
 
-function LocalAgentIcon({ preset }: { preset?: LocalAgentPreset }) {
-  return (
-    <span className="flex size-[26px] shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background">
-      {preset ? (
-        <CliIcon
-          id={CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id}
-          size={20}
-          className="size-5"
-        />
-      ) : (
-        <Terminal className="size-4" />
-      )}
-    </span>
-  )
-}
-
 function LocalAgentEditor({
+  modelCatalog,
+  onModelCatalog,
   preset,
   agent,
   detection,
@@ -241,6 +235,8 @@ function LocalAgentEditor({
   preset?: LocalAgentPreset
   agent?: AgentEntity
   detection?: LocalAgentDetection
+  modelCatalog?: ModelCatalogState
+  onModelCatalog: (catalog: ModelCatalogState) => void
   onSaved: (id: string) => Promise<void>
 }) {
   const { t } = useTranslation()
@@ -257,8 +253,18 @@ function LocalAgentEditor({
   const [args, setArgs] = useState(JSON.stringify(initial.args.length ? initial.args : (preset?.args ?? [])))
   const [env, setEnv] = useState(JSON.stringify(initial.env, null, 2))
   const [busyAction, setBusyAction] = useState<
-    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall'
+    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'models' | 'model'
   >()
+  const catalogKey = JSON.stringify([
+    initial.presetId,
+    initial.protocol,
+    initial.executableOverride,
+    detection?.path,
+    detection?.version,
+    initial.args,
+    initial.env
+  ])
+  const catalog = modelCatalog?.key === catalogKey ? modelCatalog.value : undefined
   const busy = busyAction !== undefined
   const [result, setResult] = useState<string>()
   const [resultOk, setResultOk] = useState(false)
@@ -294,6 +300,46 @@ function LocalAgentEditor({
         ]
           .filter(Boolean)
           .join('\n')
+  const loadModels = async () => {
+    if (busy) return
+    setBusyAction('models')
+    setResult(undefined)
+    try {
+      const value = await ipcApi.request('ai.local_agents.models', initial)
+      onModelCatalog({ key: catalogKey, value })
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
+  const selectModel = async (nativeModel?: string) => {
+    if (busy) return false
+    if (nativeModel === initial.nativeModel) return true
+    setBusyAction('model')
+    setResult(undefined)
+    try {
+      const localRuntime = { ...initial, nativeModel }
+      const updated = agent
+        ? await updateAgent({ id: agent.id, configuration: { localRuntime } })
+        : await createAgentAndRefresh(
+            { type: 'local', name: preset!.name, model: null, configuration: { localRuntime } },
+            async () => {}
+          )
+      if (updated) {
+        toast.success(t('common.saved'))
+        await onSaved(updated.id)
+      }
+      return !!updated
+    } catch (error) {
+      setResultOk(false)
+      setResult(String(error))
+      return false
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
   const install = async () => {
     if (!preset || busy) return
     setBusyAction('install')
@@ -530,6 +576,57 @@ function LocalAgentEditor({
             </div>
             {preset && !detection?.path && !initial.executableOverride && (
               <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.install_hint')}</p>
+            )}
+            {(preset || agent) && (
+              <div className="space-y-2 pt-3">
+                <Label id="local-agent-model-label">{t('common.model')}</Label>
+                <LocalAgentModelSelector
+                  models={catalog?.models ?? []}
+                  value={initial.nativeModel}
+                  disabled={busy && busyAction !== 'models'}
+                  loading={busyAction === 'models'}
+                  loaded={!!catalog}
+                  loadDisabled={!detection?.path && !initial.executableOverride}
+                  onLoad={loadModels}
+                  onSelect={selectModel}
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-labelledby="local-agent-model-label"
+                      disabled={busy}
+                      className="h-8 w-72 min-w-0 max-w-full justify-start gap-2 text-xs font-normal">
+                      {initial.nativeModel ? (
+                        <ModelAvatar
+                          model={{
+                            id: initial.nativeModel,
+                            name:
+                              catalog?.models.find((model) => model.id === initial.nativeModel)?.name ||
+                              initial.nativeModel
+                          }}
+                          size={20}
+                        />
+                      ) : (
+                        <CliModelAvatar />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        {initial.nativeModel
+                          ? catalog?.models.find((model) => model.id === initial.nativeModel)?.name ||
+                            initial.nativeModel
+                          : t('local_agents.follow_cli')}
+                      </span>
+                      {busy ? (
+                        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </Button>
+                  }
+                />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t(catalog?.models.length === 0 ? 'local_agents.models_unavailable' : 'local_agents.model_hint')}
+                </p>
+              </div>
             )}
             {!editing && feedback}
           </section>
