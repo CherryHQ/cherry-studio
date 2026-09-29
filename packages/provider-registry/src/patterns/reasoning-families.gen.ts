@@ -56,7 +56,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
     pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
     effort: ['low', 'medium', 'high', 'xhigh', 'max'],
     toggle: false,
-    wireDialect: 'effort'
+    wireDialect: 'adaptive-always'
   },
   {
     pattern: '^(?:anthropic\\.)?claude-fable',

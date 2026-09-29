@@ -4511,7 +4511,7 @@
         ],
         "defaultEffort": "medium",
         "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
-        "wireDialect": "effort"
+        "wireDialect": "adaptive-always"
       }
     },
     {
@@ -22528,5 +22528,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "36889e3c32e09132"
+  "version": "9979100043cb5751"
 }

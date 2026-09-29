@@ -81,7 +81,7 @@ export default defineCreator({
       pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
       effort: ['low', 'medium', 'high', 'xhigh', 'max'],
       toggle: false,
-      wireDialect: 'effort'
+      wireDialect: 'adaptive-always'
     },
     // Fable always reasons. The API rejects attempts to disable thinking.
     {

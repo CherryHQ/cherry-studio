@@ -786,20 +786,24 @@ describe('buildAgentParams standard model parameters', () => {
   })
 })
 
-describe('Sonnet 5.5 request boundary', () => {
-  // Catches omitted progress text at the default tier and rejected disabled/budget thinking.
-  it.each(['default', 'none', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
-    'sends the native %s mode through the catalog and SDK',
-    async (selection) => {
+describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claude-sonnet-4-5'] as const)(
+  '%s request boundary',
+  (modelId) => {
+    const selections =
+      modelId === 'claude-opus-4-6' || modelId === 'claude-sonnet-4-5'
+        ? (['default'] as const)
+        : (['default', 'none', 'low', 'medium', 'high', 'xhigh', 'max'] as const)
+    // Catches omitted progress text at the default tier and rejected disabled/budget thinking.
+    it.each(selections)('sends the native %s mode through the catalog and SDK', async (selection) => {
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: { providerId: 'anthropic', providerSettings: {} },
         credentialReceipt: { attribution: 'unknown' }
       })
       const model = makeModel({
-        id: 'anthropic::claude-sonnet-5-5',
+        id: `anthropic::${modelId}`,
         providerId: 'anthropic',
-        apiModelId: 'claude-sonnet-5-5',
-        presetModelId: 'claude-sonnet-5-5',
+        apiModelId: modelId,
+        presetModelId: modelId,
         endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
         capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
       })
@@ -820,22 +824,26 @@ describe('Sonnet 5.5 request boundary', () => {
           body = JSON.parse(String(init?.body))
           return new Response('{}')
         }
-      })('claude-sonnet-5-5')
+      })(modelId)
       await sdkModel.doStream({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
         providerOptions: options.providerOptions
       })
-      expect(body?.thinking).toEqual(
-        selection === 'none' ? { type: 'between_tools' } : { type: 'adaptive', display: 'summarized' }
-      )
+      if (modelId === 'claude-opus-4-6' || modelId === 'claude-sonnet-4-5') {
+        expect(body).not.toHaveProperty('thinking')
+      } else if (selection === 'none') {
+        expect(body?.thinking).toEqual(modelId === 'claude-sonnet-5-5' ? { type: 'between_tools' } : undefined)
+      } else {
+        expect(body?.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+      }
       if (selection === 'default' || selection === 'none') {
         expect(body).not.toHaveProperty('output_config')
       } else {
         expect(body?.output_config).toEqual({ effort: selection })
       }
-    }
-  )
-})
+    })
+  }
+)
 
 describe('buildAgentParams web-tool routing', () => {
   const provider = makeProvider({

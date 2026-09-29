@@ -28,7 +28,7 @@ describe('Claude Opus 5.5 catalog', () => {
       parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } },
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }],
-        wireDialect: 'effort'
+        wireDialect: 'adaptive-always'
       }
     })
   })

@@ -80,6 +80,18 @@ const anthropicBudgetWire: ReasoningWireProfile = {
   effort: anthropicEnabledBudget
 }
 
+const anthropicAdaptiveWire = {
+  auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
+  effort: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')], {
+    effortMap: { minimal: 'low' }
+  })
+}
+
+const anthropicAlwaysOnWire = {
+  ...anthropicAdaptiveWire,
+  default: anthropicAdaptiveWire.auto
+}
+
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
   const suffix = summaryTarget ? [summary(summaryTarget)] : []
   return {
@@ -139,22 +151,14 @@ const formatProfiles = {
   },
   anthropic: {
     wire: {
-      off: mode([literal('thinking.type', 'disabled')]),
-      auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
-      effort: mode(
-        [literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')],
-        { effortMap: { minimal: 'low' } }
-      )
+      ...anthropicAdaptiveWire,
+      off: mode([literal('thinking.type', 'disabled')])
     },
     budgetWire: anthropicBudgetWire,
+    alwaysOnWire: anthropicAlwaysOnWire,
     betweenToolsWire: {
-      default: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
-      off: mode([literal('thinking.type', 'between_tools')]),
-      auto: mode([literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized')]),
-      effort: mode(
-        [literal('thinking.type', 'adaptive'), literal('thinking.display', 'summarized'), effort('effort')],
-        { effortMap: { minimal: 'low' } }
-      )
+      ...anthropicAlwaysOnWire,
+      off: mode([literal('thinking.type', 'between_tools')])
     }
   },
   gemini: {
@@ -185,6 +189,7 @@ export function selectFormatWire(
   dialect: ReasoningWireDialect | undefined
 ): ReasoningWireProfile {
   if (dialect === 'budget' && profile.budgetWire) return profile.budgetWire
+  if (dialect === 'adaptive-always' && profile.alwaysOnWire) return profile.alwaysOnWire
   if (dialect === 'adaptive-between-tools' && profile.betweenToolsWire) return profile.betweenToolsWire
   return profile.wire
 }

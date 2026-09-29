@@ -84,12 +84,12 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  *  - `anthropic-messages`: Claude 4.6+ `thinking.type=adaptive` vs <=4.5
  *    `thinking.type=enabled` + `budget_tokens`
  *
- * Sonnet 5.5 uses `between_tools` for its lowest thinking setting.
+ * Opus 5.5 always uses adaptive thinking; Sonnet 5.5 also supports `between_tools`.
  * It has effect only where the format profile declares the matching alternative, so open-weight models on openai-compatible endpoints are
  * unaffected (their dialect really does follow the provider — see the rule
  * on {@link ReasoningFamilyRuleSchema}).
  */
-export const ReasoningWireDialectSchema = z.enum(['effort', 'budget', 'adaptive-between-tools'])
+export const ReasoningWireDialectSchema = z.enum(['effort', 'budget', 'adaptive-always', 'adaptive-between-tools'])
 export type ReasoningWireDialect = z.infer<typeof ReasoningWireDialectSchema>
 
 /**
