@@ -63,7 +63,7 @@ function mockScrollGeometry(geometry: { scrollHeight: number; clientHeight: numb
   })
 }
 
-function restoreDescriptor(key: 'clientHeight' | 'scrollHeight', descriptor?: PropertyDescriptor) {
+function restoreDescriptor(key: 'clientHeight' | 'clientWidth' | 'scrollHeight', descriptor?: PropertyDescriptor) {
   if (descriptor) {
     Object.defineProperty(window.HTMLElement.prototype, key, descriptor)
     return
@@ -220,13 +220,7 @@ describe('CodeViewer', () => {
 
     const longLine = 'x'.repeat(500)
     const { rerender } = render(
-      <CodeViewer
-        value={`${longLine}\nshort`}
-        language="python"
-        wrapped
-        expanded={false}
-        maxHeight="350px"
-      />
+      <CodeViewer value={`${longLine}\nshort`} language="python" wrapped expanded={false} maxHeight="350px" />
     )
 
     expect(estimateSize).toBeDefined()
@@ -234,13 +228,7 @@ describe('CodeViewer', () => {
 
     mocks.measure.mockClear()
     rerender(
-      <CodeViewer
-        value={`${longLine}more\nshort`}
-        language="python"
-        wrapped
-        expanded={false}
-        maxHeight="350px"
-      />
+      <CodeViewer value={`${longLine}more\nshort`} language="python" wrapped expanded={false} maxHeight="350px" />
     )
     expect(mocks.measure).toHaveBeenCalled()
   })
