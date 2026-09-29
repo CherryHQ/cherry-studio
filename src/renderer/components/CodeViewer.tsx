@@ -537,7 +537,7 @@ const CodeViewer = ({
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${estimateSize()}px`,
+            '--line-height': `${Math.round(fontSize * 1.6)}px`,
             fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
