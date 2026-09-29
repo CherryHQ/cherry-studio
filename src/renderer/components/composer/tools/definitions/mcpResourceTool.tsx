@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
@@ -41,6 +41,7 @@ export function isTextLikeMcpResource(mimeType?: string): boolean {
 export const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolContext }) => {
   const { actions, assistant, launcher, model, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
+  const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
   const [dataRequested, setDataRequested] = useState(false)
   const [resources, setResources] = useState<McpResource[]>([])
   const [isLoadingResources, setIsLoadingResources] = useState(false)
@@ -226,15 +227,15 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       label: t('chat.input.mcp_resources.title'),
       description: t('chat.input.mcp_resources.description'),
       icon: <McpLogo aria-hidden />,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: items,
+      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
         quickPanel.open({
           title: t('chat.input.mcp_resources.title'),
           list: items,
           symbol: ComposerPanelSymbol.McpResources,
           parentPanel,
-          queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
         })
       }
     }),
@@ -247,6 +248,10 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
     if (!isVisible || symbol !== ComposerPanelSymbol.McpResources) return
     updateList(items)
   }, [isVisible, items, symbol, updateList])
+
+  useEffect(() => {
+    if (rootPanelVisible) setDataRequested(true)
+  }, [rootPanelVisible])
 
   return null
 }

@@ -121,10 +121,11 @@ describe('classifyError', () => {
         errors: [{ name: 'AI_APICallError', statusCode: 400 }]
       })
     ]
-  ])('offers provider settings recovery for a %s HTTP 400', (_kind, error) => {
+  ])('identifies a %s HTTP 400 as a failed request with provider settings recovery', (_kind, error) => {
     const result = classifyError(error, 'openai')
 
-    expect(result.category).toBe('unknown')
+    expect(result.category).toBe('bad_request')
+    expect(result.i18nKey).toBe('error.diagnosis.bad_request')
     expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 

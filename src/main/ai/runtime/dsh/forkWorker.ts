@@ -9,7 +9,6 @@ export interface DshForkWorkerInput {
   targetCwd: string
   boundary: number
   checkpoints: Array<{ boundary: number }>
-  events?: unknown[]
 }
 
 async function run(input: DshForkWorkerInput): Promise<unknown> {

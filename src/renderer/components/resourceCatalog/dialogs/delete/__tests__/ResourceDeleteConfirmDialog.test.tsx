@@ -136,28 +136,6 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it.each(['agent', 'assistant'] as const)(
-    'permanently deletes an %s without offering a restore action',
-    async (type) => {
-      const user = userEvent.setup()
-      const onClose = vi.fn()
-      render(<ResourceDeleteConfirmDialog resource={createResource(type)} permanent onClose={onClose} />)
-      expect(screen.getByRole('checkbox')).not.toBeChecked()
-      await user.click(screen.getByRole('button', { name: 'common.delete_permanently' }))
-      await waitFor(() => expect(onClose).toHaveBeenCalledExactlyOnceWith())
-      if (type === 'agent') {
-        expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.delete_permanently', {
-          agentId: 'agent-1',
-          deleteSessions: false
-        })
-      } else {
-        expect(mocks.deleteAssistant).toHaveBeenCalledExactlyOnceWith({ deleteTopics: false, permanent: true })
-      }
-      expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success')
-    }
-  )
-
   it('moves an Agent without its Sessions by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -240,7 +218,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false, permanent: false }))
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false }))
     expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'assistant name',
@@ -262,7 +240,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     await user.click(screen.getByLabelText('Also archive related topics'))
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true, permanent: false }))
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
     expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
 
     await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()

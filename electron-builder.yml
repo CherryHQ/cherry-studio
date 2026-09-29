@@ -119,6 +119,8 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -151,6 +153,8 @@ mac:
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -182,92 +186,114 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.0 - System Doctor, Browser Control, and Office Transform
+    Cherry Studio 2.1.3 - New Features, Performance, and Reliability
 
     ✨ New Features
-    - [Doctor] Add System Doctor with AI diagnosis, system checks, guided fixes, diagnostic export, and feedback. Checks cover installation, permissions, storage, providers, MCP, managed tools, and recent errors. Diagnose individual chats or Agent sessions separately from full system reports; opening feedback or export does not start a health check.
-    - [Browser] Agents and chat assistants can use the built-in browser, with an animated pointer showing Agent actions. Agents can find page elements, recover them after page updates, inspect console and network activity, and use website WebMCP tools. Also supports browsing history search, browser data import, and separate history or cache clearing.
-    - [Office] Add the office-transform skill: agents can extract worksheet ranges, document paragraphs, PDF pages, and slide shapes into new files.
-    - [Selection] Turn on “Select region” to pick a worksheet range, Word paragraph, PDF page, or slide and quote it as a precise structural reference.
-    - [Web Search] Add Serply as a web search provider.
-    - [Models] Add DeepSeek V4.1 Flash model with reasoning effort control and web search support.
-    - [Agent] Agents can opt out of Claude Code commit attribution in Settings → General.
-    - [Sidebar] Pin Apps, Mini Apps, Agents, Assistants, Knowledge Bases, Topics, Agent Sessions, Files, and Code CLI tools as shortcuts.
-    - [Chat] Add conversation link context menus for opening in built-in or external browser.
-    - [History] Add Ctrl+A/Cmd+A select-all, Shift-click range selection, and partial-selection indicator.
-    - [Mobile] Device Connections now visible to all users with a localized mobile app download card.
-    - [Trash] Deleting topics, agents, assistants, or files now moves them to Settings → Data → Recycle Bin for restore or permanent deletion.
-    - [Markdown] LaTeX code blocks now show formula previews by default.
-    - [Markdown] Bare local file and folder paths in assistant responses are now clickable.
-    - [Logs] Add log retention setting (7/14/30/90 days) with automatic cleanup.
+    - [Remote] Device Connections: pair a compatible mobile client to import providers and use desktop Agents over an encrypted LAN connection, with reconnect recovery, execution failures, approvals and questions. Action required: legacy devices must pair again for the new identity-based protocol.
+    - [Document] Support self-hosted MinerU 4 document parsing while retaining compatibility with legacy Open MinerU servers.
+    - [Screenshot] Use system OCR on macOS and Windows to select and copy screenshot text without downloading a local model.
+    - [Models] Add Claude Opus 5.5 to API chat with updated model limits, pricing, reasoning controls, and web-tool eligibility.
+    - [Models] Add GPT-6 Sol and Luna catalog metadata, OpenAI web-search eligibility, and OpenAI Codex model entries.
+    - [Models] Add Grok 4.7 to the model catalog (xAI, OpenRouter, Vercel AI Gateway, OpenCode, Copilot) with the xhigh reasoning effort; Grok CLI now lists Grok 4.6, Grok 4.7 and Grok 4.7 Fast; Grok 4.6 gains the xhigh reasoning effort.
+    - [Models] Add Xiaomi MiMo V2.6 Flash, Pro and Pro-UltraSpeed to the model catalog for the MiMo, OpenRouter, Vercel AI Gateway and OpenCode providers, with the thinking on/off switch.
+    - [Skills] Adds protected automatic file saving and manual remote updates for Skills installed from exact supported paths.
+    - [Skills] Adds dedicated Skill detail pages, source labels, safer removal, and one-click launch into an Agent session.
+    - [Settings] Add an “Agent reply language” setting (default: follow the conversation language) with preset and custom values, plus a per-agent override with an effective-language preview, so users can pin the language agents reply in.
+    - [Shortcuts] On macOS, Command+W now closes the active tab instead of the window; closing the window moved to Command+Shift+W.
 
     🐛 Bug Fixes
-    - [Code Block] Fixed edits being saved to wrong code block or lost; toolbar stays visible on scroll.
-    - [Composer] Fixed paste silently doing nothing when file could not be read.
-    - [Composer] Preserve input focus when sending messages.
-    - [Conversation List] Show more now expands all remaining conversations.
-    - [History] Keep history open after deleting conversations.
-    - [Markdown] Prevent raw message flashes during lazy loading.
-    - [Markdown] Fix display math rendering across blank lines.
-    - [Windows] Fixed repeated “fsync(dir) failed” warnings in log.
-    - [Models] Enable web search for tool-capable LMStudio/Ollama models.
-    - [Models] List LM Studio models from /api/v0/models.
-    - [Provider] Cap DeepSeek V4 output at 384000 tokens; correct GLM-5.3 and MiMo V2.5 limits.
-    - [DSH] Launch DSH with bundled Bun; preserve OpenCode session headers.
-    - [DSH] Fail fast on incompatible upgraded DSH home.
-    - [Error] Classify Chromium net::ERR_* transport failures; preserve structured provider failure messages.
-    - [Image] Restore HDR reference image compatibility; fix image rotation flip.
-    - [Migration] Keep malformed MCP server record from aborting v2 migration.
-    - [Shortcuts] Warn when shortcut collides with main-process shortcut.
-    - [Chat] Restore bottom-follow after sending; preserve sidebar state when switching tabs.
-    - [Chat] Show multi-model scrollbar on hover; prevent scroll rebound.
-    - [Knowledge] Show file reader scrollbars.
-    - [Smooth Stream] Flush buffered text on completion.
-    - [Claude Code] Treat dangling symlinks as workspace escapes; preserve Linux desktop session bus.
-    - [Copilot] Route GPT-6 Astra through Responses API.
+    - [Settings] Restore scrolling the provider model list from outside the list and let group headings scroll with the page.
+    - [Settings] English search terms now find the V2 conversation style setting.
+    - [Settings] Automatically verify and enable providers after adding models, and prevent model-selection dialogs from jumping when large lists load.
+    - [Proxy] Fixed local services such as DeepSeek Harness failing to connect when IPv4 or IPv6 loopback requests were routed through a proxy.
+    - [Proxy] Fix model list synchronization failing behind a corporate proxy or with an intercepted TLS certificate, which previously failed even though the provider itself worked for chat.
+    - [Proxy] Fix proxy bypass rules written as bare IPv6 literals (`::1`, `fe80::1`, `2001:db8::1`) never matching, and match IPv6 addresses by value so equivalent notations are recognized.
+    - [Agent] Scheduled tasks can now be edited in place through the cron tool, with session-reuse controls and clearer name-conflict guidance.
+    - [Agent] The bundled Cherry tool guide now describes when the notify tool is available and how scheduled tasks get their notification recipients.
+    - [Agent] Fixed dsh-type Agent sessions failing on proxy-only networks by inheriting the configured proxy into the agent runtime process.
+    - [Agent] Keep multi-agent requests in one reply until all work finishes, with compact subtask lists and reliable nested-task navigation.
+    - [Agent] Fixed sent-message link chips and website hover previews opening separate tabs instead of using the Agent conversation's browser pane.
+    - [Chat] Improve the thinking panel height, scrolling, and text readability for long reasoning content.
+    - [Chat] Keep unsubmitted AskUserQuestion answers when switching conversations, so returning to a pending question resumes where the user left off.
+    - [Chat] Fixed token usage not being calculated or displayed for some models after message refresh.
+    - [Chat] Fixed chat messages failing to stay at the bottom after scrolling down with the mouse wheel or dragging the scrollbar.
+    - [Chat] Fixed Responses continuations that sent a UUID as an input item id and were rejected because the id must begin with rs or msg.
+    - [Chat] Fix migrated managed images that still point to an old data directory.
+    - [Skills] Fix skill ZIP import refusing a within-limit skill because the repository archive around it exceeded the old shared ceilings; skill packs may now hold up to 20,000 files.
+    - [Skills] Fixed ClawHub skill installation failing because the download size limit was undefined.
+    - [Skills] Skill installs from Claude Plugins and skills.sh now download only the skill's directory instead of the whole repository, and installing a larger skill from a GitHub link no longer times out.
+    - [Skills] Improve name readability in the two-column settings layout while preserving card size, and show full names and descriptions in tooltips.
+    - [Skills] Fix slash-command and Skills menus while editing messages and after cancelling edits.
+    - [Skills] Fixed CLI cards stuck on “Installing…” when no install was actually running; the status now reconciles against live operations instead of trusting leftover markers.
+    - [Screenshot] Fixed the screenshot toolbar being partly pushed off screen when the selection is near the left edge of a display.
+    - [File] Fixed workspace file trees stopping after a transient Windows file-lock watcher error.
+    - [File] Preserve directory state across brief page switches without keeping the page active.
+    - [AI] Fixed Gemini requests failing with unknown-field 400 errors when a tool schema contains propertyNames or additionalProperties keywords.
+    - [AI] Show clear HTTP 400 request-failure messages and preserve Claude Agent SDK HTTP status codes for accurate error classification.
+    - [AI] Explain HTTP 413 agent request failures and suggest reducing payload size before retrying.
+    - [Windows] Fixed a Windows startup crash when application control blocks the native shutdown handler.
+    - [Linux] Linux AppImages no longer require the system libfuse2 library.
+    - [Mini Apps] Fix the Add mini app dialog width so installation content remains within the dialog.
+    - [History] Chat and Agent history now use archive icons and labels that accurately describe their recoverable archive actions.
+    - [UI] Fixed tooltip content sometimes lingering pinned to the top-left corner after clicking a file path in agent sessions.
+    - [UI] Fixed tooltips lingering at the window's top-left corner after switching right-pane panels.
+    - [UI] Keep message, conversation, and clear actions accessible on devices without hover support, including Windows tablets with detached keyboards.
+    - [Error] Render error causes as text instead of HTML for safer display.
+    - [Citations] Citation panel sources now open in the sidebar browser on left click and in a separate application tab on middle click.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.0 - 系统诊断、浏览器控制与 Office 转换
+    Cherry Studio 2.1.3 - 新功能、性能与可靠性提升
 
     ✨ 新功能
-    - [诊断] 新增系统诊断，支持 AI 诊断、系统检查、引导修复、导出诊断信息和问题反馈，涵盖安装、权限、存储、服务商、MCP、托管工具及最近错误。可单独诊断对话或智能体会话，与全系统报告分离；打开反馈或导出不会自动启动健康检查。
-    - [浏览器] 智能体和对话助手均可使用内置浏览器，并以动画指针展示智能体操作。智能体支持查找页面元素、在页面更新后恢复元素、检查控制台和网络活动，以及调用网站的 WebMCP 工具；同时支持搜索浏览历史、导入浏览器数据和单独清理历史或缓存。
-    - [Office] 新增 office-transform 技能：智能体可将工作表范围、文档段落、PDF 页面和幻灯片形状提取为新文件。
-    - [选择] 开启”选择区域”可选取工作表范围、Word 段落、PDF 页面或幻灯片，作为精确的结构化引用。
-    - [网络搜索] 新增 Serply 网络搜索服务商。
-    - [模型] 新增 DeepSeek V4.1 Flash 模型，支持推理力度控制和网络搜索。
-    - [智能体] 智能体可在设置 → 通用中关闭 Claude Code 提交署名。
-    - [侧边栏] 可将应用、小程序、智能体、助手、知识库、话题、智能体会话、文件和代码 CLI 工具固定为快捷方式。
-    - [对话] 新增对话链接右键菜单，可在内置或外部浏览器中打开。
-    - [历史] 支持 Ctrl+A/Cmd+A 全选、Shift 点击范围选择、部分选择指示器。
-    - [移动端] 设备连接对所有用户可见，新增本地化的移动端下载卡片。
-    - [回收站] 删除话题、智能体、助手或文件现在移入设置 → 数据 → 回收站，支持恢复或永久删除。
-    - [Markdown] LaTeX 代码块默认显示公式预览。
-    - [Markdown] 助手回复中的本地文件和文件夹路径现在可点击。
-    - [日志] 新增日志保留时间设置（7/14/30/90 天），支持自动清理。
+    - [远程] 设备连接：配对兼容的移动客户端以导入供应商，并通过加密的局域网通道使用桌面 Agent，支持重连恢复、执行失败、审批和问答。注意：旧设备需要重新配对以使用新的身份协议。
+    - [文档] 支持自托管 MinerU 4 文档解析，同时保持与旧版 Open MinerU 服务器的兼容性。
+    - [截图] 在 macOS 和 Windows 上使用系统 OCR，无需下载本地模型即可选择和复制截图中的文字。
+    - [模型] 新增 Claude Opus 5.5，更新模型限制、定价、推理控制和网页工具资格。
+    - [模型] 新增 GPT-6 Sol 和 Luna 目录元数据、OpenAI 网页搜索资格和 OpenAI Codex 模型条目。
+    - [模型] 新增 Grok 4.7 到模型目录（xAI、OpenRouter、Vercel AI Gateway、OpenCode、Copilot），支持 xhigh 推理强度；Grok CLI 现在列出 Grok 4.6、Grok 4.7 和 Grok 4.7 Fast；Grok 4.6 新增 xhigh 推理强度。
+    - [模型] 新增小米 MiMo V2.6 Flash、Pro 和 Pro-UltraSpeed 到模型目录，支持 MiMo、OpenRouter、Vercel AI Gateway 和 OpenCode 供应商，提供思考模式开关。
+    - [技能] 为通过精确受支持路径安装的技能新增带冲突保护的文件自动保存和手动远程更新。
+    - [技能] 新增独立技能详情页、来源标签、更安全的删除操作，以及一键进入 Agent 会话试用技能。
+    - [设置] 新增”Agent 回复语言”设置（默认：跟随对话语言），支持预设值和自定义值，以及每个 Agent 的覆盖选项（使用全局/无约束/自定义）和有效语言预览，用户可以固定 Agent 回复使用的语言。
+    - [快捷键] 在 macOS 上，Command+W 现在关闭当前标签页而非窗口；关闭窗口改为 Command+Shift+W。
 
     🐛 问题修复
-    - [代码块] 修复编辑保存到错误代码块或丢失的问题；滚动时工具栏保持可见。
-    - [输入框] 修复粘贴文件读取失败时静默无反应的问题。
-    - [输入框] 发送消息时保持输入焦点。
-    - [对话列表] 点击”显示更多”现在展开所有剩余对话。
-    - [历史] 删除对话后保持历史窗口打开。
-    - [Markdown] 防止懒加载时的原始消息闪烁。
-    - [Markdown] 修复跨空行的显示公式渲染。
-    - [Windows] 修复日志中重复出现的”fsync(dir) failed”警告。
-    - [模型] 为支持工具的 LMStudio/Ollama 模型启用网络搜索。
-    - [模型] 从 /api/v0/models 列出 LM Studio 模型。
-    - [服务商] 将 DeepSeek V4 输出限制为 384000 tokens；修正 GLM-5.3 和 MiMo V2.5 限制。
-    - [DSH] 使用内置 Bun 启动 DSH；保留 OpenCode 会话头。
-    - [DSH] 对不兼容的升级版 DSH 主目录快速失败。
-    - [错误] 分类 Chromium net::ERR_* 传输失败；保留结构化服务商失败消息。
-    - [图片] 恢复 HDR 参考图片兼容性；修复图片旋转翻转。
-    - [迁移] 防止格式错误的 MCP 服务器记录中断 v2 迁移。
-    - [快捷键] 当快捷键与主进程快捷键冲突时发出警告。
-    - [对话] 发送后恢复底部跟随；切换标签时保持侧边栏状态。
-    - [对话] 悬停时显示多模型滚动条；防止滚动回弹。
-    - [知识库] 显示文件阅读器滚动条。
-    - [流畅流] 完成时刷新缓冲文本。
-    - [Claude Code] 将悬空符号链接视为工作区转义；保留 Linux 桌面会话总线。
-    - [Copilot] 通过 Responses API 路由 GPT-6 Astra。
+    - [设置] 修复在模型列表外无法滚动供应商模型的问题，并取消模型分组标题吸顶。
+    - [设置] 英文搜索词现在可以找到 V2 对话风格设置。
+    - [设置] 添加模型后自动验证并启用供应商，防止大型列表加载时模型选择对话框跳动。
+    - [代理] 修复 IPv4 或 IPv6 本地回环请求被代理路由时，DeepSeek Harness 等本地服务无法连接的问题。
+    - [代理] 修复在企业代理或 TLS 证书被拦截的网络环境下，模型列表同步失败的问题（之前即使供应商本身可以用于聊天，同步也会失败）。
+    - [代理] 修复以裸 IPv6 字面量（`::1`、`fe80::1`、`2001:db8::1`）写入的代理绕过规则无法匹配的问题，并按值匹配 IPv6 地址以识别等效表示法。
+    - [智能体] 计划任务现在可以通过 cron 工具原地编辑，支持会话重用控制和更清晰的名称冲突提示。
+    - [智能体] 内置 Cherry 工具指南现在描述 notify 工具何时可用以及计划任务如何获取通知接收者。
+    - [智能体] 修复 dsh 类型 Agent 会话在仅代理网络上失败的问题，通过将配置的代理继承到 agent 运行时进程。
+    - [智能体] 将多 Agent 请求保持在一个回复中直到所有工作完成，提供紧凑的子任务列表和可靠的嵌套任务导航。
+    - [智能体] 修复发送消息链接卡片和网站悬停预览打开单独标签页而非使用 Agent 对话的浏览器窗格的问题。
+    - [对话] 改进思考面板的高度、滚动和长推理内容的文本可读性。
+    - [对话] 切换对话时保留未提交的 AskUserQuestion 答案，返回待处理问题时可以继续之前的状态。
+    - [对话] 修复刷新消息后某些模型的 token 用量未被计算或显示的问题。
+    - [对话] 修复使用鼠标滚轮或拖动滚动条向下滚动后，聊天消息无法保持在底部的问题。
+    - [对话] 修复 Responses 延续发送 UUID 作为输入项 ID 被拒绝的问题（ID 必须以 rs 或 msg 开头）。
+    - [对话] 修复迁移后的托管图片仍指向旧数据目录的问题。
+    - [技能] 修复技能 ZIP 导入因仓库存档超过旧的共享上限而拒绝符合限制的技能的问题；技能包现在最多可包含 20,000 个文件。
+    - [技能] 修复 ClawHub 技能安装因下载大小限制未定义而失败的问题。
+    - [技能] 从 Claude Plugins 和 skills.sh 安装技能现在仅下载技能目录而非整个仓库，从 GitHub 链接安装较大的技能不再超时。
+    - [技能] 改进双列布局中的名称可读性，同时保持卡片大小，并在工具提示中显示完整名称和描述。
+    - [技能] 修复编辑消息和取消编辑后的斜杠命令和技能菜单问题。
+    - [技能] 修复 CLI 卡片卡在”安装中…”状态而实际上没有安装的问题；状态现在与实际操作协调而非信任残留标记。
+    - [截图] 修复选择靠近显示器左边缘时截图工具栏部分被推出屏幕的问题。
+    - [文件] 修复由于短暂的 Windows 文件锁定监视器错误导致工作区文件树停止的问题。
+    - [文件] 在短暂的页面切换期间保留目录状态，而无需保持页面活动。
+    - [AI] 修复工具模式包含 propertyNames 或 additionalProperties 关键字时 Gemini 请求因未知字段返回 400 错误的问题。
+    - [AI] 显示清晰的 HTTP 400 请求失败消息，并保留 Claude Agent SDK HTTP 状态代码以进行准确的错误分类。
+    - [AI] 解释 HTTP 413 Agent 请求失败并建议重试前减少有效负载大小。
+    - [Windows] 修复应用程序控制阻止本机关闭处理程序时的 Windows 启动崩溃。
+    - [Linux] Linux AppImage 不再需要系统 libfuse2 库。
+    - [小程序] 修复添加小程序对话框宽度，使安装内容保持在对话框内。
+    - [历史] 聊天和 Agent 历史现在使用准确描述其可恢复存档操作的存档图标和标签。
+    - [界面] 修复在 Agent 会话中点击文件路径后工具提示内容有时会固定在窗口左上角的问题。
+    - [界面] 修复切换右侧窗格面板后工具提示在窗口左上角残留的问题。
+    - [界面] 在不支持悬停的设备上（包括分离键盘的 Windows 平板电脑）保持消息、对话和清除操作可访问。
+    - [错误] 将错误原因以文本而非 HTML 形式渲染，以更安全地显示。
+    - [引用] 引用面板来源现在在左键单击时在侧边栏浏览器中打开，中键单击时在单独的应用程序标签页中打开。
     <!--LANG:END-->

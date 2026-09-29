@@ -49,11 +49,24 @@ export class RuntimeExecutor<
   public pluginEngine: PluginEngine<T>
   private config: RuntimeConfig<TSettingsMap, T>
   private registry: ReturnType<typeof createProviderRegistry>
+  private readonly resolveModelPlugin: AiPlugin
+  private readonly resolveImageModelPlugin: AiPlugin
 
   constructor(config: RuntimeConfig<TSettingsMap, T>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
+    this.resolveModelPlugin = definePlugin({
+      name: '_internal_resolveModel',
+      enforce: 'post',
+      // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
+      resolveModel: (modelId: string) => this.resolveModel(modelId)
+    })
+    this.resolveImageModelPlugin = definePlugin({
+      name: '_internal_resolveImageModel',
+      enforce: 'post',
+      resolveModel: (modelId: string) => this.resolveImageModel(modelId)
+    })
 
     // Some v3 providers (e.g., @openrouter/ai-sdk-provider) expose textEmbeddingModel
     // but not embeddingModel. Patch for AI SDK registry compatibility.
@@ -67,39 +80,6 @@ export class RuntimeExecutor<
     })
   }
 
-  createResolveModelPlugin() {
-    return definePlugin({
-      name: '_internal_resolveModel',
-      enforce: 'post',
-
-      resolveModel: async (modelId: string) => {
-        // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
-        return await this.resolveModel(modelId)
-      }
-    })
-  }
-
-  private createResolveImageModelPlugin() {
-    return definePlugin({
-      name: '_internal_resolveImageModel',
-      enforce: 'post',
-
-      resolveModel: async (modelId: string) => {
-        return await this.resolveImageModel(modelId)
-      }
-    })
-  }
-
-  createConfigureContextPlugin() {
-    return definePlugin({
-      name: '_internal_configureContext',
-      configureContext: async () => {
-        // Placeholder for future context configuration
-        // Previously set executor and baseProvider, now handled by registry
-      }
-    })
-  }
-
   // === 高阶重载：直接使用模型 ===
 
   /**
@@ -107,13 +87,7 @@ export class RuntimeExecutor<
    */
   async streamText(params: streamTextParams): Promise<ReturnType<typeof _streamText>> {
     const { model } = params
-
-    // 根据 model 类型决定插件配置
-    if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
-    } else {
-      this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-    }
+    const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
     return this.pluginEngine.executeStreamWithPlugins(
       'streamText',
@@ -127,7 +101,9 @@ export class RuntimeExecutor<
           model: resolvedModel,
           experimental_transform
         })
-      }
+      },
+      undefined,
+      requestPlugins
     )
   }
 
@@ -138,18 +114,14 @@ export class RuntimeExecutor<
    */
   async generateText(params: generateTextParams): Promise<ReturnType<typeof _generateText>> {
     const { model } = params
-
-    // 根据 model 类型决定插件配置
-    if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
-    } else {
-      this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-    }
+    const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
     return this.pluginEngine.executeWithPlugins<Parameters<typeof _generateText>[0], ReturnType<typeof _generateText>>(
       'generateText',
       params,
-      (resolvedModel, transformedParams) => _generateText({ ...transformedParams, model: resolvedModel })
+      (resolvedModel, transformedParams) => _generateText({ ...transformedParams, model: resolvedModel }),
+      undefined,
+      requestPlugins
     )
   }
 
@@ -159,13 +131,7 @@ export class RuntimeExecutor<
   async generateImage(params: generateImageParams): Promise<generateImageResult> {
     try {
       const { model, onProviderCall, ...providerParams } = params
-
-      // 根据 model 类型决定插件配置
-      if (typeof model === 'string') {
-        this.pluginEngine.usePlugins([this.createResolveImageModelPlugin(), this.createConfigureContextPlugin()])
-      } else {
-        this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-      }
+      const requestPlugins = typeof model === 'string' ? [this.resolveImageModelPlugin] : []
 
       return this.pluginEngine.executeImageWithPlugins(
         'generateImage',
@@ -195,7 +161,9 @@ export class RuntimeExecutor<
               })
             : resolvedModel
           return _generateImage({ ...transformedParams, model: observedModel })
-        }
+        },
+        undefined,
+        requestPlugins
       )
     } catch (error) {
       if (error instanceof Error) {
@@ -295,6 +263,15 @@ export class RuntimeExecutor<
       return this.config.modelResolver(modelId)
     }
     return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
+  }
+
+  /**
+   * Resolve a model id through the plugin chain: `configureContext` middleware
+   * contributed by this executor's plugins is applied to the returned model.
+   * Use `languageModel()` instead when the bare provider model is wanted.
+   */
+  public resolveLanguageModel(modelId: string): Promise<LanguageModelV3> {
+    return this.pluginEngine.resolveModel(modelId, [this.resolveModelPlugin])
   }
 
   /**

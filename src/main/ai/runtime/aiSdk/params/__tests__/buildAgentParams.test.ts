@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
@@ -22,6 +23,7 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
+import { getDeferredToolsSystemPrompt } from '../../prompts/deferredTools'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
@@ -784,6 +786,65 @@ describe('buildAgentParams standard model parameters', () => {
   })
 })
 
+describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claude-sonnet-4-5'] as const)(
+  '%s request boundary',
+  (modelId) => {
+    const selections =
+      modelId === 'claude-opus-4-6' || modelId === 'claude-sonnet-4-5'
+        ? (['default'] as const)
+        : (['default', 'none', 'low', 'medium', 'high', 'xhigh', 'max'] as const)
+    // Catches omitted progress text at the default tier and rejected disabled/budget thinking.
+    it.each(selections)('sends the native %s mode through the catalog and SDK', async (selection) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'anthropic', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const model = makeModel({
+        id: `anthropic::${modelId}`,
+        providerId: 'anthropic',
+        apiModelId: modelId,
+        presetModelId: modelId,
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const { options } = await buildAgentParams({
+        request: { conversation: CONVERSATION, reasoningEffort: selection },
+        provider: makeProvider({
+          id: 'anthropic',
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        }),
+        model,
+        assistant: makeAssistant(),
+        signal: undefined
+      })
+      let body: Record<string, unknown> | undefined
+      const sdkModel = createAnthropic({
+        apiKey: 'test',
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body))
+          return new Response('{}')
+        }
+      })(modelId)
+      await sdkModel.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+        providerOptions: options.providerOptions
+      })
+      if (modelId === 'claude-opus-4-6' || modelId === 'claude-sonnet-4-5') {
+        expect(body).not.toHaveProperty('thinking')
+      } else if (selection === 'none') {
+        expect(body?.thinking).toEqual(modelId === 'claude-sonnet-5-5' ? { type: 'between_tools' } : undefined)
+      } else {
+        expect(body?.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+      }
+      if (selection === 'default' || selection === 'none') {
+        expect(body).not.toHaveProperty('output_config')
+      } else {
+        expect(body?.output_config).toEqual({ effort: selection })
+      }
+    })
+  }
+)
+
 describe('buildAgentParams web-tool routing', () => {
   const provider = makeProvider({
     id: 'anthropic',
@@ -953,7 +1014,7 @@ describe('buildAgentParams web-tool routing', () => {
     },
     { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
   ] as const)(
-    'routes DeepSeek V4 Flash web search to $expectedRoute on $endpointType',
+    'routes DeepSeek Flash web search to $expectedRoute on $endpointType',
     async ({ endpointType, runtimeProviderId, expectedRoute }) => {
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: { providerId: runtimeProviderId, providerSettings: {} },
@@ -977,9 +1038,9 @@ describe('buildAgentParams web-tool routing', () => {
         ]
       })
       const deepseekModel = makeModel({
-        id: 'deepseek::deepseek-v4-flash',
+        id: 'deepseek::deepseek-flash',
         providerId: 'deepseek',
-        apiModelId: 'deepseek-v4-flash',
+        apiModelId: 'deepseek-flash',
         endpointTypes: [endpointType],
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
@@ -2134,5 +2195,30 @@ describe('assistant browser tool selection', () => {
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('browser_open')
+  })
+
+  it('defers the browser surface in a fresh topic even with a large context window', async () => {
+    const enabled = await resolveTools(
+      { conversation: CONVERSATION },
+      makeAssistant(),
+      makeModel({ contextWindow: 1_000_000 }),
+      false,
+      []
+    )
+    expect(Object.keys(enabled.tools ?? {}).filter((name) => name.startsWith('browser_'))).toEqual([])
+    expect(enabled.tools).toHaveProperty('tool_search')
+    expect(enabled.tools).toHaveProperty('tool_inspect')
+    expect(enabled.tools).toHaveProperty('tool_invoke')
+    expect(
+      enabled.deferredEntries
+        .filter((entry) => entry.namespace === 'browser')
+        .map((entry) => entry.name)
+        .sort()
+    ).toEqual(
+      createBrowserToolEntries()
+        .map((entry) => entry.name)
+        .sort()
+    )
+    expect(getDeferredToolsSystemPrompt(enabled.deferredEntries)).toMatch(/<namespace name="browser" count="\d+"\/>/)
   })
 })
