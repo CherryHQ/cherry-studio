@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -242,7 +243,7 @@ describe('resolveMessageCitations', () => {
 
   it('truncates a long read slice to a tooltip-sized snippet', () => {
     const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content: 'x'.repeat(2000) }))])
-    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(300)}…`)
+    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`)
   })
 
   it('aliases a document to its existing citation when kb_search already returned it', () => {

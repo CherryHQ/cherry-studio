@@ -17,7 +17,7 @@ import { isHttpUrl } from '@shared/utils/url'
  * keeps the full slice out of the render path and avoids re-serializing it into every citation
  * tag. The shared persist, transport, and renderer cap also keeps live and reloaded messages equal.
  */
-export const CITATION_SNIPPET_MAX_CHARS = 300
+export const CITATION_SNIPPET_MAX_CHARS = 1000
 
 // ── Why no builtin tool runs with `strict: true` ─────────────────
 //
