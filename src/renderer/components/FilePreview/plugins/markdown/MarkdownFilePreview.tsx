@@ -136,12 +136,16 @@ function MarkdownPreviewContent({
   if (loadState.status === 'error') return <MarkdownPreviewError />
   if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
+  // Stripping happens before the mode split so a forced plain-text fallback cannot expose what the
+  // rendered view is required to hide.
+  const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
+
   if (mode === 'source') {
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<MarkdownPreviewLoading />}>
           <LazyCodeViewer
-            value={loadState.content}
+            value={content}
             language="markdown"
             wrapped
             options={{ highlight: richPreview }}
@@ -152,7 +156,6 @@ function MarkdownPreviewContent({
     )
   }
 
-  const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
   if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
   const markdown = (
