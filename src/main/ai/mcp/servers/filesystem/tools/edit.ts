@@ -102,7 +102,12 @@ export async function handleEditTool(args: unknown, baseDir: string) {
     const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
 
     // Write the modified content
-    await writeInPlace(validPath, newContent)
+    // Write the modified content
+    try {
+      await writeInPlace(validPath, newContent)
+    } catch (error: any) {
+      throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
+    }
 
     logger.info('File edited', {
       path: validPath,
