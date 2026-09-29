@@ -1,6 +1,6 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +39,12 @@ vi.mock('qrcode.react', () => ({
     <output role="img" aria-label={title} data-value={value} />
   )
 }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: keyof typeof enUS) => enUS[key] }) }))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: keyof typeof enUS, options?: { address?: string }) =>
+      enUS[key].replace('{{address}}', options?.address ?? '')
+  })
+}))
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
 
@@ -80,6 +85,7 @@ describe('DeviceConnectionsSettings', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
+    MockUseDataApiUtils.mockQueryData('/skills', [])
     invitationMock.mockReset()
     requestMock.mockReset().mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.list_claims') return []
@@ -89,12 +95,137 @@ describe('DeviceConnectionsSettings', () => {
     navigateMock.mockReset()
     MockUseCacheUtils.resetMocks()
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', { hosts: ['0.0.0.0', '::'], port: 23333 })
     useIpcOnMock.mockReset()
     useApiGatewayMock.mockReturnValue({
       apiGatewayConfig: { enabled: true, host: '0.0.0.0', port: 23333, apiKey: 'cs-sk-test' },
       apiGatewayRunning: true,
       apiGatewayLoading: false
     })
+  })
+
+  it('explains network exposure while keeping bound addresses in collapsed connection details', async () => {
+    const user = userEvent.setup()
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1', port: 25555 }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', { hosts: ['127.0.0.1', '::1'], port: 24444 })
+    render(<DeviceConnectionsSettings />)
+
+    expect(screen.getByText(enUS['deviceConnections.toggle.description'])).toBeVisible()
+    expect(screen.queryByText(/127\.0\.0\.1:24444/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Allow network access' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    expect(screen.queryByText(/127\.0\.0\.1:24444/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Connection details' }))
+    expect(screen.getByText('Listening on this computer only: 127.0.0.1:24444 · [::1]:24444')).toBeVisible()
+  })
+
+  it('reports actual listening scope in details even when the saved preference differs', async () => {
+    const user = userEvent.setup()
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
+    const { rerender } = render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    await user.click(screen.getByRole('button', { name: 'Connection details' }))
+    expect(screen.getByText('Listening on all network interfaces: 0.0.0.0:23333 · [::]:23333')).toBeVisible()
+
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', null)
+    rerender(<DeviceConnectionsSettings />)
+    expect(screen.getByText(enUS['deviceConnections.listening.stopped'])).toBeVisible()
+    expect(screen.queryByText(/Listening on this computer only/)).not.toBeInTheDocument()
+  })
+
+  it('keeps addresses behind connection details without creating another pairing invitation', async () => {
+    const user = userEvent.setup()
+    requestMock.mockImplementation(async (name: string) => {
+      if (name === 'api_gateway.remote.list_claims' || name === 'api_gateway.remote.check_networks') return []
+      if (name === 'api_gateway.remote.get_endpoints')
+        return { desktopIdentity: 'desktop', endpoints: [{ host: '100.64.0.2', port: 24444, security: 'ws' }] }
+      throw new Error(`Unexpected request: ${name}`)
+    })
+    render(<DeviceConnectionsSettings />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByText('ws://100.64.0.2:24444/v1/remote/connect')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Connection details' }))
+    expect(await screen.findByText('ws://100.64.0.2:24444/v1/remote/connect')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Set up Tailscale' }))
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Install Tailscale on your phone' }))
+    expect(screen.getByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).toHaveAttribute(
+      'data-value',
+      'https://tailscale.com/download'
+    )
+    expect(screen.getByText(enUS['deviceConnections.setup.phoneDownload'])).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Install Tailscale on your phone' }))
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
+    expect(invitationMock).not.toHaveBeenCalled()
+  })
+
+  it('requires the shared device switch before showing remote setup, then continues when the listener is ready', async () => {
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
+    const user = userEvent.setup()
+    const { rerender } = render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.queryByRole('button', { name: 'Set up Tailscale' })).not.toBeInTheDocument()
+    expect(dialog.queryByText('On your phone')).not.toBeInTheDocument()
+    expect(requestMock).not.toHaveBeenCalled()
+    await user.click(dialog.getByRole('button', { name: 'Allow network access' }))
+    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
+    expect(dialog.queryByRole('button', { name: 'Check computer network' })).not.toBeInTheDocument()
+
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '0.0.0.0' }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
+    rerender(<DeviceConnectionsSettings />)
+    expect(await dialog.findByRole('button', { name: 'Check computer network' })).toBeEnabled()
+    expect(dialog.getByText('On your phone')).toBeInTheDocument()
+    expect(dialog.queryByRole('button', { name: 'Allow network access' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the enable action available after a failure without exposing VPN installation', async () => {
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
+    })
+    requestMock.mockRejectedValueOnce(new Error('Permission denied'))
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.click(dialog.getByRole('button', { name: 'Allow network access' }))
+    expect(dialog.getByRole('button', { name: 'Allow network access' })).toBeEnabled()
+    expect(dialog.queryByRole('button', { name: 'Set up Tailscale' })).not.toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Failed to change network access: Permission denied')
+    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
+  })
+
+  it('routes remote setup to gateway settings when the gateway is stopped', async () => {
+    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: false })
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText(enUS['deviceConnections.gateway.required'])).toBeVisible()
+    expect(dialog.queryByRole('button', { name: 'Allow network access' })).not.toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Open API Gateway settings' }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
+    expect(requestMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -110,7 +241,7 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
     expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
     expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
@@ -123,7 +254,7 @@ describe('DeviceConnectionsSettings', () => {
     useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayLoading: true })
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('button', { name: 'Disable LAN access' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Disable network access' })).toBeDisabled()
   })
 
   it.each([true, false])('changes only LAN access when enabled=%s is requested', async (enabled) => {
@@ -134,7 +265,7 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: enabled ? 'Enable LAN access' : 'Disable LAN access' }))
+    await user.click(screen.getByRole('button', { name: enabled ? 'Allow network access' : 'Disable network access' }))
 
     expect(requestMock.mock.calls.filter(([name]) => name !== 'api_gateway.remote.list_claims')).toEqual([
       ['api_gateway.lan.set_enabled', { enabled }]
@@ -319,11 +450,11 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('button', { name: 'Disable LAN access' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Disable network access' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
-    expect(toast.error).toHaveBeenCalledWith('Failed to change LAN access: disk full')
+    expect(toast.error).toHaveBeenCalledWith('Failed to change network access: disk full')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
@@ -342,6 +473,7 @@ describe('DeviceConnectionsSettings', () => {
     vi.useFakeTimers()
     await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
 
     await act(async () => vi.advanceTimersByTime(60_000))
 

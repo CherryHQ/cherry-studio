@@ -73,6 +73,17 @@ describe('remote discovery advertisement lifetime', () => {
     expect(state.publishers[1].destroyed).toBe(true)
   })
 
+  it('withdraws IPv6 records when only IPv4 is listening on the same port', () => {
+    const advertisement = new RemoteAdvertisement(vi.fn())
+    advertisement.update('peer1', 24444, true)
+    const first = state.publishers[0]
+    expect(first.records[0]).toMatchObject({ port: 24444, disableIPv6: false })
+    advertisement.update('peer1', 24444, false)
+    expect(first.records).toEqual([])
+    expect(state.publishers[1].records[0]).toMatchObject({ port: 24444, disableIPv6: true })
+    advertisement.stop()
+  })
+
   it('cannot become available again from callbacks of a withdrawn publication', () => {
     const status = vi.fn()
     const advertisement = new RemoteAdvertisement(status)

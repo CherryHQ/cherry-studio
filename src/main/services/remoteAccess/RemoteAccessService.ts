@@ -20,6 +20,7 @@ import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
+import { checkVpnNetworks } from './vpnStatus'
 
 const logger = loggerService.withContext('RemoteAccessService')
 const transportLog: ChannelOptions['logger'] = {
@@ -38,10 +39,13 @@ const transportLog: ChannelOptions['logger'] = {
 @DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
+  private setupAbort = new AbortController()
+  private networkCheck?: ReturnType<typeof checkVpnNetworks>
+  private install?: Promise<{ outcome: 'installed' | 'existing' | 'manual-required' }>
   private readonly advertisement = new RemoteAdvertisement((status) => {
     application.get('CacheService').setShared('feature.remote_access.discovery_status', status)
   })
-  private endpoint?: { port: number; identity?: string }
+  private endpoint?: { port: number; ipv6?: boolean; identity?: string }
   private endpointRevision = 0
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
@@ -52,10 +56,12 @@ export class RemoteAccessService extends BaseService {
   >()
 
   protected async onInit(): Promise<void> {
+    this.setupAbort = new AbortController()
     remoteCommandService.interruptPending()
     this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
     const refreshAdvertisement = () => {
-      if (this.endpoint?.identity) this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      if (this.endpoint?.identity)
+        this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     this.registerInterval(refreshAdvertisement, 5000)
     powerMonitor.on('resume', refreshAdvertisement)
@@ -74,6 +80,7 @@ export class RemoteAccessService extends BaseService {
       }
     }, 1000)
     this.registerDisposable(() => {
+      this.setupAbort.abort()
       this.updateDirectEndpoint(undefined)
       this.pairing.clear()
       this.tokens.clear()
@@ -83,8 +90,8 @@ export class RemoteAccessService extends BaseService {
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
-  updateDirectEndpoint(endpoint: { port: number } | undefined): void {
-    if (this.endpoint?.port === endpoint?.port) return
+  updateDirectEndpoint(endpoint: { port: number; ipv6?: boolean } | undefined): void {
+    if (this.endpoint?.port === endpoint?.port && this.endpoint?.ipv6 === endpoint?.ipv6) return
     const revision = ++this.endpointRevision
     this.endpoint = endpoint
     this.advertisement.stop()
@@ -98,7 +105,7 @@ export class RemoteAccessService extends BaseService {
       .then((identity) => {
         if (revision !== this.endpointRevision) return
         this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
-        this.advertisement.update(this.endpoint.identity!, advertised.port)
+        this.advertisement.update(this.endpoint.identity!, advertised.port, advertised.ipv6)
       })
       .catch((error: unknown) => {
         if (revision !== this.endpointRevision) return
@@ -107,11 +114,52 @@ export class RemoteAccessService extends BaseService {
       })
   }
 
+  async getConnectionEndpoints() {
+    const desktopIdentity = deviceIdentityId(await this.getIdentity())
+    const { addresses, port } = application.get('ApiGatewayService').getRemoteEndpoint()
+    return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
+  }
+
+  checkNetworks() {
+    this.setupAbort.signal.throwIfAborted()
+    this.networkCheck ??= checkVpnNetworks(this.setupAbort.signal).finally(() => {
+      this.networkCheck = undefined
+    })
+    return this.networkCheck
+  }
+
+  installTailscale() {
+    this.setupAbort.signal.throwIfAborted()
+    this.install ??= this.installTailscaleClient().finally(() => {
+      this.install = undefined
+    })
+    return this.install
+  }
+
+  private async installTailscaleClient(): Promise<{ outcome: 'installed' | 'existing' | 'manual-required' }> {
+    const statuses = await this.checkNetworks()
+    if (statuses.find((status) => status.product === 'tailscale')?.state !== 'not-detected')
+      return { outcome: 'existing' }
+    if (process.platform !== 'darwin' || process.arch !== 'arm64') return { outcome: 'manual-required' }
+    try {
+      await application.get('BinaryManager').installSystemPackage('brew-cask:tailscale-app', this.setupAbort.signal)
+      return { outcome: 'installed' }
+    } catch {
+      this.setupAbort.signal.throwIfAborted()
+      return { outcome: 'manual-required' }
+    }
+  }
+
+  protected async onStop(): Promise<void> {
+    this.setupAbort.abort()
+    await Promise.allSettled([this.networkCheck, this.install])
+  }
+
   async createInvitation() {
     const identity = await this.getIdentity()
     if (this.endpoint && !this.endpoint.identity) {
       this.endpoint.identity = deviceIdentityId(identity)
-      this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
   }
@@ -184,7 +232,8 @@ export class RemoteAccessService extends BaseService {
       this.pairing,
       this.tokens,
       () => application.get('IpcApiService').broadcast('api_gateway.remote.pairing_changed', undefined),
-      this.hub
+      this.hub,
+      () => this.getConnectionEndpoints()
     )
     entry.remote = remote
     let windowStart = Date.now()

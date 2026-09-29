@@ -5,7 +5,7 @@ import type { Server } from 'elysia/universal/server'
 import { application } from '@application'
 import { loggerService } from '@logger'
 
-import { type ApiGatewayApp, buildApp } from './app'
+import { buildApp } from './app'
 import { McpSessionStore } from './McpSessionStore'
 
 const logger = loggerService.withContext('ApiGateway')
@@ -44,68 +44,98 @@ function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> 
 }
 
 export class ApiGateway {
-  private app: ApiGatewayApp | null = null
-  private serverInfo: NodeServerInfo | null = null
-  private running = false
-  /**
-   * Owned here so session lifetime is exactly server lifetime: once the socket closes every
-   * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
-   * activation (a restart builds a fresh `ApiGateway`, and a port change is a stop→start).
-   */
+  private readonly servers: NodeServerInfo[] = []
+  private boundPort?: number
   private readonly mcpSessions = new McpSessionStore()
 
   constructor(private readonly endpoint?: { host: string; port: number }) {}
 
   async start(): Promise<void> {
-    if (this.running) {
-      logger.warn('Server already running')
-      return
-    }
-
-    const preferenceService = application.get('PreferenceService')
-    const port = this.endpoint?.port ?? preferenceService.get('feature.api_gateway.port')
-    const host = this.endpoint?.host ?? preferenceService.get('feature.api_gateway.host')
-
-    const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
-    this.app = app
-
-    return new Promise((resolve, reject) => {
+    if (this.isRunning()) return
+    const preferences = application.get('PreferenceService')
+    const port = this.endpoint?.port ?? preferences.get('feature.api_gateway.port')
+    const host = this.endpoint?.host ?? preferences.get('feature.api_gateway.host')
+    try {
+      await this.listen(host, port)
+      this.boundPort = this.getPort()
       try {
-        app.listen({ port, hostname: host }, (serverInfo: NodeServerInfo) => {
-          this.serverInfo = serverInfo
+        await this.listen(host === '0.0.0.0' ? '::' : '::1', this.boundPort)
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code !== 'EAFNOSUPPORT' && code !== 'EADDRNOTAVAIL') throw error
+        await this.closeHttpServer(this.servers.pop())
+        logger.info('IPv6 unavailable; listening on IPv4 only', { code })
+      }
+      logger.info('API server started', { hosts: this.getHosts(), port: this.boundPort })
+    } catch (error) {
+      await this.stop()
+      throw error
+    }
+  }
 
-          const http = serverInfo.raw?.node?.server
-          if (http) {
-            this.applyServerTimeouts(http)
-          }
-
-          // The listen callback fires synchronously before the socket is bound;
-          // await the underlying NodeServer's `ready()` to surface listen errors
-          // (e.g. EADDRINUSE), mirroring the previous Express `'error'` handling.
-          const ready = serverInfo.raw?.ready
-          if (typeof ready === 'function') {
-            ready
-              .call(serverInfo.raw)
-              .then(() => {
-                this.running = true
-                logger.info('API server started', { host, port })
-                resolve()
-              })
-              .catch((error: unknown) => {
-                this.cleanupFailedStart()
-                reject(error instanceof Error ? error : new Error(String(error)))
-              })
-          } else {
-            this.running = true
-            logger.info('API server started', { host, port })
-            resolve()
-          }
+  private async listen(host: string, port: number): Promise<void> {
+    const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
+    // Explicit IPv6-only sockets avoid platform-dependent dual-stack defaults.
+    const options = { port, hostname: host, reusePort: false, gracefulShutdown: false, node: { ipv6Only: true } }
+    await new Promise<void>((resolve, reject) => {
+      try {
+        app.listen(options, (server: NodeServerInfo) => {
+          this.servers.push(server)
+          const http = server.raw?.node?.server
+          if (http) this.applyServerTimeouts(http)
+          void server.raw!.ready!().then(() => resolve(), reject)
         })
       } catch (error) {
-        this.cleanupFailedStart()
-        reject(error instanceof Error ? error : new Error(String(error)))
+        reject(error)
       }
     })
+  }
+
+  getHosts(): string[] {
+    return this.servers.flatMap((server) => {
+      const address = server.raw?.node?.server?.address()
+      return address && typeof address !== 'string' ? [address.address] : []
+    })
+  }
+
+  getHost(): string | undefined {
+    return this.getHosts()[0]
+  }
+
+  async rebind(host: string): Promise<void> {
+    if (this.getHost() === host) return
+    if (!this.servers.length || this.boundPort === undefined) throw new Error('API Gateway has no TCP listener')
+    // Release listening handles only; existing local streams retain their sockets.
+    for (const server of this.servers) {
+      const http = server.raw!.node!.server!
+      if (http.listening) http.close()
+    }
+    try {
+      for (const [index, server] of this.servers.entries()) {
+        const address = index === 0 ? host : host === '0.0.0.0' ? '::' : '::1'
+        const http = server.raw!.node!.server!
+        await new Promise<void>((resolve, reject) => {
+          const onError = (error: Error) => {
+            http.off('listening', onListening)
+            reject(error)
+          }
+          const onListening = () => {
+            http.off('error', onError)
+            resolve()
+          }
+          http.once('error', onError)
+          http.once('listening', onListening)
+          http.listen({ port: this.boundPort, host: address, ipv6Only: true })
+        })
+      }
+    } catch (error) {
+      // A partially rebound pair must not leave an unreported network listener open.
+      for (const server of this.servers) {
+        const http = server.raw!.node!.server!
+        if (http.listening) http.close()
+      }
+      throw error
+    }
   }
 
   private applyServerTimeouts(server: HttpServer): void {
@@ -115,31 +145,14 @@ export class ApiGateway {
     server.setTimeout(0)
   }
 
-  private cleanupFailedStart(): void {
-    this.running = false
-    this.serverInfo = null
-    this.app = null
-  }
-
   async stop(): Promise<void> {
-    if (!this.app && !this.serverInfo) return
-
+    if (!this.servers.length) return
     try {
-      // Do NOT call `app.stop()` here: with the `@elysia/node` adapter, `listen()`
-      // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
-      // "Elysia isn't running". An unhandled throw would skip the cleanup below and
-      // leave the service stuck `_activated` with a stale `running` cache state.
-      // BEFORE awaiting the close, not after: a session's GET stream is an active response,
-      // and `server.close()` waits for those to finish, so stopping first would hang here
-      // until the client disconnected or the idle sweep fired half an hour later. Closing the
-      // sessions ends those streams, which is what lets the close below settle. `closeAll`
-      // also latches the store shut, so an initialize racing this shutdown is refused.
+      // End MCP notification streams before waiting for their HTTP sockets to close.
       await this.mcpSessions.closeAll()
-      await this.closeHttpServer()
+      await Promise.all(this.servers.map((server) => this.closeHttpServer(server)))
     } finally {
-      this.running = false
-      this.serverInfo = null
-      this.app = null
+      this.servers.length = 0
       logger.info('API server stopped')
     }
   }
@@ -151,10 +164,11 @@ export class ApiGateway {
    * A proxied SSE response is exactly such a connection and may never end on its own — the socket
    * timeout is disabled — so awaiting it alone leaves the user's off switch spinning forever.
    */
-  private async closeHttpServer(): Promise<void> {
-    const http = this.serverInfo?.raw?.node?.server
+  private async closeHttpServer(server: NodeServerInfo): Promise<void> {
+    const http = server.raw?.node?.server
+    if (http && !http.listening) http.closeAllConnections?.()
     // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
-    const closed = Promise.resolve(this.serverInfo?.stop?.()).catch((error: unknown) =>
+    const closed = Promise.resolve(server.stop?.()).catch((error: unknown) =>
       logger.warn('API server close failed', error as Error)
     )
     if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
@@ -166,14 +180,11 @@ export class ApiGateway {
   }
 
   isRunning(): boolean {
-    const http = this.serverInfo?.raw?.node?.server
-    const result = this.running && (http?.listening ?? true)
-    logger.debug('isRunning check', { running: this.running, listening: http?.listening, result })
-    return result
+    return this.servers.length > 0 && this.servers.every((server) => server.raw?.node?.server?.listening)
   }
 
   getPort(): number {
-    const address = this.serverInfo?.raw?.node?.server?.address()
+    const address = this.servers[0]?.raw?.node?.server?.address()
     if (!address || typeof address === 'string') throw new Error('API Gateway is not listening on a TCP port')
     return address.port
   }

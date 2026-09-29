@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { remoteCapabilitiesSchema } from '@cherrystudio/remote-protocol'
+import { remoteCapabilitiesSchema, remoteEndpointSnapshotSchema } from '@cherrystudio/remote-protocol'
 import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 
 import { defineRoute } from '../define'
@@ -24,6 +24,21 @@ export const apiGatewayRequestSchemas = {
   'api_gateway.stop': defineRoute({ input: z.void(), output: stopResultSchema }),
   'api_gateway.restart': defineRoute({ input: z.void(), output: statusResultSchema }),
   'api_gateway.lan.set_enabled': defineRoute({ input: z.object({ enabled: z.boolean() }), output: z.void() }),
+  'api_gateway.remote.get_endpoints': defineRoute({ input: z.void(), output: remoteEndpointSnapshotSchema }),
+  'api_gateway.remote.check_networks': defineRoute({
+    input: z.void(),
+    output: z.array(
+      z.object({
+        product: z.enum(['tailscale', 'zerotier']),
+        state: z.enum(['ready', 'needs-login', 'needs-approval', 'offline', 'unknown', 'not-detected']),
+        networks: z.array(z.object({ name: z.string(), hosts: z.array(z.string()) }))
+      })
+    )
+  }),
+  'api_gateway.remote.install_tailscale': defineRoute({
+    input: z.void(),
+    output: z.object({ outcome: z.enum(['installed', 'existing', 'manual-required']) })
+  }),
   'api_gateway.remote.create_invitation': defineRoute({
     input: z.void(),
     output: z.object({

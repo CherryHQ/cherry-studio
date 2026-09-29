@@ -1,6 +1,7 @@
 # Remote access
 
-LAN-only remote access over the API Gateway's existing HTTP listener. The lifecycle
+Direct remote access over the API Gateway's existing HTTP listener, using reachable LAN,
+company or VPN addresses. The lifecycle
 service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
@@ -10,6 +11,7 @@ together during pairing. Each capability has an independent authorization grant.
 | `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |
 | `RemoteAdvertisement.ts` | Publishes the actual Gateway port and public identity while LAN access is enabled; refreshes interface changes and withdraws on shutdown |
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
+| `vpnStatus.ts` | Bounded local VPN status checks; projects only this computer's addresses and network readiness |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
@@ -30,6 +32,12 @@ Deviations from the design doc, kept deliberately small:
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+`connection.endpoints` requires an authenticated, current capability and returns the
+Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
+The mobile owns candidate verification and explicit persistence. Local setup checks and
+Tailscale installation are shared by the IPC wizard and Cherry tools; installer success
+does not mean VPN login or phone verification succeeded. System packages use BinaryManager.
 
 Execution failures use the shared failure snapshot in both live terminal events and historical
 messages. The persistence listener supplies the actual saved message identity and revisions before

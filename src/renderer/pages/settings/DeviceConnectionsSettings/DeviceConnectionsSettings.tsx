@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, MonitorSmartphone, QrCode, Smartphone, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -17,11 +17,14 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
+import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
+
+import { ConnectionSetup } from './ConnectionSetup'
 
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
@@ -188,8 +191,32 @@ const DeviceConnectionsSettings: FC = () => {
     : !lanEnabled
       ? 'deviceConnections.toggle.description'
       : connectionReady
-        ? 'deviceConnections.description'
+        ? 'deviceConnections.toggle.enabled'
         : 'deviceConnections.pairing.requiresRunning'
+
+  const connectionAction = !gatewayAvailable ? (
+    <Button
+      variant="outline"
+      disabled={apiGatewayLoading}
+      onClick={() => void navigate({ to: '/settings/api-gateway' })}>
+      {t('deviceConnections.gateway.openSettings')}
+    </Button>
+  ) : lanEnabled ? (
+    <div className="flex items-center gap-2">
+      {!lanRunning && (
+        <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
+          {t('common.retry')}
+        </Button>
+      )}
+      <Button variant="outline" loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(false)}>
+        {t('deviceConnections.lan.disable')}
+      </Button>
+    </div>
+  ) : (
+    <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
+      {t('deviceConnections.lan.enable')}
+    </Button>
+  )
 
   return (
     <SettingsContentColumn
@@ -204,90 +231,51 @@ const DeviceConnectionsSettings: FC = () => {
         <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
 
-      <Button
-        variant="outline"
-        aria-label={t('deviceConnections.downloadMobile')}
-        className="mt-5 h-auto w-full justify-between gap-4 rounded-xl p-4 text-left whitespace-normal"
-        onClick={openMobileDownload}>
-        <span className="flex min-w-0 items-center gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-background-subtle text-muted-foreground">
-            <Smartphone className="size-5" />
-          </span>
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="font-medium text-sm">{t('deviceConnections.downloadMobile')}</span>
-            <span className="text-muted-foreground text-xs leading-5">{t('deviceConnections.downloadMobileHint')}</span>
-          </span>
-        </span>
-        <span className="shrink-0 text-muted-foreground">
-          <ArrowUpRight className="size-4" />
-        </span>
-      </Button>
-
-      <StatusCard $ready={connectionReady}>
+      <StatusCard>
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <StatusIcon $ready={connectionReady}>
             <MonitorSmartphone size={22} />
           </StatusIcon>
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-2">
-              <IndicatorLight
-                color={connectionReady ? 'var(--success)' : 'var(--muted-foreground)'}
-                size={8}
-                animation={connectionReady}
-                shadow={connectionReady}
-              />
+              <IndicatorLight color={connectionReady ? 'var(--success)' : 'var(--muted-foreground)'} size={8} />
               <div className="font-medium text-sm">{t(statusKey)}</div>
             </div>
-            <div className="text-muted-foreground text-xs">{t(statusDescriptionKey)}</div>
+            <div className="text-muted-foreground text-xs leading-relaxed">{t(statusDescriptionKey)}</div>
             {connectionReady && discoveryStatus === 'unavailable' && (
               <div className="text-warning text-xs">{t('deviceConnections.discovery.unavailable')}</div>
             )}
           </div>
         </div>
-        {!gatewayAvailable ? (
-          <Button
-            variant="outline"
-            disabled={apiGatewayLoading}
-            onClick={() => void navigate({ to: '/settings/api-gateway' })}>
-            {t('deviceConnections.gateway.openSettings')}
-          </Button>
-        ) : lanEnabled ? (
-          <div className="flex items-center gap-2">
-            {!lanRunning && (
-              <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
-                {t('common.retry')}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              loading={apiGatewayLoading || isUpdatingLan}
-              onClick={() => void setLanAccess(false)}>
-              {t('deviceConnections.lan.disable')}
-            </Button>
-          </div>
-        ) : (
-          <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
-            {t('deviceConnections.lan.enable')}
-          </Button>
-        )}
+        {connectionAction}
       </StatusCard>
 
       <Sections>
         <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
           <SectionFields>
-            <div>
-              <SettingRowTitle>{t('deviceConnections.pairing.title')}</SettingRowTitle>
-              <div className="mt-1 text-foreground-tertiary text-xs leading-5">
-                {t('deviceConnections.pairing.hint')}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <SettingRowTitle>{t('deviceConnections.pairing.title')}</SettingRowTitle>
+                <div className="mt-1 text-foreground-tertiary text-xs leading-5">
+                  {t('deviceConnections.pairing.hint')}
+                </div>
               </div>
+              <Tooltip content={t('deviceConnections.downloadMobileHint')}>
+                <Button variant="ghost" size="sm" onClick={openMobileDownload}>
+                  {t('deviceConnections.downloadMobile')}
+                  <ArrowUpRight className="size-3.5" />
+                </Button>
+              </Tooltip>
             </div>
 
-            <div
-              role="note"
-              className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{t('deviceConnections.toggle.risk')}</span>
-            </div>
+            {(invitation || claims.length > 0) && (
+              <div
+                role="note"
+                className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <span>{t('deviceConnections.toggle.risk')}</span>
+              </div>
+            )}
 
             {!connectionReady ? (
               <div className="text-foreground-tertiary text-xs">
@@ -352,17 +340,10 @@ const DeviceConnectionsSettings: FC = () => {
                 <div className="rounded-lg border border-border bg-white p-3">
                   <QRCodeSVG value={qrPayload} size={180} level="M" title={t('deviceConnections.pairing.title')} />
                 </div>
-                <div className="font-mono text-muted-foreground text-xs">
-                  {invitation.addresses.map((address) => `${address}:${invitation.port}`).join('  ')}
-                </div>
               </div>
             ) : (
               <div>
-                <Button
-                  variant="outline"
-                  loading={isCreatingInvitation}
-                  disabled={isUpdatingLan}
-                  onClick={showPairingQr}>
+                <Button loading={isCreatingInvitation} disabled={isUpdatingLan} onClick={showPairingQr}>
                   {!isCreatingInvitation && <QrCode size={14} />}
                   {t('deviceConnections.pairing.show')}
                 </Button>
@@ -396,9 +377,7 @@ const DeviceConnectionsSettings: FC = () => {
             ) : devices.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {devices.map((device) => (
-                  <div
-                    key={device.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                  <div key={device.id} className="flex items-center justify-between gap-3 py-2">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-sm">{device.name}</div>
                       <div className="text-muted-foreground text-xs">
@@ -433,6 +412,17 @@ const DeviceConnectionsSettings: FC = () => {
           </SectionFields>
         </SettingGroup>
       </Sections>
+      <SkillLauncherProvider>
+        <ConnectionSetup
+          connectionReady={connectionReady}
+          prerequisite={
+            <div className="space-y-4">
+              <p className="text-muted-foreground text-sm leading-6">{t(statusDescriptionKey)}</p>
+              {connectionAction}
+            </div>
+          }
+        />
+      </SkillLauncherProvider>
     </SettingsContentColumn>
   )
 }
@@ -441,13 +431,10 @@ const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef
   <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
 )
 
-const StatusCard = ({ $ready, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $ready: boolean }) => (
+const StatusCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
-      $ready
-        ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
-        : 'border-border bg-card text-card-foreground',
+      'mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-4',
       className
     )}
     {...props}
@@ -457,8 +444,8 @@ const StatusCard = ({ $ready, className, ...props }: React.ComponentPropsWithout
 const StatusIcon = ({ $ready, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $ready: boolean }) => (
   <div
     className={cn(
-      'flex size-11 shrink-0 items-center justify-center rounded-lg border bg-background',
-      $ready ? 'border-success-border text-success' : 'border-border text-muted-foreground',
+      'flex size-9 shrink-0 items-center justify-center rounded-lg bg-background-subtle',
+      $ready ? 'text-success' : 'text-muted-foreground',
       className
     )}
     {...props}

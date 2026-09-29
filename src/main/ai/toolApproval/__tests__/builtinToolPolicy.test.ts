@@ -17,6 +17,15 @@ const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 
 describe('builtinToolPolicy', () => {
+  it('requires install approval even when the agent bypasses ordinary tool prompts', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__device_connection_install', WITHOUT_HOST_TOOLS)).toMatchObject({
+      approval: 'required',
+      bypassApproval: 'enforce'
+    })
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__device_connection_check', WITHOUT_HOST_TOOLS)).toMatchObject({
+      approval: 'auto'
+    })
+  })
   it('queries static policies before preferences are available', () => {
     const get = vi.spyOn(application.get('PreferenceService'), 'get').mockImplementation(() => {
       throw new Error('Preferences are not initialized')
