@@ -14,6 +14,7 @@ import {
   HelpTooltip,
   Label
 } from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { KnowledgeBaseSelector } from '@renderer/components/KnowledgeBaseSelector'
 import CustomTag from '@renderer/components/tags/CustomTag'
@@ -139,6 +140,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
+  const [lastUsedBaseId, setLastUsedBaseId] = useState<string | null>(null)
+  const [lastUsedLoaded, setLastUsedLoaded] = useState(false)
   const { bases } = useKnowledgeBases()
   const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
@@ -242,15 +245,39 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     }
   }, [selectedBaseId, bases, contentTypeOptions, selectedTypes, isNoteMode])
 
-  // 默认选择第一个可用知识库
+  // Prefer the last-used base once the stored preference arrives; fall back to
+  // the first available one when it is missing or no longer usable.
   useEffect(() => {
-    if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.status === 'completed')
-      if (firstAvailableBase) {
-        setSelectedBaseId(firstAvailableBase.id)
-      }
+    let cancelled = false
+    preferenceService
+      .get('chat.save.knowledge.last_base_id')
+      .then((value) => {
+        if (!cancelled) {
+          setLastUsedBaseId(value ?? null)
+          setLastUsedLoaded(true)
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to load last-used knowledge base:', error as Error)
+        if (!cancelled) {
+          setLastUsedLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
     }
-  }, [bases, selectedBaseId])
+  }, [])
+
+  useEffect(() => {
+    if (selectedBaseId || !lastUsedLoaded) {
+      return
+    }
+    const lastUsedBase = bases.find((base) => base.id === lastUsedBaseId && base.status === 'completed')
+    const preferredBase = lastUsedBase ?? bases.find((base) => base.status === 'completed')
+    if (preferredBase) {
+      setSelectedBaseId(preferredBase.id)
+    }
+  }, [bases, selectedBaseId, lastUsedBaseId, lastUsedLoaded])
 
   // 默认选择所有可用内容类型
   useEffect(() => {
@@ -395,6 +422,10 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       if (items.length > 0) {
         await submitKnowledgeItems(items)
       }
+
+      preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
+        logger.warn('Failed to persist last-used knowledge base:', error as Error)
+      })
 
       resolve({ success: true, savedCount })
     } catch (error) {
