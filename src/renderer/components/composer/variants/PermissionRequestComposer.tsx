@@ -17,7 +17,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { PLAN_EXIT_TOOL_NAMES } from '@shared/ai/tool'
+import { isPlanExitToolName } from '@shared/ai/tool'
 import { isUniqueModelId, type Model } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
@@ -185,7 +185,7 @@ export default function PermissionRequestComposer({
   // Main's handoff gate is name-based too, but an MCP tool that merely shares the plan-exit name
   // carries no plan semantics — hide the picker so its approval can never send an executionModelId.
   const isPlanExitApproval =
-    !isMcpToolResponse(request.toolResponse) && PLAN_EXIT_TOOL_NAMES.has(request.toolResponse.tool.name.trim())
+    !isMcpToolResponse(request.toolResponse) && isPlanExitToolName(request.toolResponse.tool.name)
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.

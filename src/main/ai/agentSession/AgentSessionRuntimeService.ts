@@ -49,7 +49,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
-import { PLAN_EXIT_TOOL_NAMES } from '@shared/ai/tool'
+import { isPlanExitToolName } from '@shared/ai/tool'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -1494,7 +1494,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // fail the decision it rides on.
     if (typeof executionModelId !== 'string' || !decision.approved)
       return { dispatched: true, handoff: 'not-requested' }
-    if (!PLAN_EXIT_TOOL_NAMES.has(dispatched.toolName.trim())) return { dispatched: true, handoff: 'refused' }
+    if (!isPlanExitToolName(dispatched.toolName)) return { dispatched: true, handoff: 'refused' }
     // A `message` presentation is the requesting agent outliving its parent turn (background work or
     // subagents); its session entry also carries unrelated turns, so a handoff would stop them too.
     if (dispatched.presentation !== 'stream') return { dispatched: true, handoff: 'refused' }
