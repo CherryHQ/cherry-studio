@@ -43,11 +43,12 @@ import {
 } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService } from '@main/core/lifecycle/BaseService'
+import { BaseService } from '@main/core/lifecycle'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
+import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
 import { RemoteTokens } from '../RemoteTokens'
@@ -162,7 +163,8 @@ function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureCh
 
 describe('remote agent access', () => {
   const dbh = setupTestDatabase()
-  const hub = new RemoteAgentHub()
+  let hub: RemoteAgentHub
+  let service: RemoteAccessService
   function seedModel(providerId: string, modelId: string, name: string) {
     dbh.db.insert(userProviderTable).values({ providerId, name: 'Desktop provider', orderKey: 'a0' }).run()
     dbh.db
@@ -266,9 +268,10 @@ describe('remote agent access', () => {
     return installed
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     connection.dispose()
-    hub.dispose()
+    await service._doStop()
+    BaseService.resetInstances()
     vi.useRealTimers()
   })
 
@@ -278,6 +281,9 @@ describe('remote agent access', () => {
     fake.onStarted = undefined
     notifications.length = 0
     fake.runtime.respondToolApproval.mockClear()
+    service = new RemoteAccessService()
+    hub = service['hub']
+    await service._doInit()
     await dbh.db.insert(agentTable).values({
       id: 'agent-1',
       type: 'claude-code',
@@ -310,6 +316,123 @@ describe('remote agent access', () => {
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it.each([false, true])('sends again after a post-turn rename (manual=%s)', async (manual) => {
+    const prepared = await call('agent.sessions.subscribe', { sessionId })
+    let projection = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+    await call('agent.subscriptions.activate', {
+      subscriptionId: prepared.subscriptionId,
+      appliedCursor: projection.cursor
+    })
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'hello',
+        expectedIdleRevision: projection.session.idleRevision
+      })
+    ).toMatchObject({ status: 'applied' })
+    const anchor = randomUUID()
+    emit({ type: 'text-start', id: 'text' }, anchor)
+    emit({ type: 'text-delta', id: 'text', delta: 'Hello!' }, anchor)
+    await finish(anchor, [{ type: 'text', text: 'Hello!' }])
+    projection = await drain(projection)
+    const previous = projection.session
+    expect(previous.activeExecutionId).toBeUndefined()
+
+    await tick()
+    const renamed = agentSessionService.update(sessionId, {
+      name: 'Friendly greetings',
+      ...(manual ? {} : { isNameManuallyEdited: false })
+    })
+    expect(renamed.isNameManuallyEdited).toBe(manual)
+    expect(hub.journal(sessionId).eventsAfter(Number(projection.cursor.seq), Infinity)).toContainEqual({
+      kind: 'session.updated',
+      seq: expect.any(String),
+      payload: expect.objectContaining({
+        title: 'Friendly greetings',
+        idleRevision: String(Date.parse(renamed.updatedAt))
+      })
+    })
+    projection = await drain(projection)
+    expect(projection.session.title).toBe('Friendly greetings')
+    expect(projection.session.idleRevision).not.toBe(previous.idleRevision)
+    expect(projection.session.historyRevision).toBe(previous.historyRevision)
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'stale request',
+        expectedIdleRevision: previous.idleRevision
+      })
+    ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'second message',
+        expectedIdleRevision: projection.session.idleRevision
+      })
+    ).toMatchObject({ status: 'applied' })
+  })
+
+  it('does not allocate journals for metadata changes to unwatched sessions', () => {
+    agentSessionService.update(sessionId, { name: 'Renamed before subscribing' })
+    expect(hub.journal(sessionId).cursor.seq).toBe('0')
+  })
+
+  it.each(['description', 'workspace', 'order', 'batch order'])(
+    'publishes the current idle revision after a %s update',
+    async (change) => {
+      if (change.includes('order')) {
+        agentSessionService.create({
+          agentId: 'agent-1',
+          name: 'Other session',
+          workspace: { type: 'user', workspaceId: agentSessionService.getById(sessionId).workspaceId }
+        })
+      }
+      const journal = hub.journal(sessionId)
+      const previous = journal.projection.session.idleRevision
+      await tick()
+      if (change === 'description') agentSessionService.update(sessionId, { description: 'New description' })
+      else if (change === 'workspace') agentSessionService.setWorkspace(sessionId, { type: 'system' })
+      else if (change === 'order') agentSessionService.reorder(sessionId, { position: 'first' })
+      else agentSessionService.reorderBatch([{ id: sessionId, anchor: { position: 'first' } }])
+      const { session } = await call('agent.sessions.get', { sessionId })
+      expect(session.idleRevision).not.toBe(previous)
+      expect(journal.projection.session).toMatchObject({
+        idleRevision: session.idleRevision,
+        workspaceId: session.workspaceId,
+        workspaceKind: session.workspaceKind
+      })
+    }
+  )
+
+  it('does not publish a metadata update when its transaction rolls back', () => {
+    const journal = hub.journal(sessionId)
+    expect(() => agentSessionService.update(sessionId, { agentId: 'missing-agent' })).toThrow()
+    expect(journal.cursor.seq).toBe('0')
+  })
+
+  it('removes the session update listener when remote access stops', async () => {
+    await service._doStop()
+    const journal = hub.journal(sessionId)
+    agentSessionService.update(sessionId, { name: 'Renamed after shutdown' })
+    expect(journal.cursor.seq).toBe('0')
+  })
+
+  it('keeps metadata updates replayable while a client is disconnected', async () => {
+    const journal = hub.journal(sessionId)
+    const cursor = journal.cursor
+    agentSessionService.update(sessionId, { name: 'Renamed while disconnected' })
+    const prepared = await call('agent.sessions.subscribe', { sessionId, cursor })
+    expect(prepared.mode).toBe('replay')
+    expect(journal.eventsAfter(Number(cursor.seq), Infinity)).toContainEqual({
+      kind: 'session.updated',
+      seq: expect.any(String),
+      payload: expect.objectContaining({ title: 'Renamed while disconnected' })
+    })
   })
 
   it.each([false, true])(

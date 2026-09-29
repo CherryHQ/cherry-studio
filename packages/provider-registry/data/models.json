@@ -12708,6 +12708,27 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
+      "contextWindow": 1000000,
+      "id": "minimax-m3-1-flash-preview",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "MiniMax-M3.1-Flash-Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "minimax",
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "structured-output", "file-input"],
       "contextWindow": 256000,
       "family": "codestral",
@@ -22446,5 +22467,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b266093d9b453039"
+  "version": "0e94f7bf44ca82c4"
 }
