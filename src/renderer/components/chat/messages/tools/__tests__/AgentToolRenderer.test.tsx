@@ -1340,6 +1340,51 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // A settled tool group empties PartsContext, so the receipt-root signal has to come from the
+    // list-level index — otherwise the row silently redirects to a launch flow without the rounds.
+    it('keeps a cold-resumed receipt rooted at itself inside a settled tool group', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'child-read',
+            toolName: 'Read',
+            state: 'output-available',
+            callProviderMetadata: { 'claude-code': { parentToolCallId: 'call-123' } }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<ToolBlockGroup items={[{ id: 'resume-group', toolResponse }]} />)
+      fireEvent.click(screen.getByTestId('child-tool-group').querySelector('button')!)
+
+      // The group header shows the same presentation, so the click targets the row inside it.
+      const content = document.querySelector('[data-slot="accordion-content"]') as HTMLElement
+      fireEvent.click(within(content).getByRole('button', { name: /Continue handling/ }))
+
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
     it('keeps a SendMessage without a resolvable launch root locally clickable only', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })

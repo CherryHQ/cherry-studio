@@ -14,7 +14,7 @@ import {
 } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext, ToolHeader } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
-import { getPartLaunchToolCallId, getPartParentToolCallId } from '../toolParentMetadata'
+import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval, type ToolResponseLike } from '../toolResponse'
 import { useAgentLaunchIndex } from './AgentLaunchIndexContext'
 import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
@@ -101,15 +101,10 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     [tool?.name, response, toolResponse, launchIndex, listActions]
   )
   // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
-  // redirecting to the launch root would drop everything the resume produced.
-  const receiptRootsItsFlow = useMemo(
-    () =>
-      resumeState?.kind === 'navigable' &&
-      Object.values(partsMap ?? {}).some((parts) =>
-        parts.some((part) => getPartParentToolCallId(part) === toolResponse.toolCallId)
-      ),
-    [resumeState, partsMap, toolResponse.toolCallId]
-  )
+  // redirecting to the launch root would drop everything the resume produced. The index is read
+  // rather than the parts map, which a settled tool group deliberately empties.
+  const receiptRootsItsFlow =
+    resumeState?.kind === 'navigable' && launchIndex?.childRootCallIds.has(toolResponse.toolCallId) === true
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />

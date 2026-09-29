@@ -53,6 +53,7 @@ import * as z from 'zod'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { getPartParentToolCallId } from '../toolParentMetadata'
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
 export const AgentToolsType = {
@@ -280,20 +281,28 @@ export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
-export type SendMessageToolOutput = string
+/** A receipt, in whichever shape the runtime delivers it: text, a resume payload, or a queued pin. */
+export type SendMessageToolOutput =
+  | string
+  | {
+      resumedAgentId?: string
+      subagent_id?: string
+      pin?: { id?: string } & Record<string, unknown>
+      messageId?: string
+    }
 
 /** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
  *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */
 export function getResumedAgentId(output: unknown): string | undefined {
   if (typeof output === 'string') {
-    return (
-      /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
-      /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
-      /"subagent_id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
-      // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
-      // The whole output must be that line: a child's own prose must not name a target.
-      /^message delivered to agent[ \t]+(\S+)$/.exec(output.trim())?.[1]
-    )
+    // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
+    // The whole output must be that line: a child's own prose must not name a target.
+    const dshAck = /^message delivered to agent[ \t]+(\S+)$/.exec(output.trim())?.[1]
+    if (dshAck) return dshAck
+    // A JSON receipt is the whole output — both adapters parse all-text results — so prose that
+    // merely quotes a receipt-shaped fragment must not register as a continuation.
+    const parsed = parseReceiptText(output)
+    return parsed ? getResumedAgentId(parsed) : undefined
   }
   if (output && typeof output === 'object') {
     const record = output as { resumedAgentId?: unknown; pin?: unknown; subagent_id?: unknown }
@@ -305,6 +314,18 @@ export function getResumedAgentId(output: unknown): string | undefined {
     }
   }
   return undefined
+}
+
+/** A receipt delivered as JSON text — the whole output has to parse, not just a fragment of it. */
+function parseReceiptText(output: string): Record<string, unknown> | undefined {
+  const text = output.trim()
+  if (!text.startsWith('{') || !text.endsWith('}')) return undefined
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecord(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -319,10 +340,10 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
     // prose; the whole output must match, or a child's own answer naming the phrase would register.
     const dshLaunch = /^started subagent[ \t]+(\S+)$/.exec(output.trim())?.[1]
     if (dshLaunch) return dshLaunch
-    // The trailer marker alone is spoofable by prose; require the launch receipt's structural
-    // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
-    // send-back instruction that follows the id on every real receipt.
-    if (!/Async agent launched successfully|\(internal|Use SendMessage with to/.test(output)) return undefined
+    // The id trailer alone is spoofable: prose that quotes a launch instruction and happens to
+    // name an id would register. Every real receipt opens with the SDK's launch prefix, so the
+    // trailer is only read from an output that starts there.
+    if (!/^(?:Async agent launched successfully|done\.)/.test(output.trim())) return undefined
     // Older receipts name the id `Internal id:` before `output_file`; the id spellings share
     // the same trailer grammar, so extract them all through one regex.
     return /\b(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
@@ -362,15 +383,28 @@ export interface AgentLaunchIndex {
   toolCallIds: ReadonlySet<string>
   /** Earliest launch identity per agent id, mirroring `resolveResumedAgent`'s first-wins walk. */
   launchesByAgentId: ReadonlyMap<string, { toolCallId: string; description?: string }>
+  /** Launch call id → the identity its own input describes, so a target and its label stay paired. */
+  descriptionsByToolCallId: ReadonlyMap<string, string | undefined>
+  /**
+   * Tool-call ids that a part is parented under, i.e. calls whose content streams under them. A
+   * cold-resumed child streams under its own `send_message` call, which is therefore a flow root.
+   */
+  childRootCallIds: ReadonlySet<string>
 }
 
 export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMessagePart[]> | null): AgentLaunchIndex {
   const toolCallIds = new Set<string>()
   const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()
-  if (!partsByMessageId) return { toolCallIds, launchesByAgentId }
+  const descriptionsByToolCallId = new Map<string, string | undefined>()
+  const childRootCallIds = new Set<string>()
+  if (!partsByMessageId) return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds }
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      // Child content is text and reasoning parts, not tool parts, so the parent link is read
+      // before the tool-part gate below.
+      const parentToolCallId = getPartParentToolCallId(part)
+      if (parentToolCallId) childRootCallIds.add(parentToolCallId)
       // A persisted static tool part carries its name in the part type, not in a `toolName` field,
       // so the name comes from the SDK helper that understands both shapes.
       const toolPart = part as unknown as Parameters<typeof getToolName>[0]
@@ -388,15 +422,17 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
         continue
       if (typeof record.toolCallId !== 'string') continue
       toolCallIds.add(record.toolCallId)
+      const description = getLaunchDescription(record.input)
+      if (!descriptionsByToolCallId.has(record.toolCallId)) descriptionsByToolCallId.set(record.toolCallId, description)
       // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
       // part that can reference this id, and later mentions (a quote inside another part's output)
       // must not redirect the entry.
       const agentId = extractLaunchReceiptId(record.output)
       if (!agentId || launchesByAgentId.has(agentId)) continue
-      launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description: getLaunchDescription(record.input) })
+      launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description })
     }
   }
-  return { toolCallIds, launchesByAgentId }
+  return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds }
 }
 
 /**
@@ -418,14 +454,18 @@ export function resolveResumeReceiptState(
   canNavigate: boolean
 ): ResumeReceiptState {
   const resumedAgentId = getResumedAgentId(output)
-  if (!resumedAgentId) return { kind: 'none' }
-  const launch = launchIndex?.launchesByAgentId.get(resumedAgentId)
-  // The stamp resolves without scanning, but either source must land inside the loaded window —
-  // a paged-out launch root would open an empty flow pane.
-  const toolCallId = launchToolCallId ?? launch?.toolCallId
-  if (toolCallId && launchIndex?.toolCallIds.has(toolCallId)) {
-    return { kind: 'navigable', toolCallId, description: launch?.description }
+  const launch = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
+  // The stamp resolves without scanning, but it must land inside the loaded window — a paged-out
+  // launch root would open an empty flow pane. When the output carries no identity (a receipt
+  // whose result is still a deferred envelope) the stamp is the only correlation there is.
+  const stamped = launchToolCallId && launchIndex?.toolCallIds.has(launchToolCallId) ? launchToolCallId : undefined
+  const toolCallId = stamped ?? launch?.toolCallId
+  if (toolCallId) {
+    // The label comes from the same launch as the target: a stale stamp must not pair one launch's
+    // id with another's description.
+    return { kind: 'navigable', toolCallId, description: launchIndex?.descriptionsByToolCallId.get(toolCallId) }
   }
+  if (!resumedAgentId) return { kind: 'none' }
   // Unresolved: a host that cannot navigate keeps the truthful label, while one that can would
   // otherwise show an affordance it cannot honour.
   return canNavigate ? { kind: 'none' } : { kind: 'labelled' }
