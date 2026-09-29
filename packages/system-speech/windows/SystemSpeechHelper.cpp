@@ -1,3 +1,7 @@
+#if !defined(_M_X64)
+#error The Windows system speech helper supports x64 only.
+#endif
+
 #include <windows.h>
 #include <sapi.h>
 #include <sphelper.h>

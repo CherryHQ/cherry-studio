@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Apple システム音声",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "約 1 GB · このデバイス上でローカル処理 · 提供元: FunAudioLLM / ModelScope · ライセンス: Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows システム音声",
   "settings.voice.playback.error.aborted": "音声の再生がキャンセルされました。",
   "settings.voice.playback.error.busy": "音声機能は別のローカル操作で使用中です。",
   "settings.voice.playback.long_text.description": "この回答には読み上げ可能な文字が {{count}} 文字あります。ローカル再生を続けますか？",

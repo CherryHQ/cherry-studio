@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Voix système Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Environ 1 Go · Traitement local sur cet appareil · Source : FunAudioLLM / ModelScope · Licence : Apache-2.0",
+  "settings.voice.model.windows_tts": "Voix système Windows",
   "settings.voice.playback.error.aborted": "La lecture vocale a été annulée.",
   "settings.voice.playback.error.busy": "La fonction vocale est occupée par une autre opération locale.",
   "settings.voice.playback.long_text.description": "Cette réponse contient {{count}} caractères lisibles. Continuer avec la lecture locale ?",

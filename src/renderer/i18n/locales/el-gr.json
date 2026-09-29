@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Ομιλία συστήματος Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Περίπου 1 GB · Τοπική επεξεργασία σε αυτή τη συσκευή · Πηγή: FunAudioLLM / ModelScope · Άδεια: Apache-2.0",
+  "settings.voice.model.windows_tts": "Ομιλία συστήματος Windows",
   "settings.voice.playback.error.aborted": "Η αναπαραγωγή φωνής ακυρώθηκε.",
   "settings.voice.playback.error.busy": "Η φωνητική λειτουργία χρησιμοποιείται από άλλη τοπική εργασία.",
   "settings.voice.playback.long_text.description": "Αυτή η απάντηση έχει {{count}} αναγνώσιμους χαρακτήρες. Συνέχεια με τοπική αναπαραγωγή;",

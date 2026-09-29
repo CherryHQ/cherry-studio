@@ -26,21 +26,7 @@ function response(value: unknown): string {
   return `process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(JSON.stringify(value))}))`
 }
 
-describe('SystemSpeechNativeClient', () => {
-  it('returns available Apple ASR locales without requiring a configured language', async () => {
-    const setup = await helper(
-      response({
-        ok: true,
-        value: { operation: 'list_asr_locales', result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] } }
-      })
-    )
-
-    await expect(new SystemSpeechNativeClient(setup).request({ operation: 'list_asr_locales' })).resolves.toEqual({
-      operation: 'list_asr_locales',
-      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
-    })
-  })
-
+describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POSIX executable fixtures', () => {
   it('rejects an empty Apple ASR locale identifier', async () => {
     const setup = await helper(
       response({ ok: true, value: { operation: 'list_asr_locales', result: { supported: [''], installed: [] } } })
@@ -69,6 +55,20 @@ describe('SystemSpeechNativeClient', () => {
     await new SystemSpeechNativeClient(setup).request(request)
 
     expect(JSON.parse(await readFile(capture, 'utf8'))).toEqual(request)
+  })
+
+  it('returns installed and supported recognition locales through the protocol', async () => {
+    const setup = await helper(
+      response({
+        ok: true,
+        value: { operation: 'list_asr_locales', result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] } }
+      })
+    )
+    const client = new SystemSpeechNativeClient(setup)
+    await expect(client.request({ operation: 'list_asr_locales' })).resolves.toEqual({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
   })
 
   it('returns the transcript through the protocol without logging diagnostics', async () => {

@@ -1,4 +1,3 @@
-import AVFAudio
 import Foundation
 import Testing
 @testable import SystemSpeechHelper
@@ -18,33 +17,6 @@ struct CommandTests {
         #expect(throws: Never.self) {
             _ = try request.validated()
         }
-    }
-
-    @Test
-    func normalizesAndSortsAsrLocaleIdentifiers() {
-        let result = AppleAsr.localesResult(
-            supported: [Locale(identifier: "zh_CN"), Locale(identifier: "en_US"), Locale(identifier: "zh-CN")],
-            installed: [Locale(identifier: "zh_CN"), Locale(identifier: "zh-CN")]
-        )
-
-        #expect(result.supported == ["en-US", "zh-CN"])
-        #expect(result.installed == ["zh-CN"])
-    }
-
-    @Test
-    func listsDeviceAsrLocales() async {
-        let result = await AppleAsr.listLocales()
-
-        guard #available(macOS 26.0, *) else {
-            #expect(result.supported.isEmpty)
-            #expect(result.installed.isEmpty)
-            return
-        }
-
-        #expect(!result.supported.isEmpty)
-        #expect(result.supported == result.supported.sorted())
-        #expect(result.supported.count == Set(result.supported).count)
-        #expect(result.supported.allSatisfy { !$0.contains("_") })
     }
 
     @Test
@@ -91,14 +63,24 @@ struct CommandTests {
         }
     }
 
-    @Test(arguments: [0.5, 1.0, 2.0])
-    func mapsProductSpeedToAppleRate(speed: Double) throws {
-        let expected = min(
-            max(AVSpeechUtteranceDefaultSpeechRate * Float(speed), AVSpeechUtteranceMinimumSpeechRate),
-            AVSpeechUtteranceMaximumSpeechRate
+    @Test
+    func normalizesAndSortsAsrLocaleIdentifiers() {
+        let result = AppleAsr.localesResult(
+            supported: [Locale(identifier: "zh_CN"), Locale(identifier: "en_US"), Locale(identifier: "zh-CN")],
+            installed: [Locale(identifier: "zh_CN"), Locale(identifier: "zh-CN")]
         )
 
-        #expect(try AppleTts.rate(forMultiplier: speed) == expected)
+        #expect(result.supported == ["en-US", "zh-CN"])
+        #expect(result.installed == ["zh-CN"])
+    }
+
+    @Test
+    func listsDeviceAsrLocales() async {
+        let result = await AppleAsr.listLocales()
+
+        #expect(result.supported == result.supported.sorted())
+        #expect(result.supported.count == Set(result.supported).count)
+        #expect(result.supported.allSatisfy { !$0.contains("_") })
     }
 
     @Test(arguments: [

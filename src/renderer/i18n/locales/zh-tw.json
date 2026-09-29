@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Apple 系統語音",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "約 1 GB · 在此裝置上本機處理 · 來源：FunAudioLLM / ModelScope · 授權：Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows 系統語音",
   "settings.voice.playback.error.aborted": "語音播放已取消。",
   "settings.voice.playback.error.busy": "語音功能正由另一項本機操作使用。",
   "settings.voice.playback.long_text.description": "此回覆包含 {{count}} 個可朗讀字元。是否繼續使用本機語音播放？",

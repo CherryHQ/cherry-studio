@@ -3,14 +3,16 @@ import * as z from 'zod'
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
-  MAX_SPEECH_SPEED,
-  MIN_SPEECH_SPEED,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODEL_IDS,
-  type LocalVoiceModelFacts,
+  type LocalSpeechModelId,
   type LocalTranscriptionModelId,
+  type LocalVoiceModelFacts,
+  MAX_SPEECH_SPEED,
+  MIN_SPEECH_SPEED,
   VOICE_SESSION_SOURCES,
-  VOICE_SESSION_TRIGGERS
+  VOICE_SESSION_TRIGGERS,
+  WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
@@ -41,7 +43,7 @@ const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID])
 const speechInput = sessionAdmission
   .extend({
-    modelId: z.literal(APPLE_TTS_MODEL_ID).optional(),
+    modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID]).optional(),
     text: z.string().trim().min(1).max(10_000),
     voice: z.string().min(1).max(256),
     language,
@@ -169,7 +171,11 @@ export const voiceRequestSchemas = {
   'ai.voice.session.discard': defineRoute({ input: session, output: z.void() }),
   'ai.voice.models.list': defineRoute({
     input: z.void(),
-    output: z.custom<{ models: readonly LocalVoiceModelFacts[]; defaultAsrModelId?: LocalTranscriptionModelId }>()
+    output: z.custom<{
+      models: readonly LocalVoiceModelFacts[]
+      defaultAsrModelId?: LocalTranscriptionModelId
+      defaultSpeechModelId?: LocalSpeechModelId
+    }>()
   }),
   'ai.transcription.locales.list': defineRoute({
     input: z.void(),

@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Apple System Speech",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "About 1 GB · Processed locally on this device · Source: FunAudioLLM / ModelScope · License: Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows System Speech",
   "settings.voice.playback.error.aborted": "Voice playback was canceled.",
   "settings.voice.playback.error.busy": "Voice is busy with another local operation.",
   "settings.voice.playback.long_text.description": "This response has {{count}} readable characters. Continue with local playback?",

@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Apple Sistem Sesi",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Yaklaşık 1 GB · Bu cihazda yerel olarak işlenir · Kaynak: FunAudioLLM / ModelScope · Lisans: Apache-2.0",
+  "settings.voice.model.windows_tts": "Windows Sistem Sesi",
   "settings.voice.playback.error.aborted": "Ses oynatma iptal edildi.",
   "settings.voice.playback.error.busy": "Ses özelliği başka bir yerel işlemle meşgul.",
   "settings.voice.playback.long_text.description": "Bu yanıtta okunabilir {{count}} karakter var. Yerel oynatmaya devam edilsin mi?",

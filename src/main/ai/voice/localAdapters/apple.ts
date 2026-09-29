@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
@@ -7,7 +6,6 @@ import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 import { application } from '@application'
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
-import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
 import { loggerService } from '@logger'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import {
@@ -21,13 +19,10 @@ import {
 
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { checkAbort, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 import { voiceAudioProcess } from './voiceAudioProcess'
 
 const logger = loggerService.withContext('AppleVoiceAdapter')
-
-function checkAbort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new VoiceRuntimeError('aborted')
-}
 
 function supportsApple(): boolean {
   return process.platform === 'darwin' && Number.parseInt(process.getSystemVersion(), 10) >= 13
@@ -37,42 +32,17 @@ function supportsAppleAssetInstall(): boolean {
   return supportsApple() && Number.parseInt(process.getSystemVersion(), 10) >= 26
 }
 
-function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
-  return new SystemSpeechNativeClient({ helperPath: application.getPath('feature.voice.helper_file'), timeoutMs })
-}
-
-function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
-  if (signal?.aborted) return new VoiceRuntimeError('aborted')
-  if (error instanceof VoiceRuntimeError) return error
-  if (
-    error instanceof UtilityProcessError &&
-    typeof error.remote?.code === 'string' &&
-    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote?.code ?? '')
-  ) {
-    logger.warn('Apple voice operation failed', { stage: 'decode', code: error.remote?.code })
-    return new VoiceRuntimeError('invalid_audio')
-  }
+function normalizeAppleFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+  const normalized = normalizeFailure(error, signal)
+  if (signal?.aborted || error instanceof VoiceRuntimeError) return normalized
   if (error instanceof SystemSpeechError) {
     if (error.code !== 'cancelled') logger.warn('Apple voice operation failed', { stage: 'native', code: error.code })
-    switch (error.code) {
-      case 'cancelled':
-        return new VoiceRuntimeError('aborted')
-      case 'unsupported_locale':
-      case 'unsupported_os':
-        return new VoiceRuntimeError('unsupported')
-      case 'asset_required':
-        return new VoiceRuntimeError('asset_required')
-      case 'voice_unavailable':
-        return new VoiceRuntimeError('voice_unavailable')
-      case 'timeout':
-        return new VoiceRuntimeError('timeout')
-      case 'invalid_request':
-        return new VoiceRuntimeError('invalid_request')
-    }
-    return new VoiceRuntimeError('operation_failed')
+  } else if (error instanceof UtilityProcessError && normalized.reason === 'invalid_audio') {
+    logger.warn('Apple voice operation failed', { stage: 'decode', code: error.remote?.code })
+  } else {
+    logger.warn('Apple voice operation failed', { stage: 'adapter', code: 'operation_failed' })
   }
-  logger.warn('Apple voice operation failed', { stage: 'adapter', code: 'operation_failed' })
-  return new VoiceRuntimeError('operation_failed')
+  return normalized
 }
 
 export async function getAppleVoiceStatus(
@@ -103,20 +73,20 @@ export async function getAppleVoiceStatus(
         return { status: 'unsupported', reason: 'unsupported' }
     }
   } catch (error) {
-    const normalized = normalizeFailure(error, signal)
+    const normalized = normalizeAppleFailure(error, signal)
     if (normalized.reason === 'aborted') throw normalized
     return { status: 'failed', reason: normalized.reason }
   }
 }
 
-export async function listLocalVoices(signal?: AbortSignal) {
+export async function listAppleVoices(signal?: AbortSignal) {
   checkAbort(signal)
   if (!supportsApple()) return []
   try {
     return (await nativeClient().request({ operation: 'capabilities', locale: DEFAULT_APPLE_ASR_LOCALE }, { signal }))
       .result.voices
   } catch (error) {
-    throw normalizeFailure(error, signal)
+    throw normalizeAppleFailure(error, signal)
   }
 }
 
@@ -126,7 +96,7 @@ export async function listAppleAsrLocales(signal?: AbortSignal) {
   try {
     return (await nativeClient().request({ operation: 'list_asr_locales' }, { signal })).result
   } catch (error) {
-    throw normalizeFailure(error, signal)
+    throw normalizeAppleFailure(error, signal)
   }
 }
 
@@ -141,7 +111,7 @@ export async function installAppleAsrAsset(language: string, signal?: AbortSigna
       )
     ).result
   } catch (error) {
-    throw normalizeFailure(error, signal)
+    throw normalizeAppleFailure(error, signal)
   }
 }
 
@@ -152,20 +122,6 @@ async function requireReady(
 ): Promise<void> {
   const state = await getAppleVoiceStatus(modelId, options, signal)
   if (state.status !== 'ready') throw new VoiceRuntimeError(state.reason ?? 'operation_failed')
-}
-
-async function withScratch<T>(operation: (directory: string) => Promise<T>, signal?: AbortSignal): Promise<T> {
-  checkAbort(signal)
-  const directory = join(application.getPath('feature.voice.temp'), randomUUID())
-  try {
-    await mkdir(directory, { mode: 0o700 })
-    checkAbort(signal)
-    return await operation(directory)
-  } catch (error) {
-    throw normalizeFailure(error, signal)
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
 }
 
 export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
@@ -183,17 +139,21 @@ export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
       )
         throw new VoiceRuntimeError('invalid_request')
       await requireReady(APPLE_TTS_MODEL_ID, options, input.abortSignal)
-      return withScratch(async (directory) => {
-        const outputPath = join(directory, 'output.wav')
-        await nativeClient().request(
-          { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath, speed },
-          { signal: input.abortSignal }
-        )
-        checkAbort(input.abortSignal)
-        const audio = new Uint8Array(await readFile(outputPath))
-        checkAbort(input.abortSignal)
-        return { audio, warnings: [], response: { timestamp: new Date(), modelId: APPLE_TTS_MODEL_ID } }
-      }, input.abortSignal)
+      return withScratch(
+        async (directory) => {
+          const outputPath = join(directory, 'output.wav')
+          await nativeClient().request(
+            { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath, speed },
+            { signal: input.abortSignal }
+          )
+          checkAbort(input.abortSignal)
+          const audio = new Uint8Array(await readFile(outputPath))
+          checkAbort(input.abortSignal)
+          return { audio, warnings: [], response: { timestamp: new Date(), modelId: APPLE_TTS_MODEL_ID } }
+        },
+        input.abortSignal,
+        normalizeAppleFailure
+      )
     }
   }
 }
@@ -207,34 +167,38 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
       if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
         throw new VoiceRuntimeError('invalid_audio')
       await requireReady(APPLE_ASR_MODEL_ID, options, input.abortSignal)
-      return withScratch(async (directory) => {
-        const timeout = AbortSignal.timeout(30_000)
-        const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-        const decoded = await application
-          .get('UtilityProcessManager')
-          .client(voiceAudioProcess)
-          .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-          .catch((error: unknown) => {
-            if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-            throw error
-          })
-        checkAbort(input.abortSignal)
-        const inputPath = join(directory, 'input.wav')
-        await writeFile(inputPath, decoded.wav, { mode: 0o600 })
-        const { result } = await nativeClient().request(
-          { operation: 'transcribe', locale: options.language ?? DEFAULT_APPLE_ASR_LOCALE, inputPath },
-          { signal: input.abortSignal }
-        )
-        checkAbort(input.abortSignal)
-        return {
-          text: result.text,
-          segments: [],
-          language: result.locale.replace('_', '-').split('-')[0],
-          durationInSeconds: decoded.durationSeconds,
-          warnings: [],
-          response: { timestamp: new Date(), modelId: APPLE_ASR_MODEL_ID }
-        }
-      }, input.abortSignal)
+      return withScratch(
+        async (directory) => {
+          const timeout = AbortSignal.timeout(30_000)
+          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
+          const decoded = await application
+            .get('UtilityProcessManager')
+            .client(voiceAudioProcess)
+            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
+            .catch((error: unknown) => {
+              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
+              throw error
+            })
+          checkAbort(input.abortSignal)
+          const inputPath = join(directory, 'input.wav')
+          await writeFile(inputPath, decoded.wav, { mode: 0o600 })
+          const { result } = await nativeClient().request(
+            { operation: 'transcribe', locale: options.language ?? DEFAULT_APPLE_ASR_LOCALE, inputPath },
+            { signal: input.abortSignal }
+          )
+          checkAbort(input.abortSignal)
+          return {
+            text: result.text,
+            segments: [],
+            language: result.locale.replace('_', '-').split('-')[0],
+            durationInSeconds: decoded.durationSeconds,
+            warnings: [],
+            response: { timestamp: new Date(), modelId: APPLE_ASR_MODEL_ID }
+          }
+        },
+        input.abortSignal,
+        normalizeAppleFailure
+      )
     }
   }
 }

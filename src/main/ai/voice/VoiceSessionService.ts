@@ -8,14 +8,15 @@ import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import {
   APPLE_ASR_MODEL_ID,
-  APPLE_TTS_MODEL_ID,
   DEFAULT_SPEECH_SPEED,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODELS,
   type LocalVoiceModelId,
   resolveDefaultAsrModel,
+  resolveDefaultSpeechModel,
   type VoiceSessionSource,
-  type VoiceSessionTrigger
+  type VoiceSessionTrigger,
+  WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -64,7 +65,7 @@ type Session = {
   requestId?: string
   operation?: VoiceOperation
   selectedModel?: LocalVoiceModelId
-  resolvedAdapter?: 'apple' | 'funasr'
+  resolvedAdapter?: 'apple' | 'windows' | 'funasr'
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
   outputId?: FileEntryId
@@ -121,7 +122,11 @@ export class VoiceSessionService extends BaseService {
 
   listModels() {
     this.requireAdmission()
-    return { models: LOCAL_VOICE_MODELS, defaultAsrModelId: this.defaultAsrModel() }
+    return {
+      models: LOCAL_VOICE_MODELS,
+      defaultAsrModelId: this.defaultAsrModel(),
+      defaultSpeechModelId: this.defaultSpeechModel()
+    }
   }
 
   listTranscriptionLocales(owner: VoiceOwner) {
@@ -237,9 +242,10 @@ export class VoiceSessionService extends BaseService {
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
+    const modelId = input.modelId ?? this.defaultSpeechModel()
+    if (!modelId) throw new VoiceRuntimeError('unsupported')
     const trigger = input.trigger ?? 'manual'
     const session = await this.preparePlayback(owner, input, trigger)
-    const modelId = input.modelId ?? APPLE_TTS_MODEL_ID
     const normalizedText = input.text.normalize('NFC').trim()
     return this.run(
       session,
@@ -480,6 +486,14 @@ export class VoiceSessionService extends BaseService {
     }
   }
 
+  private defaultSpeechModel() {
+    return resolveDefaultSpeechModel({
+      platform: process.platform,
+      arch: process.arch,
+      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
+    })
+  }
+
   private defaultAsrModel() {
     return resolveDefaultAsrModel({
       platform: process.platform,
@@ -669,7 +683,8 @@ export class VoiceSessionService extends BaseService {
     this.active = active
     session.requestId = requestId
     session.selectedModel = modelId
-    session.resolvedAdapter = modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
+    session.resolvedAdapter =
+      modelId === WINDOWS_TTS_MODEL_ID ? 'windows' : modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
     session.operation = operation
     if (options.startPhase) this.transition(session, options.startPhase)
     const startedAt = Date.now()

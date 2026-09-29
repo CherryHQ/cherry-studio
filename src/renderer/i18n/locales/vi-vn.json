@@ -5542,6 +5542,7 @@
   "settings.voice.model.apple_tts": "Giọng nói hệ thống Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.funasr_details": "Khoảng 1 GB · Xử lý cục bộ trên thiết bị này · Nguồn: FunAudioLLM / ModelScope · Giấy phép: Apache-2.0",
+  "settings.voice.model.windows_tts": "Giọng nói hệ thống Windows",
   "settings.voice.playback.error.aborted": "Đã hủy phát giọng nói.",
   "settings.voice.playback.error.busy": "Tính năng giọng nói đang bận với một thao tác cục bộ khác.",
   "settings.voice.playback.long_text.description": "Phản hồi này có {{count}} ký tự có thể đọc. Tiếp tục phát cục bộ?",
