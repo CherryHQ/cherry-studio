@@ -1,4 +1,5 @@
 export { VoiceDomainError, voiceService } from './VoiceService'
+export { getDefaultVoiceLanguage } from './voiceLanguage'
 export { voiceTargetManager } from './VoiceTargetManager'
 export type {
   CapturedVoiceTarget,

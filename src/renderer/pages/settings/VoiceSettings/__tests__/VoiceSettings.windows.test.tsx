@@ -18,7 +18,8 @@ const voice = vi.hoisted(() => ({
   speech: { phase: 'idle', progress: { completed: 0, total: 0 } }
 }))
 
-vi.mock('@renderer/services/voice', () => ({
+vi.mock('@renderer/services/voice', async () => ({
+  getDefaultVoiceLanguage: (await import('@renderer/services/voice/voiceLanguage')).getDefaultVoiceLanguage,
   voiceService: {
     initialize: async () => undefined,
     listModels: voice.listModels,
@@ -72,7 +73,7 @@ describe('Windows system speech settings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBe(WINDOWS_TTS_MODEL_ID)
     )
     rerender(<VoiceSettings />)
-    expect(screen.queryByRole('combobox', { name: /speech voice/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
     await user.click(screen.getByRole('combobox', { name: /speech language/i }))
     await user.click(await screen.findByRole('option', { name: 'Chinese (China)' }))
     await waitFor(() =>

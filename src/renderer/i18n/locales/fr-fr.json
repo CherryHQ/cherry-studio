@@ -5534,6 +5534,7 @@
   "settings.voice.dictation.phase.transcribing": "Transcription en cours",
   "settings.voice.dictation.status_label": "État de la dictée",
   "settings.voice.language.auto_detect": "Détection automatique",
+  "settings.voice.language.follow_interface": "Suivre la langue de l’interface ({{language}})",
   "settings.voice.language.placeholder": "Balise de langue, par exemple fr-FR",
   "settings.voice.language.world": "Monde",
   "settings.voice.microphone.denied": "L’accès au microphone n’est pas disponible",

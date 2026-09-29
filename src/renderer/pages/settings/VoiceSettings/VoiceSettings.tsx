@@ -29,6 +29,7 @@ import { popup } from '@renderer/services/popup'
 import {
   dictationService,
   type DictationPhase,
+  getDefaultVoiceLanguage,
   speechPlaybackService,
   voiceService,
   voiceTargetManager
@@ -36,9 +37,9 @@ import {
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
-  DEFAULT_APPLE_ASR_LOCALE,
   FUNASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
+  type LocalSpeechModelId,
   type LocalVoiceModelFacts,
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
@@ -55,6 +56,13 @@ interface StatusState {
 interface QueriedRecognitionStatus {
   modelId: LocalTranscriptionModelId
   language: string
+  result: StatusState
+}
+
+interface QueriedSpeechStatus {
+  modelId: LocalSpeechModelId
+  language?: string
+  voice?: string
   result: StatusState
 }
 
@@ -183,7 +191,7 @@ function VoiceSettings() {
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
-  const [speechStatus, setSpeechStatus] = useState<StatusState>({ status: 'unconfigured' })
+  const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>('unknown')
   const [installing, setInstalling] = useState(false)
@@ -195,6 +203,7 @@ function VoiceSettings() {
   const transcriptValueRef = useRef('')
   const autoReadRef = useRef<HTMLButtonElement>(null)
   const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
+  const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
 
   transcriptValueRef.current = transcript
 
@@ -230,16 +239,22 @@ function VoiceSettings() {
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
   const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
   const funAsrSelected = effectiveRecognitionModel === FUNASR_MODEL_ID
-  const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? DEFAULT_APPLE_ASR_LOCALE
+  const defaultLanguage = getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
+  const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
   const selectedVoice = voices.find((voice) => voice.id === speechVoice)
-  const effectiveSpeechLanguage = selectedVoice?.language ?? languageValue(speechLanguage) ?? ''
+  const effectiveSpeechLanguage = selectedVoice?.language ?? languageValue(speechLanguage) ?? defaultLanguage
   const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
     const worldLabel = t('settings.voice.language.world')
     const languages = new Set(voices.map((voice) => voice.language))
     if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
     return [
-      { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
+      {
+        value: EMPTY_VALUE,
+        label: t('settings.voice.language.follow_interface', {
+          language: languageLabel(defaultLanguage, displayNames, worldLabel)
+        })
+      },
       ...Array.from(languages)
         .map((language) => ({
           value: language,
@@ -248,7 +263,7 @@ function VoiceSettings() {
         }))
         .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
-  }, [effectiveSpeechLanguage, i18n.language, t, voices])
+  }, [defaultLanguage, effectiveSpeechLanguage, i18n.language, t, voices])
   const speechVoiceOptions: VoiceSelectOption[] = [
     { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
     ...voices
@@ -276,8 +291,14 @@ function VoiceSettings() {
         disabled: true
       })
     }
-    return options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
-  }, [asrLocales, effectiveRecognitionLanguage, i18n.language, t])
+    return [
+      {
+        value: EMPTY_VALUE,
+        label: t('settings.voice.language.follow_interface', { language: label(defaultLanguage) })
+      },
+      ...options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+    ]
+  }, [asrLocales, defaultLanguage, effectiveRecognitionLanguage, i18n.language, t])
   const recognitionStatus =
     hasConfiguredRecognitionModel && !configuredRecognitionModel
       ? ({ status: 'unsupported', reason: 'unsupported' } satisfies StatusState)
@@ -301,6 +322,17 @@ function VoiceSettings() {
             : undefined
   const configuredSpeechModel =
     speechModel === APPLE_TTS_MODEL_ID || speechModel === WINDOWS_TTS_MODEL_ID ? speechModel : undefined
+  const configuredSpeechLanguage = languageValue(speechLanguage)
+  const configuredSpeechVoice = optionalValue(speechVoice)
+  const speechStatus: StatusState =
+    speechModel && !configuredSpeechModel
+      ? { status: 'unsupported', reason: 'unsupported' }
+      : configuredSpeechModel &&
+          queriedSpeechStatus?.modelId === configuredSpeechModel &&
+          queriedSpeechStatus.language === configuredSpeechLanguage &&
+          queriedSpeechStatus.voice === configuredSpeechVoice
+        ? queriedSpeechStatus.result
+        : { status: 'unconfigured' }
 
   useEffect(() => {
     if (
@@ -330,31 +362,27 @@ function VoiceSettings() {
   ])
 
   useEffect(() => {
-    if (!speechModel) {
-      setSpeechStatus({ status: 'unconfigured' })
-      return
-    }
-    if (!configuredSpeechModel) {
-      setSpeechStatus({ status: 'unsupported', reason: 'unsupported' })
-      return
-    }
+    setQueriedSpeechStatus(undefined)
+    if (!configuredSpeechModel) return
     let current = true
-    void voiceService
-      .getModelStatus({
-        modelId: configuredSpeechModel,
-        ...(languageValue(speechLanguage) && { language: languageValue(speechLanguage) }),
-        ...(optionalValue(speechVoice) && { voice: optionalValue(speechVoice) })
-      })
-      .then((status) => {
-        if (current) setSpeechStatus(status)
-      })
-      .catch(() => {
-        if (current) setSpeechStatus({ status: 'failed', reason: 'operation_failed' })
-      })
+    const query = {
+      modelId: configuredSpeechModel,
+      ...(configuredSpeechLanguage && { language: configuredSpeechLanguage }),
+      ...(configuredSpeechVoice && { voice: configuredSpeechVoice })
+    }
+    speechStatusCheckRef.current = speechStatusCheckRef.current.then(async () => {
+      if (!current) return
+      try {
+        const status = await voiceService.getModelStatus(query)
+        if (current) setQueriedSpeechStatus({ ...query, result: status })
+      } catch {
+        if (current) setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+      }
+    })
     return () => {
       current = false
     }
-  }, [configuredSpeechModel, speechLanguage, speechModel, speechVoice])
+  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice])
 
   useEffect(() => {
     if (dictation.error !== 'microphone_permission') return
@@ -568,9 +596,11 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
-            value={funAsrSelected ? 'auto' : effectiveRecognitionLanguage}
+            value={funAsrSelected ? 'auto' : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)}
             disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
-            onValueChange={(language) => savePreference(() => setRecognitionPreferences({ language }))}>
+            onValueChange={(value) =>
+              savePreference(() => setRecognitionPreferences({ language: value === EMPTY_VALUE ? '' : value }))
+            }>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
               <SelectValue placeholder={t('common.select')} />
             </SelectTrigger>
@@ -747,7 +777,7 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-speech-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
-            value={effectiveSpeechLanguage || EMPTY_VALUE}
+            value={selectedVoice?.language ?? languageValue(speechLanguage) ?? EMPTY_VALUE}
             onValueChange={(value) => {
               const language = value === EMPTY_VALUE ? '' : value
               savePreference(() =>

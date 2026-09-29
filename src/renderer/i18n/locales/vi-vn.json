@@ -5534,6 +5534,7 @@
   "settings.voice.dictation.phase.transcribing": "Đang chép lời",
   "settings.voice.dictation.status_label": "Trạng thái đọc chính tả",
   "settings.voice.language.auto_detect": "Tự động phát hiện",
+  "settings.voice.language.follow_interface": "Theo ngôn ngữ giao diện ({{language}})",
   "settings.voice.language.placeholder": "Thẻ ngôn ngữ, ví dụ vi-VN",
   "settings.voice.language.world": "Thế giới",
   "settings.voice.microphone.denied": "Không thể truy cập micrô",

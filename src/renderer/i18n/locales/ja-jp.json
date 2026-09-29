@@ -5534,6 +5534,7 @@
   "settings.voice.dictation.phase.transcribing": "文字起こし中",
   "settings.voice.dictation.status_label": "音声入力の状態",
   "settings.voice.language.auto_detect": "自動検出",
+  "settings.voice.language.follow_interface": "インターフェースの言語に従う（{{language}}）",
   "settings.voice.language.placeholder": "言語タグ（例：en-US）",
   "settings.voice.language.world": "世界",
   "settings.voice.microphone.denied": "マイクへのアクセスを利用できません",

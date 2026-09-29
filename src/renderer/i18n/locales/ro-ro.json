@@ -5534,6 +5534,7 @@
   "settings.voice.dictation.phase.transcribing": "Se transcrie",
   "settings.voice.dictation.status_label": "Starea dictării",
   "settings.voice.language.auto_detect": "Detectare automată",
+  "settings.voice.language.follow_interface": "Folosește limba interfeței ({{language}})",
   "settings.voice.language.placeholder": "Etichetă de limbă, de exemplu ro-RO",
   "settings.voice.language.world": "Lume",
   "settings.voice.microphone.denied": "Accesul la microfon nu este disponibil",
