@@ -96,8 +96,10 @@ export const appRequestSchemas = {
       target: notesDirectoryStatsSchema
     })
   }),
+  'app.notes_relocation.flush_edits_register': defineRoute({ input: z.void(), output: z.void() }),
+  'app.notes_relocation.flush_edits_unregister': defineRoute({ input: z.void(), output: z.void() }),
   'app.notes_relocation.flush_edits_ack': defineRoute({
-    input: z.object({ requestId: z.string().min(1) }),
+    input: z.object({ requestId: z.string().min(1), ok: z.boolean() }),
     output: z.void()
   }),
   'app.cache_cleanup.inspect': defineRoute({

@@ -8,6 +8,8 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
@@ -111,6 +113,10 @@ export async function migrateNotesDirectoryWithUi(options: {
     toast.success(t('settings.data.notes_relocation.success'))
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)
+    if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED) {
+      toast.error(t('settings.data.notes_relocation.error.flush_failed'))
+      return
+    }
     toast.error(t('settings.data.notes_relocation.error.generic'))
   }
 }

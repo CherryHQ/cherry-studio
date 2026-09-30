@@ -11,7 +11,9 @@ import {
   acknowledgeRendererNotesEditsFlush,
   inspectNotesRelocation,
   migrateNotesDirectory,
-  requestRendererNotesEditsFlush
+  registerRendererNotesEditsFlushWindow,
+  requestRendererNotesEditsFlush,
+  unregisterRendererNotesEditsFlushWindow
 } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -46,8 +48,18 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     requestUserDataRelocation(path, copy)
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
-  'app.notes_relocation.flush_edits_ack': async ({ requestId }, { senderId }) => {
-    acknowledgeRendererNotesEditsFlush(requestId, senderId)
+  'app.notes_relocation.flush_edits_register': async (_input, { senderId }) => {
+    if (senderId != null) {
+      registerRendererNotesEditsFlushWindow(senderId)
+    }
+  },
+  'app.notes_relocation.flush_edits_unregister': async (_input, { senderId }) => {
+    if (senderId != null) {
+      unregisterRendererNotesEditsFlushWindow(senderId)
+    }
+  },
+  'app.notes_relocation.flush_edits_ack': async ({ requestId, ok }, { senderId }) => {
+    acknowledgeRendererNotesEditsFlush(requestId, senderId, ok)
   },
   'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) => {
     await requestRendererNotesEditsFlush()
