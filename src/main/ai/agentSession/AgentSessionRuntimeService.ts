@@ -3331,7 +3331,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (lastResumeToken && this.warmLeaseHolders.has(sessionId)) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       } else if (lastResumeToken) {
-        application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+        runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdleWithoutWarmLease?.(sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()

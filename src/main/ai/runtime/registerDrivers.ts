@@ -47,6 +47,10 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     void this.loadImplementation().then((driver) => driver.onSessionIdle?.(sessionId))
   }
 
+  onSessionIdleWithoutWarmLease(sessionId: string): void {
+    void this.loadImplementation().then((driver) => driver.onSessionIdleWithoutWarmLease?.(sessionId))
+  }
+
   /**
    * Claude Code stores `{projects}/{cwd-slug}/{sessionId}.jsonl` plus a
    * `{sessionId}/` subagent-transcript directory, both keyed by the session id

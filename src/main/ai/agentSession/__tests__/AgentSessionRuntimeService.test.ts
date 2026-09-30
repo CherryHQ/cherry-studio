@@ -1600,6 +1600,33 @@ describe('AgentSessionRuntimeService', () => {
     }
   })
 
+  it('hands an idle session with a resume token but no warm lease to onSessionIdleWithoutWarmLease', () => {
+    vi.useFakeTimers()
+    try {
+      const onSessionIdleWithoutWarmLease = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn(),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdleWithoutWarmLease
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reuses an idle runtime for the next fresh turn', () => {
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)

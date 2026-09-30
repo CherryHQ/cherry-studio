@@ -1376,4 +1376,8 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
   }
+
+  onSessionIdleWithoutWarmLease(sessionId: string): void {
+    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+  }
 }
