@@ -338,7 +338,10 @@ describe('DeviceConnectionsSettings', () => {
     }
     invitationMock.mockResolvedValueOnce(refreshed)
     await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.refreshAddresses'] }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(enUS['deviceConnections.pairing.addressUnavailable'])
+    expect(await screen.findByText(enUS['deviceConnections.pairing.addressUnavailable'])).toHaveAttribute(
+      'role',
+      'alert'
+    )
     expect(screen.queryByRole('img', { name: enUS['deviceConnections.pairing.title'] })).not.toBeInTheDocument()
     await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
     await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
@@ -372,7 +375,7 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['deviceConnections.toggle.risk'])).not.toBeInTheDocument()
     expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
     expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
@@ -565,13 +568,13 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to load paired devices.')
+    expect(screen.getByText(enUS['deviceConnections.devices.loadError'])).toBeVisible()
     expect(screen.queryByText('No devices have been paired yet.')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     rerender(<DeviceConnectionsSettings />)
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['deviceConnections.devices.loadError'])).not.toBeInTheDocument()
     expect(screen.getByText('My phone')).toBeInTheDocument()
   })
 
@@ -602,7 +605,7 @@ describe('DeviceConnectionsSettings', () => {
     vi.useFakeTimers()
     await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
+    expect(screen.getByRole('alert')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
 
     await act(async () => vi.advanceTimersByTime(60_000))
 

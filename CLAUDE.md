@@ -94,9 +94,6 @@ Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.
 
 When reviewing a GitHub PR, do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — its CI already ran them; inspect via `gh` instead.
 
-- Apply review rules within their actual scope, considering platform constraints and established product decisions. A blocking finding needs a concrete failure or violation of an applicable requirement; a preferred alternative alone is not a blocker.
-- For download sources, distinguish mirrorable artifacts from publisher-managed distribution such as TestFlight and App Store links. A shared official URL is not automatically a missing China mirror. Follow the [Network Download Source Gate](.agents/skills/gh-pr-review/references/cherry-review-guidance.md#network-download-source-gate) and cite the affected acquisition path when reporting a defect.
-
 ### Issues
 
 Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/SKILL.md` directly.
