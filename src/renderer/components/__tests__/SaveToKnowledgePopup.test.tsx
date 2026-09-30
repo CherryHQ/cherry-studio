@@ -393,6 +393,7 @@ describe('SaveToKnowledgePopup', () => {
       ...createMessageWithFiles([]),
       parts: [{ type: 'text', text: 'All tools are working' }]
     } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({ text: 'All tools are working', files: [] })
 
     render(<PopupHost />)
     let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
@@ -408,5 +409,24 @@ describe('SaveToKnowledgePopup', () => {
     })
 
     expect(mockPreferenceService.set).toHaveBeenCalledWith('chat.save.knowledge.last_base_id', 'base-2')
+    await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBe('base-2')
+  })
+
+  it('does not persist the last-used base when a save produces zero knowledge items', async () => {
+    // Every file fails metadata resolution and the message has no text, so the
+    // save "succeeds" while producing zero knowledge items.
+    const { promise } = renderPopup(createMessageWithFiles([createFile('bad.pdf', 'bad')]))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 0 })
+    expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBeNull()
   })
 })

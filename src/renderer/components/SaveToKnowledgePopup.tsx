@@ -421,11 +421,13 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
       if (items.length > 0) {
         await submitKnowledgeItems(items)
+        // Only remember the base when the save actually produced knowledge items;
+        // a zero-item save (e.g. every file failed to resolve) should not be
+        // remembered as the last-used base.
+        preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
+          logger.warn('Failed to persist last-used knowledge base:', error as Error)
+        })
       }
-
-      preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
-        logger.warn('Failed to persist last-used knowledge base:', error as Error)
-      })
 
       resolve({ success: true, savedCount })
     } catch (error) {
