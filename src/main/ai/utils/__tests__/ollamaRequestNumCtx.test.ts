@@ -62,4 +62,31 @@ describe('resolveOllamaRequestNumCtx', () => {
     expect(resolution?.totalMemoryBytes).toBe(0)
     expect(resolution?.numCtx).toBe(131_072)
   })
+
+  it('classifies local vs remote using the same endpoint as the active request', () => {
+    const freeMemoryBytes = 8_000_000_000
+    const totalMemoryBytes = 16_000_000_000
+    vi.spyOn(os, 'freemem').mockReturnValue(freeMemoryBytes)
+    vi.spyOn(os, 'totalmem').mockReturnValue(totalMemoryBytes)
+
+    const provider = {
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:11434' },
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://nas.local:11434' }
+      }
+    } as Provider
+
+    const loopbackRequest = resolveOllamaRequestNumCtx(
+      model as never,
+      provider,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+    expect(loopbackRequest?.freeMemoryBytes).toBe(freeMemoryBytes)
+    expect(loopbackRequest?.numCtx).toBeLessThan(131_072)
+
+    const remoteRequest = resolveOllamaRequestNumCtx(model as never, provider, ENDPOINT_TYPE.OLLAMA_CHAT)
+    expect(remoteRequest?.freeMemoryBytes).toBe(0)
+    expect(remoteRequest?.numCtx).toBe(131_072)
+  })
 })

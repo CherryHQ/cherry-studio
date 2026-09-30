@@ -1609,6 +1609,48 @@ describe('AiService tool approval', () => {
     expect(primaryRepair).toHaveBeenCalledTimes(2)
   })
 
+  it('clears Ollama stream error context when the primary model is reactivated', async () => {
+    const service = createService()
+    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { context: {} },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+
+    const streamErrorSerialization = {}
+    await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      messages: [],
+      streamErrorSerialization,
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
+      onPrimaryActivated: () => void
+    }
+    retryOptions.onFallbackActivated({
+      streamErrorSerialization: {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3', trainedContextWindow: 131_072, numCtx: 65_536 }
+      }
+    })
+    expect(streamErrorSerialization).toHaveProperty('ollamaNumCtx')
+
+    retryOptions.onPrimaryActivated()
+    expect(streamErrorSerialization).not.toHaveProperty('ollamaNumCtx')
+  })
+
   it('passes an explicit API key override to key-pool resolution', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({

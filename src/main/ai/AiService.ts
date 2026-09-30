@@ -596,6 +596,8 @@ export class AiService extends BaseService {
       const requestContext = options.context as RequestContext | undefined
       if (requestContext?.ollamaNumCtx) {
         request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+      } else {
+        delete request.streamErrorSerialization.ollamaNumCtx
       }
     }
     const usageContext = createCaptureContext({
@@ -708,8 +710,12 @@ export class AiService extends BaseService {
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
           const requestContext = options.context as RequestContext | undefined
-          if (request.streamErrorSerialization && requestContext?.ollamaNumCtx) {
-            request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+          if (request.streamErrorSerialization) {
+            if (requestContext?.ollamaNumCtx) {
+              request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+            } else {
+              delete request.streamErrorSerialization.ollamaNumCtx
+            }
           }
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
