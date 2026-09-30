@@ -46,8 +46,10 @@ function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
 
 function validatePublishState({
   branchSha,
+  controlSha,
   buildRun,
   expectedBuildTitle,
+  jobResults,
   openReleasePullRequests,
   pendingHotfixes,
   release,
@@ -73,10 +75,12 @@ function validatePublishState({
   if (
     !buildRun ||
     buildRun.display_title !== expectedBuildTitle ||
-    buildRun.head_sha !== workflowSha ||
+    buildRun.head_sha !== controlSha ||
+    buildRun.head_branch !== 'main' ||
+    buildRun.path !== '.github/workflows/release.yml' ||
     buildRun.event !== 'workflow_dispatch' ||
-    buildRun.status !== 'completed' ||
-    buildRun.conclusion !== 'success'
+    !jobResults ||
+    ['prepare', 'release', 'finalize-build', 'approve'].some((job) => jobResults[job]?.result !== 'success')
   ) {
     throw new Error(`No successful all-platform Release build exists for ${workflowSha}`)
   }
@@ -138,8 +142,10 @@ function main() {
   if (phase === 'publish') {
     validatePublishState({
       branchSha: requiredEnvironment('BRANCH_SHA'),
+      controlSha: requiredEnvironment('CONTROL_SHA'),
       buildRun: parseOptionalJson(process.env.BUILD_RUN_JSON, 'BUILD_RUN_JSON'),
       expectedBuildTitle: requiredEnvironment('EXPECTED_BUILD_TITLE'),
+      jobResults: parseOptionalJson(process.env.RELEASE_JOB_RESULTS, 'RELEASE_JOB_RESULTS'),
       openReleasePullRequests: process.env.OPEN_RELEASE_PULL_REQUESTS || '',
       pendingHotfixes: process.env.PENDING_HOTFIXES || '',
       release,
