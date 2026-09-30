@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Generated at: 2026-10-17T04:56:55.421Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -19,6 +19,7 @@ import { AionlabsIcon } from './aionlabs'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
 import { AnthropicIcon } from './anthropic'
+import { ApiRouteIcon } from './api-route/api-route'
 import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arcee-ai'
 import { AwsBedrockIcon } from './aws-bedrock'
@@ -186,6 +187,7 @@ export const PROVIDER_ICON_CATALOG = {
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
   anthropic: AnthropicIcon,
+  'api-route': ApiRouteIcon,
   application: ApplicationIcon,
   'arcee-ai': ArceeAiIcon,
   'aws-bedrock': AwsBedrockIcon,
@@ -304,8 +306,8 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,
