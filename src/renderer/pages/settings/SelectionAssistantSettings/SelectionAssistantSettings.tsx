@@ -56,6 +56,9 @@ const SelectionAssistantSettings: FC = () => {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } | null>(null)
+  const isLinuxWaylandDisplay = isLinux && !!linuxEnvInfo?.isLinuxWaylandDisplay
+  // The selection hook cannot run on this compositor, so every setting below would be dead.
+  const isCompositorIncompatible = isLinuxWaylandDisplay && !linuxEnvInfo?.isLinuxCompositorCompatible
 
   // force disable selection assistant on non-windows systems
   useEffect(() => {
@@ -133,7 +136,7 @@ const SelectionAssistantSettings: FC = () => {
           </DemoContainer>
         )}
 
-        {selectionEnabled && isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
+        {selectionEnabled && isLinuxWaylandDisplay && linuxEnvInfo && (
           <>
             <SettingDivider />
             <SettingLabel>
@@ -182,7 +185,7 @@ const SelectionAssistantSettings: FC = () => {
         )}
       </SettingGroup>
 
-      {selectionEnabled && (
+      {selectionEnabled && !isCompositorIncompatible && (
         <>
           <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.toolbar.title')}</SettingTitle>
@@ -297,63 +300,60 @@ const SelectionAssistantSettings: FC = () => {
 
           <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
 
-          <SettingGroup theme={theme}>
-            <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
-            <SettingDivider />
-            <SettingRow>
-              <SettingLabel>
-                <SettingRowTitle>
-                  {t('selection.settings.advanced.filter_mode.title')}
-                  {isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
-                    <span style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center' }}>
-                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--error)' }} />
-                      {t('selection.settings.linux.filter_warning_text')}）
-                    </span>
-                  )}
-                </SettingRowTitle>
-                <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
-              </SettingLabel>
-              <RadioGroup
-                value={filterMode ?? 'default'}
-                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
-                className="flex flex-wrap gap-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="default" />
-                  <span>{t('selection.settings.advanced.filter_mode.default')}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="whitelist" />
-                  <span>{t('selection.settings.advanced.filter_mode.whitelist')}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="blacklist" />
-                  <span>{t('selection.settings.advanced.filter_mode.blacklist')}</span>
-                </label>
-              </RadioGroup>
-            </SettingRow>
+          {/* Wayland sessions report no program name, so filter mode never applies there. */}
+          {!isLinuxWaylandDisplay && (
+            <SettingGroup theme={theme}>
+              <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
+              <SettingDivider />
+              <SettingRow>
+                <SettingLabel>
+                  <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
+                  <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
+                </SettingLabel>
+                <RadioGroup
+                  value={filterMode ?? 'default'}
+                  onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
+                  className="flex flex-wrap gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="default" />
+                    <span>{t('selection.settings.advanced.filter_mode.default')}</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="whitelist" />
+                    <span>{t('selection.settings.advanced.filter_mode.whitelist')}</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="blacklist" />
+                    <span>{t('selection.settings.advanced.filter_mode.blacklist')}</span>
+                  </label>
+                </RadioGroup>
+              </SettingRow>
 
-            {filterMode && filterMode !== 'default' && (
-              <>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingLabel>
-                    <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
-                    <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>
-                  </SettingLabel>
-                  <Button onClick={() => setIsFilterListModalOpen(true)}>
-                    <Edit2 size={14} />
-                    {t('common.edit')}
-                  </Button>
-                </SettingRow>
-                <SelectionFilterListModal
-                  open={isFilterListModalOpen}
-                  onClose={() => setIsFilterListModalOpen(false)}
-                  filterList={filterList}
-                  onSave={setFilterList}
-                />
-              </>
-            )}
-          </SettingGroup>
+              {filterMode && filterMode !== 'default' && (
+                <>
+                  <SettingDivider />
+                  <SettingRow>
+                    <SettingLabel>
+                      <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
+                      <SettingDescription>
+                        {t('selection.settings.advanced.filter_list.description')}
+                      </SettingDescription>
+                    </SettingLabel>
+                    <Button onClick={() => setIsFilterListModalOpen(true)}>
+                      <Edit2 size={14} />
+                      {t('common.edit')}
+                    </Button>
+                  </SettingRow>
+                  <SelectionFilterListModal
+                    open={isFilterListModalOpen}
+                    onClose={() => setIsFilterListModalOpen(false)}
+                    filterList={filterList}
+                    onSave={setFilterList}
+                  />
+                </>
+              )}
+            </SettingGroup>
+          )}
         </>
       )}
 

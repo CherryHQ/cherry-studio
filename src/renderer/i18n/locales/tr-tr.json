@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Lütfen uygulamanın Bundle ID değerini her satıra bir tane gelecek şekilde girin. Büyük/küçük harfe duyarlı değildir ve yaklaşık eşleşme yapılabilir. Örneğin: com.google.Chrome, com.apple.mail vb.",
   "selection.settings.filter_modal.user_tips.windows": "Lütfen uygulamanın yürütülebilir dosya adını her satıra bir tane gelecek şekilde girin. Büyük/küçük harfe duyarlı değildir ve yaklaşık eşleşme yapılabilir. Örneğin: chrome.exe, weixin.exe, CherryStudio.exe vb.",
   "selection.settings.linux.compositor_incompatible": "Masaüstü ortamı seçim özelliğini desteklemiyor. Tam deneyim için bir X11 oturumuna geçin.",
-  "selection.settings.linux.filter_warning_text": "Wayland oturumunda kullanılamaz",
   "selection.settings.linux.input_group_fail": "İzin verilmedi, lütfen `sudo usermod -aG input $USER` komutunu çalıştırıp yeniden oturum açın",
   "selection.settings.linux.input_group_label": "input grubu izni: ",
   "selection.settings.linux.input_group_pass": "İzin verildi",
