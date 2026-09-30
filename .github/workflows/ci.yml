@@ -269,6 +269,7 @@ jobs:
       - uses: ./.github/actions/setup-validation
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        shell: bash
         run: ":"
       - name: Platform contracts
         env:
