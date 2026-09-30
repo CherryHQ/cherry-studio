@@ -1597,6 +1597,10 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('keeps the composer text limit at the promised 200,000 characters', () => {
+    expect(COMPOSER_INPUT_MAX_LENGTH).toBe(200_000)
+  })
+
   it('truncates external text updates at the maximum text length', async () => {
     const onTextChange = vi.fn()
 
