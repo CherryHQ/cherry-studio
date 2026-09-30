@@ -125,6 +125,8 @@ const CodeViewer = ({
   const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
+  const rawLinesRef = useRef(rawLines)
+  rawLinesRef.current = rawLines
 
   useEffect(() => {
     if (!autoScrollToBottom || expanded) {
@@ -376,15 +378,28 @@ const CodeViewer = ({
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
+  const wrappedCharsPerRow = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller?.clientWidth) {
+      // Conservative when the scroller is not laid out yet — underestimates cause overlap.
+      return 32
+    }
+    const paddingLeft = fontSize
+    const gutterWidth = lineNumbers ? gutterDigits * fontSize * 0.55 : 0
+    const lineNumberMargin = lineNumbers ? fontSize : 0
+    const contentWidth = scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - 8
+    const charWidth = Math.max(1, fontSize * 0.6)
+    return Math.max(8, Math.floor(contentWidth / charWidth))
+  }, [fontSize, gutterDigits, lineNumbers])
   const estimateSize = useCallback(
     (index: number) => {
       if (!wrapped) return lineHeight
-      const line = rawLines[index] ?? ''
+      const line = rawLinesRef.current[index] ?? ''
       if (line.length === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
-      return lineHeight * Math.max(1, Math.ceil(line.length / 96))
+      return lineHeight * Math.max(1, Math.ceil(line.length / wrappedCharsPerRow()))
     },
-    [lineHeight, rawLines, wrapped]
+    [lineHeight, wrapped, wrappedCharsPerRow]
   )
 
   // 创建 virtualizer 实例
@@ -520,7 +535,8 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller) return
 
-    for (let index = 0; index < rawLines.length; index++) {
+    const lineCount = rawLinesRef.current.length
+    for (let index = 0; index < lineCount; index++) {
       const row = scroller.querySelector(`[data-index="${index}"]`)
       if (row instanceof HTMLElement) {
         virtualizer.measureElement(row)
@@ -528,7 +544,7 @@ const CodeViewer = ({
         virtualizer.resizeItem(index, estimateSize(index))
       }
     }
-  }, [estimateSize, rawLines.length, virtualizer, wrapped])
+  }, [estimateSize, virtualizer, wrapped])
 
   useLayoutEffect(() => {
     remeasureRows()
