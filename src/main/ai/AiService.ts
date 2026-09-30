@@ -40,6 +40,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -784,6 +785,19 @@ export class AiService extends BaseService {
   /** Abort the in-flight request for `requestId`; a no-op on an unknown id. */
   abortRequest(requestId: string): void {
     this.requests.get(requestId)?.abort()
+  }
+
+  /**
+   * Lower a model's session `num_ctx` cap after a KV-cache OOM retry (backs `ai.ollama.set_num_ctx_cap`).
+   * Lower-only in one main-process owner: synchronous, so concurrent IPC calls cannot interleave, and
+   * a stale or concurrent retry can never raise an already-lowered cap.
+   */
+  lowerOllamaNumCtxCap(uniqueModelId: string, numCtxCap: number): void {
+    const cacheService = application.get('CacheService')
+    const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)
+    const current = caps?.[uniqueModelId]
+    if (typeof current === 'number' && current <= numCtxCap) return
+    cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [uniqueModelId]: numCtxCap })
   }
 
   // ── Non-streaming text generation (agent.generate) ──
