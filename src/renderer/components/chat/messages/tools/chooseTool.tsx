@@ -14,6 +14,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
+import { MessageCodeExecution } from './codeExecution/MessageCodeExecution'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { isGenerateImageToolName } from './painting/generateImageTool'
@@ -55,6 +56,9 @@ const isAgentTool = (toolName: string) => {
 
 export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
   const toolName = toolResponse.tool.name
+  if (toolResponse.tool.type === 'provider' && toolName === 'codeExecution') {
+    return <MessageCodeExecution toolResponse={toolResponse} />
+  }
   if (isMetaToolName(toolName)) {
     return <MessageMetaTool toolResponse={toolResponse} />
   }

@@ -2,6 +2,7 @@ import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
   matchVendor,
+  normalizeModelId,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
   type ServerTool,
@@ -491,4 +492,15 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
 export function sanitizeProviderName(name: string, fallback: string): string {
   const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
   return sanitized || fallback
+}
+
+/** Initial native-code support is limited to the documented Grok 4.7 Responses model. */
+export function isNativeCodeExecutionAvailable(model: Model | undefined, provider: Provider | undefined): boolean {
+  if (!model || !provider) return false
+  const endpoint = model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return (
+    endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    provider.endpointConfigs?.[endpoint]?.adapterFamily === 'xai-responses' &&
+    normalizeModelId(getRawModelId(model)) === 'grok-4-7'
+  )
 }

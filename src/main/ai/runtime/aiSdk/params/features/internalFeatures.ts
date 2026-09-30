@@ -22,6 +22,7 @@ import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
+import { providerCodeExecutionFeature } from './providerCodeExecution'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
 import { qwenEnableThinkingFeature } from './qwenEnableThinking'
@@ -61,6 +62,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   stripReasoningReplayFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
+  providerCodeExecutionFeature,
   // Stop when a trusted local tool cannot succeed without an external change.
   terminalToolFailureFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
