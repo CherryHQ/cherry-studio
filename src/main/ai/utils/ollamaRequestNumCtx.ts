@@ -6,7 +6,7 @@ import {
   resolveOllamaNumCtx,
   type ResolveOllamaNumCtxInput
 } from '@shared/ai/ollamaNumCtx'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { getBaseUrl } from './provider'
@@ -40,11 +40,16 @@ function readSessionCap(model: Model): number | null | undefined {
   }
 }
 
-export function resolveOllamaRequestNumCtx(model: Model, provider?: Provider): OllamaNumCtxResolution | undefined {
+export function resolveOllamaRequestNumCtx(
+  model: Model,
+  provider?: Provider,
+  preferredEndpoint?: EndpointType | null
+): OllamaNumCtxResolution | undefined {
   const trainedContextWindow = model.contextWindow
   if (!trainedContextWindow || trainedContextWindow <= 0) return undefined
 
-  const apiHost = provider != null ? getBaseUrl(provider, ENDPOINT_TYPE.OLLAMA_CHAT) || getBaseUrl(provider) : ''
+  const apiHost =
+    provider != null ? getBaseUrl(provider, preferredEndpoint ?? ENDPOINT_TYPE.OLLAMA_CHAT) : ''
   const useLocalMemory = provider == null || isLocalOllamaApiHost(apiHost)
 
   const input: ResolveOllamaNumCtxInput = {

@@ -174,7 +174,8 @@ export function buildCapabilityProviderOptions(
         model,
         actualProvider,
         reasoningOptions.options,
-        context.ollamaNumCtx
+        context.ollamaNumCtx,
+        context.endpointType
       )
       break
     case 'cherryin':
@@ -430,9 +431,10 @@ function buildOllamaProviderOptions(
   model: Model,
   provider: Provider,
   reasoningOptions: Record<string, unknown>,
-  ollamaNumCtx?: OllamaNumCtxRequestSnapshot
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot,
+  endpointType?: EndpointType
 ): Record<string, Record<string, unknown>> {
-  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model, provider)?.numCtx
+  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model, provider, endpointType)?.numCtx
   return {
     ollama: {
       ...reasoningOptions,
