@@ -1,5 +1,11 @@
 # @cherrystudio/remote-protocol
 
+## 0.3.0
+
+### Minor Changes
+
+- [#21179](https://github.com/CherryHQ/cherry-studio/pull/21179) [`a03c8bb`](https://github.com/CherryHQ/cherry-studio/commit/a03c8bb3664e7eefe31a55d401d6bb433e5e6fec) Thanks [@DeJeune](https://github.com/DeJeune)! - Add an optional connection endpoint capability and an authenticated, capability-scoped address handoff method. Older peers retain their existing pairing and connection behavior.
+
 ## 0.2.0
 
 ### Minor Changes

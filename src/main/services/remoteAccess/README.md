@@ -1,6 +1,7 @@
 # Remote access
 
-LAN-only remote access over the API Gateway's existing HTTP listener. The lifecycle
+Direct remote access over the API Gateway's existing HTTP listener, using reachable LAN,
+company or VPN addresses. The lifecycle
 service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
@@ -44,6 +45,15 @@ Deviations from the design doc, kept deliberately small:
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
+The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
+
+`connection.endpoints` requires an authenticated, current capability and returns the
+Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
+The mobile owns candidate verification and explicit persistence. Local setup checks and
+Tailscale installation belong to [device connection setup](../deviceConnectionSetup/README.md), shared by the IPC wizard and Cherry tools; installer success
+does not mean VPN login or phone verification succeeded. System packages use BinaryManager.
 
 Execution failures use the shared failure snapshot in both live terminal events and historical
 messages. The persistence listener supplies the actual saved message identity and revisions before

@@ -45,6 +45,7 @@ import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
+import { DeviceConnectionSetupService } from '@main/services/deviceConnectionSetup'
 import { DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
@@ -101,6 +102,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  DeviceConnectionSetupService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,

@@ -48,16 +48,28 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * still-current target is recorded — see {@link LatestReconciler.getLastError} — and not retried,
    * so a persistent failure (e.g. port in use) can't spin the loop.
    */
-  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+  private readonly reconciler: LatestReconciler = createLatestReconciler({
     name: 'apiGateway',
-    getSnapshot: () => ({ desired: this.desiredEnabled || this.leaseCount > 0, actual: this.isActivated }),
-    isSettled: ({ desired, actual }) => desired === actual,
-    apply: async ({ desired }) => {
-      // Discard activate/deactivate's returned state — the reconciler re-reads `isActivated`.
-      if (desired) {
-        await this.activate()
-      } else {
-        await this.deactivate()
+    getSnapshot: () => ({
+      desired: this.desiredEnabled || this.leaseCount > 0,
+      actual: this.isActivated,
+      host: this.listeningHost(),
+      actualHost: this.apiGateway?.getHost()
+    }),
+    isSettled: ({ desired, actual, host, actualHost }) => desired === actual && (!desired || host === actualHost),
+    apply: async ({ desired, actual }) => {
+      if (!desired) await this.deactivate()
+      else if (!actual) await this.activate()
+      else {
+        await this.lanMutex.runExclusive(async () => {
+          const host = this.listeningHost()
+          if (host === '127.0.0.1') application.get('RemoteAccessService').closeIngress()
+          try {
+            await this.apiGateway!.rebind(host)
+          } finally {
+            this.publishRunningState(this.isRunning())
+          }
+        })
       }
     }
   })
@@ -89,8 +101,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
       const { port } = this.getCurrentConfig()
-      // Keep the shared listener stable; lanGuard gates remote access without interrupting local streams.
-      this.apiGateway = new ApiGateway({ host: '0.0.0.0', port })
+      this.apiGateway = new ApiGateway({ host: this.listeningHost(), port })
       await this.apiGateway.start()
       this.publishRunningState(true)
       logger.info('API Gateway activated')
@@ -122,31 +133,33 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * renderer reads it reactively via `useSharedCache('feature.api_gateway.running')`.
    * This replaces the previous IPC ready-broadcast + EventEmitter listener.
    *
-   * "Running" tracks whether the server is ACTUALLY listening (`isActivated`) — including when a
+   * "Running" tracks whether the server is ACTUALLY listening (`isRunning()`) — including when a
    * transient lease holds it up — because renderer consumers gate real actions on it (the settings
    * page disables port / API-key editing while running). A lease must therefore NOT leak into the
    * persisted `enabled` pref; that is prevented on the renderer side, not by faking this state.
    */
   private publishRunningState(running: boolean): void {
     const config = this.getCurrentConfig()
+    const host = running ? this.apiGateway?.getHost() : undefined
+    const endpoint =
+      host && this.apiGateway ? { hosts: this.apiGateway.getHosts(), port: this.apiGateway.getPort() } : null
+    const remoteReady = !!endpoint && config.enabled && config.host === '0.0.0.0' && host === '0.0.0.0'
     application
       .get('RemoteAccessService')
-      .updateDirectEndpoint(
-        running && config.enabled && config.host === '0.0.0.0' && this.apiGateway
-          ? { port: this.apiGateway.getPort() }
-          : undefined
-      )
+      .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
     try {
-      application.get('CacheService').setShared('feature.api_gateway.running', running)
-      application
-        .get('CacheService')
-        .setShared(
-          'feature.api_gateway.lan_running',
-          running && this.getCurrentConfig().enabled && this.getCurrentConfig().host === '0.0.0.0'
-        )
+      const cache = application.get('CacheService')
+      cache.setShared('feature.api_gateway.running', running)
+      cache.setShared('feature.api_gateway.lan_running', remoteReady)
+      cache.setShared('feature.api_gateway.endpoint', endpoint)
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
+  }
+
+  private listeningHost(): string {
+    const config = this.getCurrentConfig()
+    return config.enabled && config.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
   }
 
   /**
@@ -182,7 +195,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async start(): Promise<void> {
     await this.applyIntent(true)
-    if (!this.isActivated) {
+    if (!this.isActivated || !this.isRunning()) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
       throw error
@@ -193,7 +206,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
     if (this.isActivated) {
-      if (this.leaseCount > 0) {
+      if (this.leaseCount > 0 && this.apiGateway?.getHost() === '127.0.0.1') {
         // A transient lease still holds the server open; the reconciler will stop it once the last
         // lease releases. Persistent intent is cleared, so this is a success, not a failure.
         logger.info('API Gateway persistent intent cleared; server stays up for active lease(s)')
@@ -224,7 +237,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     }
     await this.converge(true)
-    if (!this.isActivated) {
+    if (!this.isActivated || !this.isRunning()) {
       const error = this.failureError('Failed to restart API Gateway')
       logger.error('Failed to restart API Gateway:', error)
       throw error
@@ -242,7 +255,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw new Error('API Gateway is disabled')
     }
     await this.converge(true)
-    if (!this.isActivated) {
+    if (!this.isActivated || !this.isRunning()) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
       throw error
@@ -263,7 +276,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.leaseCount += 1
     this.reconciler.request()
     await this.reconciler.flush()
-    if (!this.isActivated) {
+    if (!this.isActivated || !this.isRunning()) {
       this.leaseCount = Math.max(0, this.leaseCount - 1)
       this.reconciler.request()
       const error = this.failureError('Failed to start API Gateway for a temporary lease')
@@ -309,8 +322,25 @@ export class ApiGatewayService extends BaseService implements Activatable {
         await this.closeRemoteAccess()
         throw new Error('API Gateway was stopped')
       }
-      this.publishRunningState(this.isRunning())
     })
+    this.reconciler.request()
+    await this.reconciler.flush()
+    const target = enabled ? '0.0.0.0' : '127.0.0.1'
+    if (
+      (enabled && !this.getCurrentConfig().enabled) ||
+      (this.isActivated ? this.apiGateway?.getHost() !== target : enabled)
+    ) {
+      const error = this.failureError('Failed to change network access')
+      if (enabled) {
+        await this.lanMutex.runExclusive(async () => {
+          await application.get('PreferenceService').set('feature.api_gateway.host', '127.0.0.1')
+          await this.closeRemoteAccess()
+        })
+        this.reconciler.request()
+        await this.reconciler.flush()
+      }
+      throw error
+    }
   }
 
   private async closeRemoteAccess(): Promise<void> {
@@ -319,26 +349,41 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
-    const endpoint = this.getLanEndpoint()
+    const endpoint = this.getRemoteEndpoint()
+    if (endpoint.addresses.length === 0) throw new Error('No connection address is available')
     const invitation = await application.get('RemoteAccessService').createInvitation()
     return { ...endpoint, ...invitation }
   }
 
-  private getLanEndpoint() {
+  getRemoteEndpoint() {
     if (!this.isRunning()) throw new Error('API Gateway is not running')
-    if (!this.getCurrentConfig().enabled || this.getCurrentConfig().host !== '0.0.0.0') {
-      throw new Error('LAN access is disabled')
+    if (
+      !this.getCurrentConfig().enabled ||
+      this.getCurrentConfig().host !== '0.0.0.0' ||
+      this.apiGateway?.getHost() !== '0.0.0.0'
+    ) {
+      throw new Error('Device connections are disabled')
     }
 
+    const ipv6 = this.apiGateway.getHosts().includes('::')
     const addresses = Object.values(networkInterfaces()).flatMap((infos) =>
-      (infos ?? []).filter((info) => info.family === 'IPv4' && !info.internal).map((info) => info.address)
+      (infos ?? [])
+        .filter(
+          (info) =>
+            !info.internal &&
+            (info.family === 'IPv4' ||
+              (info.family === 'IPv6' &&
+                ipv6 &&
+                !/^fe[89ab][0-9a-f]:/i.test(info.address) &&
+                !info.address.includes('%')))
+        )
+        .map((info) => info.address)
     )
-    if (addresses.length === 0) throw new Error('No reachable LAN address is available')
 
     return {
       hostname: hostname(),
-      port: this.apiGateway!.getPort(),
-      addresses
+      port: this.apiGateway.getPort(),
+      addresses: [...new Set(addresses)].slice(0, 32)
     }
   }
 

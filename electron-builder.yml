@@ -79,6 +79,7 @@ files:
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
+  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/**"
 asarUnpack:
   - resources/**
   - "!resources/devtools/**"
@@ -95,7 +96,16 @@ asarUnpack:
   - "node_modules/@koromix/koffi-*/**"
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
   - "node_modules/@deepseek-ai/dsh-win32-process/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
+  - "node_modules/@deepseek-ai/dsh-lazy-require/**"
+  - "node_modules/@deepseek-ai/dsh-subprocess/**"
+  - "node_modules/@deepseek-ai/dsh-skill/**"
+  - "node_modules/@deepseek-ai/dsh-scope/**"
+  - "node_modules/@deepseek-ai/dsh-util-values/**"
+  - "node_modules/@deepseek-ai/cordis/**"
+  - "node_modules/@deepseek-ai/cosmokit/**"
+  - "node_modules/@deepseek-ai/schemastery/**"
+  - "node_modules/yaml/**"
+  - "node_modules/@deepseek-ai/node-addon-system*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk

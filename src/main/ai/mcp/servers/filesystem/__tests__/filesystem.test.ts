@@ -137,6 +137,32 @@ describe('filesystem MCP security', () => {
     expect(text).not.toContain('secret.txt')
   })
 
+  describe('ls reports why a path cannot be listed instead of calling it empty', () => {
+    it('rejects a directory that does not exist', async () => {
+      const workspaceRoot = await createTempDir('ls-missing-root-')
+      const missing = path.join(workspaceRoot, 'does-not-exist')
+
+      await expect(handleLsTool({ path: missing }, workspaceRoot)).rejects.toThrow('Directory not found')
+    })
+
+    it('rejects a file path', async () => {
+      const workspaceRoot = await createTempDir('ls-file-root-')
+      const filePath = path.join(workspaceRoot, 'note.txt')
+      await fs.writeFile(filePath, 'not a directory')
+
+      await expect(handleLsTool({ path: filePath }, workspaceRoot)).rejects.toThrow('Path is not a directory')
+    })
+
+    it('still lists a real empty directory as empty', async () => {
+      const workspaceRoot = await createTempDir('ls-empty-root-')
+      await fs.mkdir(path.join(workspaceRoot, 'empty-dir'))
+
+      const result = await handleLsTool({ path: path.join(workspaceRoot, 'empty-dir') }, workspaceRoot)
+
+      expect(result.content[0].text).toContain('(empty directory)')
+    })
+  })
+
   describe('write/edit/delete/read reject escapes before mutating the filesystem', () => {
     const ESCAPE_ERROR = 'outside the configured workspace root'
 

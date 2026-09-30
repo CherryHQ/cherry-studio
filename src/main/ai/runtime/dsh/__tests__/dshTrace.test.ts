@@ -67,15 +67,10 @@ const assistantMessage = (model = 'deepseek-chat-0711'): AssistantMessage => ({
 })
 const toolResultMessage = (id: string, isError?: boolean): ToolResultMessage => ({
   id: `msg-${id}` as MessageId,
-  role: 'user',
-  content: [
-    {
-      type: 'tool-result',
-      toolCallId: callId(id),
-      content: [] as ContentBlock[],
-      ...(isError !== undefined ? { isError } : {})
-    }
-  ],
+  role: 'tool',
+  toolCallId: callId(id),
+  content: [] as ContentBlock[],
+  ...(isError !== undefined ? { isError } : {}),
   source: { kind: 'tool', callId: callId(id) }
 })
 
@@ -94,6 +89,7 @@ describe('DshTraceRecorder', () => {
     recorder.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     recorder.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage(),
@@ -160,6 +156,7 @@ describe('DshTraceRecorder', () => {
     )
     recorder.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage(),

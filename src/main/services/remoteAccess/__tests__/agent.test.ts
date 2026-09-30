@@ -312,7 +312,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
@@ -1159,7 +1160,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await other.rpc.receive(
       { jsonrpc: '2.0', id: 1, method: 'connection.hello', params: { protocolVersions: [1] } },
@@ -1565,7 +1567,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     const { device } = { device: apiGatewayPairedDeviceService.list()[0] }
     await reconnect.rpc.receive(
