@@ -55,3 +55,17 @@ export function createNativeImageOutputAdapter(messageId?: string) {
     return { ...chunk, output }
   }
 }
+
+export function withNativeImageOutput(
+  stream: ReadableStream<UIMessageChunk>,
+  messageId?: string
+): ReadableStream<UIMessageChunk> {
+  const adaptOutput = createNativeImageOutputAdapter(messageId)
+  return stream.pipeThrough(
+    new TransformStream<UIMessageChunk, UIMessageChunk>({
+      async transform(chunk, controller) {
+        controller.enqueue(await adaptOutput(chunk))
+      }
+    })
+  )
+}

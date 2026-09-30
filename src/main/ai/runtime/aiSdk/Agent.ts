@@ -23,7 +23,6 @@ import { serializeError } from '../../utils/serializeError'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
-import { createNativeImageOutputAdapter } from './nativeImageOutput'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
@@ -330,7 +329,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return crypto.randomUUID()
         }
       })
-      const adaptToolOutput = createNativeImageOutputAdapter(params.messageId)
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
       let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
@@ -360,7 +358,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             pendingFinish = value
             continue
           }
-          await writer.write(await adaptToolOutput(value))
+          await writer.write(value)
         }
       } catch (error) {
         readFailure = { error }
