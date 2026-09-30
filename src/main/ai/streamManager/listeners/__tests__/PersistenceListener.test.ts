@@ -557,7 +557,7 @@ describe('message artifact ownership handoff', () => {
     const result = {
       status,
       finalMessage: { id: 'artifact-message', role: 'assistant' as const, parts: [] },
-      error: { name: 'Error', message: 'interrupted' }
+      error: { name: 'Error', message: 'interrupted', stack: '' }
     }
     const pending =
       status === 'success'

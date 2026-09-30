@@ -53,7 +53,6 @@ describe('TemporaryChatService', () => {
       name: 'image',
       ext: 'png',
       size: 1,
-      mimeType: 'image/png',
       contentHash: null,
       externalPath: null,
       cleanupPolicy: 'delete_when_unreferenced',
