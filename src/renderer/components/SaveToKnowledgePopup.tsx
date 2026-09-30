@@ -1,3 +1,7 @@
+import { Check } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ColFlex,
@@ -10,6 +14,7 @@ import {
   HelpTooltip,
   Label
 } from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { KnowledgeBaseSelector } from '@renderer/components/KnowledgeBaseSelector'
 import CustomTag from '@renderer/components/tags/CustomTag'
@@ -31,9 +36,6 @@ import type { ContentType, MessageContentStats, TopicContentStats } from '@rende
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
-import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
 
@@ -138,6 +140,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
+  const [lastUsedBaseId, setLastUsedBaseId] = useState<string | null>(null)
+  const [lastUsedLoaded, setLastUsedLoaded] = useState(false)
   const { bases } = useKnowledgeBases()
   const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
@@ -192,7 +196,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     return Object.entries(CONTENT_TYPE_CONFIG)
       .map(([type, config]) => {
         const contentType = type as ContentType
-        const count = contentStats[contentType as keyof ContentStats] || 0
+        const count = contentStats[contentType] || 0
         const descriptionKey =
           isConversationMode && 'topicDescription' in config && config.topicDescription
             ? config.topicDescription
@@ -241,15 +245,39 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     }
   }, [selectedBaseId, bases, contentTypeOptions, selectedTypes, isNoteMode])
 
-  // 默认选择第一个可用知识库
+  // Prefer the last-used base once the stored preference arrives; fall back to
+  // the first available one when it is missing or no longer usable.
   useEffect(() => {
-    if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.status === 'completed')
-      if (firstAvailableBase) {
-        setSelectedBaseId(firstAvailableBase.id)
-      }
+    let cancelled = false
+    preferenceService
+      .get('chat.save.knowledge.last_base_id')
+      .then((value) => {
+        if (!cancelled) {
+          setLastUsedBaseId(value ?? null)
+          setLastUsedLoaded(true)
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to load last-used knowledge base:', error as Error)
+        if (!cancelled) {
+          setLastUsedLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
     }
-  }, [bases, selectedBaseId])
+  }, [])
+
+  useEffect(() => {
+    if (selectedBaseId || !lastUsedLoaded) {
+      return
+    }
+    const lastUsedBase = bases.find((base) => base.id === lastUsedBaseId && base.status === 'completed')
+    const preferredBase = lastUsedBase ?? bases.find((base) => base.status === 'completed')
+    if (preferredBase) {
+      setSelectedBaseId(preferredBase.id)
+    }
+  }, [bases, selectedBaseId, lastUsedBaseId, lastUsedLoaded])
 
   // 默认选择所有可用内容类型
   useEffect(() => {
@@ -393,6 +421,12 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
       if (items.length > 0) {
         await submitKnowledgeItems(items)
+        // Only remember the base when the save actually produced knowledge items;
+        // a zero-item save (e.g. every file failed to resolve) should not be
+        // remembered as the last-used base.
+        preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
+          logger.warn('Failed to persist last-used knowledge base:', error as Error)
+        })
       }
 
       resolve({ success: true, savedCount })
@@ -425,7 +459,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
   const renderEmptyState = () => (
     <div className="flex min-h-[100px] items-center justify-center text-center">
-      <span className="text-muted-foreground text-sm">{uiState.message}</span>
+      <span className="text-sm text-muted-foreground">{uiState.message}</span>
     </div>
   )
 
@@ -444,7 +478,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
           value={selectedBaseId}
         />
         {!formState.hasValidBase && selectedBaseId && (
-          <p className="text-destructive text-xs">{t('chat.save.knowledge.error.invalid_base')}</p>
+          <p className="text-xs text-destructive">{t('chat.save.knowledge.error.invalid_base')}</p>
         )}
       </div>
 
@@ -483,7 +517,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       {!isNoteMode && (
         <div className="mt-4 flex min-h-10 items-center rounded-md bg-muted p-3">
           {formState.selectedCount > 0 && (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               {t(
                 isConversationMode
                   ? 'chat.save.topic.knowledge.select.content.selected_tip'
@@ -496,10 +530,10 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             </span>
           )}
           {formState.hasNoSelection && (
-            <span className="text-warning text-xs">{t('chat.save.knowledge.error.no_content_selected')}</span>
+            <span className="text-xs text-warning">{t('chat.save.knowledge.error.no_content_selected')}</span>
           )}
           {!formState.hasNoSelection && formState.selectedCount === 0 && (
-            <span className="text-muted-foreground text-xs opacity-0">&nbsp;</span>
+            <span className="text-xs text-muted-foreground opacity-0">&nbsp;</span>
           )}
         </div>
       )}

@@ -2,11 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { application } from '@application'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import { PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PiApprovalContext } from './approvalExtension'
 import { createPiCodeModeTools } from './piCodeMode'
@@ -649,4 +650,20 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].type).toBe('tool-approval-request')
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'rechecks the persistent browser grant in %s mode',
+    async (mode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      const call = () => handler(toolEvent('mcp__browser__click', {}), extCtx)
+      await expect(call()).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+      await pref.set('app.browser.agent_control.enabled', false)
+      await expect(call()).resolves.toMatchObject({ block: true })
+    }
+  )
 })

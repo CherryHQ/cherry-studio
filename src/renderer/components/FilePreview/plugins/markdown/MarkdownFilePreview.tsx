@@ -1,3 +1,9 @@
+import FileText from 'lucide-react/dist/esm/icons/file-text'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
+import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
@@ -5,11 +11,6 @@ import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import FileText from 'lucide-react/dist/esm/icons/file-text'
-import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
-import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -19,6 +20,7 @@ import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './Mark
 const logger = loggerService.withContext('MarkdownFilePreview')
 const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
 const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
+const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 
 type MarkdownFileLoadState =
@@ -82,6 +84,7 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
+  hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
@@ -100,7 +103,12 @@ function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string |
   }
 }
 
-function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreviewContentProps): ReactNode {
+function MarkdownPreviewContent({
+  hideFrontmatter,
+  loadState,
+  markdownId,
+  mode
+}: MarkdownPreviewContentProps): ReactNode {
   const navigation = useOptionalFilePreviewNavigation()
   const openFilePath = useCallback(
     (path: string) => {
@@ -130,11 +138,12 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
     )
   }
 
-  if (loadState.content.trim().length === 0) return <MarkdownPreviewEmpty />
+  const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
+  if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
   const markdown = (
-    <div className="mx-auto w-full max-w-4xl px-4">
-      <StaticMarkdown id={markdownId}>{loadState.content}</StaticMarkdown>
+    <div className="mx-auto w-full max-w-4xl px-4 pt-4">
+      <StaticMarkdown id={markdownId}>{content}</StaticMarkdown>
     </div>
   )
 
@@ -179,7 +188,12 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
       ) : null}
       <FilePreviewLayout.Content>
-        <MarkdownPreviewContent loadState={loadState} markdownId={markdownId} mode={effectiveMode} />
+        <MarkdownPreviewContent
+          hideFrontmatter={type === 'artifact'}
+          loadState={loadState}
+          markdownId={markdownId}
+          mode={effectiveMode}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

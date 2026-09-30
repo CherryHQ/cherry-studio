@@ -19,6 +19,9 @@
 
 import fs from 'node:fs'
 
+import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
@@ -35,8 +38,6 @@ import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('CacheService')
 

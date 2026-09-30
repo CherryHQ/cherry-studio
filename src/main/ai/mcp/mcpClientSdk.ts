@@ -14,6 +14,7 @@ import type {
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
+
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
 export type McpClientSdk = {

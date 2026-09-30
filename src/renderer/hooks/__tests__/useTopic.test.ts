@@ -1,18 +1,20 @@
-import { dataApiService } from '@data/DataApiService'
-import type { Topic } from '@renderer/types/topic'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
   mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseMutation,
   mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import type { Topic } from '@renderer/types/topic'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 
 import {
   getTopicMessages,
@@ -23,10 +25,18 @@ import {
   useTopics
 } from '../useTopic'
 
-const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const { mockCloseConversationTabs, mockIpcRequest } = vi.hoisted(() => ({
+  mockCloseConversationTabs: vi.fn(),
+  mockIpcRequest: vi.fn()
+}))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mockIpcRequest },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -77,14 +87,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: apiMessage('older') }],
         nextCursor: undefined,
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
 
@@ -105,14 +115,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'awaiting-input',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: apiMessage('older') }],
         nextCursor: undefined,
         activeNodeId: 'awaiting-input',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
 
@@ -142,14 +152,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'follow-up',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: searched }],
         nextCursor: undefined,
         activeNodeId: 'follow-up',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a')
 
@@ -179,38 +189,11 @@ describe('getTopicMessages', () => {
       activeNodeId: 'assistant-sibling',
       assistantId: 'assistant-1',
       rootId: 'root'
-    } as never)
+    })
 
     const messages = await getTopicMessages('topic-a')
 
     expect(messages.map((message) => message.id)).toEqual(['user', 'assistant-sibling'])
-  })
-
-  it('keeps the target branch and sibling policy on every paginated request', async () => {
-    vi.mocked(dataApiService.get)
-      .mockResolvedValueOnce({
-        items: [{ message: apiMessage('newer') }],
-        nextCursor: 'older-page',
-        activeNodeId: 'branch-leaf',
-        assistantId: 'assistant-1',
-        rootId: 'root'
-      } as never)
-      .mockResolvedValueOnce({
-        items: [{ message: apiMessage('older') }],
-        nextCursor: undefined,
-        activeNodeId: 'branch-leaf',
-        assistantId: 'assistant-1',
-        rootId: 'root'
-      } as never)
-
-    await getTopicMessages('topic-a', { nodeId: 'branch-leaf', includeSiblings: false })
-
-    expect(dataApiService.get).toHaveBeenNthCalledWith(1, '/topics/topic-a/messages', {
-      query: { limit: 200, nodeId: 'branch-leaf', includeSiblings: false, cursor: undefined }
-    })
-    expect(dataApiService.get).toHaveBeenNthCalledWith(2, '/topics/topic-a/messages', {
-      query: { limit: 200, nodeId: 'branch-leaf', includeSiblings: false, cursor: 'older-page' }
-    })
   })
 })
 
@@ -242,7 +225,7 @@ describe('useTopics', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     renderHook(() => useTopics({ loadAll: true }))
 
@@ -288,20 +271,17 @@ describe('useTopics', () => {
     ]
     let hasNext = true
 
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext,
-          loadNext,
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext,
+      loadNext,
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
 
     const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
 
@@ -334,20 +314,17 @@ describe('useTopics', () => {
     const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
     const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
     let pages = [{ items: [topicA, topicB] }]
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext: false,
-          loadNext: vi.fn(),
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
 
     const { result, rerender } = renderHook(() => useTopics())
     const firstTopics = result.current.topics
@@ -395,58 +372,125 @@ describe('useTopicMutations', () => {
     MockDataApiUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+    mockIpcRequest.mockResolvedValue(undefined)
   })
 
   it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a'))
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a'] })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('keeps permanent Topic deletion on the DB-only DataApi path', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
 
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a'))
+    await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' }, query: { permanent: true } })
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('deletes active Topics through the guarded lifecycle command and closes their tabs', async () => {
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' }))
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['topic-a'] })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
-  it('deletes selected topics through comma-separated query ids', async () => {
+  it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    mockIpcRequest.mockRejectedValue(staleError)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a')
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('leaves failed-delete refresh to the batch owner when requested', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    mockIpcRequest.mockRejectedValue(staleError)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { refresh: false })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('restores a topic and refreshes its list and by-id projection', async () => {
+    const restoredTopic = createApiTopic({ id: 'topic-a' })
+    const restoreTrigger = vi.fn().mockResolvedValue(restoredTopic)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/restore', restoreTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const restored = await act(async () => result.current.restoreTopic('topic-a'))
+
+    expect(restoreTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
+    expect(restored).toBe(restoredTopic)
+    const restoreMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'POST' && path === '/topics/:id/restore'
+    )
+    const refresh = restoreMutationCall?.[2]?.refresh as unknown as (context: {
+      args: { params: { id: string } }
+      result: ApiTopic
+    }) => string[]
+    expect(refresh({ args: { params: { id: 'topic-a' } }, result: restoredTopic })).toEqual([
+      '/topics',
+      '/topics/topic-a'
+    ])
+  })
+
+  it('archives selected topics through one all-or-nothing lifecycle command', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-    const deleteTrigger = vi.fn().mockResolvedValue(response)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', deleteTrigger)
+    mockIpcRequest.mockResolvedValue(response)
 
     const { result } = renderHook(() => useTopicMutations())
     const deleted = await act(async () => result.current.deleteTopics(['topic-a', 'topic-b']))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a', 'topic-b'] })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
   })
 
   it('deletes assistant topics and closes the deleted assistant conversation tabs', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-    const deleteTrigger = vi.fn().mockResolvedValue(response)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/assistants/:assistantId/topics', deleteTrigger)
+    mockIpcRequest.mockResolvedValue(response)
 
     const { result } = renderHook(() => useTopicMutations())
     const deleted = await act(async () => result.current.deleteTopicsByAssistantId('assistant-a'))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { assistantId: 'assistant-a' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.assistant_topics.archive', { assistantId: 'assistant-a' })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
   })
 
-  it('exposes selected-topic delete loading through isDeleting', () => {
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', vi.fn(), { isLoading: true })
-
-    const { result } = renderHook(() => useTopicMutations())
-
-    expect(result.current.isDeleting).toBe(true)
-  })
-
   it('batch updates topics and returns per-topic settled results', async () => {
     const failed = new Error('move failed')
-    vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a' } as never)
-      .mockRejectedValueOnce(failed)
+    vi.mocked(dataApiService.patch).mockResolvedValueOnce({ id: 'topic-a' }).mockRejectedValueOnce(failed)
 
     const { result } = renderHook(() => useTopicMutations())
     const settled = await act(async () =>
@@ -492,7 +536,7 @@ describe('useTopicMutations', () => {
   })
 
   it('reorders without an assistant change using only the order write and a list refresh', async () => {
-    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock

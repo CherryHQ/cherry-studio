@@ -1,7 +1,8 @@
+import { isNotNull } from 'drizzle-orm'
+
 import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
 import { generateOrderKeySequence, generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { isNotNull } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -51,6 +52,7 @@ export class MiniAppSeeder implements ISeeder {
       // A custom row whose appId happens to collide with a preset id (e.g. a
       // migrated v1 custom app) keeps its own name/url/logo. status, orderKey,
       // and presetMiniAppId stay untouched on every existing row.
+      // eslint-disable-next-line no-restricted-syntax -- the onConflictDoUpdate here only refreshes preset display fields, scoped by setWhere to preset-seeded rows; custom rows untouched
       db.insert(miniAppTable)
         .values(insertRow)
         .onConflictDoUpdate({

@@ -1,8 +1,9 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { RequestScope } from '../../scope'
 import { createStripReasoningReplayMiddleware, stripReasoningReplayFeature } from '../stripReasoningReplay'
@@ -39,7 +40,7 @@ describe('strip middleware', () => {
     ]
     const result = await middleware.transformParams!({
       type: 'stream',
-      params: { prompt } as never,
+      params: { prompt },
       model: {} as never
     })
     expect(result.prompt[1].content).toEqual([{ type: 'text', text: 'answer' }])

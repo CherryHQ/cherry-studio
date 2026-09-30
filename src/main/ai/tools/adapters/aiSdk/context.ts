@@ -1,7 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ModelMessage } from 'ai'
+
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { ModelMessage } from 'ai'
 
 /**
  * Per-request context constructed once in `buildAgentParams` and

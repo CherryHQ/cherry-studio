@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,14 +50,14 @@ function getScrollElement() {
 describe('HorizontalScrollContainer', () => {
   beforeEach(() => {
     resizeObserverInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function (callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = { callback, targets: [] }
       resizeObserverInstances.push(instance)
       return {
         observe: vi.fn((target: Element) => instance.targets.push(target)),
         disconnect: vi.fn()
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {

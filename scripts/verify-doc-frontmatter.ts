@@ -1,7 +1,8 @@
 /** Verifies doc frontmatter: every reference doc names its subject (description) and where that code lives (sources, existence-checked). */
 import * as fs from 'fs'
-import matter from 'gray-matter'
 import * as path from 'path'
+
+import matter from 'gray-matter'
 
 const ROOT = path.resolve(__dirname, '..')
 

@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
+
 import { Input } from '@cherrystudio/ui'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useEffect, useRef, useState } from 'react'
 
 export function InlineRename({
   value,
@@ -44,7 +45,7 @@ export function InlineRename({
         if (text.trim()) onConfirm(text.trim())
         else onCancel()
       }}
-      className={`h-auto rounded-md border border-border bg-background py-0.5 text-foreground text-xs shadow-sm focus-visible:border-ring ${className ?? ''}`}
+      className={`h-auto rounded-md border border-border bg-background py-0.5 text-xs text-foreground shadow-sm focus-visible:border-ring ${className ?? ''}`}
       onClick={(e) => e.stopPropagation()}
     />
   )

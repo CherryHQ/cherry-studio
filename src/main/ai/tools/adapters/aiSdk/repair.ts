@@ -1,7 +1,4 @@
 import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-utils'
-import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { loggerService } from '@logger'
 import {
   InvalidToolInputError,
   jsonSchema,
@@ -10,6 +7,10 @@ import {
   type ToolCallRepairFunction,
   type ToolSet
 } from 'ai'
+
+import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { loggerService } from '@logger'
 
 import type { AppProviderSettingsMap } from '../../../types'
 import { createMcpJsonSchemaValidator } from './mcpSchema'
@@ -25,6 +26,8 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   providerSettings: AppProviderSettingsMap[T]
   /** Same model id as the main request. */
   modelId: string
+  /** Per-call headers from the owning chat request. */
+  headers?: Record<string, string | undefined>
   /** Reuse the request's usage middleware so repair is its own invocation. */
   getUsagePlugins?: () => AiPlugin[]
 }
@@ -115,6 +118,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         ctx.providerSettings,
         {
           model: ctx.modelId,
+          headers: ctx.headers,
           prompt,
           output: Output.object({ schema: jsonSchema(schemaJson) })
         },

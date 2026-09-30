@@ -8,8 +8,9 @@
  * wrapper.
  */
 
-import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { dynamicTool } from 'ai'
+
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '../../../generateImageTool'
 import {

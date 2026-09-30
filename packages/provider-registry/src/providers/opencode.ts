@@ -34,6 +34,8 @@ const chatFixedModels = [
   'kimi-k2-7-code',
   'mimo-v2-5',
   'mimo-v2-5-pro',
+  'mimo-v2-6-flash',
+  'mimo-v2-6-pro',
   'mimo-v2-omni',
   'mimo-v2-pro'
 ]
@@ -44,6 +46,7 @@ const chatEffortModels: Array<{
   defaultEffort?: ReasoningEffort
   pricing?: ProviderModelOverride['pricing']
 }> = [
+  { modelId: 'deepseek-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
@@ -63,7 +66,9 @@ const chatEffortModels: Array<{
   { modelId: 'kimi-k3', values: ['max'] },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
-  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] }
+  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] },
+  // Same shape as ox-alpha: unclassified stealth SKU, chat/completions with a printed ladder.
+  { modelId: 'omen-alpha', values: ['low', 'high'] }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']
@@ -112,6 +117,13 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
     }
   },
   {
+    modelId: 'grok-4-7',
+    endpointTypes: ['openai-responses'],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['low', 'medium', 'high', 'xhigh']) }
+    }
+  },
+  {
     modelId: 'gpt-5-6-luna',
     endpointTypes: ['openai-responses' as const],
     reasoningContracts: {
@@ -123,6 +135,14 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
     endpointTypes: ['openai-responses' as const],
     reasoningContracts: {
       'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh']) }
+    }
+  },
+  // Same @ai-sdk/openai classification as the 1.2 contributor SKU; 1.3 adds `max` to the family ladder.
+  {
+    modelId: 'muse-spark-1-3-contributor',
+    endpointTypes: ['openai-responses' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']) }
     }
   },
   ...anthropicFixedModels.map((modelId) => ({

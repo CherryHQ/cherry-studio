@@ -1,4 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -6,6 +8,7 @@ import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { mergeHeaders } from '@main/utils/http'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -26,21 +29,14 @@ import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
-import { createHttpTraceFetch } from '../../../observability'
-import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import { applyHttpTrace } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import {
-  resolveAiSdkProviderId,
-  type ResolvedEndpoint,
-  resolveEffectiveEndpoint,
-  resolveProviderOptionsKey,
-  resolveWireModelId
-} from '../../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -52,7 +48,7 @@ import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiBaseRequest, CallOverrides } from '../../../types'
+import type { AiChatRequest, CallOverrides } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -92,8 +88,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
-  request: AiBaseRequest & {
-    chatId?: string
+  request: AiChatRequest & {
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -134,10 +129,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride,
-    request.chatId
+    request.apiKeyOverride
   )
-  applyHttpTrace(sdkConfig, request.chatId, model)
+  applyHttpTrace(sdkConfig.providerSettings, {
+    topicId: request.conversation.topicId,
+    modelName: model.name ?? model.id
+  })
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -150,6 +147,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // context (fs_read's per-call cap follows the effective persist threshold).
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
+    request.conversation,
     assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
@@ -165,7 +163,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
-      ? toolSignals.mcpToolIds.size > 0 ||
+      ? toolSignals.browserEnabled === true ||
+        toolSignals.mcpToolIds.size > 0 ||
         // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
         // mistaken for a request that loads no function tool.
         toolSignals.mcpResourceServerIds.size > 0 ||
@@ -244,7 +243,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
-    topicId: request.chatId,
+    topicId: request.conversation.topicId,
     assistant,
     abortSignal: signal,
     fileAttachments,
@@ -342,41 +341,6 @@ export function applyResponsesInstructions(
   namespace.systemMessageMode = 'remove'
 }
 
-async function resolveSdkConfig(
-  provider: Provider,
-  model: Model,
-  resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string,
-  sessionId?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
-    apiKeyOverride,
-    resolvedEndpoint,
-    sessionId
-  })
-  return {
-    sdkConfig: {
-      ...config,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-        actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-      }),
-      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
-    },
-    credentialReceipt
-  }
-}
-
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
-}
-
 /**
  * Skip the entire tool-resolution path (registry sync, defer exposition,
  * meta-tool injection) when the model can't consume tools at all. Without
@@ -406,6 +370,7 @@ async function resolveRequestToolSignals(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
   hasAnyKnowledgeBase: boolean
+  browserEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
@@ -414,6 +379,12 @@ async function resolveRequestToolSignals(
   return {
     mcpToolIds: new Set(mcpIdList ?? []),
     mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
+    browserEnabled: Boolean(
+      request.conversation.topicId &&
+      assistant &&
+      assistant.settings.enableBrowser !== false &&
+      application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ),
     hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
   }
 }
@@ -440,7 +411,7 @@ export async function resolveTools(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase } =
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
@@ -452,6 +423,7 @@ export async function resolveTools(
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
+    browserEnabled,
     mcpToolIds,
     mcpResourceServerIds,
     hasFileAttachments,
@@ -684,7 +656,11 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const { headers, maxRetries } = request.requestOptions ?? {}
+  const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
+  // A provider that keys on the conversation declared the header; the caller's own headers win.
+  const headers = sdkConfig.conversationHeader
+    ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
+    : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
@@ -703,6 +679,7 @@ function buildAgentOptions(
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      headers,
       getUsagePlugins: getRepairUsagePlugins
     })
   }

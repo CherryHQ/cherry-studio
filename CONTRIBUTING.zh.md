@@ -54,6 +54,10 @@ Cherry Studio 组织成员创建的非 Draft pull request（PR）会自动触发
 每位贡献者都必须证明自己有权合法贡献代码。贡献者通过有意识地签署 commit 表示遵守[许可证](LICENSE)。
 签署 commit 时，commit message 应包含相应声明。
 
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
 可以使用以下命令创建带 signoff 的 commit：[git commit --signoff](https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff)：
 
 ```

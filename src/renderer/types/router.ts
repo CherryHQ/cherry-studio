@@ -1,5 +1,6 @@
-import type { routeTree } from '@renderer/routeTree.gen'
 import type { createRouter } from '@tanstack/react-router'
+
+import type { routeTree } from '@renderer/routeTree.gen'
 
 /**
  * The app's router type. `TabRouter` annotates its factory with this, so a router built with

@@ -7,6 +7,9 @@
  * Escape / backdrop dismiss == continue, so an accidental dismissal never quits.
  */
 
+import { type FC, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -16,8 +19,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { type FC, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean

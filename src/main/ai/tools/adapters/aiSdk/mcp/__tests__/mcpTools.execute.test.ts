@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolRegistry } from '../../registry'
 
@@ -94,7 +95,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: true,
       content: [{ type: 'text', text: 'boom from server' }]
-    } as McpCallToolResponse)
+    })
 
     await expect(execute({ q: 'x' }, { toolCallId: 'call-2' } as any)).rejects.toThrow('boom from server')
   })
@@ -107,7 +108,7 @@ describe('mcpTools execute wrapper', () => {
     const runtimeResult: McpCallToolResponse = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
-    } as McpCallToolResponse
+    }
     callTool.mockResolvedValue(runtimeResult)
     const abortSignal = new AbortController().signal
 
@@ -143,7 +144,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: false,
       content: [{ type: 'text', text: 'should not run' }]
-    } as McpCallToolResponse)
+    })
     await syncMcpToolsToRegistry(reg)
 
     const invoke = createToolInvokeTool(reg, new Set([tool.id]), new Set([tool.id]))
@@ -151,10 +152,13 @@ describe('mcpTools execute wrapper', () => {
     if (!execute) throw new Error('expected tool_invoke to have an execute fn')
 
     await expect(
-      execute({ name: tool.id, params: { query: 'hello', unexpected: true } }, {
-        toolCallId: 'outer-1',
-        messages: []
-      } as never)
+      execute(
+        { name: tool.id, params: { query: 'hello', unexpected: true } },
+        {
+          toolCallId: 'outer-1',
+          messages: []
+        }
+      )
     ).rejects.toThrow(/Invalid params/)
     expect(callTool).not.toHaveBeenCalled()
   })
@@ -182,7 +186,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
-    } as McpCallToolResponse)
+    })
 
     await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set([reimbursement.id]) })
     const execute = reg.getByName(reimbursement.id)?.tool.execute

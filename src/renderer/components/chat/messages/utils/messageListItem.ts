@@ -1,3 +1,5 @@
+import { isToolUIPart } from 'ai'
+
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -10,7 +12,6 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
 
 import type { MessageListItem } from '../types'
 
@@ -57,7 +58,8 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
     stats: statsFromMetadata(message.metadata),
-    delivery: metadata.delivery
+    delivery: metadata.delivery,
+    turnOrigin: metadata.turnOrigin
   }
 }
 

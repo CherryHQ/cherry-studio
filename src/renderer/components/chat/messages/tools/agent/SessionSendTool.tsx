@@ -1,7 +1,8 @@
-import { Badge } from '@cherrystudio/ui'
-import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge } from '@cherrystudio/ui'
+import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
 import type { ToolStatus } from '../shared/GenericTools'

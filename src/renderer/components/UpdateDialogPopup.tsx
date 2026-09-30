@@ -1,3 +1,7 @@
+import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -13,9 +17,6 @@ import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ReleaseNotes } from './ReleaseNotes'
 
@@ -83,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
       <DialogContent className="sm:max-w-[720px]">
         <DialogHeader className="pr-8">
           <DialogTitle>{t('update.title')}</DialogTitle>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {t('update.message').replace('{{version}}', releaseInfo?.version || '')}
           </p>
         </DialogHeader>

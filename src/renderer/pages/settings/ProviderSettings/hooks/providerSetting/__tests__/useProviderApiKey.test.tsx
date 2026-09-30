@@ -1,6 +1,7 @@
-import { toast } from '@renderer/services/toast'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import { useProviderApiKey } from '../useProviderApiKey'
 

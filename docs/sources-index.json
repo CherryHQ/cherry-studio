@@ -26,6 +26,10 @@
       "sources": ["src/main/ai/runtime/registerDrivers.ts","src/main/ai/runtime/types.ts","src/shared/ai/agentRuntimeCapabilities.ts"]
     },
     {
+      "path": "docs/references/ai/agent-lifecycle.md",
+      "sources": ["src/main/ai/agents/AgentJobsService.ts","src/main/ai/agents/AgentLifecycleService.ts","src/main/ai/agents/agentOrphanSweep.ts","src/main/data/services/AgentService.ts","src/main/data/services/AgentSessionService.ts","src/main/data/services/AgentTaskService.ts","src/main/services/LegacyBackupManager.ts"]
+    },
+    {
       "path": "docs/references/ai/agent-loop.md",
       "sources": ["src/main/ai/runtime/aiSdk/Agent.ts","src/main/ai/runtime/aiSdk/params/composeHooks.ts"]
     },
@@ -34,16 +38,28 @@
       "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/bootstrap.ts","src/main/ai/agents/prompt.ts","src/main/ai/runtime","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts"]
     },
     {
+      "path": "docs/references/ai/agent-session-fork.md",
+      "sources": ["packages/dsh-bridge/src/fork.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/fork","src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/fork","src/main/ai/runtime/pi","src/main/data/services/AgentSessionForkService.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/ipc/handlers/ai.ts","src/renderer/pages/agents/messages/agentMessageListAdapter.tsx"]
+    },
+    {
       "path": "docs/references/ai/agent-session-runtime.md",
-      "sources": ["packages/dsh-bridge/src/plugin.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts"]
+      "sources": ["packages/dsh-bridge/src/plugin.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts"]
     },
     {
       "path": "docs/references/ai/ai-usage-records.md",
       "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts"]
     },
     {
+      "path": "docs/references/ai/browser-use-design.md",
+      "sources": ["src/main/features/browser"]
+    },
+    {
+      "path": "docs/references/ai/browser-use-implementation.md",
+      "sources": ["src/main/features/browser"]
+    },
+    {
       "path": "docs/references/ai/chat-attachments.md",
-      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts"]
+      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
     },
     {
       "path": "docs/references/ai/core-architecture.md",
@@ -90,6 +106,22 @@
       "sources": ["src/main/ai","src/renderer/services/aiTransport"]
     },
     {
+      "path": "docs/references/ai/remote-agent-access.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/streamManager","src/main/data/services","src/main/data/services/AgentSessionMessageService.ts","src/main/features/apiGateway","src/shared/ai/transport"]
+    },
+    {
+      "path": "docs/references/ai/remote-agent-implementation.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/streamManager","src/main/data/db/schemas","src/main/data/services","src/main/features/apiGateway"]
+    },
+    {
+      "path": "docs/references/ai/remote-agent-sequences.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/streamManager","src/main/data/services","src/main/features/apiGateway"]
+    },
+    {
+      "path": "docs/references/ai/remote-agent-testing.md",
+      "sources": ["src/main/ai/streamManager","src/main/features/apiGateway","tests/__mocks__","tests/helpers/db","tests/helpers/http/server.ts","vitest.config.ts"]
+    },
+    {
       "path": "docs/references/ai/stream-manager.md",
       "sources": ["src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/pipeStreamLoop.ts"]
     },
@@ -107,7 +139,15 @@
     },
     {
       "path": "docs/references/api-gateway/README.md",
-      "sources": ["src/main/features/apiGateway","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+      "sources": ["src/main/features/apiGateway","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+    },
+    {
+      "path": "docs/references/api-gateway/remote-agent-access.md",
+      "sources": ["src/main/ai/streamManager","src/main/features/apiGateway","src/shared/ai/transport"]
+    },
+    {
+      "path": "docs/references/api-gateway/remote-connectivity.md",
+      "sources": ["packages/remote-protocol","packages/remote-transport","src/main/features/apiGateway","src/main/services/lanTransfer","src/main/services/remoteAccess"]
     },
     {
       "path": "docs/references/architecture/main-process.md",
@@ -130,6 +170,10 @@
       "sources": ["src/shared"]
     },
     {
+      "path": "docs/references/architecture/utility-process.md",
+      "sources": ["electron.vite.config.ts","electron.vite.entries.config.ts","scripts/utility-process-smoke","scripts/utilityProcessEntryGuard.ts","src/main/ai/localModel/runtime/inferenceProcess.ts","src/main/core/application/serviceRegistry.ts","src/main/core/paths/pathRegistry.ts","src/main/core/utilityProcess","src/main/services/proxy/ProxyService.ts","src/main/services/readableContent/ReadableContentService.ts"]
+    },
+    {
       "path": "docs/references/binary-manager/README.md",
       "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/pythonRuntime.ts","src/shared/data/presets/binaryTools.ts"]
     },
@@ -147,7 +191,7 @@
     },
     {
       "path": "docs/references/command/command-usage.md",
-      "sources": ["src/main/services/CommandService.ts","src/renderer/components/command","src/renderer/hooks/command","src/shared/utils/command","v2-refactor-temp/tools/data-classify/data/target-key-definitions.json"]
+      "sources": ["scripts/data-classify/data/target-key-definitions.json","src/main/services/CommandService.ts","src/renderer/components/command","src/renderer/hooks/command","src/shared/utils/command"]
     },
     {
       "path": "docs/references/command/README.md",
@@ -199,7 +243,7 @@
     },
     {
       "path": "docs/references/data/boot-config-schema-guide.md",
-      "sources": ["src/main/data/bootConfig","src/shared/data/bootConfig/bootConfigSchemas.ts","src/shared/data/bootConfig/bootConfigTypes.ts","v2-refactor-temp/tools/data-classify/data/classification.json","v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js"]
+      "sources": ["scripts/data-classify/data/classification.json","scripts/data-classify/scripts/generate-boot-config.js","src/main/data/bootConfig","src/shared/data/bootConfig/bootConfigSchemas.ts","src/shared/data/bootConfig/bootConfigTypes.ts"]
     },
     {
       "path": "docs/references/data/cache-overview.md",
@@ -251,7 +295,7 @@
     },
     {
       "path": "docs/references/data/preference-schema-guide.md",
-      "sources": ["src/shared/data/preference/preferenceTypes.ts","v2-refactor-temp/tools/data-classify/data/classification.json","v2-refactor-temp/tools/data-classify/data/target-key-definitions.json","v2-refactor-temp/tools/data-classify/scripts/generate-preferences.js"]
+      "sources": ["scripts/data-classify/data/classification.json","scripts/data-classify/data/target-key-definitions.json","scripts/data-classify/scripts/generate-preferences.js","src/shared/data/preference/preferenceTypes.ts"]
     },
     {
       "path": "docs/references/data/preference-usage.md",
@@ -391,7 +435,7 @@
     },
     {
       "path": "docs/references/logging/README.md",
-      "sources": ["src/main/core/logger/LoggerService.ts","src/renderer/services/LoggerService.ts"]
+      "sources": ["src/main/core/logger/LoggerService.ts","src/main/services/SentryLogService.ts","src/main/services/sentry.ts","src/renderer/services/LoggerService.ts","src/renderer/services/sentry.ts","src/shared/utils/sentry.ts"]
     },
     {
       "path": "docs/references/memory/overview.md",
@@ -464,6 +508,22 @@
     {
       "path": "docs/references/testing/README.md",
       "sources": ["packages/ui","src/renderer","tests"]
+    },
+    {
+      "path": "docs/references/utility-process/README.md",
+      "sources": ["electron.vite.entries.config.ts","src/main/core/paths/pathRegistry.ts","src/main/core/utilityProcess"]
+    },
+    {
+      "path": "docs/references/utility-process/utility-process-future.md",
+      "sources": ["src/main/core/utilityProcess","src/main/services/readableContent/ReadableContentService.ts"]
+    },
+    {
+      "path": "docs/references/utility-process/utility-process-protocol.md",
+      "sources": ["src/main/core/utilityProcess/UtilityProcessManager.ts","src/main/core/utilityProcess/host","src/main/core/utilityProcess/protocol","src/main/core/utilityProcess/runtime"]
+    },
+    {
+      "path": "docs/references/utility-process/utility-process-testing.md",
+      "sources": ["scripts/utility-process-smoke","src/main/core/utilityProcess"]
     },
     {
       "path": "docs/references/window-manager/README.md",

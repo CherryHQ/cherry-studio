@@ -36,8 +36,9 @@ import type {
   ToolUseBlock,
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
-import { loggerService } from '@logger'
 import type { FinishReason, UIMessageChunk } from 'ai'
+
+import { loggerService } from '@logger'
 
 import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
@@ -100,6 +101,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       content: [],
       container: NULL_CONTAINER,
       model: this.state.model,
+      stop_details: null,
       stop_reason: null,
       stop_sequence: null,
       usage
@@ -490,6 +492,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       type: 'message_delta',
       delta: {
         container: NULL_CONTAINER,
+        stop_details: null,
         stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
         stop_sequence: null
       },
@@ -521,7 +524,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             type: 'text',
             text: block.content,
             citations: null
-          } as TextBlock)
+          })
           break
         case 'thinking':
           content.push({
@@ -530,7 +533,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             // Real signature when the upstream provided one; '' matches the empty
             // signature used when the block is opened.
             signature: block.signature ?? ''
-          } as ThinkingBlock)
+          })
           break
         case 'tool_use':
           content.push({
@@ -550,6 +553,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       content,
       container: NULL_CONTAINER,
       model: this.state.model,
+      stop_details: null,
       stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
       stop_sequence: null,
       usage: {

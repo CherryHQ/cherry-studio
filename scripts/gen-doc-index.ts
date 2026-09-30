@@ -1,7 +1,8 @@
 /** Generates human and machine documentation indexes from frontmatter. */
 import * as fs from 'fs'
-import matter from 'gray-matter'
 import * as path from 'path'
+
+import matter from 'gray-matter'
 
 import { listMarkdownFiles } from './verify-doc-frontmatter'
 

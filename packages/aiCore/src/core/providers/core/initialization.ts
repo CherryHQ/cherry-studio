@@ -12,9 +12,10 @@ import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
-import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProvider, OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { customProvider, type LanguageModel } from 'ai'
+
+import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 
 import type {
   ExtensionConfigToIdResolutionMap,

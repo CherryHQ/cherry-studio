@@ -7,7 +7,6 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.session_delivery.status.accepted': 'Accepted',
         'message.tools.sessionCreate.untitled': 'Untitled session',
-        'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to',
         'message.tools.sessionSend.to': 'To',
         'message.tools.cancelled': 'Cancelled',
@@ -32,23 +31,21 @@ describe('SessionSendTool', () => {
     render(
       <Harness
         input={{ target_session_id: 'session-build', message: 'Implement the reviewed plan.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  ok: true,
-                  status: 'accepted',
-                  delivery: {
-                    receiver: { agentId: 'agent-builder', sessionId: 'session-build' },
-                    receiverSnapshot: { agentName: 'Builder', sessionName: 'Build session' }
-                  }
-                })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: true,
+                status: 'accepted',
+                delivery: {
+                  receiver: { agentId: 'agent-builder', sessionId: 'session-build' },
+                  receiverSnapshot: { agentName: 'Builder', sessionName: 'Build session' }
+                }
+              })
+            }
+          ]
+        }}
       />
     )
 
@@ -69,22 +66,20 @@ describe('SessionSendTool', () => {
     render(
       <Harness
         input={{ target_session_id: 'opaque-id', message: 'Implement it.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  ok: true,
-                  delivery: {
-                    receiver: { sessionId: 'opaque-id' },
-                    receiverSnapshot: { sessionName: '' }
-                  }
-                })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: true,
+                delivery: {
+                  receiver: { sessionId: 'opaque-id' },
+                  receiverSnapshot: { sessionName: '' }
+                }
+              })
+            }
+          ]
+        }}
       />
     )
 

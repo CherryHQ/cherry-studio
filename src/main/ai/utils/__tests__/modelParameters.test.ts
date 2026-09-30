@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import type { SamplingSettings } from '@main/ai/types'
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
 import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'
@@ -87,10 +88,10 @@ describe('getTemperature', () => {
   })
 
   it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
-    'omits fixed temperature for a custom %s model without registry metadata',
+    'does not infer Moonshot temperature constraints for a third-party %s model',
     (id) => {
       const a = makeSampling({ temperature: 0.7 })
-      expect(getTemperature(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+      expect(getTemperature(a, makeModel({ id: `third-party::${id}` }), OMIT_REASONING)).toBe(0.7)
     }
   )
 
@@ -135,10 +136,10 @@ describe('getTopP', () => {
   })
 
   it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
-    'omits fixed topP for a custom %s model without registry metadata',
+    'does not infer Moonshot topP constraints for a third-party %s model',
     (id) => {
       const a = makeSampling({ enableTopP: true, topP: 1 })
-      expect(getTopP(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+      expect(getTopP(a, makeModel({ id: `third-party::${id}` }), OMIT_REASONING)).toBe(1)
     }
   )
 

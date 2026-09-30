@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as AccordionPrimitive from '@radix-ui/react-accordion'
 import { ChevronDownIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 function Accordion({ ...props }: React.ComponentProps<typeof AccordionPrimitive.Root>) {
   return <AccordionPrimitive.Root data-slot="accordion" {...props} />
@@ -11,7 +12,7 @@ function AccordionItem({ className, ...props }: React.ComponentProps<typeof Acco
   return (
     <AccordionPrimitive.Item
       data-slot="accordion-item"
-      className={cn('border-border/60 border-b first:border-t last:border-b-0', className)}
+      className={cn('border-b border-border/60 first:border-t last:border-b-0', className)}
       {...props}
     />
   )
@@ -23,7 +24,7 @@ function AccordionTrigger({ className, children, ...props }: React.ComponentProp
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          'flex flex-1 items-center justify-between gap-4 rounded-md py-4 text-left text-sm font-semibold leading-4 text-foreground/90',
+          'flex flex-1 items-center justify-between gap-4 rounded-md py-4 text-left text-sm leading-4 font-semibold text-foreground/90',
           'transition-colors outline-none',
           'focus-visible:bg-accent/50',
           'disabled:pointer-events-none disabled:opacity-50',
@@ -47,7 +48,7 @@ function AccordionContent({ className, contentClassName, children, ...props }: A
     <AccordionPrimitive.Content
       data-slot="accordion-content"
       className={cn(
-        'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm leading-5 text-foreground/60',
+        'overflow-hidden text-sm leading-5 text-foreground/60 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
         contentClassName
       )}
       {...props}>

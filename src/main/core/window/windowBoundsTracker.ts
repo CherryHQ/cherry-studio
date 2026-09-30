@@ -1,8 +1,9 @@
+import type { BrowserWindow, Rectangle } from 'electron'
+import { screen } from 'electron'
+
 import { application } from '@application'
 import type { WindowOptions, WindowType } from '@main/core/window/types'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import type { BrowserWindow, Rectangle } from 'electron'
-import { screen } from 'electron'
 
 /**
  * Stateless bounds I/O for WindowManager's "remember bounds" capability.

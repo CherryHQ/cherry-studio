@@ -1,7 +1,8 @@
-import type { OAuthClientInformation, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+
+import type { OAuthClientInformation, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { JsonFileStorage } from '../storage'

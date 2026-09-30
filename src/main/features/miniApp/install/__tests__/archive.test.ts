@@ -3,10 +3,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { MINI_APP_MAX_EXTRACTED_BYTES, MINI_APP_MAX_PACKAGE_BYTES } from '@shared/types/miniAppManifest'
 import JSZip from 'jszip'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MINI_APP_MAX_EXTRACTED_BYTES, MINI_APP_MAX_PACKAGE_BYTES } from '@shared/types/miniAppManifest'
 
 import { extractMiniAppArchive, previewMiniAppArchive, sha256File } from '../archive'
 

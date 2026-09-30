@@ -1,5 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { preferenceService } from '@data/PreferenceService'
 
 import { restoreFromNutstore } from '../NutstoreService'
 
