@@ -33,7 +33,7 @@ export function ModelApiKeyField({ apiKeys, value, disabled, onChange }: ModelAp
     }))
   ]
 
-  const comboboxValue = value ?? AUTO_VALUE
+  const comboboxValue = value != null && apiKeys.some((entry) => entry.id === value) ? value : AUTO_VALUE
 
   return (
     <div>
