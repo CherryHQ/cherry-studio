@@ -226,8 +226,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!entry) return false
     this.entries.delete(oldestKey)
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
-    application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
-    void this.closeEntry(entry)
+    this.releaseWarmQueryCapAndClose(entry)
     return true
   }
 
@@ -252,7 +251,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      void this.closeEntry(existing)
+      this.releaseWarmQueryCapAndClose(existing)
     }
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
@@ -288,7 +287,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      void this.closeEntry(entry)
+      this.releaseWarmQueryCapAndClose(entry)
       return undefined
     }
 
@@ -326,6 +325,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       void this.closeEntry(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
+  }
+
+  private releaseWarmQueryCapAndClose(entry: WarmQueryEntry): void {
+    application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
+    void this.closeEntry(entry)
   }
 
   private closeEntry(entry: WarmQueryEntry): Promise<void> {

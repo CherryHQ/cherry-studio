@@ -66,6 +66,18 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
+function mockProcessManagerWithRelease() {
+  const releaseWarmQueryProcess = vi.fn()
+  applicationGetMock.mockImplementation((name: string) => {
+    if (name === 'ClaudeCodeProcessManager') return { releaseWarmQueryProcess }
+    if (name === 'ClaudeCodeTraceBridgeService') {
+      return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+    }
+    throw new Error(`Unexpected application.get(${name})`)
+  })
+  return { releaseWarmQueryProcess }
+}
+
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
     LifecycleManager.reset()
@@ -75,6 +87,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.useFakeTimers()
     applicationGetExistingMock.mockReturnValue(undefined)
     applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') {
+        return { releaseWarmQueryProcess: vi.fn() }
+      }
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
@@ -237,6 +252,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes a stale warm query when session options change', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const stale = warmQuery()
     const current = warmQuery()
@@ -249,6 +265,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } })
 
     expect(stale.close).toHaveBeenCalledOnce()
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     expect(consumed?.warmQuery).toBe(current)
   })
 
@@ -436,6 +453,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
@@ -452,6 +470,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     })
 
     expect(consumed).toBeUndefined()
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     await Promise.resolve()
     expect(warm.close).toHaveBeenCalledOnce()
   })
