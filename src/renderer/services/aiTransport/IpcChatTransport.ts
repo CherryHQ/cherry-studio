@@ -113,25 +113,35 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
 
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
+    // The Chat parser is single-execution (siblings demux via TopicStreamSubscription),
+    // so scope replay, overflow, and live filtering to one execution that is actually
+    // still streaming — pinning a finished replay execution would drop the live one.
+    const targetExecutionId = result.activeExecutions?.[0]?.executionId
     let replayChunks = result.bufferedChunks
+    if (targetExecutionId) {
+      replayChunks = replayChunks.filter((payload) => payload.executionId === targetExecutionId)
+    }
     let droppedSeqs: readonly number[] = []
-    if (result.bufferedChunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
+    if (replayChunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
       logger.warn('transport replay capped', {
         total: result.bufferedChunks.length,
         topicId,
         overflowChunks: overflowChunks.length
       })
-      const capped = capAttachReplayChunks(result.bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
+      const capped = capAttachReplayChunks(replayChunks, MAX_ATTACH_REPLAY_CHUNKS)
       replayChunks = capped.replay
       droppedSeqs = capped.droppedSeqs
     }
     // Main also sent pre-attach live chunks to a stale/parallel listener for
     // this window; those are inside the snapshot above, so drain only the rest.
+    const scopedOverflow = targetExecutionId
+      ? overflowChunks.filter((payload) => payload.executionId === targetExecutionId)
+      : overflowChunks
     const freshOverflow = repairAttachOverflow(
       replayChunks,
-      dropCoveredOverflow(replayChunks, overflowChunks, droppedSeqs)
+      dropCoveredOverflow(replayChunks, scopedOverflow, droppedSeqs)
     )
-    return this.buildListenerStream(topicId, [...replayChunks, ...freshOverflow], undefined, undefined, {
+    return this.buildListenerStream(topicId, [...replayChunks, ...freshOverflow], undefined, targetExecutionId, {
       done: overflowDone,
       error: overflowError
     })
@@ -158,10 +168,12 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
         if (initialChunks) {
-          // Attach replay is already scoped; do not apply live-stream pin filters here
-          // or execution-scoped production chunks are dropped before the reader runs.
+          // Targeted streams only accept their own execution. A topic-level
+          // fallback replay must not pin here: its first replay execution can
+          // be finished, and pinning would drop the live continuation's chunks.
           for (const data of initialChunks) {
             if (data.topicId !== topicId) continue
+            if (executionId && data.executionId !== executionId) continue
             controller.enqueue(data.chunk)
           }
         }
@@ -245,7 +257,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             if (data.topicId !== topicId || isStreamClosed) return
             if (!executionId && isPerExecutionOnly(data)) return
             if (!matchesStream(data)) return
-            if (executionId && data.executionId !== executionId) return
             closeStream()
           })
         )
@@ -255,7 +266,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             if (data.topicId !== topicId || isStreamClosed) return
             if (!executionId && isPerExecutionOnly(data)) return
             if (!matchesStream(data)) return
-            if (executionId && data.executionId !== executionId) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
@@ -282,24 +292,19 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
         // Terminal events that arrived during the attach round-trip use the
         // same filters as their live handlers so the stream still settles.
+        // A targeted stream accepts its own per-execution terminal or any
+        // topic-level one (matchesStream); a topic-level stream ignores
+        // per-execution-only terminals so they cannot poison the live pin.
         if (initialTerminal?.error) {
           const data = initialTerminal.error
-          if (
-            !(executionId && data.executionId !== executionId) &&
-            (executionId || !isPerExecutionOnly(data)) &&
-            matchesStream(data)
-          ) {
+          if (!isStreamClosed && (executionId || !isPerExecutionOnly(data)) && matchesStream(data)) {
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           }
         }
         // A filtered per-execution error must not suppress a later topic done.
         if (!isStreamClosed && initialTerminal?.done) {
           const data = initialTerminal.done
-          if (
-            (executionId || !isPerExecutionOnly(data)) &&
-            matchesStream(data) &&
-            (!executionId || data.executionId === executionId)
-          ) {
+          if ((executionId || !isPerExecutionOnly(data)) && matchesStream(data)) {
             closeStream()
           }
         }

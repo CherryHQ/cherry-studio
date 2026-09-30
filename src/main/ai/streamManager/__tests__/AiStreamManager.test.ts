@@ -1989,6 +1989,7 @@ describe('AiStreamManager', () => {
 
       expect(response).toEqual({
         status: 'attached',
+        activeExecutions: [{ executionId: 'provider-a::model-a', attemptId }],
         bufferedChunks: [
           {
             topicId: 'a',

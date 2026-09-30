@@ -1913,7 +1913,16 @@ export class AiStreamManager extends BaseService {
       topicId: req.topicId,
       bufferedChunks: bufferedChunks.length
     })
-    return { status: 'attached', bufferedChunks }
+    // Lets the renderer scope a single-execution reconnect stream to an
+    // execution that is actually still streaming (finished executions keep
+    // their replay buffer while the topic is live).
+    return {
+      status: 'attached',
+      bufferedChunks,
+      activeExecutions: [...stream.executions.values()]
+        .filter((exec) => exec.status === 'streaming')
+        .map(toActiveExecution)
+    }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {

@@ -546,6 +546,69 @@ describe('IpcChatTransport', () => {
     await stream!.cancel().catch(() => {})
   })
 
+  it('reconnectToStream scopes replay and live chunks to the first still-streaming execution', async () => {
+    // Snapshot segments are per-execution in launch order: A finished (its
+    // buffer is retained) and B is live. The Chat parser is single-execution,
+    // so replay must not mix executions and the pin must be the live one —
+    // pinning A would permanently drop B's live chunks.
+    const execA = 'provider-a::model-a' as UniqueModelId
+    const execB = 'provider-b::model-b' as UniqueModelId
+    const replay = [
+      { topicId, executionId: execA, chunk: { type: 'text-start', id: 'a' } },
+      { topicId, executionId: execA, chunk: { type: 'text-delta', id: 'a', delta: 'from-A' } },
+      { topicId, executionId: execB, chunk: { type: 'text-start', id: 'b' } },
+      { topicId, executionId: execB, chunk: { type: 'text-delta', id: 'b', delta: 'from-B' } }
+    ]
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      bufferedChunks: replay,
+      activeExecutions: [{ executionId: execB, attemptId: 2 }]
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    mock.emitChunk(topicId, { type: 'text-delta', id: 'b', delta: '-live-B' }, execB)
+    mock.emitChunk(topicId, { type: 'text-delta', id: 'a', delta: '-live-A' }, execA)
+    mock.emitDone(topicId, undefined, true)
+
+    const chunks: UIMessageChunk[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 'b' },
+      { type: 'text-delta', id: 'b', delta: 'from-B' },
+      { type: 'text-delta', id: 'b', delta: '-live-B' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream settles a targeted stream on a topic done carrying a sibling executionId', async () => {
+    // The topic-done broadcast names the last finishing execution, which can
+    // differ from the pinned one; the stream must still close.
+    const execA = 'provider-a::model-a' as UniqueModelId
+    const execB = 'provider-b::model-b' as UniqueModelId
+    const replay = [{ topicId, executionId: execB, chunk: { type: 'text-start', id: 'b' } }]
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      bufferedChunks: replay,
+      activeExecutions: [{ executionId: execB, attemptId: 2 }]
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const first = await reader.read()
+    expect(first.value).toEqual({ type: 'text-start', id: 'b' })
+    mock.emitDone(topicId, execA, true)
+    const second = await Promise.race([reader.read(), tick().then(() => 'timeout' as const)])
+    expect(second).toMatchObject({ done: true })
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
   it('reconnectToStream drops orphaned tool-output from attach overflow', async () => {
     const replay = [{ topicId, seq: 1, chunk: { type: 'text-start', id: 't' } }]
     mock.mockApi.streamAttach.mockImplementation(async () => {
