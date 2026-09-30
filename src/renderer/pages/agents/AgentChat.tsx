@@ -221,7 +221,7 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   // Fail closed while the agent has not resolved: an unknown runtime must not become "every chat
-  // model fits", or the execution-model picker offers models the agent cannot run.
+  // model fits", or a plan-approval handoff would target models the agent cannot run.
   const agentModelFilter = useAgentModelFilter(activeAgent?.type, activeAgent !== undefined)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
