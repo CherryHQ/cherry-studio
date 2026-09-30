@@ -131,6 +131,7 @@ import { meta as qwenMeta } from './qwen/meta'
 import { meta as radeonCloudMeta } from './radeon-cloud/meta'
 import { meta as recraftMeta } from './recraft/meta'
 import { meta as relaceMeta } from './relace/meta'
+import { meta as requestyMeta } from './requesty/meta'
 import { meta as riverflowMeta } from './riverflow/meta'
 import { meta as runwayMeta } from './runway/meta'
 import { meta as searxngMeta } from './searxng/meta'
@@ -296,6 +297,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   'radeon-cloud': radeonCloudMeta,
   recraft: recraftMeta,
   relace: relaceMeta,
+  requesty: requestyMeta,
   riverflow: riverflowMeta,
   runway: runwayMeta,
   searxng: searxngMeta,
