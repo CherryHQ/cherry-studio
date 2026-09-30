@@ -8,6 +8,7 @@ import {
   use,
   useCallback,
   useMemo,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore
@@ -150,12 +151,20 @@ function TopicBranchRightPanel({ scope }: RightPanelComponentProps<TopicRightPan
   const { branchHeader, onLocateMessage } = useTopicRightPaneViewport()
   const { setTarget } = context
   const topicId = scope.topicId
+  const hostElementRef = useRef<HTMLDivElement | null>(null)
   const registerTarget = useCallback(
     (element: HTMLDivElement | null) => {
-      // Retain the host when Activity hides the pane so the canvas keeps its viewport.
-      if (!topicId || !element) return
+      if (!topicId) return
+      if (!element) {
+        setTarget((current) => (current?.element === hostElementRef.current ? null : current))
+        hostElementRef.current = null
+        return
+      }
+      hostElementRef.current = element
       setTarget((current) =>
-        current?.element === element && current.onLocateMessage === onLocateMessage
+        current?.element === element &&
+        current.topicId === topicId &&
+        current.onLocateMessage === onLocateMessage
           ? current
           : { element, topicId, onLocateMessage }
       )
@@ -296,6 +305,9 @@ function TopicRightPaneProvider({
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [target, setTarget] = useState<TopicBranchTarget | null>(null)
+  useEffect(() => {
+    setTarget(null)
+  }, [topicId])
   const targetContext = useMemo(() => ({ target, setTarget }), [target])
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()

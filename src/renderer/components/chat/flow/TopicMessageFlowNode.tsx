@@ -292,6 +292,34 @@ function TopicMessageFlowMessageActions({
   )
 }
 
+function areFlowNodePropsEqual(
+  prev: NodeProps<TopicMessageFlowNodeModel>,
+  next: NodeProps<TopicMessageFlowNodeModel>
+): boolean {
+  if (prev.id !== next.id) return false
+  if (prev.selected !== next.selected) return false
+  if (prev.sourcePosition !== next.sourcePosition) return false
+
+  const prevData = prev.data
+  const nextData = next.data
+  return (
+    prevData.messageId === nextData.messageId &&
+    prevData.role === nextData.role &&
+    prevData.status === nextData.status &&
+    prevData.preview === nextData.preview &&
+    prevData.modelId === nextData.modelId &&
+    prevData.createdAt === nextData.createdAt &&
+    prevData.isActive === nextData.isActive &&
+    prevData.isOnActivePath === nextData.isOnActivePath &&
+    prevData.isInactiveBranch === nextData.isInactiveBranch &&
+    prevData.isAwaitingInput === nextData.isAwaitingInput &&
+    prevData.isContextBoundary === nextData.isContextBoundary &&
+    prevData.siblingsGroupId === nextData.siblingsGroupId &&
+    prevData.actionsDisabled === nextData.actionsDisabled &&
+    prevData.onStartBranch === nextData.onStartBranch
+  )
+}
+
 const TopicMessageFlowNode = ({ data, selected, sourcePosition }: NodeProps<TopicMessageFlowNodeModel>) => {
   const { t } = useTranslation()
   const statusLabel = useStatusLabel(data.status, data.isAwaitingInput)
@@ -336,4 +364,4 @@ const TopicMessageFlowNode = ({ data, selected, sourcePosition }: NodeProps<Topi
   )
 }
 
-export default memo(TopicMessageFlowNode)
+export default memo(TopicMessageFlowNode, areFlowNodePropsEqual)
