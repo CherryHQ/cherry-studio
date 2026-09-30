@@ -193,11 +193,21 @@ const NotesPage: FC = () => {
     })
   }, [])
 
+  // Notes-root transitions (migration / fallback): remembered until the new
+  // tree is projected so the active selection can follow the moved library.
+  const notesRootTransitionRef = useRef<{ from: string; to: string } | null>(null)
+  const lastSeenNotesPathRef = useRef<string | undefined>(notesPath)
+
   // Project the FS tree (from `useDirectoryTree`) into the legacy
   // `NotesTreeNode[]` shape every time the FS changes — watcher events
   // bump `treeVersion`, the user toggling sort changes `sortType`, and
   // the initial mount triggers when `treeRoot` first becomes non-null.
   useEffect(() => {
+    if (lastSeenNotesPathRef.current !== notesPath) {
+      const from = lastSeenNotesPathRef.current
+      notesRootTransitionRef.current = from && notesPath ? { from, to: notesPath } : null
+      lastSeenNotesPathRef.current = notesPath
+    }
     if (!treeRoot || !notesPath) {
       setNotesTree([])
       setHasProjectedTree(false)
@@ -372,6 +382,19 @@ const NotesPage: FC = () => {
       !isCreatingNoteRef.current
 
     if (shouldClearPath) {
+      // A notes-root change may have moved the selected note to the same
+      // relative location in the new directory — follow it instead of clearing.
+      const transition = notesRootTransitionRef.current
+      const activePath = activeFilePath ? normalizePathValue(activeFilePath) : ''
+      const mappedPath =
+        transition && activePath.startsWith(`${normalizePathValue(transition.from)}/`)
+          ? `${normalizePathValue(transition.to)}${activePath.slice(normalizePathValue(transition.from).length)}`
+          : undefined
+      if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
+        notesRootTransitionRef.current = null
+        setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath))
+        return
+      }
       logger.warn('Clearing activeFilePath - node not found in tree', {
         activeFilePath,
         reason: 'Node not found in current tree'

@@ -8,7 +8,7 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationInspection, NotesRelocationResult } from '@shared/types/notesRelocation'
 
 import { scanNotesDirectory } from './stats'
-import { assertNotesRelocationPaths, NotesRelocationValidationError } from './validation'
+import { assertNotesRelocationPaths, NotesRelocationValidationError, realPath } from './validation'
 
 const logger = loggerService.withContext('NotesRelocation')
 
@@ -141,8 +141,21 @@ export async function migrateNotesDirectory(
 
   const source = inspection.source
 
-  const resolvedSource = path.resolve(sourcePath)
-  const resolvedTarget = path.resolve(targetPath)
+  const resolvedSource = realPath(sourcePath)
+  const resolvedTarget = realPath(targetPath)
+
+  // Anchor the copy to the physical location validation evaluates: a symlinked
+  // target root or ancestor would otherwise redirect writes outside the
+  // selected target. Re-checking also closes the inspection→copy swap window.
+  try {
+    assertNotesRelocationPaths(resolvedSource, resolvedTarget)
+  } catch (error) {
+    if (error instanceof NotesRelocationValidationError) {
+      throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, error.message)
+    }
+    throw error
+  }
+
   const entries = fs.readdirSync(resolvedSource, { withFileTypes: true })
 
   if (options.merge) {

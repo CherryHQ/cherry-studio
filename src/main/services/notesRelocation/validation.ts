@@ -32,7 +32,7 @@ function isPathInside(child: string, parent: string): boolean {
   return !relative.startsWith(`..${path.sep}`)
 }
 
-function realPath(value: string): string {
+export function realPath(value: string): string {
   try {
     return fs.realpathSync.native?.(value) ?? fs.realpathSync(value)
   } catch {

@@ -67,6 +67,7 @@ const BasicDataSettings: React.FC = () => {
   )
   const { notesPath, updateNotesPath } = useNotesSettings()
   const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
+  const [isNotesPathFallback, setIsNotesPathFallback] = useState(false)
 
   useEffect(() => {
     if (hasV1MigrationSource) return
@@ -105,10 +106,14 @@ const BasicDataSettings: React.FC = () => {
 
   useEffect(() => {
     void resolveNotesPath(notesPath || '')
-      .then((resolved) => setResolvedNotesPath(resolved.path))
+      .then((resolved) => {
+        setResolvedNotesPath(resolved.path)
+        setIsNotesPathFallback(resolved.isFallback)
+      })
       .catch((error) => {
         logger.warn('Failed to resolve notes path', error as Error)
         setResolvedNotesPath(undefined)
+        setIsNotesPathFallback(false)
       })
   }, [notesPath])
 
@@ -377,6 +382,13 @@ const BasicDataSettings: React.FC = () => {
             </RowFlex>
           </PathRow>
         </SettingRow>
+        {isNotesPathFallback && (
+          <SettingRow>
+            <SettingHelpText>
+              {t('notes.directory_unavailable_fallback', { path: resolvedNotesPath ?? notesPath })}
+            </SettingHelpText>
+          </SettingRow>
+        )}
         <SettingRow>
           <SettingHelpText>{t('settings.data.notes_data.help')}</SettingHelpText>
         </SettingRow>

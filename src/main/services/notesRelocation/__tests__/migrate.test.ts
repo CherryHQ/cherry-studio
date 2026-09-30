@@ -163,6 +163,49 @@ describe('notesRelocation', () => {
     expect(fs.existsSync(path.join(outside, 'note.md'))).toBe(false)
   })
 
+  it('copies into the physical directory when the selected target root is a symlink', async () => {
+    const source = path.join(tempRoot, 'source-notes-symlink-root')
+    const physical = path.join(tempRoot, 'physical-symlink-root')
+    const target = path.join(tempRoot, 'target-link-symlink-root')
+    fs.mkdirSync(source)
+    fs.mkdirSync(physical)
+    fs.writeFileSync(path.join(source, 'note.md'), '# A')
+    fs.symlinkSync(physical, target)
+
+    const result = await migrateNotesDirectory(source, target, { merge: false })
+
+    expect(fs.existsSync(path.join(physical, 'note.md'))).toBe(true)
+    expect(result.target.markdownFileCount).toBe(1)
+  })
+
+  it('copies into the physical directory when the target has a symlinked ancestor', async () => {
+    const source = path.join(tempRoot, 'source-notes-symlink-ancestor')
+    const physicalRoot = path.join(tempRoot, 'physical-symlink-ancestor')
+    const target = path.join(physicalRoot, 'link', 'notes')
+    fs.mkdirSync(source)
+    fs.mkdirSync(path.join(physicalRoot, 'real', 'notes'), { recursive: true })
+    fs.writeFileSync(path.join(source, 'note.md'), '# A')
+    fs.symlinkSync(path.join(physicalRoot, 'real'), path.join(physicalRoot, 'link'))
+
+    const result = await migrateNotesDirectory(source, target, { merge: false })
+
+    expect(fs.existsSync(path.join(physicalRoot, 'real', 'notes', 'note.md'))).toBe(true)
+    expect(result.target.markdownFileCount).toBe(1)
+  })
+
+  it('rejects migration when the target symlink resolves to a protected directory', async () => {
+    const source = path.join(tempRoot, 'source-notes-symlink-protected')
+    const target = path.join(tempRoot, 'target-link-symlink-protected')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'note.md'), '# A')
+    fs.symlinkSync(path.join(tempRoot, 'files'), target)
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_INVALID'
+    })
+    expect(fs.existsSync(path.join(tempRoot, 'files', 'note.md'))).toBe(false)
+  })
+
   it('rejects the managed files root as a notes target', () => {
     const source = path.join(tempRoot, 'source-notes-protected')
     const filesRoot = path.join(tempRoot, 'files')
