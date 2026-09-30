@@ -54,16 +54,19 @@ const mocks = vi.hoisted(() => {
     }
     return state
   }
+  const createVirtualizer = (options: { count: number; getItemKey: (index: number) => string }) => {
+    const state = stateFor(options.getItemKey)
+    state.count = options.count
+    return state.instance
+  }
   return {
     highlightLines: vi.fn(),
     resetHighlight: vi.fn(),
     measure,
     resizeItem,
-    useVirtualizer: vi.fn((options: { count: number; getItemKey: (index: number) => string }) => {
-      const state = stateFor(options.getItemKey)
-      state.count = options.count
-      return state.instance
-    })
+    stateFor,
+    createVirtualizer,
+    useVirtualizer: vi.fn(createVirtualizer)
   }
 })
 
@@ -419,6 +422,57 @@ describe('CodeViewer', () => {
     )
     expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
     expect(mocks.measure).not.toHaveBeenCalled()
+  })
+
+  it('does not shrink offscreen wrapped rows below their cached height when remeasuring', () => {
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const longSecondLine = 'x'.repeat(200)
+    mockRowHeights(new Map([[0, 55]]))
+
+    try {
+      const { rerender } = render(
+        <CodeViewer value={`line 1\n${longSecondLine}`} language="text" wrapped maxHeight="350px" />
+      )
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      const cachedOffscreenSize = offscreenResize![1] as number
+
+      mocks.resizeItem.mockClear()
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 800
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 55
+        }
+      })
+
+      rerender(
+        <CodeViewer
+          className="remeasure"
+          value={`line 1\n${longSecondLine}`}
+          language="text"
+          wrapped
+          maxHeight="350px"
+        />
+      )
+
+      const remeasureOffscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(remeasureOffscreenResize?.[1]).toBeGreaterThanOrEqual(cachedOffscreenSize)
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      restoreDescriptor('clientWidth', originalClientWidthDescriptor)
+    }
   })
 
   it('keeps measured row placement when the scroller is resized in wrapped mode', () => {
