@@ -978,7 +978,9 @@ describe('runRestorePromotion', () => {
       writeRestoreJournal(await buildJournal())
       const attempts = failWorkRename(Number.POSITIVE_INFINITY, 'EPERM')
 
-      await runRestorePromotion() // default test platform (darwin)
+      // POSIX explicitly — the suite also runs on Windows CI, where the
+      // ambient platform is win32 and the retry is legitimate.
+      await withPlatform('darwin', () => runRestorePromotion())
 
       expect(attempts()).toBe(1)
       expect(readMarker(livePath())).toBe('old')
