@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { ensureDir, read, stat, writeInPlace } from '@main/utils/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
 import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
@@ -33,6 +33,14 @@ export const editToolDefinition = {
   inputSchema: EditToolSchema
 }
 
+async function writeEdit(validPath: AbsoluteFilePath, content: string, filePath: string): Promise<void> {
+  try {
+    await writeInPlace(validPath, content)
+  } catch (error: any) {
+    throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
+  }
+}
+
 // Handler implementation
 export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
@@ -53,11 +61,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
           const parentDir = path.dirname(validPath)
           await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
 
-          try {
-            await writeInPlace(validPath, newString)
-          } catch (error: any) {
-            throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
-          }
+          await writeEdit(validPath, newString, filePath)
 
           logger.info('File created', { path: validPath })
 
@@ -81,11 +85,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
 
     // Handle special case: old_string is empty (create file with content)
     if (oldString === '') {
-      try {
-        await writeInPlace(validPath, newString)
-      } catch (error: any) {
-        throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
-      }
+      await writeEdit(validPath, newString, filePath)
 
       logger.info('File overwritten', { path: validPath })
 
@@ -103,11 +103,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
     // Perform the replacement with fuzzy matching
     const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
 
-    try {
-      await writeInPlace(validPath, newContent)
-    } catch (error: any) {
-      throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
-    }
+    await writeEdit(validPath, newContent, filePath)
 
     logger.info('File edited', {
       path: validPath,
