@@ -324,15 +324,6 @@ export function buildPathRegistry() {
         ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Mozilla/Firefox/Profiles')
         : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
-    'external.tailscale.app': isMac
-      ? '/Applications/Tailscale.app'
-      : path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale'),
-    'external.tailscale.executable_file': isMac
-      ? '/Applications/Tailscale.app/Contents/MacOS/Tailscale'
-      : path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale', 'tailscale.exe'),
-    'external.zerotier.app': isMac
-      ? '/Applications/ZeroTier One.app'
-      : path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'ZeroTier', 'One'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
     'external.hermes.default_home': isWin

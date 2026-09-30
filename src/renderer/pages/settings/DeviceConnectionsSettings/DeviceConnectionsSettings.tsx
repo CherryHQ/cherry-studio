@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, MonitorSmartphone, QrCode, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -7,7 +7,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { RemoteCapability } from '@cherrystudio/remote-protocol'
-import { Alert, Badge, Button, Checkbox, IndicatorLight, Tooltip } from '@cherrystudio/ui'
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  IndicatorLight,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
@@ -17,14 +29,11 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
-import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
-
-import { ConnectionSetup } from './ConnectionSetup'
 
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
@@ -57,6 +66,7 @@ const DeviceConnectionsSettings: FC = () => {
   const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
   const [invitation, setInvitation] = useState<Invitation>()
+  const [selectedAddress, setSelectedAddress] = useState('auto')
   const [claims, setClaims] = useState<PairingClaim[]>([])
   const [selectedCapabilities, setSelectedCapabilities] = useState<Record<string, RemoteCapability[]>>({})
   const [decidingClaimId, setDecidingClaimId] = useState<string>()
@@ -113,6 +123,7 @@ const DeviceConnectionsSettings: FC = () => {
     if (!connectionReady || isCreatingInvitation) return
     const requestId = ++invitationRequestId.current
     setIsCreatingInvitation(true)
+    setInvitation(undefined)
     try {
       const result = await ipcApi.request('api_gateway.remote.create_invitation')
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
@@ -168,19 +179,22 @@ const DeviceConnectionsSettings: FC = () => {
     }
   }
 
-  const qrPayload = invitation
-    ? JSON.stringify({
-        v: 2,
-        t: 'cherry-studio-pair',
-        name: invitation.hostname,
-        port: invitation.port,
-        ips: invitation.addresses,
-        invitationId: invitation.invitationId,
-        invitationSecret: invitation.invitationSecret,
-        desktopIdentity: invitation.desktopIdentity,
-        protocolVersions: invitation.protocolVersions
-      })
-    : null
+  const selectedAddressAvailable =
+    selectedAddress === 'auto' || invitation?.addressOptions.some(({ address }) => address === selectedAddress)
+  const qrPayload =
+    invitation && selectedAddressAvailable && !isCreatingInvitation
+      ? JSON.stringify({
+          v: 2,
+          t: 'cherry-studio-pair',
+          name: invitation.hostname,
+          port: invitation.port,
+          ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress],
+          invitationId: invitation.invitationId,
+          invitationSecret: invitation.invitationSecret,
+          desktopIdentity: invitation.desktopIdentity,
+          protocolVersions: invitation.protocolVersions
+        })
+      : null
   const statusKey = connectionReady
     ? 'deviceConnections.status.ready'
     : lanEnabled
@@ -335,11 +349,51 @@ const DeviceConnectionsSettings: FC = () => {
                   </div>
                 )
               })
-            ) : invitation && qrPayload ? (
-              <div className="flex flex-col items-start gap-2">
-                <div className="rounded-lg border border-border bg-white p-3">
-                  <QRCodeSVG value={qrPayload} size={180} level="M" title={t('deviceConnections.pairing.title')} />
+            ) : invitation ? (
+              <div className="flex flex-col items-start gap-3">
+                <label htmlFor="pairing-address" className="text-sm font-medium">
+                  {t('deviceConnections.pairing.address')}
+                </label>
+                <div className="flex w-full max-w-lg items-start gap-2">
+                  <Select value={selectedAddress} onValueChange={setSelectedAddress} disabled={isCreatingInvitation}>
+                    <SelectTrigger
+                      id="pairing-address"
+                      className="h-auto min-h-9 w-full min-w-0 [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:whitespace-normal [&_[data-slot=select-value]]:break-all">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80 max-w-[calc(100vw-2rem)]">
+                      <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
+                      {!selectedAddressAvailable && (
+                        <SelectItem value={selectedAddress} disabled>
+                          {selectedAddress}
+                        </SelectItem>
+                      )}
+                      {invitation.addressOptions.map(({ address, interfaceName }) => (
+                        <SelectItem key={address} value={address} className="whitespace-normal break-all">
+                          {address} ({interfaceName})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    loading={isCreatingInvitation}
+                    aria-label={t('deviceConnections.pairing.refreshAddresses')}
+                    onClick={() => void showPairingQr()}>
+                    <RefreshCw size={16} />
+                  </Button>
                 </div>
+                {!selectedAddressAvailable && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {t('deviceConnections.pairing.addressUnavailable')}
+                  </p>
+                )}
+                {qrPayload && (
+                  <div className="rounded-lg border border-border bg-white p-3">
+                    <QRCodeSVG value={qrPayload} size={180} level="M" title={t('deviceConnections.pairing.title')} />
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -412,17 +466,6 @@ const DeviceConnectionsSettings: FC = () => {
           </SectionFields>
         </SettingGroup>
       </Sections>
-      <SkillLauncherProvider>
-        <ConnectionSetup
-          connectionReady={connectionReady}
-          prerequisite={
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-sm leading-6">{t(statusDescriptionKey)}</p>
-              {connectionAction}
-            </div>
-          }
-        />
-      </SkillLauncherProvider>
     </SettingsContentColumn>
   )
 }
