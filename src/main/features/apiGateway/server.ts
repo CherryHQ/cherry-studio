@@ -127,6 +127,12 @@ export class ApiGateway {
         const http = server.raw.node.server
         if (http.listening) http.close()
       }
+      // A partially rebound pair must not leave an unreported network listener open.
+      for (const server of this.servers) {
+        const http = server.raw.node.server
+        if (http.listening) http.close()
+      }
+      this.servers.length = 0
       throw error
     }
   }
