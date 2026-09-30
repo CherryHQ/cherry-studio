@@ -1,4 +1,5 @@
-import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type { SessionEventMap } from '@deepseek-ai/dsh-session'
 
 /**
