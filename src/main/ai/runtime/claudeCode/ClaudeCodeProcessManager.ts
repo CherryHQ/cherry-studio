@@ -9,7 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import { prepareClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
+import { prepareClaudeCodeSpawnCapacity, type ClaudeCodeSpawnPriority } from './claudeCodeSpawnCapacity'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
@@ -178,8 +178,17 @@ export class ClaudeCodeProcessManager extends BaseService {
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
 
+  /** Every CLI child still running, including evicted warm ones finishing their SIGTERM. */
   getActiveProcessCount(): number {
     return this.processes.size + this.evictingProcesses.size
+  }
+
+  /**
+   * Children that still hold a spawn-cap slot: live children and parked warm queries. Evicted warm
+   * children freed their slot when they were signaled, even though they stay active until exit.
+   */
+  getCapSlotProcessCount(): number {
+    return this.processes.size
   }
 
   /**
@@ -199,8 +208,12 @@ export class ClaudeCodeProcessManager extends BaseService {
     }
   }
 
-  spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
-    if (!prepareClaudeCodeSpawnCapacity()) {
+  spawn(
+    options: SpawnOptions,
+    diagnostics = createClaudeCodeProcessDiagnostics(),
+    priority: ClaudeCodeSpawnPriority = 'live'
+  ): SpawnedProcess {
+    if (!prepareClaudeCodeSpawnCapacity(priority)) {
       const error = new Error('Claude Code CLI process cap reached')
       recordClaudeCodeSpawnError(diagnostics, error)
       throw error
@@ -291,6 +304,6 @@ export const spawnClaudeCodeProcess = (options: SpawnOptions): SpawnedProcess =>
 export { createClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 export const createSpawnClaudeCodeProcess =
-  (diagnostics: ClaudeCodeProcessDiagnostics) =>
+  (diagnostics: ClaudeCodeProcessDiagnostics, priority: ClaudeCodeSpawnPriority = 'live') =>
   (options: SpawnOptions): SpawnedProcess =>
-    application.get('ClaudeCodeProcessManager').spawn(options, diagnostics)
+    application.get('ClaudeCodeProcessManager').spawn(options, diagnostics, priority)

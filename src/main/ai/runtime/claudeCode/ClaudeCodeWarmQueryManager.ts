@@ -257,7 +257,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics, 'warm') },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {

@@ -10,38 +10,66 @@ vi.mock('@application', () => ({
 
 const { prepareClaudeCodeSpawnCapacity } = await import('../claudeCodeSpawnCapacity')
 
+type ManagerCounts = { active: number; capSlots: number }
+
+function mockManagers(counts: ManagerCounts, evictOldestWarmQuery = vi.fn(() => false)) {
+  mocks.applicationGetExisting.mockImplementation((name: string) => {
+    if (name === 'ClaudeCodeProcessManager') {
+      return {
+        getActiveProcessCount: () => counts.active,
+        getCapSlotProcessCount: () => counts.capSlots
+      }
+    }
+    if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
+    throw new Error(`unexpected service ${name}`)
+  })
+  return evictOldestWarmQuery
+}
+
 describe('claudeCodeSpawnCapacity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('evicts parked warm queries until the CLI cap allows another spawn', () => {
-    let activeCount = 6
+  it('evicts parked warm queries until a cap slot frees for a live spawn', () => {
+    const counts: ManagerCounts = { active: 6, capSlots: 6 }
     const evictOldestWarmQuery = vi.fn(() => {
-      if (activeCount < 6) return false
-      activeCount -= 1
+      if (counts.capSlots === 0) return false
+      counts.capSlots -= 1
       return true
     })
-    mocks.applicationGetExisting.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => activeCount }
-      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
-      throw new Error(`unexpected service ${name}`)
-    })
+    mockManagers(counts, evictOldestWarmQuery)
 
-    expect(prepareClaudeCodeSpawnCapacity()).toBe(true)
+    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(true)
     expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
-    expect(activeCount).toBe(5)
+    expect(counts.capSlots).toBe(5)
   })
 
-  it('refuses another spawn while the cap is saturated and nothing warm remains to evict', () => {
-    const evictOldestWarmQuery = vi.fn().mockReturnValue(false)
-    mocks.applicationGetExisting.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeProcessManager') return { getActiveProcessCount: () => 6 }
-      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
-      throw new Error(`unexpected service ${name}`)
-    })
+  it('admits a live spawn into the slot an evicted child freed while it still counts as active', () => {
+    const evictOldestWarmQuery = mockManagers({ active: 6, capSlots: 5 })
 
-    expect(prepareClaudeCodeSpawnCapacity()).toBe(false)
+    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(true)
+    expect(evictOldestWarmQuery).not.toHaveBeenCalled()
+  })
+
+  it('refuses a live spawn when every cap slot is held by children that cannot be evicted', () => {
+    const evictOldestWarmQuery = mockManagers({ active: 6, capSlots: 6 })
+
+    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(false)
     expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
+  })
+
+  it('refuses a new warm park while an evicted child keeps the active count at the cap', () => {
+    const evictOldestWarmQuery = mockManagers({ active: 6, capSlots: 5 })
+
+    expect(prepareClaudeCodeSpawnCapacity('warm')).toBe(false)
+    expect(evictOldestWarmQuery).not.toHaveBeenCalled()
+  })
+
+  it('admits a warm park while the active count is under the cap', () => {
+    const evictOldestWarmQuery = mockManagers({ active: 5, capSlots: 5 })
+
+    expect(prepareClaudeCodeSpawnCapacity('warm')).toBe(true)
+    expect(evictOldestWarmQuery).not.toHaveBeenCalled()
   })
 })
