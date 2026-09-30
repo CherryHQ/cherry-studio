@@ -132,10 +132,14 @@ session.
 
 ### LAN exposure is confined to the remote-access upgrade
 
-The gateway uses one listener on `0.0.0.0` at its configured port (default
-`23333`). Local HTTP clients and remote WebSocket clients share that port.
-LAN toggles change access policy without rebinding the listener, so existing
-local streams continue and paired devices retain the same endpoint after restart.
+The gateway listens on `127.0.0.1` and `::1` by default at its configured port (default
+`23333`). Allowing network access rebinds to all IPv4 / IPv6 interfaces (`0.0.0.0` and `::`).
+Two explicit listeners share that port and the MCP session store; the IPv6 socket uses `ipv6Only: true`.
+If IPv6 is unavailable, IPv4 remains usable and only its addresses are advertised.
+A port conflict fails startup and releases both listeners. Local HTTP and remote WebSocket clients share the port. Rebinding only
+releases the listening handles; existing local streams and MCP sessions continue.
+The settings card explains network exposure and pairing requirements in plain language.
+Actual bound addresses appear only in the collapsed connection details, including while access is disabled.
 
 The root `onRequest` guard (`lanGuard.ts`) runs before CORS and screens each
 request by its socket peer. Ordinary HTTP routes remain loopback-only. The only
@@ -145,8 +149,11 @@ blocked on loopback when LAN access is disabled. Desktop consumers continue to
 use `127.0.0.1` through `gatewayClientOrigin`.
 
 Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, then
-closes remote sessions and clears pending invitations. The shared TCP listener
-remains bound, but new remote requests receive `403`.
+closes remote sessions and clears pending invitations, then rebinds to loopback.
+The guard rejects remote requests during the transition; afterward the network
+interfaces no longer accept new TCP connections. If opening access fails, the
+service restores loopback intent and attempts to rebind locally. If narrowing
+the listener fails, it remains unbound and the command reports an error.
 
 ## Request flow (generation routes)
 
@@ -275,7 +282,7 @@ single authority for their running state.
 |---|---|
 | `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
 | `onReady` | Read the persisted desired state and flush the reconciler. |
-| `onActivate` | Start the shared listener on `0.0.0.0` at the configured port; the request guard enforces LAN intent. |
+| `onActivate` | Start on `127.0.0.1` / `::1`, or `0.0.0.0` / `::` when network access and the gateway are enabled; the guard enforces route access. |
 | `onDeactivate` | Close remote sessions and stop the shared listener; publish both running states as `false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
@@ -285,17 +292,17 @@ All activation/deactivation flows through a self-held
 [`createLatestReconciler`](../../../src/main/core/concurrency/README.md), the
 sole caller of `activate`/`deactivate`. It is driven by `onReady`, Preference
 changes, IpcApi actions, and temporary run leases, converging actual state to
-`desiredEnabled || leaseCount > 0`. A temporary consumer can therefore keep the
+`desiredEnabled || leaseCount > 0` and the requested listening scope. A temporary consumer can therefore keep the
 server up without persisting an enabled intent. Start/stop persist user intent
 before convergence; restart rebinds only when no lease is active.
 
 LAN commands are serialized with remote-session cleanup. Enabling LAN requires
 an enabled, running gateway and persists `host = 0.0.0.0`. Disabling LAN persists
-`host = 127.0.0.1` and closes remote sessions without interrupting local requests.
+`host = 127.0.0.1`, closes remote sessions and rebinds the listener without interrupting local requests.
 
 An explicit gateway stop atomically persists `enabled = false` and disables LAN,
 then closes remote sessions. A `deferred` stop preserves the listener for local
-task leases, while the guard refuses remote access. The final lease release
+task leases on `127.0.0.1` / `::1`, while the guard refuses remote access. The final lease release
 stops the listener. An explicit restart retains LAN intent and reuses the
 configured gateway port; a fresh QR is only needed if the endpoint changes.
 

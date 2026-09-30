@@ -4,9 +4,12 @@ import * as path from 'node:path'
 import StreamZip from 'node-stream-zip'
 
 import { loggerService } from '@logger'
-import { foldPathSegment, isOutsidePath } from '@main/utils/file'
+import { isOutsidePath } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import {
+  assertNoFoldedPathCollisions as assertNoFoldedPathCollisionsShared,
+  assertZipEntriesWithin
+} from '@main/utils/zipSafety'
 
 /**
  * Handling for an untrusted skill tree on disk, however it arrived — an extracted ZIP or a shallow
@@ -41,32 +44,8 @@ export async function validateZipFile(zipFilePath: string): Promise<void> {
  * Paths differing only in case or Unicode composition land on one file on macOS and Windows, so the
  * installed content would depend on the platform and on which entry was written last.
  */
-export function assertNoFoldedPathCollisions(paths: readonly string[]): void {
-  type PathNode = { part: string; children: Map<string, PathNode> }
-  const root = new Map<string, PathNode>()
-
-  // One node per directory level: an entry name can nest tens of thousands of levels deep, so
-  // re-joining every prefix would block the main process for minutes.
-  for (const entryPath of paths) {
-    const parts = entryPath.split('/').filter(Boolean)
-    let level = root
-    for (const [index, part] of parts.entries()) {
-      const key = foldPathSegment(part)
-      let node = level.get(key)
-      if (!node) {
-        node = { part, children: new Map() }
-        level.set(key, node)
-      } else if (node.part !== part) {
-        const parent = parts.slice(0, index).join('/')
-        const [previous, current] = [node.part, part].map((name) => (parent ? `${parent}/${name}` : name))
-        throw new Error(
-          `Skill contains paths that collide once case and Unicode are normalized (${previous}, ${current}).`
-        )
-      }
-      level = node.children
-    }
-  }
-}
+export const assertNoFoldedPathCollisions = (paths: readonly string[]): void =>
+  assertNoFoldedPathCollisionsShared(paths, 'Skill')
 
 export async function extractZip(zipFilePath: string, destDir: string): Promise<void> {
   const zip = new StreamZip.async({ file: zipFilePath })
