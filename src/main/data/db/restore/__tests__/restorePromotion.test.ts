@@ -68,6 +68,17 @@ const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
 
+/**
+ * Rename fault injection: fails matching renames with an injected errno code
+ * (EPERM/EBUSY model transient Windows scanner locks, EACCES a permanent
+ * denial), so the retry behavior of renameDurable is observable on any
+ * development platform. The predicate stays null (inert) for every other
+ * case.
+ */
+const renameFailure = vi.hoisted(() => ({
+  shouldFail: null as ((source: string, target: string) => string | false) | null
+}))
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
@@ -77,7 +88,16 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    const [source, target] = args
+    const code =
+      typeof source === 'string' && typeof target === 'string' ? renameFailure.shouldFail?.(source, target) : undefined
+    if (code) {
+      throw Object.assign(new Error(`${code}: injected rename failure`), { code })
+    }
+    return actual.renameSync(...args)
+  }
+  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -252,11 +272,24 @@ function journalState(): string {
   return read.journal.state
 }
 
+/** Run `fn` with process.platform overridden; restored even when fn throws. */
+async function withPlatform<T>(platform: NodeJS.Platform, fn: () => T | Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (!descriptor) throw new Error('process.platform has no property descriptor')
+  Object.defineProperty(process, 'platform', { ...descriptor, value: platform })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process, 'platform', descriptor)
+  }
+}
+
 describe('runRestorePromotion', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
+    renameFailure.shouldFail = null
   })
 
   afterEach(() => {
@@ -897,6 +930,72 @@ describe('runRestorePromotion', () => {
       expect(existsSync(liveBlob())).toBe(false)
       expect(journalState()).toBe('failed')
       expect(existsSync(stagingDir())).toBe(false)
+    })
+  })
+
+  describe('transient Windows rename locks (EPERM/EBUSY retries in renameDurable)', () => {
+    // The commit rename (work.sqlite → live) is the single most load-bearing
+    // rename; targeting it observes the retry machinery in every direction.
+    const failWorkRename = (failFirst: number, code: string) => {
+      let attempts = 0
+      renameFailure.shouldFail = (source) => {
+        if (!source.endsWith('work.sqlite')) return false
+        attempts += 1
+        return attempts <= failFirst ? code : false
+      }
+      return () => attempts
+    }
+
+    it('completes the promotion when the rename lock clears within the retry budget (win32)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      writeRestoreJournal(await buildJournal())
+      const attempts = failWorkRename(2, 'EPERM')
+
+      await withPlatform('win32', () => runRestorePromotion())
+
+      expect(attempts()).toBe(3) // two transient locks, third attempt lands
+      expect(readMarker(livePath())).toBe('new')
+      expect(journalState()).toBe('completed')
+    }, 15_000)
+
+    it('rethrows and rolls back after the retry budget is exhausted (win32, EBUSY)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      writeRestoreJournal(await buildJournal())
+      const attempts = failWorkRename(Number.POSITIVE_INFINITY, 'EBUSY')
+
+      await withPlatform('win32', () => runRestorePromotion())
+
+      expect(attempts()).toBe(5) // 1 initial + 4 retries, then the step fails
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('failed')
+    }, 15_000)
+
+    it('never retries on POSIX (EPERM is permanent there)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      writeRestoreJournal(await buildJournal())
+      const attempts = failWorkRename(Number.POSITIVE_INFINITY, 'EPERM')
+
+      await runRestorePromotion() // default test platform (darwin)
+
+      expect(attempts()).toBe(1)
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('failed')
+    })
+
+    it('does not retry permanent denial codes even on win32 (EACCES)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      writeRestoreJournal(await buildJournal())
+      const attempts = failWorkRename(Number.POSITIVE_INFINITY, 'EACCES')
+
+      await withPlatform('win32', () => runRestorePromotion())
+
+      expect(attempts()).toBe(1)
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('failed')
     })
   })
 
