@@ -1237,11 +1237,16 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
-    // A model's own key binding is resolved per model (never round-robins: a
-    // set `apiKeyId` wins in the resolver), so sync can serve it per model.
-    const boundApiKey = model.apiKeyId
-      ? providerService.resolveApiKey(model.providerId, undefined, model.apiKeyId).value
+    // A set `apiKeyId` wins in the resolver, so sync can serve it per model; a
+    // selection that fell back to automatic is omitted so the provider-level
+    // credential serves the model instead of a pinned rotation result.
+    const resolved = model.apiKeyId
+      ? providerService.resolveApiKey(model.providerId, undefined, model.apiKeyId)
       : undefined
+    const boundApiKey =
+      resolved && resolved.apiKeySelection.attribution !== 'unknown' && resolved.apiKeySelection.id === model.apiKeyId
+        ? resolved.value
+        : undefined
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
@@ -1410,6 +1415,22 @@ export class OpenClawService extends BaseService {
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
       const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
+
+      // Without schema-level model api keys every model would silently authenticate
+      // with the provider-level (primary) credential instead of its own binding.
+      if (!supportsModelField('apiKey')) {
+        const misboundModels = provider.models
+          .filter((m) => {
+            const bound = (m as OpenClawSyncModel).apiKey
+            return bound !== undefined && bound !== apiKey
+          })
+          .map((m) => m.name || m.id)
+        if (misboundModels.length > 0) {
+          throw new Error(
+            `The OpenClaw runtime does not support per-model API keys; update OpenClaw or remove the model API key binding for: ${misboundModels.join(', ')}`
+          )
+        }
+      }
 
       const openclawProvider: OpenClawProviderConfig = {
         ...existingProviderOverrides,
