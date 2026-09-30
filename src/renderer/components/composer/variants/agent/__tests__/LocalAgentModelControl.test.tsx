@@ -53,10 +53,13 @@ describe('local agent model persistence', () => {
     expect(screen.getByRole('button', { name: '选择模型' })).toHaveTextContent('First')
     await user.click(screen.getByText('Second'))
     await waitFor(() => expect(screen.queryByText('Second')).not.toBeInTheDocument())
-    expect(updateAgent).toHaveBeenLastCalledWith({
-      id: agent.id,
-      configuration: { localRuntime: { ...agent.configuration!.localRuntime, nativeModel: 'second' } }
-    })
+    expect(updateAgent).toHaveBeenLastCalledWith(
+      {
+        id: agent.id,
+        configuration: { localRuntime: { ...agent.configuration!.localRuntime, nativeModel: 'second' } }
+      },
+      { showSuccessToast: false }
+    )
     expect(ipcApi.request).not.toHaveBeenCalled()
   })
 })

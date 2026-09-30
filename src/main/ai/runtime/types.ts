@@ -157,6 +157,7 @@ export type AgentRuntimeEvent =
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'session-title'; title: string }
   | { type: 'local-session-info'; info: LocalAgentSessionInfo }
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
@@ -193,6 +194,7 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   readonly localSessionInfo?: LocalAgentSessionInfo
+  setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
   setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */

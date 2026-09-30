@@ -10,6 +10,7 @@ import {
   type PromptResponse,
   type NewSessionResponse,
   type LoadSessionResponse,
+  type ResumeSessionResponse,
   type SessionConfigOption,
   type PromptCapabilities,
   type SessionUpdate,
@@ -32,12 +33,13 @@ const LegacyModelsSchema = z.object({
   currentModelId: z.string(),
   availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
 })
-type SessionResponse = (NewSessionResponse | LoadSessionResponse) & { models?: unknown }
+type SessionResponse = (NewSessionResponse | LoadSessionResponse | ResumeSessionResponse) & { models?: unknown }
 
 type Terminal = {
   child: ChildProcess
   output: string
   truncated: boolean
+  exitStatus?: { exitCode?: number; signal?: string }
   exited: Promise<{ exitCode?: number; signal?: string }>
 }
 
@@ -54,6 +56,7 @@ export class AcpConnection extends LocalConnection {
   private process?: ChildProcess
   private connection?: ClientConnection
   private nativeId?: string
+  private supportsClose = false
   private readonly terminals = new Map<string, Terminal>()
   private loading = false
   private modelConfigId?: string
@@ -66,9 +69,9 @@ export class AcpConnection extends LocalConnection {
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
   async authenticate(methodId: string): Promise<void> {
-    if (!this.connection || !this.localSessionInfo.protocolInfo?.authMethods.some((method) => method.id === methodId)) {
-      throw new Error('Unsupported authentication method')
-    }
+    const method = this.localSessionInfo.protocolInfo?.authMethods.find((method) => method.id === methodId)
+    if (!this.connection || !method) throw new Error('Unsupported authentication method')
+    if (method.type !== 'agent') throw new Error('This authentication method requires external setup')
     await this.connection.agent.request('authenticate', { methodId })
   }
 
@@ -95,6 +98,8 @@ export class AcpConnection extends LocalConnection {
           if (
             params.update.sessionUpdate === 'available_commands_update' ||
             params.update.sessionUpdate === 'config_option_update' ||
+            params.update.sessionUpdate === 'usage_update' ||
+            params.update.sessionUpdate === 'session_info_update' ||
             params.update.sessionUpdate === 'current_mode_update'
           )
             this.pendingUpdates.push(params)
@@ -179,21 +184,15 @@ export class AcpConnection extends LocalConnection {
             terminal.output = Buffer.from(terminal.output).subarray(-limit).toString()
             terminal.truncated = true
           }
-          for (const [id, tool] of this.toolInputs) {
-            if (
-              tool.content?.some(
-                (item) =>
-                  typeof item === 'object' && item !== null && 'terminalId' in item && item.terminalId === terminalId
-              )
-            ) {
-              tool.terminals = { ...tool.terminals, [terminalId]: terminal.output }
-              this.publishTool(id, tool)
-            }
-          }
+          this.publishTerminal(terminalId)
         }
         proc.stdout?.on('data', receive)
         proc.stderr?.on('data', receive)
         this.terminals.set(terminalId, terminal)
+        void terminal.exited.then((status) => {
+          terminal.exitStatus = status
+          this.publishTerminal(terminalId)
+        })
         this.result(id, { terminalId })
         return { terminalId }
       })
@@ -241,7 +240,11 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined,
       capabilities: response.agentCapabilities ?? {},
-      authMethods: (response.authMethods ?? []).map(({ id, name }) => ({ id, name })),
+      authMethods: (response.authMethods ?? []).map((method) => ({
+        id: method.id,
+        name: method.name,
+        type: ('type' in method && method.type === 'terminal') || method._meta?.['terminal-auth'] ? 'terminal' : 'agent'
+      })),
       verified: ['handshake']
     }
     logger.info('ACP handshake completed', {
@@ -249,20 +252,25 @@ export class AcpConnection extends LocalConnection {
       protocolVersion: response.protocolVersion,
       agent: this.localSessionInfo.protocolInfo.agent
     })
-    this.localSessionInfo.resume = response.agentCapabilities?.loadSession === true
+    const supportsResume = response.agentCapabilities?.sessionCapabilities?.resume != null
+    this.supportsClose = response.agentCapabilities?.sessionCapabilities?.close != null
+    this.localSessionInfo.resume = supportsResume || response.agentCapabilities?.loadSession === true
     this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
     this.localSessionInfo.images = this.promptCapabilities.image === true
     if (probe === true) return this
     this.loading = true
     try {
       if (resume) {
-        if (!response.agentCapabilities?.loadSession)
+        if (!this.localSessionInfo.resume)
           throw new Error('This agent cannot restore the previous conversation; create a new session')
-        const session = await this.connection.agent.request<SessionResponse>('session/load', {
-          cwd,
-          sessionId: resume,
-          mcpServers: []
-        })
+        const session = await this.connection.agent.request<SessionResponse>(
+          supportsResume ? 'session/resume' : 'session/load',
+          {
+            cwd,
+            sessionId: resume,
+            mcpServers: []
+          }
+        )
         this.readSessionModels(session)
         this.nativeId = resume
       } else {
@@ -318,20 +326,35 @@ export class AcpConnection extends LocalConnection {
     }
     this.readConfigOptions(session.configOptions)
   }
+  async setConfigOption(configId: string, value: string | boolean) {
+    return this.setSelection('config', configId, value)
+  }
   async setMode(configId: string, value: string) {
     return this.setSelection('mode', configId, value)
   }
   async setThoughtLevel(configId: string, value: string) {
     return this.setSelection('thoughtLevel', configId, value)
   }
-  private async setSelection(category: 'mode' | 'thoughtLevel', configId: string, value: string) {
+  private async setSelection(category: 'mode' | 'thoughtLevel' | 'config', configId: string, value: string | boolean) {
     if (!this.connection || !this.nativeId || this.closed || this.active || this.configChange)
       throw new Error('ACP session is unavailable or busy')
-    const thought = this.localSessionInfo[category]
-    if (thought?.id !== configId || !thought.options.some((option) => option.value === value))
+    const selection =
+      category === 'config'
+        ? this.localSessionInfo.configOptions?.find((option) => option.id === configId)
+        : this.localSessionInfo[category]
+    if (
+      !selection ||
+      selection.id !== configId ||
+      ('type' in selection && selection.type === 'boolean'
+        ? typeof value !== 'boolean'
+        : typeof value !== 'string' ||
+          !selection.options
+            .flatMap((option) => ('group' in option ? option.options : [option]))
+            .some((option) => option.value === value))
+    )
       throw new Error('This session option is no longer available')
     this.configChange =
-      category === 'mode' && !this.modeConfigId
+      category === 'mode' && !this.modeConfigId && typeof value === 'string'
         ? this.connection.agent.request('session/set_mode', { sessionId: this.nativeId, modeId: value }).then(() => {
             if (this.legacyMode) this.legacyMode.currentModeId = value
             if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
@@ -353,6 +376,20 @@ export class AcpConnection extends LocalConnection {
   }
 
   private readConfigOptions(options?: SessionConfigOption[] | null) {
+    this.localSessionInfo.configOptions =
+      options
+        ?.filter(
+          (option) => option.type !== 'select' || !['model', 'mode', 'thought_level'].includes(option.category ?? '')
+        )
+        .map(({ id, name, description, ...option }) => ({
+          id,
+          name,
+          description,
+          ...(option.type === 'boolean'
+            ? { type: 'boolean' as const, currentValue: option.currentValue }
+            : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
+        })) ?? []
+
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     this.modeConfigId = mode?.id
     this.localSessionInfo.mode =
@@ -387,8 +424,8 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined
     const model = options?.find((option) => option.category === 'model' && option.type === 'select')
+    this.modelConfigId = model?.id
     if (model?.type === 'select') {
-      this.modelConfigId = model.id
       this.localSessionInfo.activeModel = { id: model.currentValue }
       this.localSessionInfo.models = model.options
         .flatMap((option) => ('group' in option ? option.options : [option]))
@@ -402,21 +439,43 @@ export class AcpConnection extends LocalConnection {
     return terminal
   }
   private update(update: SessionUpdate) {
+    if (update.sessionUpdate === 'session_info_update' && update.title?.trim())
+      this.events.push({ type: 'session-title', title: update.title })
+
+    if (update.sessionUpdate === 'usage_update' && update.used >= 0 && update.size > 0) {
+      this.events.push({
+        type: 'context-usage',
+        usage: {
+          categories: [],
+          totalTokens: update.used,
+          maxTokens: update.size,
+          percentage: Math.min(100, (update.used / update.size) * 100),
+          model: this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+        }
+      })
+    }
     if (update.sessionUpdate === 'current_mode_update' && !this.modeConfigId && this.legacyMode) {
       this.legacyMode.currentModeId = update.currentModeId
       if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = update.currentModeId
       this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     }
-    if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text')
-      this.content(update.content.text, 'reasoning')
+    if (
+      this.active &&
+      (update.sessionUpdate === 'agent_thought_chunk' || update.sessionUpdate === 'agent_message_chunk')
+    ) {
+      const reasoning = update.sessionUpdate === 'agent_thought_chunk'
+      if (update.content.type === 'text') this.content(update.content.text, reasoning ? 'reasoning' : 'text')
+      else {
+        this.endContent()
+        this.chunk({ type: 'data-acp-content', id: randomUUID(), data: { content: update.content, reasoning } })
+      }
+    }
     if (update.sessionUpdate === 'plan' && this.active) {
       this.endContent()
       this.planId ??= randomUUID()
       this.chunk({ type: 'data-agent-plan', id: this.planId, data: { entries: update.entries } })
     }
     if (update.sessionUpdate === 'config_option_update') this.readConfigOptions(update.configOptions)
-    if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text')
-      this.content(update.content.text)
     if ((update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') && this.active) {
       this.endContent()
       const previous = this.toolInputs.get(update.toolCallId)
@@ -442,12 +501,29 @@ export class AcpConnection extends LocalConnection {
     for (const item of tool.content ?? []) {
       if (typeof item === 'object' && item !== null && 'terminalId' in item && typeof item.terminalId === 'string') {
         const terminal = this.terminals.get(item.terminalId)
-        if (terminal) tool.terminals = { ...tool.terminals, [item.terminalId]: terminal.output }
+        if (terminal) {
+          tool.terminals = { ...tool.terminals, [item.terminalId]: terminal.output }
+          tool.terminalDetails = {
+            ...tool.terminalDetails,
+            [item.terminalId]: { truncated: terminal.truncated, ...terminal.exitStatus }
+          }
+        }
       }
     }
     this.tool(id, `ACP: ${tool.title}`, { localAcpTool: structuredClone(tool) }, true)
     if (tool.status === 'completed' || tool.status === 'failed')
       this.result(id, tool.rawOutput ?? tool.content ?? tool.status, tool.status === 'failed')
+  }
+
+  private publishTerminal(terminalId: string) {
+    for (const [id, tool] of this.toolInputs) {
+      if (
+        tool.content?.some(
+          (item) => typeof item === 'object' && item !== null && 'terminalId' in item && item.terminalId === terminalId
+        )
+      )
+        this.publishTool(id, tool)
+    }
   }
 
   async send(input: AgentRuntimeUserInput) {
@@ -506,9 +582,29 @@ export class AcpConnection extends LocalConnection {
       await this.connection?.agent.notify('session/cancel', { sessionId: this.nativeId }).catch(() => {})
       await this.waitForTurn()
     }
+    if (this.supportsClose && this.nativeId && this.connection && !this.connection.signal.aborted) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          this.connection.agent.request('session/close', { sessionId: this.nativeId }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('ACP session close timed out')), 2000)
+          })
+        ])
+      } catch (error) {
+        logger.warn('ACP session close failed; terminating owned processes', { sessionId: this.sessionId, error })
+      } finally {
+        clearTimeout(timer)
+      }
+    }
     this.connection?.close()
-    await Promise.all([...this.terminals.values()].map((terminal) => this.stopProcess(terminal.child)))
-    this.terminals.clear()
-    await this.stopProcess(this.process)
+    try {
+      await Promise.all([
+        ...[...this.terminals.values()].map((terminal) => this.stopProcess(terminal.child)),
+        this.stopProcess(this.process)
+      ])
+    } finally {
+      this.terminals.clear()
+    }
   }
 }

@@ -68,7 +68,11 @@ export async function listLocalAgentModels(config: LocalAgentConfiguration): Pro
   const live = await connection(`local-agent-models:${randomUUID()}`, '', { ...config, nativeModel: undefined })
   try {
     await startWithTimeout(live, application.getPath('cherry.bin'), undefined, 'models')
-    return { models: live.localSessionInfo.models, activeModel: live.localSessionInfo.activeModel }
+    return {
+      models: live.localSessionInfo.models,
+      activeModel: live.localSessionInfo.activeModel,
+      authMethods: live.localSessionInfo.protocolInfo?.authMethods
+    }
   } finally {
     await live.close()
   }

@@ -307,7 +307,15 @@ export interface LocalAgentDetection {
   version?: string
 }
 
+export const LocalAgentAuthMethodSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['agent', 'terminal']).default('agent')
+})
+export type LocalAgentAuthMethod = z.infer<typeof LocalAgentAuthMethodSchema>
+
 export const LocalAgentModelCatalogSchema = z.object({
+  authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
   models: z.array(z.object({ id: z.string().min(1), name: z.string() })),
   activeModel: z.object({ id: z.string(), name: z.string().optional() }).optional()
 })
@@ -317,7 +325,7 @@ export const LocalAgentProtocolInfoSchema = z.object({
   protocolVersion: z.number(),
   agent: z.object({ name: z.string(), version: z.string(), title: z.string().optional() }).optional(),
   capabilities: z.record(z.string(), z.unknown()),
-  authMethods: z.array(z.object({ id: z.string(), name: z.string() })),
+  authMethods: z.array(LocalAgentAuthMethodSchema),
   verified: z.array(z.enum(['handshake', 'session', 'prompt']))
 })
 export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema>
@@ -328,7 +336,24 @@ export interface LocalAgentSelection {
   options: Array<{ value: string; name: string; description?: string }>
 }
 
+export type LocalAgentConfigOption = {
+  id: string
+  name: string
+  description?: string | null
+} & (
+  | { type: 'boolean'; currentValue: boolean }
+  | {
+      type: 'select'
+      currentValue: string
+      options: Array<
+        | { value: string; name: string; description?: string | null }
+        | { group: string; name: string; options: Array<{ value: string; name: string; description?: string | null }> }
+      >
+    }
+)
+
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
+  configOptions?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
   thoughtLevel?: LocalAgentSelection
   protocolInfo?: LocalAgentProtocolInfo
@@ -405,6 +430,12 @@ export const LocalAcpToolSchema = z.object({
   content: z.array(z.unknown()).optional(),
   rawInput: z.unknown().optional(),
   rawOutput: z.unknown().optional(),
-  terminals: z.record(z.string(), z.string()).optional()
+  terminals: z.record(z.string(), z.string()).optional(),
+  terminalDetails: z
+    .record(
+      z.string(),
+      z.object({ truncated: z.boolean(), exitCode: z.number().optional(), signal: z.string().optional() })
+    )
+    .optional()
 })
 export type LocalAcpTool = z.infer<typeof LocalAcpToolSchema>

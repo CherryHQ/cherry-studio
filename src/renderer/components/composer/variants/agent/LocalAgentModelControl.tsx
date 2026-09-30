@@ -55,7 +55,10 @@ export function LocalAgentModelControl({
     if (nativeModel === config.nativeModel) return true
     setSaving(true)
     try {
-      const updated = await updateAgent({ id: agent.id, configuration: { localRuntime: { ...config, nativeModel } } })
+      const updated = await updateAgent(
+        { id: agent.id, configuration: { localRuntime: { ...config, nativeModel } } },
+        { showSuccessToast: false }
+      )
       return !!updated
     } finally {
       setSaving(false)

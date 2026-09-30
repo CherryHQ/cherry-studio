@@ -1,19 +1,25 @@
-import { Loader2, LogIn } from 'lucide-react'
+import { ExternalLink, Loader2, LogIn } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentAuthMethod, LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 export function LocalAgentLogin({
   config,
+  authMethods,
+  modelsLoading,
+  available,
   disabled,
   helpUrl,
   onAuthenticated
 }: {
   config: LocalAgentConfiguration
+  authMethods?: LocalAgentAuthMethod[]
+  modelsLoading: boolean
+  available: boolean
   disabled: boolean
   helpUrl?: string
   onAuthenticated: (config: LocalAgentConfiguration) => Promise<void>
@@ -21,7 +27,31 @@ export function LocalAgentLogin({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [methods, setMethods] = useState<Array<{ id: string; name: string }>>([])
+  const [discovered, setDiscovered] = useState<{ signature: string; methods: LocalAgentAuthMethod[] }>()
+  const signature = JSON.stringify([
+    config.protocol,
+    config.presetId,
+    config.executableOverride,
+    config.args,
+    config.env
+  ])
+  const methods = authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined)
+  const usableMethods = methods?.filter((method) => method.type === 'agent' || helpUrl)
+  const directMethods = usableMethods?.filter((method) => method.type === 'agent') ?? []
+  useEffect(() => {
+    if (!available || modelsLoading || authMethods !== undefined) return
+    let active = true
+    const [protocol, presetId, executableOverride, args, env] = JSON.parse(signature)
+    void ipcApi
+      .request('ai.local_agents.check', { protocol, presetId, executableOverride, args, env, enabled: true })
+      .then((result) => {
+        if (active && result.protocolInfo) setDiscovered({ signature, methods: result.protocolInfo.authMethods })
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [available, modelsLoading, authMethods, signature])
   const [method, setMethod] = useState<string>()
   const [apiKey, setApiKey] = useState('')
   const [project, setProject] = useState('')
@@ -59,26 +89,9 @@ export function LocalAgentLogin({
           : message
     )
   }
-  const discover = async () => {
-    const current = ++generation.current
-    setOpen(true)
-    setBusy(true)
-    setError(undefined)
-    setMethods([])
-    setMethod(undefined)
-    setApiKey('')
-    try {
-      const result = await ipcApi.request('ai.local_agents.check', config)
-      if (generation.current !== current) return
-      if (!result.ok) throw new Error(result.error)
-      setMethods(result.protocolInfo?.authMethods ?? [])
-    } catch (failure) {
-      if (generation.current === current) showError(failure)
-    } finally {
-      if (generation.current === current) setBusy(false)
-    }
-  }
   const chooseMethod = (methodId: string) => {
+    setOpen(true)
+    setError(undefined)
     if (
       config.presetId !== 'antigravity-acp' ||
       !['gemini-api-key', 'agent-platform', 'oauth-business'].includes(methodId)
@@ -128,6 +141,21 @@ export function LocalAgentLogin({
       }
     }
   }
+  if (!available || !usableMethods?.length) return null
+  if (!directMethods.length) {
+    return (
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none">
+        <a href={helpUrl} target="_blank" rel="noreferrer">
+          <ExternalLink className="lucide-custom size-3.5 text-muted-foreground" />
+          {t('local_agents.login_help')}
+        </a>
+      </Button>
+    )
+  }
   return (
     <>
       <Button
@@ -135,7 +163,13 @@ export function LocalAgentLogin({
         size="sm"
         className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
         disabled={disabled || busy}
-        onClick={() => void discover()}>
+        onClick={() => {
+          if (usableMethods.length === 1) chooseMethod(usableMethods[0].id)
+          else {
+            setError(undefined)
+            setOpen(true)
+          }
+        }}>
         <LogIn className="lucide-custom size-3.5 text-muted-foreground" />
         {t('local_agents.sign_in')}
       </Button>
@@ -156,7 +190,7 @@ export function LocalAgentLogin({
             </p>
           ) : method ? (
             <div className="space-y-3">
-              <p className="text-sm font-medium">{methods.find((entry) => entry.id === method)?.name}</p>
+              <p className="text-sm font-medium">{usableMethods.find((entry) => entry.id === method)?.name}</p>
               {(needsKey || platform) && (
                 <div className="space-y-1.5">
                   <Label htmlFor="local-agent-login-key">{t('settings.models.api_key')}</Label>
@@ -217,13 +251,18 @@ export function LocalAgentLogin({
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {methods.map((method) => (
-                <Button key={method.id} variant="outline" onClick={() => chooseMethod(method.id)}>
-                  {method.name}
-                </Button>
-              ))}
-              {!methods.length && !error && (
-                <p className="text-sm text-muted-foreground">{t('local_agents.auth_external')}</p>
+              {usableMethods.map((method) =>
+                method.type === 'agent' ? (
+                  <Button key={method.id} variant="outline" onClick={() => chooseMethod(method.id)}>
+                    {method.name}
+                  </Button>
+                ) : (
+                  <Button key={method.id} asChild variant="outline">
+                    <a href={helpUrl} target="_blank" rel="noreferrer">
+                      {t('local_agents.login_help')}
+                    </a>
+                  </Button>
+                )
               )}
             </div>
           )}

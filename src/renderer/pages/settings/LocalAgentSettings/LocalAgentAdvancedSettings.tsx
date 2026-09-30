@@ -77,6 +77,8 @@ export function LocalAgentAdvancedSettings({
       open
       onClose={close}
       title={t('common.advanced_settings')}
+      headerClassName="pb-0"
+      bodyClassName="pt-0"
       closeLabel={t('common.close')}
       footer={
         <div className="space-y-3">

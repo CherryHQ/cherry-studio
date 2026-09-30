@@ -191,7 +191,7 @@ describe('MessageTokens', () => {
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
   })
 
-  it('shows localized unavailable values without false throughput for empty runtime token counters', () => {
+  it('hides the token entry for empty runtime token counters', () => {
     renderWithProvider(
       createMessage('assistant', {
         inputTokens: 0,
@@ -202,15 +202,10 @@ describe('MessageTokens', () => {
       })
     )
 
-    expect(screen.getByRole('button', { name: 'Not available Tokens' })).toHaveClass('message-tokens')
-    expect(screen.queryByRole('button', { name: '0 Tokens' })).not.toBeInTheDocument()
-    openDetails()
-    expect(getDetailsCard()).not.toHaveTextContent('0 Tokens/s')
-    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPSNot available')
-    expect(getDetailsCard()).not.toHaveTextContent('End-to-end throughput')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('shows unavailable after reloading an Agent message with cost but no token counts', () => {
+  it('hides the token entry after reloading an Agent message with cost but no token counts', () => {
     const row = {
       id: 'agent-message-1',
       sessionId: 'agent-session-1',
@@ -241,12 +236,7 @@ describe('MessageTokens', () => {
 
     renderWithProvider(reloadedMessage, 'agent-session')
 
-    openDetails()
-
-    expect(screen.getByRole('button', { name: 'Not available Tokens' })).toHaveClass('message-tokens')
-    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('InputNot available')
-    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('OutputNot available')
-    expect(screen.getByTestId('message-cost')).toHaveTextContent('$0.0123')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {

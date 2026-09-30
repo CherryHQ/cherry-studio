@@ -1,8 +1,9 @@
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 
 const protocol = process.argv[2]
 const scenario = process.argv[3]
+if (process.env.FIXTURE_LOG) writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
 const emit = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
 const reply = (id, result) => emit({ id, result })
 const update = (value) => emit({ method: 'session/update', params: { sessionId: 'native-session', update: value } })
@@ -48,6 +49,29 @@ const thought = () => ({
     }
   ]
 })
+let verbosity = 'brief'
+let notifications = false
+const extraConfig = () => [
+  {
+    id: 'verbosity',
+    name: 'Answer detail',
+    description: 'Response length',
+    category: '_verbosity',
+    type: 'select',
+    currentValue: verbosity,
+    options: [
+      {
+        group: 'detail',
+        name: 'Detail levels',
+        options: [
+          { value: 'brief', name: 'Brief' },
+          { value: 'verbose', name: 'Detailed', description: 'Include explanation' }
+        ]
+      }
+    ]
+  },
+  { id: 'notifications', name: 'Notifications', type: 'boolean', currentValue: notifications }
+]
 let promptId
 const finish = () => {
   if (protocol === 'acp')
@@ -88,13 +112,32 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             protocolVersion: 1,
             agentInfo: { name: 'fixture', version: '1.0' },
             agentCapabilities: {
-              loadSession: scenario !== 'no-resume',
+              loadSession: scenario !== 'no-resume' && scenario !== 'resume-only',
+              ...(scenario.startsWith('resume') || scenario.startsWith('close')
+                ? {
+                    sessionCapabilities: {
+                      ...(scenario.startsWith('resume') ? { resume: scenario === 'resume-null' ? null : {} } : {}),
+                      ...(scenario.startsWith('close') ? { close: scenario === 'close-null' ? null : {} } : {})
+                    }
+                  }
+                : {}),
               promptCapabilities: {
                 image: scenario !== 'no-images',
                 ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
               }
             },
-            authMethods: scenario.startsWith('auth-') ? [{ id: 'oauth-personal', name: 'Google' }] : []
+            authMethods: scenario.startsWith('auth-')
+              ? [
+                  {
+                    id: 'oauth-personal',
+                    name: 'Google',
+                    ...(scenario === 'auth-terminal' ? { type: 'terminal', args: ['--login'] } : {}),
+                    ...(scenario === 'auth-legacy-terminal'
+                      ? { _meta: { 'terminal-auth': { command: 'fixture' } } }
+                      : {})
+                  }
+                ]
+              : []
           }
         : { userAgent: 'fixture' }
     )
@@ -115,14 +158,34 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }) + '\n'
       )
     } else reply(id, {})
-  } else if (method === 'session/new' || method === 'session/load') {
+  } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
+    if (method === 'session/resume' && scenario === 'resume-error') {
+      return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
+    }
     cwd = message.params.cwd
     if (method === 'session/load') {
       text('REPLAY MUST NOT APPEAR')
       update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'REPLAY THOUGHT' } })
       update({ sessionUpdate: 'plan', entries: [{ content: 'REPLAY PLAN', priority: 'low', status: 'pending' }] })
     }
-    if (scenario === 'initial-updates') {
+    if (scenario === 'session-title') {
+      update({ sessionUpdate: 'session_info_update', title: 'Native initial title' })
+      emit({
+        method: 'session/update',
+        params: { sessionId: 'unrelated', update: { sessionUpdate: 'session_info_update', title: 'Wrong title' } }
+      })
+    }
+    if (scenario === 'context-usage') {
+      update({ sessionUpdate: 'usage_update', used: 20, size: 100 })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 99, size: 100 }
+        }
+      })
+    }
+    if (scenario === 'initial-updates' || scenario.startsWith('resume')) {
       update({
         sessionUpdate: 'available_commands_update',
         availableCommands: [{ name: 'review', description: 'Review code' }]
@@ -140,6 +203,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       update({
         sessionUpdate: 'config_option_update',
         configOptions: [
+          ...(scenario.startsWith('resume') ? [mode(), thought()] : []),
           {
             id: 'model',
             category: 'model',
@@ -173,8 +237,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         scenario === 'no-models' || scenario === 'legacy-models'
           ? []
           : [
-              ...(scenario.startsWith('mode') && scenario !== 'mode-legacy' ? [mode()] : []),
-              ...(scenario.startsWith('thought') ? [thought()] : []),
+              ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                ? [mode()]
+                : []),
+              ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
+              ...(scenario.startsWith('config') ? extraConfig() : []),
               {
                 id: 'model',
                 category: 'model',
@@ -185,11 +252,22 @@ createInterface({ input: process.stdin }).on('line', (line) => {
               }
             ]
     })
+  } else if (method === 'session/close') {
+    if (scenario === 'close-hang') return
+    if (scenario === 'close-error') return emit({ id, error: { code: -32603, message: 'Close failed' } })
+    reply(id, {})
   } else if (method === 'session/set_mode') {
     modeValue = message.params.modeId
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
   } else if (method === 'session/set_config_option') {
+    if (scenario.startsWith('config')) {
+      if (scenario === 'config-error') return emit({ id, error: { code: -32602, message: 'Configuration rejected' } })
+      if (message.params.configId === 'verbosity') verbosity = message.params.value
+      if (message.params.configId === 'notifications') notifications = message.params.value
+      return reply(id, { configOptions: extraConfig() })
+    }
+
     if (message.params.configId === 'agent-mode') {
       if (scenario === 'mode-error') return emit({ id, error: { code: -32602, message: 'Mode unavailable' } })
       modeValue = message.params.value
@@ -233,9 +311,54 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
     }
+    if (scenario === 'context-usage') {
+      update({
+        sessionUpdate: 'usage_update',
+        used: turn === 1 ? 40 : 10,
+        size: 100,
+        cost: { amount: 1, currency: 'USD' }
+      })
+      update({ sessionUpdate: 'usage_update', used: 10, size: 0 })
+      update({ sessionUpdate: 'usage_update', used: -1, size: 100 })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 99, size: 100 }
+        }
+      })
+    }
+    if (scenario === 'config-extra') update({ sessionUpdate: 'config_option_update', configOptions: [] })
+    if (scenario === 'session-title') {
+      update({ sessionUpdate: 'session_info_update', title: 'Native updated title' })
+      update({ sessionUpdate: 'session_info_update', title: null })
+      update({ sessionUpdate: 'session_info_update', updatedAt: '2026-09-30T00:00:00Z' })
+    }
     text(`turn ${turn}: `)
-    if (scenario === 'rich-cancel') {
+    if (scenario === 'rich-cancel' || scenario === 'close-active') {
       update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Still thinking' } })
+      return
+    }
+    if (scenario === 'rich-content') {
+      const contents = [
+        { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+        { type: 'audio', mimeType: 'audio/wav', data: 'YXVkaW8=' },
+        { type: 'resource_link', uri: 'https://example.com/report', name: 'report', description: 'Result report' },
+        { type: 'resource', resource: { uri: 'file:///example.txt', mimeType: 'text/plain', text: 'Embedded result' } },
+        { type: 'resource', resource: { uri: 'file:///example.bin', blob: 'YmluYXJ5' } }
+      ]
+      for (const content of contents) update({ sessionUpdate: 'agent_message_chunk', content })
+      update({ sessionUpdate: 'agent_thought_chunk', content: contents[0] })
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'output',
+        title: 'Read outputs',
+        status: 'in_progress',
+        content: contents.map((content) => ({ type: 'content', content }))
+      })
+      update({ sessionUpdate: 'tool_call_update', toolCallId: 'output', status: 'failed', rawOutput: 'Read failed' })
+      text('Done')
+      finish()
       return
     }
     if (scenario === 'rich-output') {

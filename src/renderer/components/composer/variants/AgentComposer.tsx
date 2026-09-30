@@ -115,6 +115,7 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
 import { LocalAgentModeControl } from './agent/LocalAgentModeControl'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
@@ -1851,6 +1852,14 @@ const AgentComposerInner = ({
           onReasoningEffortChange={handleReasoningEffortChange}
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
+        />
+      ) : null}
+      {agent?.type === 'local' && localInfo?.configOptions && !launchOptions?.editing ? (
+        <LocalAgentConfigControl
+          key={sessionId}
+          sessionId={sessionId}
+          options={localInfo.configOptions}
+          disabled={isStreaming || localThoughtSaving}
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

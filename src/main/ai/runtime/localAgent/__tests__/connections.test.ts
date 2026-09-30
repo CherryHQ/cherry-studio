@@ -80,6 +80,22 @@ describe('local protocol processes', () => {
     ).rejects.toThrow('Rejected <redacted>')
   })
 
+  it.each(['auth-terminal', 'auth-legacy-terminal'])(
+    'does not report terminal setup as completed authentication: %s',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      await connection.start(cwd, undefined, true)
+      expect(connection.localSessionInfo.protocolInfo?.authMethods).toEqual([
+        { id: 'oauth-personal', name: 'Google', type: 'terminal' }
+      ])
+      await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
+        'requires external setup'
+      )
+      const log = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+      expect(log).not.toContain('"method":"authenticate"')
+    }
+  )
+
   it('authenticates with advertised native IDs without creating a conversation', async () => {
     const { connection } = create('acp', 'auth-success')
     await connection.start(cwd, undefined, true)
@@ -297,6 +313,58 @@ describe('local protocol processes', () => {
     expect(chunks.filter((chunk) => chunk.type === 'tool-output-available')).toHaveLength(1)
   })
 
+  it('preserves mixed output order and failed tool content without merging it into text', async () => {
+    const { connection, events, drained } = create('acp', 'rich-content')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    const chunks = events.flatMap((event) => (event.type === 'chunk' ? [event.chunk] : []))
+    const content = chunks.flatMap((chunk) => (chunk.type === 'data-acp-content' && 'data' in chunk ? [chunk] : []))
+    expect(content.map((chunk) => chunk.data)).toEqual([
+      { content: { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }, reasoning: false },
+      { content: { type: 'audio', mimeType: 'audio/wav', data: 'YXVkaW8=' }, reasoning: false },
+      {
+        content: {
+          type: 'resource_link',
+          uri: 'https://example.com/report',
+          name: 'report',
+          description: 'Result report'
+        },
+        reasoning: false
+      },
+      {
+        content: {
+          type: 'resource',
+          resource: { uri: 'file:///example.txt', mimeType: 'text/plain', text: 'Embedded result' }
+        },
+        reasoning: false
+      },
+      { content: { type: 'resource', resource: { uri: 'file:///example.bin', blob: 'YmluYXJ5' } }, reasoning: false },
+      { content: { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }, reasoning: true }
+    ])
+    expect(new Set(content.map((chunk) => chunk.id)).size).toBe(6)
+    const text = chunks.filter((chunk) => chunk.type === 'text-delta')
+    expect(text.map((chunk) => chunk.delta)).toEqual(['turn 1: ', 'Done'])
+    expect(text[0].id).not.toBe(text[1].id)
+    expect(chunks.indexOf(content[0])).toBeGreaterThan(chunks.indexOf(text[0]))
+    expect(chunks.indexOf(content[5])).toBeLessThan(chunks.indexOf(text[1]))
+    expect(chunks.filter((chunk) => chunk.type === 'tool-input-available').at(-1)).toMatchObject({
+      toolCallId: 'output',
+      input: {
+        localAcpTool: {
+          status: 'failed',
+          content: expect.arrayContaining([
+            { type: 'content', content: { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' } }
+          ])
+        }
+      }
+    })
+    expect(chunks.filter((chunk) => chunk.type === 'tool-output-error')).toEqual([
+      expect.objectContaining({ toolCallId: 'output', errorText: 'Read failed' })
+    ])
+  })
+
   it('closes a partial thought on interruption without starting another response', async () => {
     const { connection, events, drained } = create('acp', 'rich-cancel')
     await connection.start(cwd)
@@ -446,6 +514,29 @@ describe('local protocol processes', () => {
     })
   })
 
+  it.each([undefined, 'native-session'])(
+    'publishes current context snapshots from ACP creation or recovery: %s',
+    async (resume) => {
+      const { connection, events, drained } = create('acp', 'context-usage')
+      await connection.start(cwd, resume)
+      await connection.send(input)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      const readings = events.flatMap((event) => (event.type === 'context-usage' ? [event.usage] : []))
+      expect(readings).toEqual(
+        [20, 40, 10].map((used) => ({
+          categories: [],
+          totalTokens: used,
+          maxTokens: 100,
+          percentage: used,
+          model: 'fixture-default'
+        }))
+      )
+      expect(events.filter((event) => event.type === 'usage')).toEqual([])
+    }
+  )
+
   it('records only reported prompt usage, includes cache and reasoning, and resets between turns', async () => {
     const { connection, events, drained } = create('acp', 'usage')
     await connection.start(cwd)
@@ -477,7 +568,7 @@ describe('local protocol processes', () => {
     await connection.send(input)
     await connection.close()
     await drained
-    expect(events.filter((event) => event.type === 'usage')).toEqual([])
+    expect(events.filter((event) => event.type === 'usage' || event.type === 'context-usage')).toEqual([])
   })
 
   // Enumeration must not infer, apply a stale saved model, or create a Codex thread.
@@ -712,10 +803,159 @@ describe('local protocol processes', () => {
         : []
     )
     expect(terminalInputs.at(-1)).toMatchObject({
-      localAcpTool: { status: 'completed', terminals: expect.objectContaining({}) }
+      localAcpTool: {
+        status: 'completed',
+        terminalDetails: expect.any(Object)
+      }
     })
     expect(JSON.stringify(terminalInputs.at(-1))).toContain('terminal-result')
+    const terminal = terminalInputs.at(-1) as { localAcpTool: { terminalDetails: Record<string, unknown> } }
+    expect(Object.values(terminal.localAcpTool.terminalDetails)).toEqual([{ truncated: false, exitCode: 0 }])
   })
+
+  it.each(['resume-only', 'resume-both', 'resume-null'])(
+    'restores ACP state using negotiated capabilities: %s',
+    async (scenario) => {
+      const { connection, events, text } = create('acp', scenario)
+      await connection.start(cwd, 'native-session')
+      expect(connection.localSessionInfo).toMatchObject({
+        resume: true,
+        activeModel: { id: 'updated-model' },
+        mode: { id: 'agent-mode', currentValue: 'ask' },
+        thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' }
+      })
+      await vi.waitFor(() =>
+        expect(events).toContainEqual({
+          type: 'supported-commands',
+          commands: [{ name: 'review', description: 'Review code', argumentHint: '' }]
+        })
+      )
+      await connection.send(input)
+      expect(text()).toBe('turn 1: hello')
+      const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const restore = requests.filter(({ method }) =>
+        ['session/load', 'session/resume', 'session/new'].includes(method)
+      )
+      expect(restore).toEqual([
+        expect.objectContaining({
+          method: scenario === 'resume-null' ? 'session/load' : 'session/resume',
+          params: { sessionId: 'native-session', cwd, mcpServers: [] }
+        })
+      ])
+    }
+  )
+
+  it('retains a failed restore instead of loading or creating a replacement conversation', async () => {
+    const { connection } = create('acp', 'resume-error')
+    await expect(connection.start(cwd, 'native-session')).rejects.toThrow('Native session was not found')
+    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
+    expect(wire).toContain('session/resume')
+    expect(wire).not.toMatch(/session\/(new|load|prompt)/)
+  })
+
+  it.each(['close-ok', 'close-error', 'close-hang', 'close-null', 'normal'])(
+    'releases the owned process after capability-gated close, including errors and timeout: %s',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      await connection.start(cwd)
+      const pid = Number(await readFile(path.join(cwd, 'wire.jsonl.pid'), 'utf8'))
+      await Promise.all([connection.close(), connection.close()])
+      expect(() => process.kill(pid, 0)).toThrow()
+      const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      expect(requests.filter(({ method }) => method === 'session/close')).toEqual(
+        scenario === 'normal' || scenario === 'close-null'
+          ? []
+          : [expect.objectContaining({ params: { sessionId: 'native-session' } })]
+      )
+    }
+  )
+
+  it('settles an active turn before protocol close and releases the process only once', async () => {
+    const { connection, events, drained } = create('acp', 'close-active')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    await vi.waitFor(() =>
+      expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'text-delta')).toBe(true)
+    )
+    await connection.close()
+    await sending
+    await drained
+    const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(
+      requests.filter(({ method }) => ['session/cancel', 'session/close'].includes(method)).map(({ method }) => method)
+    ).toEqual(['session/cancel', 'session/close'])
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+  })
+
+  it('preserves grouped custom choices and boolean settings, and rejects removed or invalid options', async () => {
+    const { connection } = create('acp', 'config-extra')
+    await connection.start(cwd)
+    const acp = connection as AcpConnection
+    expect(acp.localSessionInfo.configOptions).toHaveLength(2)
+    expect(acp.localSessionInfo.configOptions?.[0]).toMatchObject({
+      name: 'Answer detail',
+      description: 'Response length',
+      options: [
+        {
+          group: 'detail',
+          name: 'Detail levels',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'verbose', name: 'Detailed', description: 'Include explanation' }
+          ]
+        }
+      ]
+    })
+    await expect(acp.setConfigOption('verbosity', 'missing')).rejects.toThrow('no longer available')
+    await expect(acp.setConfigOption('notifications', 'true')).rejects.toThrow('no longer available')
+    await acp.setConfigOption('verbosity', 'verbose')
+    await acp.setConfigOption('notifications', true)
+    expect(acp.localSessionInfo.configOptions?.map((option) => option.currentValue)).toEqual(['verbose', true])
+    await acp.send(input)
+    expect(acp.localSessionInfo.configOptions).toEqual([])
+    await expect(acp.setConfigOption('verbosity', 'brief')).rejects.toThrow('no longer available')
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(wire.filter(({ method }) => method === 'session/set_config_option').map(({ params }) => params)).toEqual([
+      { sessionId: 'native-session', configId: 'verbosity', value: 'verbose' },
+      { sessionId: 'native-session', configId: 'notifications', value: true }
+    ])
+  })
+
+  it('keeps the previous custom setting when the agent rejects a change', async () => {
+    const { connection } = create('acp', 'config-error')
+    await connection.start(cwd)
+    await expect((connection as AcpConnection).setConfigOption('verbosity', 'verbose')).rejects.toThrow(
+      'Configuration rejected'
+    )
+    expect(connection.localSessionInfo.configOptions?.[0].currentValue).toBe('brief')
+  })
+
+  it.each([undefined, 'native-session'])(
+    'receives native titles during setup and conversation without accepting other sessions: %s',
+    async (resume) => {
+      const { connection, events, drained } = create('acp', 'session-title')
+      await connection.start(cwd, resume)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      expect(events.filter((event) => event.type === 'session-title')).toEqual([
+        { type: 'session-title', title: 'Native initial title' },
+        { type: 'session-title', title: 'Native updated title' }
+      ])
+    }
+  )
 
   it('suppresses ACP replay during load and rejects unsupported restore', async () => {
     const { connection, text } = create('acp')

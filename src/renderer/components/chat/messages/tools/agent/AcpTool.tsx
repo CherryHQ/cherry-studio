@@ -3,16 +3,16 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { StaticMarkdown } from '@renderer/components/markdown'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 
+import { AcpContentBlock } from '../../blocks/AcpContentBlock'
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentFileDiffView } from './AgentFileDiffView'
 
 const ContentSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('content'), content: z.object({ type: z.literal('text'), text: z.string() }) }),
+  z.object({ type: z.literal('content'), content: z.unknown() }),
   z.object({ type: z.literal('diff'), path: z.string(), oldText: z.string().nullish(), newText: z.string() }),
   z.object({ type: z.literal('terminal'), terminalId: z.string() })
 ])
@@ -62,13 +62,26 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
                 />
               </div>
             )
-          if (item.type === 'content') return <StaticMarkdown key={index}>{item.content.text}</StaticMarkdown>
+          if (item.type === 'content') return <AcpContentBlock key={index} content={item.content} />
+          const details = tool.terminalDetails?.[item.terminalId]
           return (
-            <Scrollbar key={index} className="max-h-64 rounded-md bg-muted p-2">
-              <pre className="whitespace-pre-wrap break-all font-mono">
-                {tool.terminals?.[item.terminalId] ?? item.terminalId}
-              </pre>
-            </Scrollbar>
+            <div key={index} className="space-y-1">
+              <Scrollbar className="max-h-64 rounded-md bg-muted p-2">
+                <pre className="whitespace-pre-wrap break-all font-mono">
+                  {tool.terminals?.[item.terminalId] ?? item.terminalId}
+                </pre>
+              </Scrollbar>
+              {details && (
+                <div className="flex gap-2 text-muted-foreground">
+                  {details.truncated && <span>{t('error.truncatedBadge')}</span>}
+                  {(details.exitCode != null || details.signal) && (
+                    <span>
+                      {t('message.tools.sections.exitCode')}: {details.exitCode ?? details.signal}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           )
         })}
         {tool.rawInput != null && (

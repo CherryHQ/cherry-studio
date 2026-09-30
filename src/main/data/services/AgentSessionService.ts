@@ -40,6 +40,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -814,6 +815,29 @@ export class AgentSessionService {
     }
 
     return { items: items.map((i) => i.session), nextCursor }
+  }
+
+  updateGeneratedName(id: string, title: string): boolean {
+    const name = sanitizeConversationTitle(title)
+    if (!name) return false
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ name, updatedAt: Date.now() })
+      .where(
+        and(
+          eq(sessionsTable.id, id),
+          isNull(sessionsTable.deletedAt),
+          eq(sessionsTable.isNameManuallyEdited, false),
+          sql`${sessionsTable.name} != ${name}`
+        )
+      )
+      .run()
+    if (!result.changes) return false
+    this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
+    return true
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {

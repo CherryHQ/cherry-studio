@@ -139,6 +139,7 @@ export type RetryPartData =
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  'acp-content': { content: unknown; reasoning: boolean }
   'agent-plan': LocalAgentPlan
   error: ErrorPartData
   translation: TranslationPartData

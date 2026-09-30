@@ -1,26 +1,32 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 
 import { LocalAgentLogin } from '../LocalAgentLogin'
 
+vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+
+beforeEach(() => {
+  vi.resetAllMocks()
+})
 
 const config = { protocol: 'acp' as const, enabled: true, args: [], env: {} }
 const checked = {
   ok: true,
   status: 'ready',
-  protocolInfo: { authMethods: [{ id: 'native-google', name: 'Google account' }] }
+  protocolInfo: { authMethods: [{ id: 'native-google', name: 'Google account', type: 'agent' }] }
 }
 
 describe('ACP sign-in', () => {
   it('uses the advertised method and refreshes only after authentication succeeds', async () => {
     vi.mocked(ipcApi.request).mockResolvedValueOnce(checked).mockResolvedValueOnce(undefined)
     const refreshed = vi.fn().mockResolvedValue(undefined)
-    render(<LocalAgentLogin config={config} disabled={false} onAuthenticated={refreshed} />)
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Google account' }))
+    render(
+      <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '登录' }))
     await waitFor(() => expect(refreshed).toHaveBeenCalledOnce())
     expect(ipcApi.request).toHaveBeenLastCalledWith('ai.local_agents.authenticate', {
       requestId: expect.any(String),
@@ -35,9 +41,10 @@ describe('ACP sign-in', () => {
       .mockResolvedValueOnce(checked)
       .mockRejectedValueOnce(new Error('Not currently available in your location'))
     const refreshed = vi.fn()
-    render(<LocalAgentLogin config={config} disabled={false} onAuthenticated={refreshed} />)
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Google account' }))
+    render(
+      <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '登录' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('当前账号所在地区暂不支持此智能体。')
     expect(refreshed).not.toHaveBeenCalled()
   })
@@ -47,9 +54,10 @@ describe('ACP sign-in', () => {
       .mockImplementationOnce(() => new Promise(() => {}))
       .mockResolvedValueOnce(undefined)
     const refreshed = vi.fn()
-    const { unmount } = render(<LocalAgentLogin config={config} disabled={false} onAuthenticated={refreshed} />)
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Google account' }))
+    const { unmount } = render(
+      <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '登录' }))
     expect(await screen.findByRole('status')).toHaveTextContent('请在浏览器中完成登录')
     const requestId = (
       vi.mocked(ipcApi.request).mock.calls[vi.mocked(ipcApi.request).mock.calls.length - 1][1] as { requestId: string }
@@ -62,19 +70,20 @@ describe('ACP sign-in', () => {
     vi.mocked(ipcApi.request)
       .mockResolvedValueOnce({
         ...checked,
-        protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key' }] }
+        protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
       })
       .mockResolvedValueOnce(undefined)
     const saved = vi.fn().mockResolvedValue(undefined)
     render(
       <LocalAgentLogin
+        available
+        modelsLoading={false}
         config={{ ...config, presetId: 'antigravity-acp', env: { KEEP: 'value' } }}
         disabled={false}
         onAuthenticated={saved}
       />
     )
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Gemini API key' }))
+    fireEvent.click(await screen.findByRole('button', { name: '登录' }))
     const input = screen.getByLabelText('API 密钥')
     expect(input).toHaveAttribute('type', 'password')
     const submit = screen.getAllByRole('button', { name: '登录' }).at(-1)!
@@ -98,19 +107,20 @@ describe('ACP sign-in', () => {
     vi.mocked(ipcApi.request)
       .mockResolvedValueOnce({
         ...checked,
-        protocolInfo: { authMethods: [{ id: 'agent-platform', name: 'Agent Platform' }] }
+        protocolInfo: { authMethods: [{ id: 'agent-platform', name: 'Agent Platform', type: 'agent' }] }
       })
       .mockResolvedValueOnce(undefined)
     const saved = vi.fn().mockResolvedValue(undefined)
     render(
       <LocalAgentLogin
+        available
+        modelsLoading={false}
         config={{ ...config, presetId: 'antigravity-acp', env: { GOOGLE_API_KEY: 'old-key' } }}
         disabled={false}
         onAuthenticated={saved}
       />
     )
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Agent Platform' }))
+    fireEvent.click(await screen.findByRole('button', { name: '登录' }))
     fireEvent.change(screen.getByLabelText('API 密钥'), { target: { value: '' } })
     const submit = screen.getAllByRole('button', { name: '登录' }).at(-1)!
     expect(submit).toBeDisabled()
@@ -124,5 +134,35 @@ describe('ACP sign-in', () => {
         })
       )
     )
+  })
+})
+
+const props = {
+  config,
+  available: true,
+  disabled: false,
+  modelsLoading: false,
+  helpUrl: 'https://example.com/login',
+  onAuthenticated: vi.fn(async () => {})
+}
+
+describe('external authentication', () => {
+  it('offers a help link for terminal authentication without an ineffective login action', () => {
+    render(
+      <LocalAgentLogin
+        {...props}
+        authMethods={[{ id: 'terminal-login', name: 'Launch pi in the terminal', type: 'terminal' }]}
+      />
+    )
+    expect(screen.getByRole('link', { name: '登录帮助' })).toHaveAttribute('href', props.helpUrl)
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(ipcApi.request).not.toHaveBeenCalled()
+  })
+
+  it('hides login when no authentication method was advertised', () => {
+    render(<LocalAgentLogin {...props} authMethods={[]} />)
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+    expect(ipcApi.request).not.toHaveBeenCalled()
   })
 })

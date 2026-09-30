@@ -66,12 +66,10 @@ export function LocalAgentModelList({
     else grouped.set(group, [model])
   }
   const groups = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))
-  const rowClass = (selected: boolean) =>
-    cn(
-      'group flex min-h-[42px] items-center gap-2.5 px-2.5 py-1 text-foreground leading-none',
-      'h-auto w-full justify-start rounded-lg font-normal hover:bg-accent/40 disabled:opacity-100',
-      selected && 'bg-accent/70'
-    )
+  const rowClass = cn(
+    'group flex min-h-[42px] items-center gap-2.5 px-2.5 py-1 text-foreground leading-none',
+    'h-auto w-full justify-start rounded-lg font-normal hover:bg-accent/40 aria-pressed:hover:bg-transparent disabled:opacity-100'
+  )
   return (
     <section className="space-y-3 pt-3" aria-labelledby="local-agent-model-label">
       <div className="flex min-h-8 flex-wrap items-center gap-1">
@@ -144,7 +142,7 @@ export function LocalAgentModelList({
           variant="ghost"
           aria-pressed={!value}
           disabled={disabled}
-          className={rowClass(!value)}
+          className={rowClass}
           onClick={() => void onSelect()}>
           <CliModelAvatar className="size-[26px] shrink-0 rounded-full border border-border" />
           <span className="min-w-0 flex-1 truncate text-left text-sm">{t('local_agents.follow_cli')}</span>
@@ -179,7 +177,7 @@ export function LocalAgentModelList({
                     variant="ghost"
                     aria-pressed={value === model.id}
                     disabled={disabled}
-                    className={rowClass(value === model.id)}
+                    className={rowClass}
                     onClick={() => void onSelect(model.id)}>
                     <ModelAvatar
                       model={model}
@@ -208,7 +206,6 @@ export function LocalAgentModelList({
           </p>
         )
       )}
-      <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.model_hint')}</p>
     </section>
   )
 }

@@ -27,8 +27,40 @@ describe('ACP tool details', () => {
     }
     const { rerender } = render(<Tool tool={tool} />)
     expect(screen.getByText('checking')).toBeInTheDocument()
-    rerender(<Tool tool={{ ...tool, status: 'completed', terminals: { term: 'checks passed' } }} />)
+    rerender(
+      <Tool
+        tool={{
+          ...tool,
+          status: 'completed',
+          terminals: { term: 'checks passed' },
+          terminalDetails: { term: { truncated: true, exitCode: 0 } }
+        }}
+      />
+    )
     expect(screen.getByText('checks passed')).toBeInTheDocument()
     expect(screen.queryByText('checking')).not.toBeInTheDocument()
+    expect(screen.getByText('error.truncatedBadge')).toBeInTheDocument()
+    expect(screen.getByText('message.tools.sections.exitCode: 0')).toBeInTheDocument()
+  })
+  it('renders embedded tool resources instead of their JSON envelope', () => {
+    render(
+      <Tool
+        tool={{
+          title: 'Read report',
+          content: [
+            {
+              type: 'content',
+              content: {
+                type: 'resource',
+                resource: { uri: 'report://summary', text: 'Report body' }
+              }
+            }
+          ]
+        }}
+      />
+    )
+    expect(screen.getByText('Report body')).toBeInTheDocument()
+    expect(screen.getByText('report://summary')).toBeInTheDocument()
+    expect(screen.queryByText('message.tools.sections.output')).not.toBeInTheDocument()
   })
 })

@@ -279,6 +279,7 @@ type AgentSessionRuntimeEntry = {
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
+  nativeTitleReceived?: boolean
   lastResumeToken?: string
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
@@ -1910,6 +1911,11 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'context-usage':
         this.persistContextUsage(entry, event.usage)
         break
+      case 'session-title':
+        entry.nativeTitleReceived = true
+        if (agentSessionService.updateGeneratedName(entry.sessionId, event.title))
+          application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId: entry.sessionId })
+        break
       case 'local-session-info':
         application
           .get('IpcApiService')
@@ -3309,7 +3315,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const userText = extractMessageText(userMessage)
     const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+          if (!entry.nativeTitleReceived)
+            await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
       : undefined
     return new PersistenceListener({
@@ -3335,6 +3342,14 @@ export class AgentSessionRuntimeService extends BaseService {
       onPersistFailed: (error) =>
         application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
     })
+  }
+
+  async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    if (!connection?.setConfigOption || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    return connection.setConfigOption(configId, value)
   }
 
   async setLocalMode(sessionId: string, configId: string, value: string) {
