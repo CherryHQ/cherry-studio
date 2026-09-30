@@ -44,7 +44,7 @@ describe('CI validation planning', () => {
       writeFileSync(output, '')
       execFileSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
         cwd,
-        env: { ...process.env, EVENT_NAME: event, BEFORE_SHA: before, GITHUB_OUTPUT: output }
+        env: { ...process.env, VALIDATION_PLAN: '', EVENT_NAME: event, BEFORE_SHA: before, GITHUB_OUTPUT: output }
       })
       return JSON.parse(
         readFileSync(output, 'utf8')
