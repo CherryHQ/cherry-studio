@@ -351,7 +351,7 @@ describe('runV2MigrationGate', () => {
       stubPlatform(false)
       const { runV2MigrationGate } = await loadModule()
       expect(await runV2MigrationGate()).toBe('handled')
-      expect(recoveryMock).toHaveBeenCalledWith(error)
+      expect(recoveryMock).toHaveBeenCalledWith(error, defaultMigrationPaths.databaseFile)
       expect(appRelaunchMock).toHaveBeenCalledTimes(action === 'retry' ? 1 : 0)
       expect(forceExitMock).toHaveBeenCalledTimes(action === 'exit' ? 1 : 0)
       expect(migrationWindowCreateMock).not.toHaveBeenCalled()
@@ -406,14 +406,14 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error))
+      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error), defaultMigrationPaths.databaseFile)
       expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(forceExitMock).toHaveBeenCalledWith(1)
     })
 
-    it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
+    it('offers recovery for a locked database in development without suggesting deletion', async () => {
       initializeMock.mockImplementation(() => {
-        throw new Error('DB unavailable')
+        throw new Error('DB unavailable', { cause: { code: 'SQLITE_BUSY' } })
       })
       stubMigrationV2()
       stubElectron()
@@ -424,13 +424,8 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed (Dev)')
-      expect(message).toContain('DB unavailable')
-      // Dev surfaces BOTH possibilities (incompatible data vs migration bug) + the DB path,
-      // and explicitly does NOT assert "just delete the DB".
-      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(message).toContain('Do NOT just delete the DB')
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error), defaultMigrationPaths.databaseFile)
       expect(forceExitMock).toHaveBeenCalledWith(1)
     })
   })

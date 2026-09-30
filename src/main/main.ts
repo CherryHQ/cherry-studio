@@ -29,7 +29,6 @@ import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
-requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
@@ -49,6 +48,8 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  if (!(await requireSingleInstance())) return
+
   // Reset before backup, migration, or services open user data.
   runDataReset()
 

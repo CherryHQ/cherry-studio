@@ -185,34 +185,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       return 'handled'
     }
 
-    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
-    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
-    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
-    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
-    // in production we stay neutral and never tell a real user to delete their data.
-    if (isDev) {
-      dialog.showErrorBox(
-        'Migration Failed (Dev) - Application Cannot Start',
-        `Startup migration failed while applying schema changes:\n\n` +
-          `  ${reason}\n\n` +
-          `In development this is usually one of:\n\n` +
-          `  1. Your local database predates a schema change (incompatible legacy data). ` +
-          `If this is throwaway dev data, reset it and restart:\n` +
-          `       rm -f "${paths.databaseFile}"\n\n` +
-          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-          `with real data.\n\n` +
-          `The application will now exit.`
-      )
-    } else {
-      try {
-        if ((await showStartupRecovery(error)) === 'retry') {
-          application.relaunch()
-          return 'handled'
-        }
-      } catch (recoveryError) {
-        logger.error('Startup recovery failed', recoveryError as Error)
+    try {
+      if ((await showStartupRecovery(error, paths.databaseFile)) === 'retry') {
+        application.relaunch()
+        return 'handled'
       }
+    } catch (recoveryError) {
+      logger.error('Startup recovery failed', recoveryError as Error)
     }
     logger.error('Exiting application due to migration status check failure')
     application.forceExit(1)
