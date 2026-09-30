@@ -27,7 +27,7 @@ function isSelectableModelId(
   modelId: UniqueModelId,
   selectableModelIds: ReadonlySet<UniqueModelId> | ReadonlyMap<UniqueModelId, unknown>
 ) {
-  return selectableModelIds instanceof Map ? selectableModelIds.has(modelId) : selectableModelIds.has(modelId)
+  return selectableModelIds.has(modelId)
 }
 
 /** Dedupes raw ids and keeps only those still present in the selectable catalog. */
