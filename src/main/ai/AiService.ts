@@ -885,21 +885,9 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
-          if (fallback.streamErrorOllamaNumCtx !== undefined) {
-            request.streamErrorSerialization ??= {}
-            if (fallback.streamErrorOllamaNumCtx === null) {
-              delete request.streamErrorSerialization.ollamaNumCtx
-            } else {
-              request.streamErrorSerialization.ollamaNumCtx = fallback.streamErrorOllamaNumCtx
-            }
-          }
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
-          const requestContext = options.context as RequestContext | undefined
-          if (request.streamErrorSerialization && requestContext?.ollamaNumCtx) {
-            request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
-          }
         }
       })
     }
