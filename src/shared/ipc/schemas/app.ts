@@ -149,4 +149,6 @@ export type AppEventSchemas = {
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
   'app.notes_relocation.flush_requested': { batchId: string }
+  'app.notes_relocation.migration_started': void
+  'app.notes_relocation.migration_finished': void
 }

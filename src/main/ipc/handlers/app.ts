@@ -56,7 +56,13 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
         'a renderer window failed to flush unsaved note edits'
       )
     }
-    return migrateNotesDirectory(sourcePath, targetPath, { merge })
+    const ipcApiService = application.get('IpcApiService')
+    ipcApiService.broadcast('app.notes_relocation.migration_started', undefined)
+    try {
+      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+    } finally {
+      ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
+    }
   },
   'app.notes_relocation.flush_ack': async ({ batchId, ok }, ctx) => {
     rendererEditFlushCoordinator.acknowledge(batchId, ctx.senderId, ok)
