@@ -509,11 +509,30 @@ const CodeViewer = ({
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
   }, [rawLines.length, totalSize, onHeightChange])
 
-  // rawLines 变更（流式输出）不重置测量缓存：重置会让未变更的行退回估算高度、再次互相重叠；
-  // 行内实际尺寸变化由 measureElement 挂载的 ResizeObserver 跟进。
+  // rawLines 变更（流式输出）不重置测量缓存：重置会让未变更的行退回估算高度、再次互相重叠。
+  // measure() 会清空全部缓存；对 wrapped 行改为逐行更新，避免离屏行退回估算后 translateY 重叠。
+  const remeasureRows = useCallback(() => {
+    if (!wrapped) {
+      virtualizer.measure()
+      return
+    }
+
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    for (let index = 0; index < rawLines.length; index++) {
+      const row = scroller.querySelector(`[data-index="${index}"]`)
+      if (row instanceof HTMLElement) {
+        virtualizer.measureElement(row)
+      } else {
+        virtualizer.resizeItem(index, estimateSize(index))
+      }
+    }
+  }, [estimateSize, rawLines.length, virtualizer, wrapped])
+
   useLayoutEffect(() => {
-    virtualizer.measure()
-  }, [expanded, wrapped, fontSize, lineNumbers, virtualizer])
+    remeasureRows()
+  }, [expanded, wrapped, fontSize, lineNumbers, remeasureRows])
 
   useLayoutEffect(() => {
     if (!wrapped) return
@@ -521,11 +540,11 @@ const CodeViewer = ({
     if (!scroller || typeof ResizeObserver === 'undefined') return
 
     const resizeObserver = new ResizeObserver(() => {
-      virtualizer.measure()
+      remeasureRows()
     })
     resizeObserver.observe(scroller)
     return () => resizeObserver.disconnect()
-  }, [wrapped, virtualizer])
+  }, [remeasureRows, wrapped])
 
   useLayoutEffect(() => {
     if (!expanded) return
