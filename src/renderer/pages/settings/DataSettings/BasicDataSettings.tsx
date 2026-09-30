@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
 import {
   SettingDivider,
   SettingGroup,
@@ -27,7 +28,6 @@ import {
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { startNotesDirectoryMigration } from '@renderer/services/notesDirectoryMigration'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'

@@ -293,12 +293,18 @@ const NotesPage: FC = () => {
   }, [contentLoadError, t])
 
   useEffect(() => {
+    const persistNotesPath = (nextPath: string) =>
+      updateNotesPath(nextPath).catch((error: unknown) => logger.error('Failed to persist notes path:', error as Error))
+
     async function initialize() {
       if (!notesPath) {
         // 首次启动，获取默认路径
-        const info = await ipcApi.request('app.get_info')
-        const defaultPath = info.notesPath
-        void updateNotesPath(defaultPath)
+        try {
+          const info = await ipcApi.request('app.get_info')
+          void persistNotesPath(info.notesPath)
+        } catch (error) {
+          logger.error('Failed to initialize default notes path:', error as Error)
+        }
         return
       }
 
@@ -320,7 +326,7 @@ const NotesPage: FC = () => {
           timeout: 10000
         })
 
-        void updateNotesPath(defaultPath)
+        void persistNotesPath(defaultPath)
 
         // 检查默认路径下是否有笔记文件
         try {
