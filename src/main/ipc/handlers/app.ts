@@ -62,8 +62,12 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     acknowledgeRendererNotesEditsFlush(requestId, senderId, ok)
   },
   'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) => {
-    await requestRendererNotesEditsFlush()
-    return migrateNotesDirectory(sourcePath, targetPath, { merge })
+    try {
+      await requestRendererNotesEditsFlush()
+      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+    } finally {
+      application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', {})
+    }
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),

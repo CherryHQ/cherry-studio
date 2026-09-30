@@ -1,7 +1,7 @@
 import { createContext, use, useEffect, useMemo, type FC, type ReactNode } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
-import { registerNotesEditFlush } from '@renderer/hooks/notesFileEditFlush'
+import { areNotesEditsLockedForRelocation, registerNotesEditFlush } from '@renderer/hooks/notesFileEditFlush'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -14,10 +14,22 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
     [activeFilePath]
   )
   const session = useFileEditSession(activeFileHandle)
+  const guardedSession = useMemo<FileEditSession>(
+    () => ({
+      ...session,
+      setDraft: (next: string) => {
+        if (areNotesEditsLockedForRelocation()) {
+          return
+        }
+        session.setDraft(next)
+      }
+    }),
+    [session]
+  )
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
 
-  return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
+  return <NotesFileEditSessionContext value={guardedSession}>{children}</NotesFileEditSessionContext>
 }
 
 export function useNotesFileEditSession(): FileEditSession {
