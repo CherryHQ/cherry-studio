@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -17,10 +20,20 @@ function createModel(fetch: typeof globalThis.fetch) {
   }).languageModel('gemini-2.5-pro')
 }
 
-describe('New API Gemini web search boundary', () => {
+const packageRoot = dirname(createRequire(import.meta.url).resolve('@ai-sdk/openai-compatible/package.json'))
+const { createOpenAICompatible } = await import(join(packageRoot, 'src/openai-compatible-provider.ts'))
+
+// Run the citation contract against source too, catching patches lost during dependency rebuilds.
+describe.each(['dist', 'source'])('New API Gemini web search boundary (%s)', (entrypoint) => {
+  const createModelForEntrypoint = (fetch: typeof globalThis.fetch) =>
+    entrypoint === 'dist'
+      ? createModel(fetch)
+      : createOpenAICompatible({ name: 'newapi', apiKey: 'sk', baseURL: 'https://example.com/v1', fetch }).chatModel(
+          'gemini-2.5-pro'
+        )
   it('passes web_search_options through the compatible chat request', async () => {
     const request = await captureWithFetch((fetch) =>
-      createModel(fetch).doGenerate({
+      createModelForEntrypoint(fetch).doGenerate({
         prompt,
         providerOptions: { newapi: { web_search_options: {} } }
       })
@@ -57,7 +70,7 @@ describe('New API Gemini web search boundary', () => {
       usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
     }
 
-    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+    const result = await runWithResponse(response, (fetch) => createModelForEntrypoint(fetch).doGenerate({ prompt }))
 
     expect(result.content).toEqual(
       expect.arrayContaining([
@@ -94,7 +107,7 @@ describe('New API Gemini web search boundary', () => {
       usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
     }
 
-    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+    const result = await runWithResponse(response, (fetch) => createModelForEntrypoint(fetch).doGenerate({ prompt }))
 
     expect(result.content).toEqual([{ type: 'text', text: 'Answer with an unsafe citation.' }])
   })
@@ -120,7 +133,7 @@ describe('New API Gemini web search boundary', () => {
       usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
     }
 
-    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+    const result = await runWithResponse(response, (fetch) => createModelForEntrypoint(fetch).doGenerate({ prompt }))
 
     expect(result.content).toEqual([{ type: 'text', text: 'Answer with a file annotation.' }])
   })
@@ -143,7 +156,7 @@ describe('New API Gemini web search boundary', () => {
       usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
     }
 
-    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+    const result = await runWithResponse(response, (fetch) => createModelForEntrypoint(fetch).doGenerate({ prompt }))
 
     expect(result.content).toEqual([{ type: 'text', text: 'Usable answer.' }])
   })
@@ -174,7 +187,7 @@ describe('New API Gemini web search boundary', () => {
       usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
     }
 
-    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+    const result = await runWithResponse(response, (fetch) => createModelForEntrypoint(fetch).doGenerate({ prompt }))
 
     expect(result.content).toEqual(
       expect.arrayContaining([
@@ -222,7 +235,7 @@ describe('New API Gemini web search boundary', () => {
         })
       )) as typeof globalThis.fetch
 
-    const result = await createModel(fetch).doStream({ prompt })
+    const result = await createModelForEntrypoint(fetch).doStream({ prompt })
     const parts = await Array.fromAsync(result.stream)
 
     expect(parts).toEqual(
@@ -268,7 +281,7 @@ describe('New API Gemini web search boundary', () => {
         })
       )) as typeof globalThis.fetch
 
-    const result = await createModel(fetch).doStream({ prompt })
+    const result = await createModelForEntrypoint(fetch).doStream({ prompt })
     const parts = await Array.fromAsync(result.stream)
 
     expect(parts).toEqual(
@@ -306,7 +319,7 @@ describe('New API Gemini web search boundary', () => {
         })
       )) as typeof globalThis.fetch
 
-    const result = await createModel(fetch).doStream({ prompt })
+    const result = await createModelForEntrypoint(fetch).doStream({ prompt })
     const parts = await Array.fromAsync(result.stream)
 
     expect(parts).toEqual(
@@ -344,7 +357,7 @@ describe('New API Gemini web search boundary', () => {
         })
       )) as typeof globalThis.fetch
 
-    const result = await createModel(fetch).doStream({ prompt })
+    const result = await createModelForEntrypoint(fetch).doStream({ prompt })
     const parts = await Array.fromAsync(result.stream)
 
     expect(parts).toEqual(
@@ -390,7 +403,7 @@ describe('New API Gemini web search boundary', () => {
         })
       )) as typeof globalThis.fetch
 
-    const result = await createModel(fetch).doStream({ prompt })
+    const result = await createModelForEntrypoint(fetch).doStream({ prompt })
     const parts = await Array.fromAsync(result.stream)
 
     expect(parts).toEqual(

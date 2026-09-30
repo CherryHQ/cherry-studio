@@ -600,3 +600,78 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
  });
  
  type OpenAICompatibleFormDataInput = {
+diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai-compatible-chat-language-model.ts
+--- a/src/chat/openai-compatible-chat-language-model.ts
++++ b/src/chat/openai-compatible-chat-language-model.ts
+@@ -317,6 +317,19 @@
+       });
+     }
+
++    for (const annotation of choice.message.annotations ?? []) {
++      const citation = urlCitationSchema.safeParse(annotation);
++      if (!citation.success) continue;
++      const { url, title } = citation.data.url_citation;
++      content.push({
++        type: 'source',
++        sourceType: 'url',
++        id: generateId(),
++        url,
++        title: typeof title === 'string' ? title : undefined,
++      });
++    }
++
+     // tool calls:
+     if (choice.message.tool_calls != null) {
+       for (const toolCall of choice.message.tool_calls) {
+@@ -699,6 +712,18 @@
+                 });
+               }
+             }
++            for (const annotation of delta.annotations ?? []) {
++              const citation = urlCitationSchema.safeParse(annotation);
++              if (!citation.success) continue;
++              const { url, title } = citation.data.url_citation;
++              controller.enqueue({
++                type: 'source',
++                sourceType: 'url',
++                id: generateId(),
++                url,
++                title: typeof title === 'string' ? title : undefined,
++              });
++            }
+           },
+
+           flush(controller) {
+@@ -817,6 +842,16 @@
+
+ // limited version of the schema, focussed on what is needed for the implementation
+ // this approach limits breakages when the API changes and increases efficiency
++const urlCitationSchema = z.object({
++  type: z.literal('url_citation'),
++  url_citation: z.object({
++    url: z.string().refine(
++      url => URL.canParse(url) && ['http:', 'https:'].includes(new URL(url).protocol),
++    ),
++    title: z.unknown().optional(),
++  }),
++});
++
+ const OpenAICompatibleChatResponseSchema = z.looseObject({
+   id: z.string().nullish(),
+   created: z.number().nullish(),
+@@ -828,6 +863,7 @@
+         content: z.string().nullish(),
+         reasoning_content: z.string().nullish(),
+         reasoning: z.string().nullish(),
++        annotations: z.array(z.unknown()).nullish().catch([]),
+         tool_calls: z
+           .array(
+             z.object({
+@@ -870,6 +906,7 @@
+           // providers serving `gpt-oss` set `reasoning`. See #7866
+           reasoning_content: z.string().nullish(),
+           reasoning: z.string().nullish(),
++          annotations: z.array(z.unknown()).nullish().catch([]),
+           tool_calls: z
+             .array(
+               z.object({
