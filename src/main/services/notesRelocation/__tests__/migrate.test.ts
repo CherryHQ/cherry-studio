@@ -175,6 +175,34 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects merge when the same relative path exists with same-sized different content', async () => {
+    const source = path.join(tempRoot, 'source-notes-same-size')
+    const target = path.join(tempRoot, 'target-notes-same-size')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'conflict.md'), 'abcd')
+    fs.writeFileSync(path.join(target, 'conflict.md'), 'efgh')
+
+    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_MERGE_CONFLICT'
+    })
+  })
+
+  it('rejects a source directory that is itself a symbolic link', async () => {
+    const realSource = path.join(tempRoot, 'real-source')
+    const source = path.join(tempRoot, 'linked-source')
+    const target = path.join(tempRoot, 'target-linked-source')
+    fs.mkdirSync(realSource)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(realSource, 'note.md'), '# Note')
+    fs.symlinkSync(realSource, source, 'dir')
+
+    const inspection = await inspectNotesRelocation(source, target)
+    expect(inspection.valid).toBe(false)
+    if (inspection.valid) return
+    expect(inspection.reason).toBe('source_contains_symlinks')
+  })
+
   it('rejects the managed files root as a notes target', async () => {
     const source = path.join(tempRoot, 'source-notes-protected')
     const filesRoot = path.join(tempRoot, 'files')

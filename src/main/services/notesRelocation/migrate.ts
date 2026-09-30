@@ -1,4 +1,5 @@
-import fs from 'node:fs'
+import { createHash } from 'node:crypto'
+import fs, { createReadStream } from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -11,6 +12,16 @@ import { scanNotesDirectory } from './stats'
 import { assertNotesRelocationPaths, NotesRelocationValidationError } from './validation'
 
 const logger = loggerService.withContext('NotesRelocation')
+
+async function digestFile(filePath: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    createReadStream(filePath)
+      .on('data', (chunk) => hash.update(chunk))
+      .on('error', reject)
+      .on('end', () => resolve(hash.digest('hex')))
+  })
+}
 
 export async function inspectNotesRelocation(
   sourcePath: string,
@@ -72,6 +83,12 @@ async function listMergePathConflicts(sourceRoot: string, targetRoot: string): P
 
       const sourceSize = (await fs.promises.stat(sourceEntryPath)).size
       if (targetEntry.size !== sourceSize) {
+        conflicts.push(relativePath)
+        continue
+      }
+
+      const [sourceDigest, targetDigest] = await Promise.all([digestFile(sourceEntryPath), digestFile(targetEntryPath)])
+      if (sourceDigest !== targetDigest) {
         conflicts.push(relativePath)
       }
     }

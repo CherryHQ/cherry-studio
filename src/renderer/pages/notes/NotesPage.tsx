@@ -298,7 +298,9 @@ const NotesPage: FC = () => {
         // 首次启动，获取默认路径
         const info = await ipcApi.request('app.get_info')
         const defaultPath = info.notesPath
-        void updateNotesPath(defaultPath)
+        void updateNotesPath(defaultPath).catch((error) => {
+          logger.error('Failed to persist default notes path', error as Error)
+        })
         return
       }
 
@@ -320,7 +322,9 @@ const NotesPage: FC = () => {
           timeout: 10000
         })
 
-        void updateNotesPath(defaultPath)
+        void updateNotesPath(defaultPath).catch((error) => {
+          logger.error('Failed to persist fallback notes path', error as Error)
+        })
 
         // 检查默认路径下是否有笔记文件
         try {

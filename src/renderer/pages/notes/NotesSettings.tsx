@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { migrateNotesDirectoryWithUi } from '@renderer/services/notesDirectoryMigration/notesDirectoryMigration'
+import { migrateNotesDirectoryWithUi } from '@renderer/components/notes/notesDirectoryMigration'
 import Selector from '@renderer/components/Selector'
 import {
   SettingContainer,
