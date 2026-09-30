@@ -1,13 +1,11 @@
 import os from 'node:os'
 
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
-import {
-  isLocalOllamaApiHost,
-  resolveOllamaRequestNumCtx
-} from '../ollamaRequestNumCtx'
+import { isLocalOllamaApiHost, resolveOllamaRequestNumCtx } from '../ollamaRequestNumCtx'
 
 describe('isLocalOllamaApiHost', () => {
   it('treats loopback and empty hosts as local', () => {
@@ -28,7 +26,16 @@ describe('resolveOllamaRequestNumCtx', () => {
     contextWindow: 131_072
   } as const
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('caps by local RAM for a loopback Ollama endpoint', () => {
+    const freeMemoryBytes = 8_000_000_000
+    const totalMemoryBytes = 16_000_000_000
+    vi.spyOn(os, 'freemem').mockReturnValue(freeMemoryBytes)
+    vi.spyOn(os, 'totalmem').mockReturnValue(totalMemoryBytes)
+
     const provider = {
       defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
       endpointConfigs: {
@@ -37,8 +44,9 @@ describe('resolveOllamaRequestNumCtx', () => {
     } as Provider
 
     const resolution = resolveOllamaRequestNumCtx(model as never, provider)
-    expect(resolution?.freeMemoryBytes).toBe(os.freemem())
-    expect(resolution?.totalMemoryBytes).toBe(os.totalmem())
+    expect(resolution?.freeMemoryBytes).toBe(freeMemoryBytes)
+    expect(resolution?.totalMemoryBytes).toBe(totalMemoryBytes)
+    expect(resolution?.numCtx).toBeLessThan(131_072)
   })
 
   it('does not cap by Cherry client RAM for a remote Ollama endpoint', () => {
