@@ -1676,9 +1676,7 @@ export class BinaryManager extends BaseService {
             const requested = definition.requestedVersion ? semverValid(definition.requestedVersion) : null
             const installedVersion = snapshot.application?.version
             const matchesCatalogPin =
-              requested !== null &&
-              installedVersion !== undefined &&
-              semverValid(installedVersion) === requested
+              requested !== null && installedVersion !== undefined && semverValid(installedVersion) === requested
             if (!definition.requestedVersion || matchesCatalogPin) return { kind: 'done' }
           }
           // absent + an external copy: a race already satisfied it — never lay down a
