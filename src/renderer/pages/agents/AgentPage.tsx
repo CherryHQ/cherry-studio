@@ -150,13 +150,16 @@ const AgentPage = () => {
     { enabled: true },
     { fetchEnabled: presetModelContextEnabled }
   )
-  const { defaultModel } = useDefaultModel({ enabled: presetModelContextEnabled })
+  const { defaultModel, isDefaultModelLoading } = useDefaultModel({ enabled: presetModelContextEnabled })
   const { providers, isLoading: isProvidersLoading } = useProviders(undefined, {
     enabled: presetModelContextEnabled
   })
-  const isPresetModelContextReady = !presetModelContextEnabled || (!isModelsLoading && !isProvidersLoading)
   const agentModelFilter = useAgentModelFilter('claude-code')
-  const isModelDisabled = useAgentModelDisabled()
+  // Poll cloud availability only while the picker needs it; AgentChat keeps the shared key warm otherwise.
+  const { isModelDisabled, isLoading: isCloudAvailabilityLoading } = useAgentModelDisabled(presetModelContextEnabled)
+  const isPresetModelContextReady =
+    !presetModelContextEnabled ||
+    (!isModelsLoading && !isProvidersLoading && !isDefaultModelLoading && !isCloudAvailabilityLoading)
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
   const selectableDefaultModelId = useMemo(() => {
     if (!defaultModel?.isEnabled) return null
