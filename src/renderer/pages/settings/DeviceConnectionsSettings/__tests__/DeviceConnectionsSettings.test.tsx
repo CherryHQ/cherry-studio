@@ -112,12 +112,12 @@ describe('DeviceConnectionsSettings', () => {
     {
       edition: 'cn',
       androidDownloadUrl:
-        'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+        'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
     },
     {
       edition: 'global',
       androidDownloadUrl:
-        'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+        'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
     }
   ])(
     'uses $edition downloads and preserves steps until onboarding is completed',
@@ -183,7 +183,7 @@ describe('DeviceConnectionsSettings', () => {
     await user.click(dialog.getByRole('tab', { name: 'Android' }))
     expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
       'data-value',
-      'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+      'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
     )
     await user.click(dialog.getByRole('button', { name: enUS['common.close'] }))
 
