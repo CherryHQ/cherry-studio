@@ -69,7 +69,7 @@ export function suggestReducedOllamaNumCtx(currentNumCtx: number): number {
 }
 
 const OLLAMA_ALLOCATION_ERROR_PATTERN =
-  /\b(?:failed to allocate|cannot allocate|out of memory|oom|cuda out of memory|not enough memory).*(?:kv\s*cache|kvcache)|(?:kv\s*cache|kvcache).*(?:failed|allocate|out of memory|oom|memory)\b/i
+  /\b(?:failed to allocate|cannot allocate|out of memory|oom|cuda out of memory|not enough memory).*(?:kv\s*cache|kvcache)|(?:kv\s*cache|kvcache).*(?:failed|allocate|out of memory|oom|not enough memory)\b/i
 
 export function isOllamaKvCacheAllocationError(text: string): boolean {
   return OLLAMA_ALLOCATION_ERROR_PATTERN.test(text)

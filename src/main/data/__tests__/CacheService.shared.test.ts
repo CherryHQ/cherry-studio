@@ -347,5 +347,25 @@ describe('CacheService shared-tier TTL sync', () => {
         })
       )
     })
+
+    it('never raises a lowered cap from a stale retry patch', async () => {
+      const { BrowserWindow } = (await import('electron')) as any
+      BrowserWindow.getAllWindows.mockReturnValue([
+        { isDestroyed: () => false, id: 1, webContents: { send: vi.fn() } },
+        { isDestroyed: () => false, id: 2, webContents: { send: vi.fn() } }
+      ])
+      BrowserWindow.fromWebContents.mockReturnValue({ id: 1 })
+
+      service.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { 'ollama::a': 16_384 })
+
+      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
+      listener(trustedEvent, {
+        type: 'shared',
+        key: OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
+        value: { 'ollama::a': 32_768 }
+      })
+
+      expect(service.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)).toEqual({ 'ollama::a': 16_384 })
+    })
   })
 })

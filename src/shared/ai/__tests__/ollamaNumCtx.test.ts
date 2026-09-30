@@ -69,6 +69,10 @@ describe('isOllamaKvCacheAllocationError', () => {
     expect(isOllamaKvCacheAllocationError('cuda out of memory')).toBe(false)
     expect(isOllamaKvCacheAllocationError('HTTP 500 Internal Server Error')).toBe(false)
   })
+
+  it('ignores informational KV-cache mentions without an allocation failure', () => {
+    expect(isOllamaKvCacheAllocationError('kv cache memory layout optimized')).toBe(false)
+  })
 })
 
 describe('enrichOllamaContextAllocationSerializedError', () => {
