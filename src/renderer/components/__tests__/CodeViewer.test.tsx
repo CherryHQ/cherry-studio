@@ -42,6 +42,9 @@ const mocks = vi.hoisted(() => {
             const size = element.clientHeight
             if (size > 0) measuredSizes.set(Number(rawIndex), size)
           },
+          resizeItem: (index: number, size: number) => {
+            measuredSizes.set(index, size)
+          },
           measure
         }
       }
@@ -304,7 +307,10 @@ describe('CodeViewer', () => {
       get(this: HTMLElement) {
         const index = this.getAttribute('data-index')
         if (index === null) return 300
-        const heights = this.closest('[data-row-heights]')?.getAttribute('data-row-heights') === 'second' ? secondHeights : firstHeights
+        const heights =
+          this.closest('[data-row-heights]')?.getAttribute('data-row-heights') === 'second'
+            ? secondHeights
+            : firstHeights
         return heights.get(Number(index)) ?? 20
       }
     })
@@ -343,21 +349,37 @@ describe('CodeViewer', () => {
   })
 
   it('remasures virtual rows and resets scroll position when expanding a collapsed code block', () => {
+    mockRowHeights(new Map([[0, 55]]))
+
     const { container, rerender } = render(
       <CodeViewer value={'line 1\nline 2'} language="typescript" expanded={false} maxHeight="350px" />
     )
     const scroller = container.querySelector('.shiki-scroller') as HTMLElement
-    scroller.scrollTop = 80
-    expect(mocks.measure).toHaveBeenCalled()
+    const transforms = () =>
+      (Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
 
-    mocks.measure.mockClear()
+    scroller.scrollTop = 80
+    rerender(
+      <CodeViewer
+        className="remeasure"
+        value={'line 1\nline 2'}
+        language="typescript"
+        expanded={false}
+        maxHeight="350px"
+      />
+    )
+    expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
+
     rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" expanded maxHeight="350px" />)
-    expect(mocks.measure).toHaveBeenCalled()
+    expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
     expect(scroller.scrollTop).toBe(0)
+    expect(mocks.measure).not.toHaveBeenCalled()
   })
 
   it('remasures virtual rows when line numbers are toggled', () => {
-    const { rerender } = render(
+    mockRowHeights(new Map([[0, 55]]))
+
+    const { container, rerender } = render(
       <CodeViewer
         value={'line 1\nline 2'}
         language="typescript"
@@ -366,7 +388,20 @@ describe('CodeViewer', () => {
         maxHeight="350px"
       />
     )
-    mocks.measure.mockClear()
+    const transforms = () =>
+      (Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
+
+    rerender(
+      <CodeViewer
+        className="remeasure"
+        value={'line 1\nline 2'}
+        language="typescript"
+        wrapped
+        options={{ lineNumbers: false }}
+        maxHeight="350px"
+      />
+    )
+    expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
 
     rerender(
       <CodeViewer
@@ -377,7 +412,54 @@ describe('CodeViewer', () => {
         maxHeight="350px"
       />
     )
-    expect(mocks.measure).toHaveBeenCalled()
+    expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
+    expect(mocks.measure).not.toHaveBeenCalled()
+  })
+
+  it('keeps measured row placement when the scroller is resized in wrapped mode', () => {
+    const resizeCallbacks: Array<() => void> = []
+    class MockResizeObserver {
+      private readonly callback: () => void
+      constructor(callback: () => void) {
+        this.callback = callback
+        resizeCallbacks.push(callback)
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+
+    try {
+      mockRowHeights(new Map([[0, 55]]))
+
+      const { container, rerender } = render(
+        <CodeViewer value={'line 1\nline 2'} language="typescript" wrapped maxHeight="350px" />
+      )
+      const transforms = () =>
+        (Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
+
+      rerender(
+        <CodeViewer className="remeasure" value={'line 1\nline 2'} language="typescript" wrapped maxHeight="350px" />
+      )
+      expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
+
+      mocks.measure.mockClear()
+      resizeCallbacks.at(-1)?.()
+      rerender(
+        <CodeViewer
+          className="remeasure resize"
+          value={'line 1\nline 2'}
+          language="typescript"
+          wrapped
+          maxHeight="350px"
+        />
+      )
+
+      expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
+      expect(mocks.measure).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
