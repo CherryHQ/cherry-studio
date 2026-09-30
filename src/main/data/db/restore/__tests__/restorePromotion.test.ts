@@ -1074,7 +1074,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       seedLocalStorageFixtures()
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
-      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
       let asideExistedBeforeQuiesce = false
       let liveExistedBeforeQuiesce = false
       quiesceSpy.mockImplementation(async () => {
@@ -1138,7 +1138,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       seedLocalStorageFixtures()
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
-      vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
       renameFailure.injectEpermOnceFor = liveLocalStorageDir()
 
       await runRestorePromotion()
@@ -1164,7 +1164,7 @@ describe('runRestorePromotion', () => {
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
       writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
-      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
 
       await runRestorePromotion()
 
@@ -1183,7 +1183,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       seedLocalStorageFixtures()
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
-      vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
       asideCopyFailure.injectAfterPartialCopyFor = liveLocalStorageDir()
 
       await runRestorePromotion()
@@ -1202,7 +1202,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       seedLocalStorageFixtures()
       writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
-      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
       // The staging move into the live dir fails beyond the retry budget
       // (handles still held), and every rollback attempt to reinstall the
       // aside fails the same way — finalize must move the aside out of the
@@ -1236,7 +1236,7 @@ describe('runRestorePromotion', () => {
         }
       ]
       writeRestoreJournal(await buildJournal({ fileResources: unbackedManifest }))
-      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce.chromiumRestorePromotionHooks, 'quiesce').mockResolvedValue()
 
       await runRestorePromotion()
 
@@ -1284,6 +1284,8 @@ describe('runRestorePromotion', () => {
         return
       }
 
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
       const quarantinedLs = () => join(userData, 'restore-aside-quarantine', RID, 'Local Storage')
       const liveLs = () => join(userData, 'Local Storage')
       mkdirSync(quarantinedLs(), { recursive: true })
@@ -1309,6 +1311,8 @@ describe('runRestorePromotion', () => {
         return
       }
 
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
       const quarantinedLs = () => join(userData, 'restore-aside-quarantine', RID, 'Local Storage')
       const liveLs = () => join(userData, 'Local Storage')
       const liveLeveldb = () => join(liveLs(), 'leveldb')

@@ -104,6 +104,11 @@ export async function quiesceChromiumStorageForRestore(livePath: ChromiumRuntime
   logger.info('Chromium runtime storage quiesced for restore promotion', { livePath })
 }
 
+/** Promotion calls quiesce through this hook so tests can spy without ESM binding issues. */
+export const chromiumRestorePromotionHooks = {
+  quiesce: quiesceChromiumStorageForRestore
+}
+
 export interface ChromiumOverwritePromotionDeps {
   copyAsideDurable: (source: string, target: string) => void
   moveIdempotent: (source: string, target: string) => void
@@ -139,7 +144,7 @@ export async function promoteChromiumRuntimeOverwrite(
       restoreId,
       livePath
     })
-    await quiesceChromiumStorageForRestore(livePath)
+    await chromiumRestorePromotionHooks.quiesce(livePath)
     deps.rmLiveWithRetry(live)
   }
   deps.moveIdempotent(staging, live)
