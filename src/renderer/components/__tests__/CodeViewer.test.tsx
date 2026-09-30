@@ -8,42 +8,55 @@ import CodeViewer from '../CodeViewer'
 
 const mocks = vi.hoisted(() => {
   // The real useVirtualizer returns one stable instance per component across
-  // renders; a fresh object per call would re-run every effect keyed on it.
-  const state = {
-    count: 0,
-    measuredSizes: new Map<number, number>(),
-    measure: vi.fn()
+  // renders and keeps state per instance; the mock keys that state off the
+  // stable per-instance getItemKey so sibling viewers never share measurements.
+  interface VirtualizerState {
+    count: number
+    instance: Record<string, unknown>
   }
-  const sizeOf = (index: number) => state.measuredSizes.get(index) ?? 20
-  const virtualizer = {
-    getTotalSize: () => {
-      let total = 0
-      for (let i = 0; i < state.count; i++) total += sizeOf(i)
-      return total
-    },
-    getVirtualItems: () =>
-      Array.from({ length: state.count }, (_, index) => {
-        let start = 0
-        for (let i = 0; i < index; i++) start += sizeOf(i)
-        return { index, key: `row-${index}`, start }
-      }),
-    measureElement: (element: HTMLElement | null) => {
-      if (!element) return
-      const rawIndex = element.getAttribute('data-index')
-      if (rawIndex === null) return
-      const size = element.clientHeight
-      if (size > 0) state.measuredSizes.set(Number(rawIndex), size)
-    },
-    measure: state.measure
+  const instances = new WeakMap<object, VirtualizerState>()
+  const measure = vi.fn()
+  const stateFor = (key: object): VirtualizerState => {
+    let state = instances.get(key)
+    if (!state) {
+      const measuredSizes = new Map<number, number>()
+      const sizeOf = (index: number) => measuredSizes.get(index) ?? 20
+      state = {
+        count: 0,
+        instance: {
+          getTotalSize: () => {
+            let total = 0
+            for (let i = 0; i < state!.count; i++) total += sizeOf(i)
+            return total
+          },
+          getVirtualItems: () =>
+            Array.from({ length: state!.count }, (_, index) => {
+              let start = 0
+              for (let i = 0; i < index; i++) start += sizeOf(i)
+              return { index, key: `row-${index}`, start }
+            }),
+          measureElement: (element: HTMLElement | null) => {
+            if (!element) return
+            const rawIndex = element.getAttribute('data-index')
+            if (rawIndex === null) return
+            const size = element.clientHeight
+            if (size > 0) measuredSizes.set(Number(rawIndex), size)
+          },
+          measure
+        }
+      }
+      instances.set(key, state)
+    }
+    return state
   }
   return {
     highlightLines: vi.fn(),
     resetHighlight: vi.fn(),
-    state,
-    measure: state.measure,
-    useVirtualizer: vi.fn((options: { count: number }) => {
+    measure,
+    useVirtualizer: vi.fn((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = stateFor(options.getItemKey)
       state.count = options.count
-      return virtualizer
+      return state.instance
     })
   }
 })
@@ -93,11 +106,19 @@ function restoreDescriptor(key: 'clientHeight' | 'scrollHeight', descriptor?: Pr
   delete (window.HTMLElement.prototype as unknown as Record<string, unknown>)[key]
 }
 
+function mockRowHeights(measuredHeights: Map<number, number>) {
+  Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      const index = this.getAttribute('data-index')
+      return index === null ? 300 : (measuredHeights.get(Number(index)) ?? 20)
+    }
+  })
+}
+
 describe('CodeViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.state.count = 0
-    mocks.state.measuredSizes.clear()
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.show_line_numbers': false,
@@ -237,14 +258,7 @@ describe('CodeViewer', () => {
   it('repositions later rows when a measured row height exceeds its estimate', () => {
     // Row 0 measures 55px tall (e.g. a wrapped line); rows report geometry via
     // the measureElement ref, so placement after the measurement must follow it.
-    const measuredHeights = new Map<number, number>([[0, 55]])
-    Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', {
-      configurable: true,
-      get(this: HTMLElement) {
-        const index = this.getAttribute('data-index')
-        return index === null ? 300 : (measuredHeights.get(Number(index)) ?? 20)
-      }
-    })
+    mockRowHeights(new Map([[0, 55]]))
 
     const { container, rerender } = render(
       <CodeViewer value={'line 1\nline 2\nline 3'} language="typescript" maxHeight="350px" />
@@ -263,13 +277,69 @@ describe('CodeViewer', () => {
     expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)', 'translateY(75px)'])
   })
 
-  it('keeps measured row heights while content streams in instead of clearing the measurement cache', () => {
-    const { rerender } = render(<CodeViewer value={'line 1'} language="typescript" maxHeight="350px" />)
+  it('keeps measured row heights and placement while content streams in', () => {
+    // Row 0 measures 55px; a stream update adds row 1, whose placement must
+    // follow the measured height instead of falling back to the 20px estimate
+    // (which would overlap row 0).
+    mockRowHeights(new Map([[0, 55]]))
+
+    const { container, rerender } = render(<CodeViewer value={'line 1'} language="typescript" maxHeight="350px" />)
+    const transforms = () =>
+      (Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
 
     mocks.measure.mockClear()
     rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" maxHeight="350px" />)
 
+    expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
     expect(mocks.measure).not.toHaveBeenCalled()
+  })
+
+  it('keeps row counts and measurements independent across sibling viewers', () => {
+    // Sibling code blocks each get their own virtualizer state: the first
+    // viewer's measured rows and 3-line count must not leak into the second.
+    const firstHeights = new Map([[0, 55]])
+    const secondHeights = new Map([[0, 30]])
+    Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        const index = this.getAttribute('data-index')
+        if (index === null) return 300
+        const heights = this.closest('[data-row-heights]')?.getAttribute('data-row-heights') === 'second' ? secondHeights : firstHeights
+        return heights.get(Number(index)) ?? 20
+      }
+    })
+
+    const first = (className?: string) => (
+      <div data-row-heights="first">
+        <CodeViewer value={'line 1\nline 2\nline 3'} language="typescript" className={className} maxHeight="350px" />
+      </div>
+    )
+    const second = (className?: string) => (
+      <div data-row-heights="second">
+        <CodeViewer value={'line 1\nline 2'} language="typescript" className={className} maxHeight="350px" />
+      </div>
+    )
+
+    const { container, rerender } = render(
+      <>
+        {first()}
+        {second('sibling')}
+      </>
+    )
+
+    rerender(
+      <>
+        {first('remeasure')}
+        {second('sibling remeasure')}
+      </>
+    )
+
+    const transformsOf = (scroller: Element) =>
+      (Array.from(scroller.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
+    const scrollers = container.querySelectorAll('.shiki-scroller')
+
+    expect(transformsOf(scrollers[0])).toEqual(['translateY(0px)', 'translateY(55px)', 'translateY(75px)'])
+    expect(transformsOf(scrollers[1])).toEqual(['translateY(0px)', 'translateY(30px)'])
   })
 
   it('remasures virtual rows and resets scroll position when expanding a collapsed code block', () => {
