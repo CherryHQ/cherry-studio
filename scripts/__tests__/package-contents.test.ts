@@ -29,7 +29,7 @@ describe('packaged dependency contents', () => {
     ['linux', 'x64', 'linux-x64-gnu'],
     ['win32', 'arm64', 'win32-arm64-msvc'],
     ['win32', 'x64', 'win32-x64-msvc']
-  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch, clipboardTarget) => {
+  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch, nativeBindingTarget) => {
     const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
       for (const targetPlatform of ['darwin', 'linux', 'win32']) {
@@ -38,7 +38,6 @@ describe('packaged dependency contents', () => {
           const keep = targetPlatform === platform && targetArch === arch
           for (const file of [
             `@koromix/koffi-${target}/koffi.node`,
-            `node-addon-require-builtin-${target}/addon.node`,
             `node-pty/prebuilds/${target}/pty.node`,
             `selection-hook/prebuilds/${target}/selection.node`,
             `@anthropic-ai/claude-agent-sdk-${target}/claude`
@@ -58,7 +57,19 @@ describe('packaged dependency contents', () => {
         'win32-x64-msvc'
       ]) {
         const file = `${modules}/@mariozechner/clipboard-${target}/clipboard.node`
-        expect(includesFile(file, patterns), file).toBe(target === clipboardTarget)
+        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
+      }
+      for (const target of [
+        'darwin-arm64',
+        'darwin-x64',
+        'linux-arm64-gnu',
+        'linux-x64-gnu',
+        'win32-arm64-msvc',
+        'win32-ia32-msvc',
+        'win32-x64-msvc'
+      ]) {
+        const file = `${modules}/node-addon-require-builtin-${target}/package.json`
+        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
       }
     }
   })

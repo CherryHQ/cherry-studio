@@ -182,12 +182,12 @@ exports.keepPackages = keepPackages
 
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
-  const clipboardTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
+  const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
-    `!**/node_modules/@mariozechner/clipboard-!(${clipboardTarget})/**`,
+    `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
     `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
-    `!**/node_modules/node-addon-require-builtin-!(${platform}-${arch})/**`,
+    `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
     `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
   ]
 }
