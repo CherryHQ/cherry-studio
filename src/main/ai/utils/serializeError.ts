@@ -1,6 +1,10 @@
 import { APICallError, RetryError } from 'ai'
 
-import { enrichOllamaContextAllocationSerializedError, type OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
+import {
+  enrichOllamaContextAllocationSerializedError,
+  isOllamaKvCacheAllocationError,
+  type OllamaNumCtxRequestSnapshot
+} from '@shared/ai/ollamaNumCtx'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
@@ -39,6 +43,24 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
+function ollamaAllocationHintFromNestedErrors(error: Error): string | undefined {
+  const source = error as unknown as Record<string, unknown>
+  const nested: unknown[] = []
+  if ('lastError' in source) nested.push(source.lastError)
+  if (Array.isArray(source.errors)) nested.push(...source.errors)
+
+  for (const candidate of nested) {
+    if (candidate == null) continue
+    const record = candidate as Record<string, unknown>
+    const hint = [
+      candidate instanceof Error ? candidate.message : '',
+      typeof record.responseBody === 'string' ? record.responseBody : ''
+    ].join('\n')
+    if (isOllamaKvCacheAllocationError(hint)) return hint
+  }
+  return undefined
+}
+
 function enrichOllamaAllocationError(
   serialized: SerializedError,
   context?: SerializeErrorContext,
@@ -123,7 +145,8 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
       serialized.processExitSignal = e.processExitSignal
     }
 
-    enrichOllamaAllocationError(serialized, context)
+    const allocationHint = isRetryError ? ollamaAllocationHintFromNestedErrors(error) : undefined
+    enrichOllamaAllocationError(serialized, context, allocationHint)
     return serialized
   }
   const safeMessage = getSafeProviderErrorMessage({ data: error })
