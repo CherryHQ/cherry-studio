@@ -40,7 +40,7 @@ import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import type { AgentRuntimeEvent } from '../types'
+import type { AgentRuntimeEvent, AgentRuntimeHookHandler } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
@@ -62,6 +62,7 @@ const META_TOOLS = new Set<string>(
 )
 
 export interface PiApprovalContext {
+  onHook?: AgentRuntimeHookHandler
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
   /** Session workspace root used to resolve relative tool paths and as a trusted read/write root. */
@@ -101,12 +102,26 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         signal: extCtx.signal
       })
     })
+    pi.on('tool_result', async (event, extCtx) => {
+      await ctx.onHook?.(
+        {
+          event: event.isError ? 'postToolUseFailure' : 'postToolUse',
+          toolName: event.toolName,
+          toolCallId: event.toolCallId,
+          toolInput: event.input,
+          toolOutput: event.content
+        },
+        extCtx.signal
+      )
+    })
   }
 }
 
 export interface PiToolAuthorizationRequest {
   toolName: string
   toolCallId: string
+  /** Nested calls retain their own Hook identity while approvals use the visible outer call. */
+  executionToolCallId?: string
   input: Record<string, unknown>
   signal?: AbortSignal
   /** Pauses outer execution accounting while the user decides this nested call. */
@@ -119,7 +134,7 @@ export type PiToolAuthorizer = (
 
 /** Reusable policy boundary for native Pi calls and nested code-mode calls. */
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
-  return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
+  return async ({ toolName, toolCallId, executionToolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
     const browserPermission = resolveBrowserToolPermission(toolName)
     if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
@@ -164,6 +179,12 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
         }
       }
     }
+
+    const hook = await ctx.onHook?.(
+      { event: 'preToolUse', toolName, toolCallId: executionToolCallId ?? toolCallId, toolInput: input },
+      signal
+    )
+    if (hook?.denied) return { block: true, reason: hook.reason ?? 'The tool was denied by an Agent Hook.' }
 
     // (5) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
     // exception: its one-hop live-approval ceiling must hold in every permission mode.

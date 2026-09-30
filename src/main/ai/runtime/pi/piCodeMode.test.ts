@@ -39,6 +39,34 @@ function codeModeTools(
 }
 
 describe('createPiCodeModeTools', () => {
+  it.each([false, true])('reports nested MCP execution with its own Hook identity (failure=%s)', async (fails) => {
+    const name = 'mcp__files__write'
+    const onHook = vi.fn(async () => ({}))
+    const execute = vi.fn(async () => {
+      if (fails) throw new Error('original MCP failure')
+      return { content: [{ type: 'text' as const, text: 'saved' }], details: null }
+    })
+    const tools = createPiCodeModeTools(
+      [tool({ name, execute })],
+      () => false,
+      async () => undefined,
+      onHook
+    )
+    const call = tools.find((item) => item.name === PI_TOOL_CALL_TOOL_NAME)!
+    const result = call.execute('outer-call', { name, params: { path: 'a' } }, undefined, undefined, {} as never)
+    if (fails) await expect(result).rejects.toThrow('original MCP failure')
+    else expect(await result).toMatchObject({ content: [{ type: 'text', text: 'saved' }] })
+    expect(onHook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: fails ? 'postToolUseFailure' : 'postToolUse',
+        toolName: name,
+        toolCallId: 'outer-call::call',
+        toolInput: { path: 'a' }
+      }),
+      undefined
+    )
+  })
+
   it('searches names and descriptions and returns TypeScript declarations', async () => {
     const searchIssues = tool({ name: 'mcp__github__search_issues', description: 'Find repository issues' })
     const listFiles = tool({ name: 'mcp__files__list', description: 'List files' })

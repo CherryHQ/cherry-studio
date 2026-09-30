@@ -5,7 +5,9 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceService, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import crossSpawn from 'cross-spawn'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
@@ -14,9 +16,16 @@ import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resou
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
+import * as processRunner from '@main/utils/processRunner'
+import * as shellEnv from '@main/utils/shellEnv'
+import type { AgentHook } from '@shared/ai/agentHook'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentRuntimeEvent } from '../../runtime/types'
+import { AgentHookSession } from '../AgentHookSession'
 import type * as ForkResourcesModule from '../fork/resources'
+
+vi.mock('cross-spawn', { spy: true })
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -91,7 +100,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@data/services/AgentService', () => ({
-  agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+  agentService: {
+    getAgent: mocks.getAgent,
+    onAgentUpdated: () => () => {}
+  }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -277,6 +289,259 @@ function createDeferred<T>() {
   })
   return { promise, resolve, reject }
 }
+
+const hookShellEnv = Object.fromEntries(
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+)
+
+describe('Agent Hook commands', () => {
+  const sessions: AgentHookSession[] = []
+  const windows = process.platform === 'win32'
+  let hooks: AgentHook[]
+  let spawnSpy: MockInstance<typeof crossSpawn>
+  const configure = (command: string, event: AgentHook['event'] = 'preToolUse', timeoutMs = 10_000) => {
+    hooks.push({ id: randomUUID(), name: 'test-hook', event, command, timeoutMs, enabled: true })
+  }
+  const create = () => {
+    const session = new AgentHookSession({
+      sessionId: 'hook-session',
+      agentId: 'hook-agent',
+      runtime: 'pi',
+      getConfiguration: () => ({ hooks }),
+      getCwd: tmpdir
+    })
+    sessions.push(session)
+    return session
+  }
+  beforeEach(() => {
+    hooks = []
+    vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
+    spawnSpy = vi.mocked(crossSpawn).mockClear()
+  })
+  afterEach(async () => {
+    await Promise.all(sessions.splice(0).map((session) => session.close()))
+    vi.restoreAllMocks()
+  })
+
+  it('passes untrusted UTF-8 tool input only through stdin and returns the exit reason', async () => {
+    configure(windows ? '[Console]::Out.Write([Console]::In.ReadToEnd()); exit 7' : 'cat; exit 7', 'preToolUse', 30_000)
+    const result = await create().invoke({
+      event: 'preToolUse',
+      toolName: 'write',
+      toolCallId: 'call-1',
+      toolInput: { text: "中文 $(exit 0); 'quotes'" }
+    })
+    expect(result.denied).toBe(true)
+    expect(result.reason).toContain('exit 7')
+    expect(result.reason).toContain("中文 $(exit 0); 'quotes'")
+    expect(result.reason).toContain('hook-session')
+    expect(spawnSpy.mock.calls[0][1]!.join(' ')).not.toContain('中文')
+  }, 45_000)
+
+  it('runs session start once per connection, reads live settings and never lets a post-Hook deny', async () => {
+    configure('exit 0', 'sessionStart')
+    const session = create()
+    await Promise.all([session.invoke({ event: 'sessionStart' }), session.invoke({ event: 'sessionStart' })])
+    expect(spawnSpy).toHaveBeenCalledTimes(1)
+    configure('exit 3', 'postToolUse')
+    expect(await session.invoke({ event: 'postToolUse', toolName: 'read' })).toEqual({})
+    expect(spawnSpy).toHaveBeenCalledTimes(2)
+    hooks[1].enabled = false
+    await session.invoke({ event: 'postToolUse', toolName: 'read' })
+    expect(spawnSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps one immutable rule snapshot while an event is waiting to launch', async () => {
+    const session = create()
+    await session.invoke({ event: 'sessionStart' })
+    configure('exit 0', 'preToolUse', 30_000)
+    configure('exit 7', 'preToolUse', 30_000)
+    const env = await shellEnv.getShellEnv()
+    const envRequested = createDeferred<void>()
+    const envReady = createDeferred<typeof env>()
+    vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(() => {
+      envRequested.resolve()
+      return envReady.promise
+    })
+
+    const pending = session.invoke({ event: 'preToolUse' })
+    await envRequested.promise
+    hooks[0].command = 'exit 9'
+    hooks[1].enabled = false
+    envReady.resolve(env)
+
+    expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('exit 7') })
+    expect(spawnSpy.mock.results.map(({ value }) => value.exitCode)).toEqual([0, 7])
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('exit 9')
+    })
+    expect(spawnSpy).toHaveBeenCalledTimes(3)
+  }, 100_000)
+
+  it('rejects invalid global settings before tools without changing completed tool results', async () => {
+    configure('exit 0', 'preToolUse', 0)
+    const session = create()
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('Unable to execute Hook')
+    })
+    expect(await session.invoke({ event: 'postToolUse' })).toEqual({})
+    expect(spawnSpy).not.toHaveBeenCalled()
+  })
+
+  it('keeps shared session startup alive when its first caller is cancelled before command launch', async () => {
+    configure('exit 0', 'sessionStart', 30_000)
+    configure('exit 7', 'preToolUse', 30_000)
+    const session = create()
+    const env = await shellEnv.getShellEnv()
+    const envReady = createDeferred<typeof env>()
+    vi.mocked(shellEnv.getShellEnv).mockReturnValueOnce(envReady.promise)
+    const controller = new AbortController()
+    const first = session.invoke({ event: 'preToolUse' }, controller.signal)
+    let cancelled: unknown
+    void first.then((result) => {
+      cancelled = result
+    })
+    const next = session.invoke({ event: 'preToolUse' })
+    controller.abort()
+    try {
+      await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      expect(spawnSpy).not.toHaveBeenCalled()
+    } finally {
+      envReady.resolve(env)
+    }
+
+    expect(await next).toMatchObject({ denied: true, reason: expect.stringContaining('exit 7') })
+    expect(spawnSpy.mock.results.map(({ value }) => value.exitCode)).toEqual([0, 7])
+    await session.invoke({ event: 'sessionStart' })
+    expect(spawnSpy).toHaveBeenCalledTimes(2)
+  }, 75_000)
+
+  it.each(['sessionStart', 'preToolUse'] as const)(
+    'cancels and closes while %s awaits the environment',
+    async (event) => {
+      configure('exit 0', event)
+      const session = create()
+      const envRequested = createDeferred<AbortSignal>()
+      vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(
+        (signal) =>
+          new Promise((_resolve, reject) => {
+            signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+            envRequested.resolve(signal!)
+          })
+      )
+      const controller = new AbortController()
+      let cancelled: unknown
+      const pending = session.invoke({ event: 'preToolUse' }, controller.signal).then((result) => {
+        cancelled = result
+      })
+      const envSignal = await envRequested.promise
+      controller.abort()
+      await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      expect(envSignal.aborted).toBe(event === 'preToolUse')
+      await session.close()
+      expect(envSignal.aborted).toBe(true)
+      expect(spawnSpy).not.toHaveBeenCalled()
+      await pending
+    }
+  )
+
+  it('fails closed on timeout and oversized output', async () => {
+    configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', 'preToolUse', 100)
+    const session = create()
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('timed out')
+    })
+    expect(await processRunner.waitForProcessExit(spawnSpy.mock.results[0].value, 1000)).toBe(true)
+    hooks[0].timeoutMs = 10_000
+    hooks[0].command = windows ? "[Console]::Out.Write('x' * 70000)" : 'head -c 70000 /dev/zero'
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('65536 bytes')
+    })
+  }, 15_000)
+
+  it('executes only when both literal match conditions pass', async () => {
+    configure('exit 7')
+    hooks[0].matcher = { toolNameContains: 'write', inputContains: 'test.txt' }
+    const session = create()
+    expect(await session.invoke({ event: 'preToolUse', toolName: 'read', toolInput: { path: 'test.txt' } })).toEqual({})
+    expect(await session.invoke({ event: 'preToolUse', toolName: 'write', toolInput: { path: 'other.txt' } })).toEqual(
+      {}
+    )
+    expect(await session.invoke({ event: 'preToolUse', toolName: 'Write', toolInput: { path: 'test.txt' } })).toEqual(
+      {}
+    )
+    expect(spawnSpy).not.toHaveBeenCalled()
+    expect(
+      await session.invoke({ event: 'preToolUse', toolName: 'write', toolInput: { path: 'test.txt' } })
+    ).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('exit 7')
+    })
+    hooks[0].matcher = { inputContains: 'test.*' }
+    expect(await session.invoke({ event: 'preToolUse', toolInput: { path: 'test.txt' } })).toEqual({})
+    expect(spawnSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['question', undefined] as const)(
+    'notifies %s once without resolving the user decision',
+    async (interactionKind) => {
+      configure('exit 7', interactionKind === 'question' ? 'questionRequested' : 'approvalRequested')
+      const session = create()
+      const request = {
+        approvalId: randomUUID(),
+        toolCallId: 'call-1',
+        toolName: 'interactive-tool',
+        input: { question: 'Proceed?' },
+        presentation: 'stream' as const,
+        interactionKind
+      }
+      const decisions: unknown[] = []
+      toolApprovalRegistry.register({
+        ...request,
+        sessionId: 'hook-session',
+        originalInput: request.input,
+        resolve: (decision) => decisions.push(decision)
+      })
+      try {
+        session.notifyInteraction(request)
+        session.notifyInteraction(request)
+        await expect.poll(() => spawnSpy.mock.results.length).toBe(1)
+        await expect.poll(() => spawnSpy.mock.results[0].value.exitCode, { timeout: 10_000 }).toBe(7)
+        expect(decisions).toEqual([])
+        expect(toolApprovalRegistry.peek(request.approvalId)).toBeDefined()
+        toolApprovalRegistry.dispatch(request.approvalId, { approved: false, reason: 'User declined' })
+        expect(decisions).toEqual([{ approved: false, reason: 'User declined' }])
+      } finally {
+        toolApprovalRegistry.abort('hook-session')
+      }
+    }
+  )
+
+  it.each(['sessionStart', 'preToolUse'] as const)(
+    'kills an active %s on close and refuses all later executions',
+    async (event) => {
+      configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', event)
+      const session = create()
+      const controller = new AbortController()
+      const pending = session.invoke({ event: 'preToolUse' }, controller.signal)
+      await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
+      if (event === 'sessionStart') {
+        controller.abort()
+        await pending
+      }
+      await session.close()
+      expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      const child = spawnSpy.mock.results[0].value
+      expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+      await session.invoke({ event: 'preToolUse' })
+      expect(spawnSpy).toHaveBeenCalledTimes(1)
+    }
+  )
+})
 
 describe('AgentSessionForkOperations recovery', () => {
   const journals = new Map<string, AgentSessionForkResources>()
@@ -471,6 +736,7 @@ describe('AgentSessionForkOperations recovery', () => {
 
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
     BaseService.resetInstances()
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
@@ -526,8 +792,194 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'PreferenceService') return MockMainPreferenceService.getInstance()
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it.each(['pi', 'claude-code', 'dsh'] as const)(
+    'uses live global Hooks for different %s agents without executing legacy agent rules',
+    async (runtime) => {
+      const connections: Array<{
+        events: ReturnType<typeof createAsyncQueue<AgentRuntimeEvent>>
+        connection: AgentRuntimeConnection
+      }> = []
+      const connect = vi.fn<(input: AgentRuntimeConnectInput) => Promise<AgentRuntimeConnection>>(async () => {
+        const events = createAsyncQueue<AgentRuntimeEvent>()
+        const connection = {
+          events: events.iterable,
+          send: vi.fn(),
+          reconcile: vi.fn<AgentRuntimeConnection['reconcile']>().mockResolvedValue('current'),
+          close: vi.fn()
+        } satisfies AgentRuntimeConnection
+        connections.push({ events, connection })
+        return connection
+      })
+      runtimeDriverRegistry.register({
+        type: runtime,
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const rule: AgentHook = {
+        id: randomUUID(),
+        name: 'global-rule',
+        event: 'preToolUse',
+        enabled: true,
+        command: 'exit 5',
+        timeoutMs: 30_000
+      }
+      mocks.getAgent.mockImplementation((id: string) => ({
+        id,
+        type: runtime,
+        model: baseTurnInput.modelId,
+        configuration: { env_vars: { HOOK_AGENT: id }, hooks: [{ ...rule, name: 'legacy', command: 'exit 9' }] }
+      }))
+      mocks.getSessionById.mockImplementation((id: string) => ({ id, workspace: { path: tmpdir() } }))
+      const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
+      const spawnSpy = vi.mocked(crossSpawn).mockClear()
+      const service = new AgentSessionRuntimeService()
+      try {
+        for (const index of [0, 1]) {
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [])
+          const agentId = `hook-agent-${index}`
+          const sessionId = `hook-session-${index}`
+          const handle = service.beginTurn({
+            ...baseTurnInput,
+            agentId,
+            sessionId,
+            topicId: `agent-session:${sessionId}`,
+            agentType: runtime
+          })
+          const reader = service
+            .openTurnStream({ sessionId, turnId: handle.turnId, signal: new AbortController().signal })
+            .getReader()
+          await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+          await vi.waitFor(() => expect(connections[index]?.connection.send).toHaveBeenCalledOnce())
+          const onHook = connect.mock.calls[index][0].onHook!
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toEqual({})
+          expect(spawnSpy).toHaveBeenCalledTimes(index)
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [rule])
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toMatchObject({
+            denied: true,
+            reason: expect.stringContaining('global-rule failed: exit 5')
+          })
+          expect(spawnSpy.mock.calls.at(-1)?.[2]).toMatchObject({
+            cwd: tmpdir(),
+            env: expect.objectContaining({ HOOK_AGENT: agentId })
+          })
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [{ ...rule, enabled: false }])
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toEqual({})
+          expect(spawnSpy).toHaveBeenCalledTimes(index + 1)
+          expect(connect).toHaveBeenCalledTimes(index + 1)
+          await service.closeSession(sessionId)
+          connections[index].events.push({ type: 'turn-complete' })
+        }
+      } finally {
+        for (const index of [0, 1]) await service.closeSession(`hook-session-${index}`)
+        for (const { events } of connections) events.push({ type: 'turn-complete' })
+        envSpy.mockRestore()
+        spawnSpy.mockClear()
+      }
+    },
+    60_000
+  )
+
+  describe('turnEnd Hooks', () => {
+    it.each(['pi', 'claude-code', 'dsh'])(
+      'completes %s turns and starts a successor while the notification runs, then cancels it on close',
+      async (runtime) => {
+        const events = createAsyncQueue<AgentRuntimeEvent>()
+        const connection = {
+          events: events.iterable,
+          send: vi.fn(),
+          reconcile: vi.fn<AgentRuntimeConnection['reconcile']>().mockResolvedValue('current'),
+          close: vi.fn()
+        } satisfies AgentRuntimeConnection
+        runtimeDriverRegistry.register({
+          type: runtime,
+          capabilities: ['agent-session'],
+          connect: vi.fn().mockResolvedValue(connection),
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        mocks.getAgent.mockReturnValue({ id: 'agent-1', type: runtime, model: baseTurnInput.modelId })
+        mocks.getSessionById.mockReturnValue({ id: 'session-1', workspace: { path: tmpdir() } })
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [
+          {
+            id: randomUUID(),
+            name: 'slow-turn-end',
+            event: 'turnEnd',
+            enabled: true,
+            command: process.platform === 'win32' ? 'Start-Sleep -Seconds 30' : 'sleep 30',
+            timeoutMs: 60_000
+          }
+        ])
+        const service = new AgentSessionRuntimeService()
+        const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
+        const spawnSpy = vi.mocked(crossSpawn).mockClear()
+        const executeSpy = vi.spyOn(processRunner, 'executeCommand')
+        try {
+          const handle = service.beginTurn({ ...baseTurnInput, agentType: runtime })
+          const reader = service
+            .openTurnStream({
+              sessionId: 'session-1',
+              turnId: handle.turnId,
+              signal: new AbortController().signal
+            })
+            .getReader()
+          await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+          await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(1))
+          events.push({ type: 'turn-complete' })
+          let completed = false
+          const completion = reader.read().then((result) => {
+            completed = result.done
+            return result
+          })
+          await expect.poll(() => completed).toBe(true)
+          await expect(completion).resolves.toMatchObject({ done: true })
+          await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+          expect(service.isSessionBusy('session-1')).toBe(false)
+          await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
+          const child = spawnSpy.mock.results[0].value
+          expect(child.exitCode).toBeNull()
+          expect(child.signalCode).toBeNull()
+
+          const next = service.beginTurn({ ...baseTurnInput, agentType: runtime, assistantMessageId: 'assistant-2' })
+          const nextReader = service
+            .openTurnStream({
+              sessionId: 'session-1',
+              turnId: next.turnId,
+              signal: new AbortController().signal
+            })
+            .getReader()
+          await expect(nextReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+          await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+          events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'next-text' } })
+          await expect(nextReader.read()).resolves.toMatchObject({
+            value: { type: 'text-start', id: 'next-text' },
+            done: false
+          })
+          expect(connection.close).not.toHaveBeenCalled()
+          expect(JSON.parse(executeSpy.mock.calls[0][2]!.stdin!)).toMatchObject({
+            event: 'turnEnd',
+            messageId: 'assistant-1'
+          })
+          expect(child.exitCode).toBeNull()
+          expect(child.signalCode).toBeNull()
+
+          await service.closeSession('session-1')
+          expect(await processRunner.waitForProcessExit(child, 1000)).toBe(true)
+        } finally {
+          await service.closeSession('session-1')
+          events.push({ type: 'turn-complete' })
+          executeSpy.mockRestore()
+          spawnSpy.mockClear()
+          envSpy.mockRestore()
+        }
+      }
+    )
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {
@@ -544,6 +996,78 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('respondToolApproval', () => {
+    it.each(['stream', 'message'] as const)(
+      'starts notification commands only after %s presentation and leaves the decision pending',
+      async (presentation) => {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const enqueue = vi.fn()
+        entry.currentTurn.controller = { enqueue } as never
+        const connection = { events: [], send: vi.fn(), close: vi.fn() }
+        entry.connection = connection
+        const hooks = new AgentHookSession({
+          sessionId: 'session-1',
+          agentId: 'agent-1',
+          runtime: 'claude-code',
+          getCwd: tmpdir,
+          getConfiguration: () => ({
+            hooks: [
+              {
+                id: randomUUID(),
+                name: 'question-notify',
+                enabled: true,
+                command: 'exit 7',
+                event: 'questionRequested',
+                timeoutMs: 10_000
+              }
+            ]
+          })
+        })
+        ;(service as any).hookSessions.set(connection, hooks)
+        const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
+        const spawnSpy = vi.mocked(crossSpawn).mockClear()
+        const decisions: unknown[] = []
+        const request = {
+          interactionKind: 'question' as const,
+          approvalId: 'hook-question',
+          toolCallId: 'hook-call',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Continue?' }] },
+          presentation
+        }
+        toolApprovalRegistry.register({
+          ...request,
+          sessionId: 'session-1',
+          originalInput: request.input,
+          resolve: (decision) => decisions.push(decision)
+        })
+        try {
+          ;(service as any).handleRuntimeEvent(entry, { type: 'tool-approval-request', request })
+          if (presentation === 'stream') {
+            expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ type: 'tool-approval-request' }))
+          } else {
+            expect(mocks.saveMessage).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1' }), {
+              publishDataChange: true
+            })
+          }
+          expect(spawnSpy).not.toHaveBeenCalled()
+          await expect.poll(() => spawnSpy.mock.results.length).toBe(1)
+          await expect.poll(() => spawnSpy.mock.results[0].value.exitCode, { timeout: 10_000 }).toBe(7)
+          expect(decisions).toEqual([])
+          expect(
+            service.respondToolApproval(request.approvalId, { approved: false, reason: 'No' }, 'assistant-1')
+          ).toBe(true)
+          expect(decisions).toEqual([{ approved: false, reason: 'No' }])
+        } finally {
+          await service.closeSession('session-1')
+          await hooks.close()
+          spawnSpy.mockClear()
+          envSpy.mockRestore()
+        }
+      }
+    )
+
     it('clears the live awaiting-approval anchor as soon as the decision is dispatched', () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
@@ -4664,6 +5188,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: undefined,
         onSteerInjected: expect.any(Function),
+        onHook: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -4781,6 +5306,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: 'resume-db',
         onSteerInjected: expect.any(Function),
+        onHook: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),

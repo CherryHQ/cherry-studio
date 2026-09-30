@@ -36,6 +36,7 @@ renderer-side transport that connects to them.
 |---|---|
 | [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: single-pass stream, hook composition, observer pattern, error/abort semantics |
 | [Agent Prompt Layers](./agent-prompt-layers.md) | Agent System Prompt, workspace `system.md`, `SOUL.md`, precedence, update boundary, and variable lifecycle |
+| [Agent Hooks](./agent-hooks.md) | User-configured local commands for agent lifecycle and tool events across Pi, Claude Code, and DSH |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in web/knowledge/file/image/MCP-resource tools, selected MCP tools, meta-tools, and deferred exposition |
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |

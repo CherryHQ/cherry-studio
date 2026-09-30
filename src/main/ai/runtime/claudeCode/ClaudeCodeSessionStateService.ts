@@ -21,6 +21,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import type { AgentRuntimeHookHandler } from '../types'
 import {
   BASH_HISTORY_LIMIT,
   BASH_RUN_BREAK_MARKER,
@@ -47,6 +48,16 @@ interface McpSessionCatalogState {
 @Injectable('ClaudeCodeSessionStateService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
+  private readonly agentHooks = new Map<string, AgentRuntimeHookHandler>()
+
+  setAgentHookHandler(sessionId: string, handler: AgentRuntimeHookHandler | undefined): void {
+    if (handler) this.agentHooks.set(sessionId, handler)
+    else this.agentHooks.delete(sessionId)
+  }
+
+  getAgentHookHandler(sessionId: string): AgentRuntimeHookHandler | undefined {
+    return this.agentHooks.get(sessionId)
+  }
   private readonly toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
   private readonly steerHolders = new Map<string, SteerHolder>()
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
@@ -186,6 +197,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {
+    this.agentHooks.delete(sessionId)
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
     for (const key of [...this.bashOutcomes.keys()]) {
@@ -264,6 +276,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private disposeAllSessionState(): void {
     for (const holder of [...this.toolApprovalEmitters.values()]) holder.dispose?.()
     this.toolApprovalEmitters.clear()
+    this.agentHooks.clear()
     for (const holder of [...this.steerHolders.values()]) holder.dispose()
     this.steerHolders.clear()
     this.toolPolicySnapshots.clear()

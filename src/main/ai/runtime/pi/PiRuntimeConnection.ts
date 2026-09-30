@@ -324,6 +324,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const approvalContext = {
+        onHook: this.input.onHook,
         sessionId: this.input.sessionId,
         workspacePath,
         agentDataPath,
@@ -392,7 +393,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const customTools = createPiCodeModeTools(
         this.mcpBridge.tools,
         (toolName) => this.disabledTools.has(toolName),
-        authorizeTool
+        authorizeTool,
+        this.input.onHook
       )
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.

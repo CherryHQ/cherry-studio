@@ -146,6 +146,7 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
 
 describe('bashOutcomeHook', () => {
   const svc = new ClaudeCodeSessionStateService()
+  let hookTable: ReturnType<typeof buildClaudeCodeHooks>
   let bashOutcomeHook: HookCallback
   let toolGuardHook: HookCallback
   let rtkRewriteHook: HookCallback
@@ -171,6 +172,7 @@ describe('bashOutcomeHook', () => {
       supportsImages: false,
       agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
     })
+    hookTable = hooks
     // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook].
     toolGuardHook = hooks!.PreToolUse![0].hooks[0]
     rtkRewriteHook = hooks!.PreToolUse![0].hooks[3]
@@ -181,6 +183,83 @@ describe('bashOutcomeHook', () => {
   })
 
   const fire = (input: Record<string, unknown>) => bashOutcomeHook(input as never, undefined, {} as never)
+
+  it('uses the current Hook handler in a prewarmed table and only contributes deny decisions', async () => {
+    const first = vi.fn(async () => ({ denied: true, reason: 'blocked by Hook' }))
+    svc.setAgentHookHandler(SESSION, first)
+    const event = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Read',
+      tool_input: { file_path: '/ws/a' },
+      tool_use_id: 'hook-call'
+    }
+    const firePre = () =>
+      Promise.all(
+        hookTable!
+          .PreToolUse!.flatMap(({ hooks }) => hooks)
+          .map((hook) => hook(event as never, 'hook-call', { signal: new AbortController().signal }))
+      )
+    expect(await firePre()).toContainEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'blocked by Hook'
+      }
+    })
+    const second = vi.fn(async () => ({}))
+    svc.setAgentHookHandler(SESSION, second)
+    expect(
+      (await firePre()).every(
+        (result) =>
+          !(
+            'hookSpecificOutput' in result &&
+            result.hookSpecificOutput &&
+            'permissionDecision' in result.hookSpecificOutput
+          )
+      )
+    ).toBe(true)
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'preToolUse', toolCallId: 'hook-call' }),
+      expect.any(AbortSignal)
+    )
+    svc.disposeToolPolicySnapshot(SESSION)
+    expect(svc.getAgentHookHandler(SESSION)).toBeUndefined()
+  })
+
+  it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
+    'reports %s without changing the SDK outcome',
+    async (event) => {
+      const handler = vi.fn(async () => ({ denied: true, reason: 'ignored' }))
+      svc.setAgentHookHandler(SESSION, handler)
+      const outputs = await Promise.all(
+        hookTable!
+          [event]!.flatMap(({ hooks }) => hooks)
+          .map((hook) =>
+            hook(
+              {
+                hook_event_name: event,
+                tool_name: 'Read',
+                tool_input: {},
+                tool_use_id: 'hook-call',
+                tool_response: 'done',
+                error: 'read failed'
+              } as never,
+              'hook-call',
+              { signal: new AbortController().signal }
+            )
+          )
+      )
+      expect(outputs.every((output) => Object.keys(output).length === 0)).toBe(true)
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: event === 'PostToolUse' ? 'postToolUse' : 'postToolUseFailure',
+          toolCallId: 'hook-call'
+        }),
+        expect.any(AbortSignal)
+      )
+    }
+  )
 
   const bashSuccess = (response: unknown, agentId?: string) => ({
     hook_event_name: 'PostToolUse',

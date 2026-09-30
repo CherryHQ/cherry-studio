@@ -72,9 +72,10 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
  * embedded `%VAR%` references so callers get a ready-to-use PATH string.
  * Returns null when both registry reads fail.
  */
-async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
+async function readWindowsRegistryPath(env: Record<string, string>, signal: AbortSignal): Promise<string | null> {
   try {
     const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+    signal.throwIfAborted()
     const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
       const pathValue = enumerateValuesSafe(hive, subkey).find(
         (value) =>
@@ -97,6 +98,7 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
     const combined = [systemPath, userPath].filter(Boolean).join(';')
     return expandWindowsEnvVars(combined, env)
   } catch {
+    signal.throwIfAborted()
     return null
   }
 }
@@ -106,13 +108,13 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
  * PATH with the current registry value. This avoids the stale PATH problem
  * where `cmd.exe /c set` only inherits the Electron parent process's env.
  */
-async function getWindowsEnvironment(): Promise<Record<string, string>> {
+async function getWindowsEnvironment(signal: AbortSignal): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
   for (const key in process.env) {
     env[key] = process.env[key] || ''
   }
 
-  const registryPath = await readWindowsRegistryPath(env)
+  const registryPath = await readWindowsRegistryPath(env, signal)
   if (registryPath) {
     const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
     for (const key of pathKeys) {
@@ -142,13 +144,13 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
  * @returns {Promise<Object>} A promise that resolves with an object containing
  * the environment variables, or rejects with an error.
  */
-function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
-  signal?.throwIfAborted()
+function getLoginShellEnvironment(signal: AbortSignal): Promise<Record<string, string>> {
+  signal.throwIfAborted()
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
   if (isWin) {
-    return getWindowsEnvironment()
+    return getWindowsEnvironment(signal)
   }
 
   return new Promise((resolve, reject) => {
@@ -182,8 +184,10 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
 
     let settled = false
     let timeoutId: NodeJS.Timeout | undefined
+    let stopReason: Error | undefined
 
     const cleanup = () => {
+      signal.removeEventListener('abort', onAbort)
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = undefined
@@ -209,10 +213,8 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
     }
 
     const child = spawn(shellPath, commandArgs, {
-      signal,
-      killSignal: 'SIGKILL',
       cwd: homeDirectory, // Run the command in the user's home directory
-      detached: false, // Stay attached so we can clean up reliably
+      detached: true, // Own the process group, including commands run by login profiles.
       stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
       shell: false // We are specifying the shell command directly
     })
@@ -220,14 +222,30 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
     let output = ''
     let errorOutput = ''
 
+    const stop = (error: Error) => {
+      if (settled || stopReason) return
+      stopReason = error
+      try {
+        if (child.pid) process.kill(-child.pid, 'SIGKILL')
+      } catch (killError) {
+        if ((killError as NodeJS.ErrnoException).code !== 'ESRCH') {
+          logger.warn('Failed to stop the shell process group, falling back to child.kill()', { error: killError })
+          child.kill('SIGKILL')
+        }
+      }
+      child.stdout.destroy()
+      child.stderr.destroy()
+      // Settle on close so the final cancelled caller also waits for the child to exit.
+    }
+    const onAbort = () => stop(signal.reason)
+
     // Protects against shells that wait for user input or hang during profile sourcing.
     timeoutId = setTimeout(() => {
       const errorMessage = `Timed out after ${SHELL_ENV_TIMEOUT_MS}ms while retrieving shell environment. Shell: ${shellPath}. Args: ${commandArgs.join(
         ' '
       )}. CWD: ${homeDirectory}`
       logger.error(errorMessage)
-      child.kill('SIGKILL')
-      rejectOnce(new Error(errorMessage))
+      stop(new Error(errorMessage))
     }, SHELL_ENV_TIMEOUT_MS)
 
     child.stdout.on('data', (data) => {
@@ -247,6 +265,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       if (settled) {
         return
       }
+      if (stopReason) return rejectOnce(stopReason)
 
       if (code !== 0) {
         const errorMessage = `Shell process exited with code ${code}. Shell: ${shellPath}. Args: ${commandArgs.join(' ')}. CWD: ${homeDirectory}. Stderr: ${errorOutput.trim()}`
@@ -288,16 +307,23 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
 
       resolveOnce(env)
     })
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
   })
 }
 
 let cachedEnv: Record<string, string> | null = null
-let inflight: Promise<Record<string, string>> | null = null
+let inflight: {
+  controller: AbortController
+  promise: Promise<Record<string, string>>
+  consumers: number
+} | null = null
 
-async function fetchShellEnv(): Promise<Record<string, string>> {
+async function fetchShellEnv(signal: AbortSignal): Promise<Record<string, string>> {
   try {
-    return await getLoginShellEnvironment()
+    return await getLoginShellEnvironment(signal)
   } catch (error) {
+    signal.throwIfAborted()
     logger.error('Failed to get shell environment, falling back to process.env', { error })
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
@@ -313,22 +339,48 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
  * Resolving the login shell can be slow or hang (misconfigured profiles), so
  * letting overlapping callers each spawn their own shell multiplies a 15s
  * timeout into several. Sharing the in-flight promise keeps it to one spawn.
+ * Each caller retains the capture until completion or cancellation. The last
+ * cancellation stops and drains the producer without caching a fallback result.
  */
-function loadShellEnv(): Promise<Record<string, string>> {
-  if (inflight) {
-    return inflight
+async function loadShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
+  if (!inflight || inflight.controller.signal.aborted) {
+    const controller = new AbortController()
+    const capture = { controller, consumers: 0, promise: fetchShellEnv(controller.signal) }
+    capture.promise = capture.promise
+      .then((env) => {
+        controller.signal.throwIfAborted()
+        cachedEnv = env
+        return env
+      })
+      .finally(() => {
+        if (inflight === capture) inflight = null
+      })
+    inflight = capture
   }
-  // fetchShellEnv never rejects (it falls back to process.env), so the cache
-  // is always populated and `inflight` always cleared.
-  inflight = fetchShellEnv()
-    .then((env) => {
-      cachedEnv = env
-      return env
-    })
-    .finally(() => {
-      inflight = null
-    })
-  return inflight
+  const capture = inflight
+  capture.consumers++
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    if (--capture.consumers === 0 && inflight === capture) capture.controller.abort()
+  }
+  const aborted = Promise.withResolvers<never>()
+  const onAbort = () => {
+    release()
+    aborted.reject(signal?.reason)
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  if (signal?.aborted) onAbort()
+  try {
+    return await Promise.race([capture.promise, aborted.promise])
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+    release()
+    // Other consumers retain ownership. The last cancellation drains the producer.
+    if (capture.controller.signal.aborted) await capture.promise.catch(() => {})
+  }
 }
 
 /**
@@ -338,13 +390,13 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * Returns a shallow copy: callers routinely mutate the env they get back (e.g.
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
+ * An optional signal cancels only this consumer; other consumers keep the shared
+ * capture alive. The last cancelled consumer waits for process cleanup.
  */
 export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
   signal?.throwIfAborted()
-  // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
-  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
+  const env = cachedEnv ?? (await loadShellEnv(signal))
   signal?.throwIfAborted()
-  cachedEnv ??= env
   return { ...env }
 }
 
@@ -373,7 +425,7 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     // (e.g. a tool install completing mid-flight). Acceptable because downstream
     // lookups hit the filesystem live; logged so the reuse is observable.
     logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    const env = { ...(await inflight) }
+    const env = { ...(await loadShellEnv()) }
     appendCherryToolDirsToPath(env)
     applyBinaryExecutionEnv(env)
     return env

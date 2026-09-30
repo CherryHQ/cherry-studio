@@ -13,7 +13,7 @@ const { holder } = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    ClaudeCodeSessionStateService: { getSteerHolder: () => holder },
+    ClaudeCodeSessionStateService: { getSteerHolder: () => holder, getAgentHookHandler: () => undefined },
     AgentSessionRuntimeService: { recordToolExecutionTiming: vi.fn(), getInteractionState: vi.fn() }
   } as never)
 })

@@ -448,7 +448,47 @@ export function apply(ctx: Context): void {
     const decision = await (delegated
       ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
       : decideToolCall(policy, exec.name, exec.arguments))
-    return decision.kind === 'deny' ? decision : (browserApproval ?? decision)
+    if (decision.kind === 'deny') return decision
+    try {
+      const hook = await link.callHook(
+        {
+          sessionId: rootSessionId,
+          event: 'preToolUse',
+          toolName: exec.name,
+          toolCallId: exec.callId,
+          toolInput: exec.arguments
+        },
+        exec.signal
+      )
+      if (hook.denied) return { kind: 'deny' as const, reason: hook.reason ?? 'The tool was denied by an Agent Hook.' }
+    } catch {
+      return { kind: 'deny' as const, reason: 'The Agent Hook could not verify this tool call.' }
+    }
+    // A Hook can only deny; it never upgrades the original approval policy.
+    return browserApproval ?? decision
+  })
+
+  ctx.on('tools/execute', async (exec, next) => {
+    const result = await next()
+    if (!exec.agent || exec.signal.aborted) return result
+    const sessionId = rootSessionOf(exec.agent)
+    if (!policies.has(sessionId)) return result
+    try {
+      await link.callHook(
+        {
+          sessionId,
+          event: result.isError ? 'postToolUseFailure' : 'postToolUse',
+          toolName: exec.name,
+          toolCallId: exec.callId,
+          toolInput: exec.arguments,
+          toolOutput: result.content
+        },
+        exec.signal
+      )
+    } catch {
+      // Notification failure must not turn a completed operation into a tool failure.
+    }
+    return result
   })
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.

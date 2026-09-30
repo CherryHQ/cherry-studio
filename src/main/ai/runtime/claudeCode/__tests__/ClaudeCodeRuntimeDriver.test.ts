@@ -498,7 +498,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
-      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'ClaudeCodeSessionStateService')
+        return { disposeToolPolicySnapshot: vi.fn(), setAgentHookHandler: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
