@@ -7,11 +7,12 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
-import { inspectNotesRelocation, migrateNotesDirectory } from '@main/services/notesRelocation'
 import {
   acknowledgeRendererNotesEditsFlush,
+  inspectNotesRelocation,
+  migrateNotesDirectory,
   requestRendererNotesEditsFlush
-} from '@main/services/notesRelocation/requestRendererNotesEditsFlush'
+} from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'

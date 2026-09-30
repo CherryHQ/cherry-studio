@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow } from 'electron'
 
 import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 
 type PendingFlush = {
   expected: Set<string>
@@ -15,11 +16,23 @@ const pendingByRequestId = new Map<string, PendingFlush>()
 
 const FLUSH_TIMEOUT_MS = 30_000
 
+const NOTES_FLUSH_WINDOW_TYPES = new Set<WindowType>([WindowType.Main, WindowType.SubWindow])
+
 export async function requestRendererNotesEditsFlush(): Promise<void> {
   const windowManager = application.get('WindowManager')
   const windowIds = BrowserWindow.getAllWindows()
     .filter((window) => !window.isDestroyed())
-    .map((window) => windowManager.getWindowId(window))
+    .map((window) => {
+      const windowId = windowManager.getWindowId(window)
+      if (windowId == null) {
+        return null
+      }
+      const windowType = windowManager.getWindowType(windowId)
+      if (windowType == null || !NOTES_FLUSH_WINDOW_TYPES.has(windowType)) {
+        return null
+      }
+      return windowId
+    })
     .filter((id): id is string => id != null)
 
   if (windowIds.length === 0) {
