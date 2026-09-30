@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-29T17:00:00Z",
+  "generated_at": "2026-09-30T17:00:00Z",
   "v2_branch_status": {
     "open_prs_base_v2": 0,
     "note": "No open PRs targeting the v2 branch. All active development merged into main. V2 feature work tracked via labels and internal-team issues."
@@ -41,15 +41,23 @@
     "active_open_prs": 100,
     "top_contributors_open": ["404-Page-Found (26)", "lianshuang-photo (13)", "DeJeune (7)", "AtomsH4 (5)", "louisss1016 (5)"],
     "other_base_branches": [
+      "ci/validation-workflow",
+      "ci/validation-local",
+      "investigate-ci-test-filtering",
       "wecom-channel-plan",
       "codex/voice-primary-consumers",
+      "fix/subagent-resume-routing-a",
+      "fix/subagent-resume-rendering-b",
+      "codex/voice-funasr-runtime",
+      "codex/voice-renderer-foundation",
+      "codex/voice-runtime-foundation",
       "codex/issue-15970-lifecycle-completion",
       "codex/issue-15970-manual-sync",
-      "codex/voice-renderer-foundation",
-      "ai-service-background-wake",
-      "codex/voice-funasr-runtime"
+      "codex/issue-15970-feishu-scope-adapter",
+      "codex/issue-15970-external-knowledge-domain",
+      "codex/issue-15970-feishu-connection"
     ],
-    "note": "codex/voice-* branches suggest active voice feature development in progress"
+    "note": "codex/voice-* branches (5 PRs) = active voice feature development. codex/issue-15970-* (5 PRs) = Feishu Wiki KB integration. fix/subagent-resume-* = subagent routing fixes. base_other count rose 7→15 since yesterday."
   },
   "key_risks": [
     "V2 Agent/DSH runtime has 10 open P1 bugs — pre-release quality risk",
