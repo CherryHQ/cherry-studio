@@ -221,7 +221,7 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/notes/NotesFileEditSessionProvider', () => ({
+vi.mock('@renderer/components/notes/NotesFileEditSessionProvider', () => ({
   useNotesFileEditSession: () => ({
     status: mocks.sessionStatus,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
