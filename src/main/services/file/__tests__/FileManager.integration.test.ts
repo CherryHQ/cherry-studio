@@ -6,6 +6,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -85,6 +86,29 @@ describe('FileManager (integration)', () => {
 
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('keeps an old in-flight image until all idempotent retention handles are released', async () => {
+    const entry = await fm.createInternalEntry({
+      source: 'bytes',
+      data: Buffer.from('image'),
+      ext: 'png',
+      name: 'image',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    await dbh.db
+      .update(fileEntryTable)
+      .set({ createdAt: Date.now() - 3 * 60 * 60 * 1000 })
+      .where(eq(fileEntryTable.id, entry.id))
+    const releaseFirst = fm.retainEntry(entry.id)
+    const releaseSecond = fm.retainEntry(entry.id)
+    expect((await fm.runEntryCleanup()).deleted).toBe(0)
+    releaseFirst()
+    releaseFirst()
+    expect((await fm.runEntryCleanup()).deleted).toBe(0)
+    releaseSecond()
+    expect((await fm.runEntryCleanup()).deleted).toBe(1)
+    expect(fileEntryService.findById(entry.id)).toBeNull()
   })
 
   it('registers the content-hash backfill handler during onInit', async () => {

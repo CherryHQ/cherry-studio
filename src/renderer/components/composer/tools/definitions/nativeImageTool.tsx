@@ -36,7 +36,7 @@ const NativeImageRuntime = ({
         order: 21,
         icon: <Image size={18} />,
         sources: ['popover'],
-        label: `${t('chat.input.generate_image')} · Grok`,
+        label: t('chat.input.generate_image'),
         active: enabled,
         action: toggle
       }
@@ -47,7 +47,7 @@ const NativeImageRuntime = ({
 
 export default defineTool({
   key: 'native_image',
-  label: (t) => `${t('chat.input.generate_image')} · Grok`,
+  label: (t) => t('chat.input.generate_image'),
   visibleInScopes: [TopicType.Chat],
   composer: {
     runtime: ({ context }) => (

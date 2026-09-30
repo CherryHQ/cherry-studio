@@ -1480,6 +1480,11 @@ export class MessageService {
    * Uses transaction to ensure atomicity of validation and update.
    * Cycle check is performed outside transaction as a read-only safety check.
    */
+  /** Restore message-owned file references in the caller's promotion transaction. */
+  syncFileRefsTx(tx: DbOrTx, id: string, data: MessageData): void {
+    replaceChatMessageFileRefsTx(tx, id, data)
+  }
+
   update(id: string, dto: UpdateMessageDto): Message {
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context

@@ -3,11 +3,14 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
+import { retainMessageArtifact } from '@main/services/messageArtifactRetention'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -30,6 +33,57 @@ describe('TemporaryChatService', () => {
   beforeEach(() => {
     service = new TemporaryChatService()
     notifyDataApiDataChangeMock.mockClear()
+  })
+
+  it('releases generated artifacts when a temporary conversation is deleted', () => {
+    const topic = service.createTopic({ name: 'Images' })
+    const message = service.appendMessage(topic.id, { role: 'assistant', data: mainText('image') })
+    const release = vi.fn()
+    retainMessageArtifact(message.id, release)
+    service.deleteTopic(topic.id)
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('creates durable native-image refs before releasing temporary ownership on promotion', async () => {
+    const fileId = '019606a0-0000-7000-8000-000000000001'
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id: fileId,
+      origin: 'internal',
+      name: 'image',
+      ext: 'png',
+      size: 1,
+      mimeType: 'image/png',
+      contentHash: null,
+      externalPath: null,
+      cleanupPolicy: 'delete_when_unreferenced',
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null
+    })
+    const topic = service.createTopic({ name: 'Images' })
+    const message = service.appendMessage(topic.id, {
+      role: 'assistant',
+      data: {
+        parts: [
+          {
+            type: 'tool-imageGeneration',
+            toolCallId: 'image',
+            state: 'output-available',
+            input: {},
+            output: { nativeImage: true, files: [{ id: fileId, name: 'image' }] }
+          }
+        ]
+      }
+    })
+    let referencedAtRelease = false
+    retainMessageArtifact(message.id, () => {
+      referencedAtRelease =
+        dbh.db.select().from(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.fileEntryId, fileId)).all()
+          .length === 1
+    })
+    service.persist(topic.id)
+    expect(referencedAtRelease).toBe(true)
   })
 
   describe('appendMessage — input validation', () => {

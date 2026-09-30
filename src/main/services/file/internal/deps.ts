@@ -34,4 +34,5 @@ export interface FileManagerDeps {
   readonly danglingCache: DanglingCache
   readonly versionCache: VersionCache
   readonly contentWriteLock: KeyedMutex
+  readonly isEntryRetained?: (id: string) => boolean
 }

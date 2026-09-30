@@ -11,7 +11,7 @@ const mockCreateAgent = vi.fn()
 const { createImageEntry } = vi.hoisted(() => ({ createImageEntry: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ FileManager: { createInternalEntry: createImageEntry } })
+  return mockApplicationFactory({ FileManager: { createInternalEntry: createImageEntry, retainEntry: () => () => {} } })
 })
 const TEST_USAGE = {
   inputTokens: 1,

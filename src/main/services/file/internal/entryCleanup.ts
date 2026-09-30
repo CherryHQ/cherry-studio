@@ -102,7 +102,10 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
           if (row === null || row.cleanupPolicy !== 'delete_when_unreferenced') {
             return { kind: 'gone-or-pinned' }
           }
-          if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0) {
+          if (
+            deps.isEntryRetained?.(candidate.id) ||
+            deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
+          ) {
             return { kind: 'refs-reappeared' }
           }
           deps.fileEntryService.deleteTx(tx, candidate.id)

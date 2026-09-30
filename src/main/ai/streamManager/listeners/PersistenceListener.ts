@@ -7,6 +7,7 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { releaseMessageArtifacts } from '@main/services/messageArtifactRetention'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
@@ -108,6 +109,7 @@ export class PersistenceListener implements StreamListener {
         topicId: this.opts.topicId,
         status
       })
+      if (result.anchorMessageId) releaseMessageArtifacts(result.anchorMessageId)
       return
     }
 
@@ -127,6 +129,7 @@ export class PersistenceListener implements StreamListener {
       ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
     }
 
+    let persisted = false
     try {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
@@ -134,6 +137,7 @@ export class PersistenceListener implements StreamListener {
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
+      persisted = true
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
@@ -175,6 +179,12 @@ export class PersistenceListener implements StreamListener {
         })
       }
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
+    } finally {
+      if (!persisted || this.opts.backend.kind !== 'temp') {
+        for (const id of new Set([finalMessage?.id, result.anchorMessageId])) {
+          if (id) releaseMessageArtifacts(id)
+        }
+      }
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {

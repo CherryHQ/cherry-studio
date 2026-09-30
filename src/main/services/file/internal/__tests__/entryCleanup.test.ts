@@ -162,6 +162,21 @@ describe('entryCleanup', () => {
     return { topicId }
   }
 
+  it('protects an in-flight artifact past grace, then transfers protection to persisted message refs', async () => {
+    const id = nthId(1)
+    await seedInternal(id, 'delete_when_unreferenced', { ageMs: 3 * HOUR })
+    let retained = true
+    const deps = { ...makeDeps(), isEntryRetained: () => retained }
+    expect((await runEntryCleanup(deps)).deleted).toBe(0)
+    expect(fileEntryService.findById(id)).not.toBeNull()
+    const { topicId } = await seedChatRef(id)
+    retained = false
+    expect((await runEntryCleanup(deps)).deleted).toBe(0)
+    await dbh.db.delete(topicTable).where(eq(topicTable.id, topicId))
+    expect((await runEntryCleanup(deps)).deleted).toBe(1)
+    expect(fileEntryService.findById(id)).toBeNull()
+  })
+
   it('reclaims an auto zero-ref entry past grace: row deleted, blob unlinked', async () => {
     const id = nthId(1)
     await seedInternal(id, 'delete_when_unreferenced')
