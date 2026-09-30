@@ -1007,9 +1007,7 @@ export class BinaryManager extends BaseService {
   }
 
   /** System packages belong to the OS package manager and are never added to the managed CLI registry. */
-  public async installSystemPackage(recipe: 'brew-cask:tailscale-app', signal: AbortSignal): Promise<void> {
-    if (process.platform !== 'darwin' || process.arch !== 'arm64')
-      throw new Error('Unsupported system package platform')
+  public async installSystemPackage(recipe: string, signal: AbortSignal): Promise<void> {
     await this.mutationMutex.runExclusive(async () => {
       signal.throwIfAborted()
       if (this.isShuttingDown) throw new Error('Binary manager is stopping')
