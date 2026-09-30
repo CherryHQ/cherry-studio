@@ -46,7 +46,9 @@ const questions = [
   }
 ]
 
-function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
+function makeRequest(
+  requestQuestions: AskUserQuestionComposerRequest['input']['questions'] = questions
+): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
     toolCallId: 'call-1',
@@ -72,6 +74,76 @@ function makeRequest(requestQuestions = questions): AskUserQuestionComposerReque
 }
 
 describe('AskUserQuestionComposer', () => {
+  it('reviews ACP defaults without auto-submitting, then sends typed edited values', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      {
+        id: 'enabled',
+        question: 'Enabled',
+        header: 'Enabled',
+        options: [
+          { id: 'true', label: 'true' },
+          { id: 'false', label: 'false' }
+        ],
+        multiSelect: false
+      },
+      { id: 'count', question: 'Count', header: 'Count', options: [], multiSelect: false }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', default: false },
+          count: { type: 'integer', minimum: 1, maximum: 5, default: 2 }
+        },
+        required: ['enabled', 'count']
+      }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('Configure task')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /local_agents.elicitation_yes/ }))
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByText('Enabled *')).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0])
+    const entry = screen.getByRole('textbox')
+    expect(entry).toHaveValue('2')
+    await user.clear(entry)
+    await user.type(entry, '6')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await user.clear(entry)
+    await user.type(entry, '3')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approved: true,
+        updatedInput: expect.objectContaining({ elicitationContent: { enabled: true, count: 3 } })
+      })
+    )
+  })
+
+  it.each(['decline', 'cancel'])('keeps ACP %s distinct from an empty submission', async (action) => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest()
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: { type: 'object', properties: {} }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    await user.click(
+      screen.getByRole('button', { name: action === 'cancel' ? 'Close' : 'agent.toolPermission.button.deny' })
+    )
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({ approved: false, updatedInput: { elicitationAction: action } })
+    )
+  })
+
   // Unsubmitted answers are cached per approval id, so the harness must not leak
   // one test's draft into the next one.
   beforeEach(() => {

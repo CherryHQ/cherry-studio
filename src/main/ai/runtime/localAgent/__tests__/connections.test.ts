@@ -38,6 +38,21 @@ describe('local protocol processes', () => {
     await rm(cwd, { recursive: true, force: true })
   })
 
+  async function readWire(filename = 'wire.jsonl') {
+    return (await readFile(path.join(cwd, filename), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+  }
+
+  function waitForApproval(events: AgentRuntimeEvent[]) {
+    return vi.waitFor(() => {
+      const approval = events.find((event) => event.type === 'tool-approval-request')
+      expect(approval).toBeDefined()
+      return approval!
+    })
+  }
+
   function create(protocol: 'acp' | 'codex', scenario = 'normal', nativeModel?: string) {
     const config: LocalAgentConfiguration = {
       protocol,
@@ -132,10 +147,7 @@ describe('local protocol processes', () => {
       { type: 'file', mediaType: 'text/plain', url: pathToFileURL(file).href, filename: '说明 #1.txt' }
     ]
     await connection.send({ message: { data: { parts } } } as AgentRuntimeUserInput)
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
     expect(prompt).toEqual([
       { type: 'text', text: 'Read both attachments' },
@@ -170,10 +182,7 @@ describe('local protocol processes', () => {
     await connection.send({
       message: { data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
     } as AgentRuntimeUserInput)
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(wire.find(({ method }) => method === 'session/prompt').params.prompt).toEqual([
       { type: 'text', text: 'Listen' },
       { type: 'audio', mimeType: 'audio/wav', data: 'YXVkaW8=' }
@@ -248,10 +257,7 @@ describe('local protocol processes', () => {
         }
       }
     })
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
       {
         type: 'resource',
@@ -279,10 +285,7 @@ describe('local protocol processes', () => {
         }
       }
     } as AgentRuntimeUserInput)
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
       {
         type: 'resource',
@@ -452,10 +455,7 @@ describe('local protocol processes', () => {
     const { connection } = create('acp', 'thought-resume', 'fixture-model')
     await connection.start(cwd, 'native-session')
     expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
   })
 
@@ -514,10 +514,7 @@ describe('local protocol processes', () => {
         })
       )
     )
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(
       wire.filter((message) => message.method === 'session/set_config_option').map((message) => message.params)
     ).toEqual([{ sessionId: 'native-session', configId: 'reasoning-budget', value: 'deep' }])
@@ -555,10 +552,7 @@ describe('local protocol processes', () => {
     const modern = create('acp', 'both-models', 'fixture-model')
     await modern.connection.start(cwd)
     expect(modern.connection.localSessionInfo.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(
       wire.filter((message) => message.method === 'session/set_model').map((message) => message.params.modelId)
     ).toEqual(['legacy-model'])
@@ -682,10 +676,7 @@ describe('local protocol processes', () => {
       env: { FIXTURE_LOG: path.join(cwd, 'models.jsonl') }
     })
     expect(catalog.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
-    const wire = (await readFile(path.join(cwd, 'models.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire('models.jsonl')
     expect(
       wire.some((message) =>
         ['session/prompt', 'turn/start', 'thread/start', 'session/set_config_option'].includes(message.method)
@@ -703,10 +694,7 @@ describe('local protocol processes', () => {
     const { connection } = create(protocol, 'normal', 'fixture-model')
     await connection.start(cwd)
     expect(connection.localSessionInfo.activeModel?.id).toBe('fixture-model')
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     const request = wire.find(
       (message) => message.method === (protocol === 'acp' ? 'session/set_config_option' : 'thread/start')
     )
@@ -719,10 +707,7 @@ describe('local protocol processes', () => {
     const { connection } = create(protocol)
     await connection.start(cwd, undefined, true)
     await connection.close()
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(
       wire.some((message) => ['session/prompt', 'turn/start', 'thread/start', 'session/new'].includes(message.method))
     ).toBe(false)
@@ -750,9 +735,7 @@ describe('local protocol processes', () => {
     const { connection, events, text } = create('acp', 'cursor-question')
     await connection.start(cwd)
     const sending = connection.send(input)
-    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
-    const approval = events.find((event) => event.type === 'tool-approval-request')!
-    if (approval.type !== 'tool-approval-request') throw new Error('Missing question')
+    const approval = await waitForApproval(events)
     expect(approval.request.toolName).toBe('AskUserQuestion')
     expect(approval.request.input).toMatchObject({
       choiceOnly: true,
@@ -781,9 +764,7 @@ describe('local protocol processes', () => {
     const { connection, events, text } = create('acp', 'cursor-plan')
     await connection.start(cwd)
     const sending = connection.send(input)
-    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
-    const approval = events.find((event) => event.type === 'tool-approval-request')!
-    if (approval.type !== 'tool-approval-request') throw new Error('Missing plan')
+    const approval = await waitForApproval(events)
     expect(text()).toContain('## Plan')
     toolApprovalRegistry.dispatch(approval.request.approvalId, { approved })
     await sending
@@ -802,13 +783,104 @@ describe('local protocol processes', () => {
     expect(toolApprovalRegistry.hasSession('session')).toBe(false)
   })
 
+  it.each(['approved-write', 'approved-write-changed', 'approved-write-repeated'])(
+    'reuses only a single identical approved write (%s)',
+    async (scenario) => {
+      const { connection, events } = create('acp', scenario)
+      await connection.start(cwd)
+      const sending = connection.send(input)
+      const first = await waitForApproval(events)
+      toolApprovalRegistry.dispatch(first.request.approvalId, { approved: true })
+      if (scenario !== 'approved-write') {
+        await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
+        const next = events.filter((event) => event.type === 'tool-approval-request')[1]
+        if (next.type !== 'tool-approval-request') throw new Error('Missing approval')
+        toolApprovalRegistry.dispatch(next.request.approvalId, { approved: false })
+      }
+      await sending
+      if (scenario === 'approved-write-changed')
+        await expect(readFile(path.join(cwd, 'approved.txt'))).rejects.toThrow()
+      else expect(await readFile(path.join(cwd, 'approved.txt'), 'utf8')).toBe('approved content')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(
+        scenario === 'approved-write' ? 1 : 2
+      )
+    }
+  )
+
+  it('does not carry an unused write approval into the next turn', async () => {
+    const { connection, events } = create('acp', 'approved-write-later-turn')
+    await connection.start(cwd)
+    for (const approved of [true, false]) {
+      events.length = 0
+      const sending = connection.send(input)
+      const approval = await waitForApproval(events)
+      toolApprovalRegistry.dispatch(approval.request.approvalId, { approved })
+      await sending
+    }
+    await expect(readFile(path.join(cwd, 'approved.txt'))).rejects.toThrow()
+  })
+
+  it('ends incomplete tool presentation without inventing a successful result', async () => {
+    const { connection, events } = create('acp', 'missing-tool-result')
+    await connection.start(cwd)
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
+    const inputs = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'tool-input-available' ? [event.chunk.input] : []
+    )
+    expect(inputs.at(-1)).toMatchObject({ localAcpTool: { status: 'in_progress', turnEnded: true } })
+    expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')).toBe(false)
+  })
+
+  it.each(['accept', 'decline', 'cancel', 'invalid', 'close'])(
+    'returns a validated ACP form response or a distinct negative outcome (%s)',
+    async (action) => {
+      const { connection, events, text } = create('acp', 'elicitation')
+      await connection.start(cwd)
+      const sending = connection.send(input)
+      const approval = await waitForApproval(events)
+      expect(approval.request.toolName).toBe('AskUserQuestion')
+      if (action === 'close') await connection.close()
+      else
+        toolApprovalRegistry.dispatch(approval.request.approvalId, {
+          approved: action === 'accept' || action === 'invalid',
+          updatedInput: {
+            elicitationAction: action,
+            elicitationContent: { count: action === 'invalid' ? 6 : 2, enabled: false }
+          }
+        })
+      await sending
+      if (action === 'close') {
+        expect(toolApprovalRegistry.hasSession('session')).toBe(false)
+        expect(await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')).toContain('"action":"cancel"')
+      } else {
+        const result = JSON.parse(text().replace('turn 1: ', ''))
+        expect(result).toEqual(
+          action === 'accept'
+            ? { action: 'accept', content: { count: 2, enabled: false } }
+            : { action: action === 'invalid' ? 'cancel' : action }
+        )
+      }
+    }
+  )
+
+  it.each(['elicitation-foreign', 'elicitation-url'])(
+    'does not present unsupported or foreign requests (%s)',
+    async (scenario) => {
+      const { connection, events, text } = create('acp', scenario)
+      await connection.start(cwd)
+      await connection.send(input)
+      await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
+      expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+      expect(text()).toContain(scenario === 'elicitation-url' ? '-32602' : '"action":"cancel"')
+    }
+  )
+
   it('preserves ACP permission option identity and scope', async () => {
     const { connection, events, text } = create('acp', 'permission')
     await connection.start(cwd)
     const sending = connection.send(input)
-    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
-    const approval = events.find((event) => event.type === 'tool-approval-request')!
-    if (approval.type !== 'tool-approval-request') throw new Error('Missing approval')
+    const approval = await waitForApproval(events)
     expect(approval.request.input.localPermissionOptions).toEqual(
       expect.arrayContaining([expect.objectContaining({ optionId: 'always', kind: 'allow_always' })])
     )
@@ -829,9 +901,7 @@ describe('local protocol processes', () => {
     const { connection, events } = create('acp', 'standalone-permission')
     await connection.start(cwd)
     const sending = connection.send(input)
-    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
-    const approval = events.find((event) => event.type === 'tool-approval-request')!
-    if (approval.type !== 'tool-approval-request') throw new Error('Missing approval')
+    const approval = await waitForApproval(events)
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
       approved: false,
       updatedInput: { localPermissionOption: 'deny' }
@@ -932,10 +1002,7 @@ describe('local protocol processes', () => {
       )
       await connection.send(input)
       expect(text()).toBe('turn 1: hello')
-      const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
+      const requests = await readWire()
       const restore = requests.filter(({ method }) =>
         ['session/load', 'session/resume', 'session/new'].includes(method)
       )
@@ -964,10 +1031,7 @@ describe('local protocol processes', () => {
       const pid = Number(await readFile(path.join(cwd, 'wire.jsonl.pid'), 'utf8'))
       await Promise.all([connection.close(), connection.close()])
       expect(() => process.kill(pid, 0)).toThrow()
-      const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
+      const requests = await readWire()
       expect(requests.filter(({ method }) => method === 'session/close')).toEqual(
         scenario === 'normal' || scenario === 'close-null'
           ? []
@@ -986,10 +1050,7 @@ describe('local protocol processes', () => {
     await connection.close()
     await sending
     await drained
-    const requests = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const requests = await readWire()
     expect(
       requests.filter(({ method }) => ['session/cancel', 'session/close'].includes(method)).map(({ method }) => method)
     ).toEqual(['session/cancel', 'session/close'])
@@ -1023,10 +1084,7 @@ describe('local protocol processes', () => {
     await acp.send(input)
     expect(acp.localSessionInfo.configOptions).toEqual([])
     await expect(acp.setConfigOption('verbosity', 'brief')).rejects.toThrow('no longer available')
-    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const wire = await readWire()
     expect(wire.filter(({ method }) => method === 'session/set_config_option').map(({ params }) => params)).toEqual([
       { sessionId: 'native-session', configId: 'verbosity', value: 'verbose' },
       { sessionId: 'native-session', configId: 'notifications', type: 'boolean', value: true }

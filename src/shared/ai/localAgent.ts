@@ -442,6 +442,7 @@ export const LocalAgentPlanSchema = z.object({
 export type LocalAgentPlan = z.infer<typeof LocalAgentPlanSchema>
 
 export const LocalAcpToolSchema = z.object({
+  turnEnded: z.boolean().optional(),
   title: z.string(),
   kind: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed', 'failed']).optional(),

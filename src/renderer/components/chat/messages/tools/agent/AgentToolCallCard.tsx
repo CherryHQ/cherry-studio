@@ -165,8 +165,13 @@ export function AgentToolCallCard({
         label={
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
-            {status && (status !== 'done' || hasError || openFlowOnClick) && (
-              <ToolStatusIndicator status={displayStatus ?? status} hasError={hasError} errorText={errorText} />
+            {acp.success && acp.data.turnEnded ? (
+              <span className="text-muted-foreground text-xs">{t('local_agents.tool_result_unknown')}</span>
+            ) : (
+              status &&
+              (status !== 'done' || hasError || openFlowOnClick) && (
+                <ToolStatusIndicator status={displayStatus ?? status} hasError={hasError} errorText={errorText} />
+              )
             )}
           </div>
         }
@@ -183,7 +188,7 @@ export function AgentToolCallCard({
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
       defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
-      isStreaming={isStreaming}
+      isStreaming={isStreaming && !(acp.success && acp.data.turnEnded)}
       item={toolContentItem}
       onOpenDetails={openToolFlow}
       stateId={toolCallId}

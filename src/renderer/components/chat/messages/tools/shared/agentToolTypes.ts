@@ -49,6 +49,7 @@ import type {
 import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { ElicitationFormSchema, type ElicitationForm } from '@shared/ai/elicitation'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -197,13 +198,14 @@ export const AskUserQuestionItemSchema = z.object({
   id: z.string().optional(),
   question: z.string(),
   header: z.string(),
-  options: z.array(AskUserQuestionOptionSchema).min(1),
+  options: z.array(AskUserQuestionOptionSchema),
   multiSelect: z.boolean().default(false)
 })
 
 export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
 export const AskUserQuestionToolInputSchema = z.object({
+  elicitation: z.object({ schema: ElicitationFormSchema, message: z.string(), agentName: z.string() }).optional(),
   questions: z.array(AskUserQuestionItemSchema).min(1),
   answers: AskUserQuestionAnswerSchema.optional(),
   choiceOnly: z.boolean().optional(),
@@ -224,6 +226,7 @@ export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
   options: AskUserQuestionOption[]
 }
 export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
+  elicitation?: { schema: ElicitationForm; message: string; agentName: string }
   choiceOnly?: boolean
   answerSelections?: Record<string, string[]>
   questions: AskUserQuestionItem[]

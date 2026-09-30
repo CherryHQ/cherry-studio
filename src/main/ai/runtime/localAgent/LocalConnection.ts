@@ -20,6 +20,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
   protected readonly abort = new AbortController()
+  protected turnAbort = new AbortController()
   private contentPart?: { type: 'text' | 'reasoning'; id: string }
   protected active = false
   protected closed = false
@@ -79,6 +80,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected begin() {
     if (this.closed || this.active) throw new Error('Local agent connection is unavailable')
     this.active = true
+    this.turnAbort = new AbortController()
     this.turnDone = new Promise((resolve) => {
       this.completeTurn = resolve
     })
@@ -101,6 +103,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     if (!this.active) return
     this.active = false
+    this.turnAbort.abort()
     this.completeTurn?.()
     this.endContent()
     if (error) this.events.push({ type: 'error', error })
@@ -142,7 +145,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
           toolCallId: id,
           toolName: name,
           originalInput: input,
-          signal: signal ? AbortSignal.any([this.abort.signal, signal]) : this.abort.signal,
+          signal: AbortSignal.any([this.abort.signal, this.turnAbort.signal, ...(signal ? [signal] : [])]),
           resolve
         })
       ) {

@@ -163,7 +163,7 @@ entries, not a claim that every installed version implements the protocol.
 | Kiro | `kiro-cli acp` | — | Not tested |
 | Qoder | `qoderclicn --acp` (aliases supported) | — | Not tested |
 | Trae | `traecli acp serve` | — | Not tested |
-| Hermes | `hermes acp` | 0.21.1 | Real text, file read/write and edit approval, process release/resume, stop and continuation passed; read/write execution cards did not receive terminal tool updates (2026-09-30) |
+| Hermes | `hermes acp` | 0.21.1 | Real text, file read/write and edit approval, process release/resume, stop and continuation passed; missing terminal updates display “Result not reported” after the turn (2026-09-30) |
 | Cline | `cline --acp` | — | Registry launch definition checked (3.0.65); real CLI acceptance pending |
 | Kilo | `kilo acp` | 7.8.1 | Auto Free: real text, code → ask → code, read/write tools, process release/resume, stop and continuation passed; manual `/compact` works but does not emit ACP compaction updates (2026-09-30) |
 | goose | `goose acp` | — | Registry launch definition checked (1.52.0); real CLI acceptance pending |
@@ -172,7 +172,7 @@ entries, not a claim that every installed version implements the protocol.
 | Junie | `junie --acp=true` | — | Registry launch definition checked (3419.16.0); real CLI acceptance pending |
 | Factory Droid | `droid exec --output-format acp-daemon` | — | Registry launch definition checked (0.228.0); real CLI acceptance pending |
 | Devin | `devin acp` | — | Registry launch definition checked (3000.11.3); real CLI acceptance pending |
-| Google Antigravity | `agy_acp_server.par` | 1.2.1 | Configured Gemini 3.7 Flash Medium: real text, read/write tools and diff, approval, process release/resume, stop and continuation passed; writing produced two approval requests (2026-09-30) |
+| Google Antigravity | `agy_acp_server.par` | 1.2.1 | Configured Gemini 3.7 Flash Medium: real text, read/write tools and diff, approval, process release/resume, stop and continuation passed; identical file callbacks reuse one native approval (2026-09-30) |
 | Mistral Vibe | `vibe-acp ` | — | Registry launch definition checked (2.25.8); real CLI acceptance pending |
 | Amp | `amp-acp ` | — | Registry launch definition checked (0.9.0); real CLI acceptance pending |
 | pi ACP | `pi-acp ` | 0.0.34 | Real text, medium → low → medium reasoning, read/write tools and diff, process release/resume, stop and continuation passed (2026-09-30) |
@@ -282,18 +282,46 @@ Real findings that keep full compatibility acceptance open:
 - **Hermes tool completion:** successful reads and writes left their execution
   cards in `input-available`. A separate direct ACP read reproduced a lone
   `tool_call` with no `tool_call_update`; the edit-approval card itself settled.
-  The CLI must emit a terminal tool update before Cherry can truthfully mark
-  execution successful. Do not convert end-of-turn into fabricated tool success.
+  Cherry now persists a turn-ended marker and displays “Result not reported”
+  instead of leaving the card running. A fresh real write and the expanded
+  Electron tool card verified this behavior; execution success is not inferred.
 - **Antigravity duplicate approval:** one file creation emitted both a native
   permission request and a subsequent `fs/write_text_file` request. Cherry asked
-  again for the file callback. Both requests targeted the same verified test
-  path/content; the file was created correctly. Consolidating authorization
-  requires preserving scope and matching the approved operation.
+  again for the file callback. Native approved diff content now authorizes only
+  one identical path/content write in the same turn. Changed or repeated writes
+  need a separate approval; unused grants expire at turn end. A fresh real
+  Antigravity creation completed with one approval and matching file contents.
 - **Claude model configuration:** expired OAuth blocked the first attempt. After
   the user repaired authentication, the explicitly selected `claude-sonnet-4-6`
   was rejected with HTTP 400 by the current endpoint. A temporary CLI-default
   configuration passed all common conversation checks; this does not validate
   the original model selection against that endpoint.
+
+A subsequent real Hermes turn was cancelled while awaiting edit approval; no file
+was written and the turn persisted as paused. Antigravity's second turn produced
+no response within the bounded follow-up, so real denial was not certified and
+the turn was stopped. Remembered option IDs and denial/cancel paths are covered
+by controlled protocol tests, not claimed as fresh real-agent acceptance.
+
+## Structured questions
+
+ACP `elicitation/create` form mode uses the existing AskUserQuestion composer.
+Only `elicitation.form` is advertised; URL mode is rejected as unsupported.
+Session requests must match the active connection and turn. Request-scoped forms
+outside a conversation currently return `cancel` without opening a composer.
+
+Flat string, number, integer, boolean, enum and multi-select fields retain native
+property IDs and value types. Defaults are visible and editable. Zod's JSON Schema
+conversion validates required fields, bounds, formats, patterns and allowed
+values in both renderer and main. Selection alone never submits a form; users can
+review all fields and explicitly submit, decline, or cancel. Turn completion and
+connection shutdown release pending questions and approvals.
+
+Controlled protocol processes cover accepted, invalid, declined, cancelled,
+foreign-session and unsupported-mode requests. Electron acceptance verified
+numeric validation and submission of `{ count: 3, enabled: false }`. These tests
+verify Cherry's form flow; no installed real agent emitted standard elicitation
+during this run. Cursor's existing question extension remains supported.
 
 ## Validation
 

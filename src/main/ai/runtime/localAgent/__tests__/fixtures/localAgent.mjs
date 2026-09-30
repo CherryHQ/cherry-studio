@@ -479,6 +479,67 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })
       return
     }
+    if (scenario.startsWith('elicitation')) {
+      emit({
+        id: 'elicitation',
+        method: 'elicitation/create',
+        params: {
+          mode: scenario === 'elicitation-url' ? 'url' : 'form',
+          sessionId: scenario === 'elicitation-foreign' ? 'another-session' : 'native-session',
+          message: 'Configure the task',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', minimum: 1, maximum: 5 },
+              enabled: { type: 'boolean', default: false }
+            },
+            required: ['count', 'enabled']
+          }
+        }
+      })
+      return
+    }
+    if (scenario === 'missing-tool-result') {
+      update({ sessionUpdate: 'tool_call', toolCallId: 'incomplete', title: 'Read file', status: 'in_progress' })
+      finish()
+      return
+    }
+    if (scenario === 'approved-write-later-turn' && turn > 1) {
+      emit({
+        id: 'approved-write',
+        method: 'fs/write_text_file',
+        params: {
+          sessionId: 'native-session',
+          path: `${cwd}/approved.txt`,
+          content: 'approved content'
+        }
+      })
+      return
+    }
+    if (scenario.startsWith('approved-write')) {
+      const content = [{ type: 'diff', path: `${cwd}/approved.txt`, newText: 'approved content' }]
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'write',
+        title: 'Write file',
+        kind: 'edit',
+        status: 'pending',
+        content
+      })
+      emit({
+        id: 'write-permission',
+        method: 'session/request_permission',
+        params: {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'write', kind: 'edit', content },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        }
+      })
+      return
+    }
     if (scenario === 'callbacks') {
       emit({
         id: 'write-file',
@@ -520,6 +581,43 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       text('hello')
       finish()
     }
+  } else if (id === 'write-permission') {
+    if (scenario === 'approved-write-later-turn') {
+      finish()
+      return
+    }
+    if (message.result?.outcome?.optionId !== 'allow') {
+      text(JSON.stringify(message.result))
+      finish()
+      return
+    }
+    emit({
+      id: 'approved-write',
+      method: 'fs/write_text_file',
+      params: {
+        sessionId: 'native-session',
+        path: `${cwd}/approved.txt`,
+        content: scenario === 'approved-write-changed' ? 'different content' : 'approved content'
+      }
+    })
+  } else if (id === 'approved-write') {
+    if (scenario === 'approved-write-repeated') {
+      emit({
+        id: 'write-again',
+        method: 'fs/write_text_file',
+        params: {
+          sessionId: 'native-session',
+          path: `${cwd}/approved.txt`,
+          content: 'approved content'
+        }
+      })
+    } else {
+      text(JSON.stringify(message.result ?? message.error))
+      finish()
+    }
+  } else if (id === 'write-again' || id === 'elicitation') {
+    text(JSON.stringify(message.result ?? message.error))
+    finish()
   } else if (id === 'cursor-extension') {
     text(JSON.stringify(message.result ?? message.error))
     finish()

@@ -1,11 +1,13 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
 
 import {
   client,
   ndJsonStream,
+  RequestError,
   type ClientConnection,
   type PromptResponse,
   type NewSessionResponse,
@@ -21,6 +23,12 @@ import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import {
+  ElicitationFormSchema,
+  elicitationChoices,
+  elicitationValidator,
+  type ElicitationContent
+} from '@shared/ai/elicitation'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
@@ -68,6 +76,7 @@ export class AcpConnection extends LocalConnection {
   private readonly compactions = new Map<string, boolean>()
   private planId?: string
   private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
+  private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
   async authenticate(methodId: string): Promise<void> {
@@ -108,8 +117,64 @@ export class AcpConnection extends LocalConnection {
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
       })
+      .onRequest('elicitation/create', async ({ params }) => {
+        if (params.mode !== 'form') throw RequestError.invalidParams('Unsupported elicitation mode')
+        if (!this.active || !('sessionId' in params) || params.sessionId !== this.nativeId || this.abort.signal.aborted)
+          return { action: 'cancel' }
+        const parsed = ElicitationFormSchema.safeParse(params.requestedSchema)
+        if (!parsed.success) throw RequestError.invalidParams('Unsupported elicitation schema')
+        let validator: ReturnType<typeof elicitationValidator>
+        try {
+          validator = elicitationValidator(parsed.data)
+        } catch {
+          throw RequestError.invalidParams('Invalid elicitation schema')
+        }
+        const questions = Object.entries(parsed.data.properties).map(([id, field]) => ({
+          id,
+          question: field.title ?? id,
+          header: field.title ?? id,
+          options: elicitationChoices(field),
+          multiSelect: field.type === 'array'
+        }))
+        const id = randomUUID()
+        const input = {
+          questions: questions.length
+            ? questions
+            : [{ question: params.message, header: params.message, options: [], multiSelect: false }],
+          elicitation: {
+            schema: parsed.data,
+            message: params.message,
+            agentName: this.localSessionInfo.protocolInfo?.agent?.name ?? this.config.presetId ?? 'ACP'
+          }
+        }
+        const signal = this.turnAbort.signal
+        const answer = await this.approve(id, 'AskUserQuestion', input)
+        const validated = validator.safeParse(answer.updatedInput?.elicitationContent)
+        const action =
+          signal.aborted || this.abort.signal.aborted || answer.updatedInput?.elicitationAction === 'cancel'
+            ? 'cancel'
+            : !answer.approved
+              ? 'decline'
+              : validated.success
+                ? 'accept'
+                : 'cancel'
+        const outcome =
+          action === 'accept'
+            ? ({ action, content: validated.data as ElicitationContent } as const)
+            : ({ action } as const)
+        if (!signal.aborted)
+          this.result(id, {
+            ...input,
+            answers: action === 'accept' ? answer.updatedInput?.answers : {},
+            elicitationOutcome: outcome
+          })
+        return outcome
+      })
       .onRequest('session/request_permission', async ({ params }) => {
+        if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
+          return { outcome: { outcome: 'cancelled' } }
         const id = params.toolCall.toolCallId
+        const signal = this.turnAbort.signal
         const knownTool = this.tools.has(id)
         const options = params.options
         const answer = await this.approve(id, `ACP: ${params.toolCall.title ?? 'Tool'}`, {
@@ -118,15 +183,24 @@ export class AcpConnection extends LocalConnection {
           localPermissionOptions: options
         })
         const requested = answer.updatedInput?.localPermissionOption
-        const selected = this.abort.signal.aborted
-          ? undefined
-          : typeof requested === 'string'
-            ? options.find((o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_'))
-            : options.find((o) => o.kind === (answer.approved ? 'allow_once' : 'reject_once'))
+        const selected =
+          this.abort.signal.aborted || signal.aborted
+            ? undefined
+            : typeof requested === 'string'
+              ? options.find(
+                  (o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+                )
+              : options.find((o) => o.kind === (answer.approved ? 'allow_once' : 'reject_once'))
         const outcome = selected
           ? { outcome: 'selected' as const, optionId: selected.optionId }
           : { outcome: 'cancelled' as const }
-        if (!knownTool) this.result(id, outcome)
+        if (selected?.kind.startsWith('allow_')) {
+          for (const content of params.toolCall.content ?? []) {
+            if (content.type === 'diff')
+              this.approvedWrites.push({ path: path.resolve(cwd, content.path), content: content.newText })
+          }
+        }
+        if (!knownTool && !signal.aborted) this.result(id, outcome)
         return { outcome }
       })
       .onRequest('fs/read_text_file', async ({ params }) => {
@@ -142,15 +216,24 @@ export class AcpConnection extends LocalConnection {
         }
       })
       .onRequest('fs/write_text_file', async ({ params }) => {
+        if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
+          throw RequestError.invalidParams('Inactive ACP session')
         const id = randomUUID()
+        const signal = this.turnAbort.signal
+        const grant = this.approvedWrites.findIndex(
+          (write) => write.path === path.resolve(cwd, params.path) && write.content === params.content
+        )
+        if (grant >= 0) this.approvedWrites.splice(grant, 1)
         try {
-          const answer = await this.approve(id, 'ACP: Write', { path: params.path, content: params.content })
-          if (!answer.approved) throw new Error('File write denied')
+          if (grant < 0) {
+            const answer = await this.approve(id, 'ACP: Write', { path: params.path, content: params.content })
+            if (!answer.approved || this.abort.signal.aborted || signal.aborted) throw new Error('File write denied')
+          }
           await fs.writeFile(params.path, params.content)
-          this.result(id, { path: params.path })
+          if (grant < 0) this.result(id, { path: params.path })
           return {}
         } catch (error) {
-          this.result(id, String(error), true)
+          if (grant < 0) this.result(id, String(error), true)
           throw error
         }
       })
@@ -233,6 +316,7 @@ export class AcpConnection extends LocalConnection {
       clientCapabilities: {
         fs: { readTextFile: true, writeTextFile: true },
         terminal: true,
+        elicitation: { form: {} },
         session: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
       }
     })
@@ -618,6 +702,15 @@ export class AcpConnection extends LocalConnection {
     this.compactions.clear()
   }
   protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
+    this.approvedWrites.length = 0
+    if (this.active) {
+      for (const [id, tool] of this.toolInputs) {
+        if (tool.status !== 'completed' && tool.status !== 'failed') {
+          tool.turnEnded = true
+          this.publishTool(id, tool)
+        }
+      }
+    }
     this.clearCompaction()
     super.finish(error, finishReason)
   }
