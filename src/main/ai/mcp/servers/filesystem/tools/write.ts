@@ -56,7 +56,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
     try {
       await writeInPlace(validPath, args.content)
     } catch (error: any) {
-      throw new Error(`Failed to write file: ${error.message}`)
+      throw new Error(`Failed to write file ${filePath}: ${error.message}`)
     }
 
     // Log the operation
