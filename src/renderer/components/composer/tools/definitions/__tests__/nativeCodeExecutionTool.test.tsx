@@ -9,8 +9,7 @@ const { useAssistantMock, useProviderMock, updateAssistant } = vi.hoisted(() => 
   updateAssistant: vi.fn()
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: useAssistantMock,
-  useAssistantMutations: () => ({ updateAssistant })
+  useAssistant: useAssistantMock
 }))
 vi.mock('@renderer/hooks/useProvider', () => ({ useProviderById: useProviderMock }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -47,7 +46,7 @@ describe('server-side code execution toggle', () => {
     expect(control.active).toBe(false)
     expect(control.disabled).toBe(false)
     await act(async () => control.action?.({} as never))
-    expect(updateAssistant).toHaveBeenCalledWith('a1', { settings: { enableNativeCodeExecution: true } })
+    expect(updateAssistant).toHaveBeenCalledWith({ settings: { enableNativeCodeExecution: true } })
   })
 
   it('persists rapid clicks from the same launcher closure in order', async () => {
@@ -59,10 +58,10 @@ describe('server-side code execution toggle', () => {
       control.action?.({} as never)
     })
     expect(updateAssistant).toHaveBeenCalledTimes(1)
-    expect(updateAssistant).toHaveBeenNthCalledWith(1, 'a1', { settings: { enableNativeCodeExecution: true } })
+    expect(updateAssistant).toHaveBeenNthCalledWith(1, { settings: { enableNativeCodeExecution: true } })
     await act(async () => resolveFirst())
     expect(updateAssistant).toHaveBeenCalledTimes(2)
-    expect(updateAssistant).toHaveBeenNthCalledWith(2, 'a1', { settings: { enableNativeCodeExecution: false } })
+    expect(updateAssistant).toHaveBeenNthCalledWith(2, { settings: { enableNativeCodeExecution: false } })
   })
 
   it('continues queued transitions after a failed write', async () => {
@@ -72,10 +71,10 @@ describe('server-side code execution toggle', () => {
       control.action?.({} as never)
       control.action?.({} as never)
     })
-    expect(updateAssistant).toHaveBeenNthCalledWith(1, 'a1', { settings: { enableNativeCodeExecution: true } })
-    expect(updateAssistant).toHaveBeenNthCalledWith(2, 'a1', { settings: { enableNativeCodeExecution: false } })
+    expect(updateAssistant).toHaveBeenNthCalledWith(1, { settings: { enableNativeCodeExecution: true } })
+    expect(updateAssistant).toHaveBeenNthCalledWith(2, { settings: { enableNativeCodeExecution: false } })
     await act(async () => control.action?.({} as never))
-    expect(updateAssistant).toHaveBeenNthCalledWith(3, 'a1', { settings: { enableNativeCodeExecution: true } })
+    expect(updateAssistant).toHaveBeenNthCalledWith(3, { settings: { enableNativeCodeExecution: true } })
   })
 
   it('prevents opt-in for unsupported providers but lets an existing toggle be turned off', async () => {
@@ -93,6 +92,6 @@ describe('server-side code execution toggle', () => {
     expect(enabled.active).toBe(false)
     expect(enabled.disabled).toBe(false)
     await act(async () => enabled.action?.({} as never))
-    expect(updateAssistant).toHaveBeenCalledWith('a1', { settings: { enableNativeCodeExecution: false } })
+    expect(updateAssistant).toHaveBeenCalledWith({ settings: { enableNativeCodeExecution: false } })
   })
 })

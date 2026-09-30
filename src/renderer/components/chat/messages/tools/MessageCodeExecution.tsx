@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
-import { ToolStatusIndicator } from '../shared/GenericTools'
-import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { ToolStatusIndicator } from './shared/GenericTools'
+import { ToolDisclosure } from './shared/ToolDisclosure'
 
 export function MessageCodeExecution({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()

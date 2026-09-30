@@ -6,8 +6,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
-import { chooseTool } from '../../chooseTool'
-import { buildToolResponseFromPart } from '../../toolResponse'
+import { chooseTool } from '../chooseTool'
+import { buildToolResponseFromPart } from '../toolResponse'
 
 describe('native code execution result presentation', () => {
   it('renders persisted provider-executed calls and available results after rebuilding from message parts', async () => {

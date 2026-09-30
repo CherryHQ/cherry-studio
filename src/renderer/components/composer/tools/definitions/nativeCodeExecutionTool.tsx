@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { defineTool, type ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { useAssistant, useAssistantMutations } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { isNativeCodeExecutionAvailable } from '@shared/ai/nativeCodeExecution'
 
@@ -18,8 +18,7 @@ const NativeCodeExecutionRuntime: FC<{ assistantId: string; launcher: ToolLaunch
   launcher
 }) => {
   const { t } = useTranslation()
-  const { assistant, model } = useAssistant(assistantId)
-  const { updateAssistant } = useAssistantMutations()
+  const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider } = useProviderById(model?.providerId)
   const enabled = assistant?.settings.enableNativeCodeExecution === true
   const available = isNativeCodeExecutionAvailable(model, provider)
@@ -45,7 +44,7 @@ const NativeCodeExecutionRuntime: FC<{ assistantId: string; launcher: ToolLaunch
     queue.pending += 1
     queue.tail = queue.tail
       .then(async () => {
-        await updateAssistant(queue.assistantId, { settings: { enableNativeCodeExecution: next } })
+        await updateAssistant({ settings: { enableNativeCodeExecution: next } })
         queue.persisted = next
       })
       .catch((error) => {
@@ -83,7 +82,11 @@ export default defineTool({
   visibleInScopes: NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST.visibleInScopes,
   composer: {
     runtime: ({ context }) => (
-      <NativeCodeExecutionRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+      <NativeCodeExecutionRuntime
+        key={context.assistant!.id}
+        assistantId={context.assistant!.id}
+        launcher={context.launcher}
+      />
     )
   }
 })

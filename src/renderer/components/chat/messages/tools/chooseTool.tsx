@@ -14,8 +14,8 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
-import { MessageCodeExecution } from './codeExecution/MessageCodeExecution'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
+import { MessageCodeExecution } from './MessageCodeExecution'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { isGenerateImageToolName } from './painting/generateImageTool'
 import { MessageGenerateImageToolTitle } from './painting/MessageGenerateImage'
