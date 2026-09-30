@@ -292,7 +292,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : undefined
 
   const ollamaNumCtxResolution =
-    sdkConfig.providerId === SystemProviderIds.ollama ? resolveOllamaRequestNumCtx(model) : undefined
+    sdkConfig.providerId === SystemProviderIds.ollama ? resolveOllamaRequestNumCtx(model, provider) : undefined
   const ollamaNumCtx = ollamaNumCtxResolution
     ? {
         uniqueModelId: model.id,

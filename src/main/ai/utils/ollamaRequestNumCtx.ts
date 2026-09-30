@@ -6,10 +6,29 @@ import {
   resolveOllamaNumCtx,
   type ResolveOllamaNumCtxInput
 } from '@shared/ai/ollamaNumCtx'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
+import { getBaseUrl } from './provider'
 
 export interface OllamaNumCtxResolution extends ResolveOllamaNumCtxInput {
   numCtx: number
+}
+
+/** True when Ollama is served on this machine (default host or loopback). */
+export function isLocalOllamaApiHost(apiHost: string): boolean {
+  const trimmed = apiHost.trim()
+  if (!trimmed) return true
+
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`)
+    const hostname = url.hostname.toLowerCase()
+    if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') return true
+    if (hostname.startsWith('127.')) return true
+    return false
+  } catch {
+    return true
+  }
 }
 
 function readSessionCap(model: Model): number | null | undefined {
@@ -21,14 +40,20 @@ function readSessionCap(model: Model): number | null | undefined {
   }
 }
 
-export function resolveOllamaRequestNumCtx(model: Model): OllamaNumCtxResolution | undefined {
+export function resolveOllamaRequestNumCtx(model: Model, provider?: Provider): OllamaNumCtxResolution | undefined {
   const trainedContextWindow = model.contextWindow
   if (!trainedContextWindow || trainedContextWindow <= 0) return undefined
 
+  const apiHost =
+    provider != null
+      ? getBaseUrl(provider, ENDPOINT_TYPE.OLLAMA_CHAT) || getBaseUrl(provider)
+      : ''
+  const useLocalMemory = provider == null || isLocalOllamaApiHost(apiHost)
+
   const input: ResolveOllamaNumCtxInput = {
     trainedContextWindow,
-    freeMemoryBytes: os.freemem(),
-    totalMemoryBytes: os.totalmem(),
+    freeMemoryBytes: useLocalMemory ? os.freemem() : 0,
+    totalMemoryBytes: useLocalMemory ? os.totalmem() : 0,
     sessionCap: readSessionCap(model)
   }
   return { ...input, numCtx: resolveOllamaNumCtx(input) }
