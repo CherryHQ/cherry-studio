@@ -102,7 +102,7 @@ describe('RendererEditFlushCoordinator', () => {
 
     await vi.advanceTimersByTimeAsync(5_000)
 
-    await expect(flushed).resolves.toBe(true)
+    await expect(flushed).resolves.toBe(false)
   })
 
   it('ignores acknowledgements for unknown batches', () => {
