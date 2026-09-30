@@ -71,7 +71,8 @@ const fsyncDirFailure = vi.hoisted(() => ({
 
 const renameFailure = vi.hoisted(() => ({
   injectEpermOnceFor: null as string | null,
-  injectPermanentFailureFor: null as string | null
+  injectPermanentFailureFor: new Set<string>(),
+  injectPermanentFailureInto: null as string | null
 }))
 
 /**
@@ -94,8 +95,14 @@ vi.mock('node:fs', async (importOriginal) => {
   }
   const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
     const [source] = args
-    if (typeof source === 'string' && renameFailure.injectPermanentFailureFor === source) {
+    if (typeof source === 'string' && renameFailure.injectPermanentFailureFor.has(source)) {
       throw Object.assign(new Error(`EPERM: injected permanent rename failure for ${source}`), { code: 'EPERM' })
+    }
+    const [, renameTarget] = args
+    if (typeof renameTarget === 'string' && renameFailure.injectPermanentFailureInto === renameTarget) {
+      throw Object.assign(new Error(`EPERM: injected permanent rename failure into ${renameTarget}`), {
+        code: 'EPERM'
+      })
     }
     if (typeof source === 'string' && renameFailure.injectEpermOnceFor === source) {
       renameFailure.injectEpermOnceFor = null
@@ -298,7 +305,8 @@ describe('runRestorePromotion', () => {
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
     renameFailure.injectEpermOnceFor = null
-    renameFailure.injectPermanentFailureFor = null
+    renameFailure.injectPermanentFailureFor.clear()
+    renameFailure.injectPermanentFailureInto = null
     asideCopyFailure.injectAfterPartialCopyFor = null
   })
 
@@ -1105,7 +1113,7 @@ describe('runRestorePromotion', () => {
         asideMarkerWhenClearDataRan = asideExistedWhenClearDataRan ? readFileSync(asideMarkerPath, 'utf8') : ''
         rmSync(liveLocalStorageDir(), { recursive: true, force: true })
       })
-      renameFailure.injectPermanentFailureFor = stagedLocalStorageDir()
+      renameFailure.injectPermanentFailureFor.add(stagedLocalStorageDir())
 
       await runRestorePromotion()
 
@@ -1179,6 +1187,33 @@ describe('runRestorePromotion', () => {
       await runRestorePromotion()
 
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
+      expect(journalState()).toBe('failed')
+      vi.restoreAllMocks()
+    })
+
+    it('quarantines the Chromium aside outside staging when rollback cannot reinstall it on Windows', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedLocalStorageFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      // The staging move into the live dir fails beyond the retry budget
+      // (handles still held), and every rollback attempt to reinstall the
+      // aside fails the same way — finalize must move the aside out of the
+      // staging tree it is about to delete, instead of destroying the
+      // original data with it.
+      renameFailure.injectPermanentFailureInto = liveLocalStorageDir()
+
+      await runRestorePromotion()
+
+      const quarantined = join(userData, `restore-aside-${RID}`, 'Local Storage')
+      expect(quiesceSpy).toHaveBeenCalledOnce()
+      expect(readFileSync(join(quarantined, 'leveldb-live'), 'utf8')).toBe('LIVE')
+      expect(readMarker(livePath())).toBe('old')
       expect(journalState()).toBe('failed')
       vi.restoreAllMocks()
     })

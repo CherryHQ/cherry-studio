@@ -653,11 +653,50 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
  * The gate shell removes the terminal journal only after its stranded-DB
  * safety check, so the crash net can still locate the parked aside.
+ *
+ * On failure the staging tree still hosts per-entry asides that rollback
+ * could not restore (best-effort inverse) — those hold the user's original
+ * data, so they are moved out of staging before the tree is deleted.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
   writeRestoreJournal({ ...ctx.journal, state, step })
+  if (state === 'failed') {
+    preserveUnrestoredAsides(ctx)
+  }
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
+}
+
+/**
+ * Move asides that rollback failed to reinstall out of the staging tree
+ * (deleted below) into a quarantine dir under userData, where they stay
+ * recoverable like the parked aside DB. Restored asides no longer exist and
+ * are skipped; the only cost of a missed restore is a stranded-but-intact
+ * copy, never deletion.
+ */
+function preserveUnrestoredAsides(ctx: PromotionContext): void {
+  const quarantineRoot = path.join(ctx.userData, `restore-aside-${ctx.journal.restoreId}`)
+  for (const entry of ctx.journal.fileResources) {
+    if ((entry.kind !== 'overwrite' && entry.kind !== 'note-overwrite') || !entry.asidePath) {
+      continue
+    }
+    const aside = resolveEntry(ctx, entry.asidePath)
+    if (!fs.existsSync(aside)) {
+      continue
+    }
+    const quarantined = path.join(quarantineRoot, path.basename(entry.livePath))
+    try {
+      fs.mkdirSync(quarantineRoot, { recursive: true })
+      renameDurable(aside, quarantined)
+      logger.warn('Unrestored aside moved out of staging for recovery', {
+        restoreId: ctx.journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+    } catch (error) {
+      logger.error(`Failed to preserve unrestored aside for '${entry.livePath}'`, error as Error)
+    }
+  }
 }
 
 function quarantineCorruptJournal(error: string): void {
