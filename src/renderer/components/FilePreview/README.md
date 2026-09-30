@@ -291,7 +291,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Build new UI with `@cherrystudio/ui` and Tailwind CSS, following the repository [DESIGN.md](../../../../DESIGN.md).
 - Use Lucide icons in toolbars. Icon buttons require an accessible name and a tooltip.
 - Put plugin-specific copy under `file_preview.*` i18n keys, reuse existing `common.*` or `preview.*` keys for shared controls, and update `en-us` and `zh-cn`.
-- Keep the toolbar at a stable height. Only `FilePreviewLayout.Content` should own content scrolling.
+- Keep the toolbar at a stable height. A preview has exactly one scroll owner: `FilePreviewLayout.Content` when the
+  plugin's content scrolls as a whole, or the virtualized viewer a plugin embeds when that viewer needs its own bounded
+  viewport to window rows. Never both — a second unbounded scroller defeats virtualization.
 
 ## Verification
 
