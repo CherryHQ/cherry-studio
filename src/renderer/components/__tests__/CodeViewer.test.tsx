@@ -469,6 +469,7 @@ describe('CodeViewer', () => {
 
       const remeasureOffscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
       expect(remeasureOffscreenResize?.[1]).toBeGreaterThanOrEqual(cachedOffscreenSize)
+      expect(cachedOffscreenSize).toBeGreaterThan(20)
     } finally {
       mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
       if (originalClientWidthDescriptor) {
