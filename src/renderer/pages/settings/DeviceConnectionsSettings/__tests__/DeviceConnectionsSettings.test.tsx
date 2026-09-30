@@ -3,7 +3,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
@@ -39,13 +39,11 @@ vi.mock('qrcode.react', () => ({
     <output role="img" aria-label={title} data-value={value} />
   )
 }))
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: keyof typeof enUS, options?: { address?: string }) =>
-      enUS[key].replace('{{address}}', options?.address ?? ''),
-    i18n: { language: 'en-us', resolvedLanguage: 'en-us' }
-  })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: keyof typeof enUS, options?: { address?: string }) =>
+    enUS[key].replace('{{address}}', options?.address ?? '')
+  return { useTranslation: () => ({ t }) }
+})
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
 
@@ -53,6 +51,7 @@ const createInvitation = (invitationId: string): OutputFor<'api_gateway.remote.c
   hostname: 'desktop',
   port: 24444,
   addresses: ['192.168.1.8'],
+  addressOptions: [{ address: '192.168.1.8', interfaceName: 'en0' }],
   invitationId,
   invitationSecret: 'secret',
   desktopIdentity: '12D3KooWDesktop',
@@ -78,6 +77,23 @@ const device = {
   updatedAt: '2026-09-15T00:00:00.000Z'
 }
 
+const browserMethods = ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture', 'scrollIntoView'] as const
+const originalMethods = browserMethods.map((name) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, name))
+beforeAll(() => {
+  for (const name of browserMethods)
+    Object.defineProperty(HTMLElement.prototype, name, {
+      configurable: true,
+      value: name === 'hasPointerCapture' ? () => false : () => {}
+    })
+})
+afterAll(() => {
+  browserMethods.forEach((name, index) => {
+    const original = originalMethods[index]
+    if (original) Object.defineProperty(HTMLElement.prototype, name, original)
+    else Reflect.deleteProperty(HTMLElement.prototype, name)
+  })
+})
+
 describe('DeviceConnectionsSettings', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -88,8 +104,7 @@ describe('DeviceConnectionsSettings', () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
-    MockUseDataApiUtils.mockQueryData('/skills', [])
-    invitationMock.mockReset()
+    invitationMock.mockReset().mockResolvedValue(createInvitation('default'))
     requestMock.mockReset().mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.list_claims') return []
       if (name === 'api_gateway.remote.create_invitation') return invitationMock()
@@ -99,7 +114,6 @@ describe('DeviceConnectionsSettings', () => {
     MockUseCacheUtils.resetMocks()
     MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'connect')
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', { hosts: ['0.0.0.0', '::'], port: 23333 })
     useIpcOnMock.mockReset()
     useApiGatewayMock.mockReturnValue({
       apiGatewayConfig: { enabled: true, host: '0.0.0.0', port: 23333, apiKey: 'cs-sk-test' },
@@ -124,6 +138,7 @@ describe('DeviceConnectionsSettings', () => {
     async ({ edition, androidDownloadUrl }) => {
       vi.stubGlobal('__APP_EDITION__', edition)
       MockUseCacheUtils.resetMocks()
+      MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
       const user = userEvent.setup()
       const first = render(<DeviceConnectionsSettings />)
       expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
@@ -151,7 +166,13 @@ describe('DeviceConnectionsSettings', () => {
       await user.click(screen.getByRole('tab', { name: 'iOS' }))
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(requestMock).not.toHaveBeenCalledWith('api_gateway.remote.create_invitation')
       await user.click(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] }))
+      first.rerender(<DeviceConnectionsSettings />)
+      expect(await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })).toHaveAttribute(
+        'data-value',
+        expect.stringContaining('"invitationId":"default"')
+      )
       first.unmount()
 
       const second = render(<DeviceConnectionsSettings />)
@@ -172,7 +193,6 @@ describe('DeviceConnectionsSettings', () => {
     invitationMock.mockResolvedValue(createInvitation('active-invitation'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.show'] }))
     const pairingQr = await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })
     const payload = pairingQr.getAttribute('data-value')
 
@@ -220,6 +240,7 @@ describe('DeviceConnectionsSettings', () => {
   it.each(['reject', 'failed approval'])('keeps onboarding unfinished after %s', async (outcome) => {
     requestMock.mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.list_claims') return [claim]
+      if (name === 'api_gateway.remote.create_invitation') return createInvitation('pending-claim')
       if (name === 'api_gateway.remote.decide_pairing' && outcome === 'failed approval') throw new Error('Unavailable')
       return undefined
     })
@@ -258,128 +279,84 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
   })
 
-  it('explains network exposure while keeping bound addresses in collapsed connection details', async () => {
+  it('uses all ordered addresses in automatic mode and only the selected address without replacing the invitation', async () => {
     const user = userEvent.setup()
+    const invitation = createInvitation('address-selection')
+    invitation.addresses.push('100.94.33.58')
+    invitation.addressOptions.push({ address: '100.94.33.58', interfaceName: 'utun6' })
+    invitationMock.mockResolvedValue(invitation)
+    render(<DeviceConnectionsSettings />)
+    await screen.findByRole('img', { name: 'Pair a device' })
+    const qr = () =>
+      JSON.parse(screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!)
+    expect(qr().ips).toEqual(invitation.addresses)
+    await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+    await user.click(screen.getByRole('option', { name: '100.94.33.58 (utun6)' }))
+    expect(qr()).toMatchObject({
+      ips: ['100.94.33.58'],
+      invitationId: invitation.invitationId,
+      invitationSecret: invitation.invitationSecret
+    })
+    await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+    await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
+    expect(qr().ips).toEqual(invitation.addresses)
+  })
+
+  it('lets the user retry a failed automatic invitation without retrying on its own', async () => {
+    invitationMock.mockRejectedValueOnce(new Error('Unavailable'))
+    render(<DeviceConnectionsSettings />)
+    const refresh = await screen.findByRole('button', { name: 'Refresh' })
+    expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
+    expect(invitationMock).toHaveBeenCalledTimes(1)
+    invitationMock.mockResolvedValueOnce(createInvitation('retried'))
+    await userEvent.setup().click(refresh)
+    expect(await screen.findByRole('img', { name: 'Pair a device' })).toBeVisible()
+  })
+
+  it('does not restore a stale QR when refreshing addresses fails', async () => {
+    const user = userEvent.setup()
+    invitationMock.mockResolvedValueOnce(createInvitation('original'))
+    render(<DeviceConnectionsSettings />)
+    await screen.findByRole('img', { name: 'Pair a device' })
+    invitationMock.mockRejectedValueOnce(new Error('No connection address is available'))
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.refreshAddresses'] }))
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.pairing.title'] })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: enUS['common.refresh'] })).toBeEnabled()
+  })
+
+  it('hides the QR when refresh removes the selected address until the user selects again', async () => {
+    const user = userEvent.setup()
+    invitationMock.mockResolvedValueOnce(createInvitation('original'))
+    render(<DeviceConnectionsSettings />)
+    await screen.findByRole('img', { name: 'Pair a device' })
+    await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+    await user.click(screen.getByRole('option', { name: '192.168.1.8 (en0)' }))
+    const refreshed = {
+      ...createInvitation('refreshed'),
+      addresses: ['100.94.33.58'],
+      addressOptions: [{ address: '100.94.33.58', interfaceName: 'utun6' }]
+    }
+    invitationMock.mockResolvedValueOnce(refreshed)
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.refreshAddresses'] }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(enUS['deviceConnections.pairing.addressUnavailable'])
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.pairing.title'] })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+    await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
+    expect(
+      JSON.parse(screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!)
+        .ips
+    ).toEqual(refreshed.addresses)
+  })
+
+  it('explains network exposure before enabling device connections', () => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1', port: 25555 }
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
     })
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', { hosts: ['127.0.0.1', '::1'], port: 24444 })
     render(<DeviceConnectionsSettings />)
-
     expect(screen.getByText(enUS['deviceConnections.toggle.description'])).toBeVisible()
-    expect(screen.queryByText(/127\.0\.0\.1:24444/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow network access' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    expect(screen.queryByText(/127\.0\.0\.1:24444/)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Connection details' }))
-    expect(screen.getByText('Listening on this computer only: 127.0.0.1:24444 · [::1]:24444')).toBeVisible()
-  })
-
-  it('reports actual listening scope in details even when the saved preference differs', async () => {
-    const user = userEvent.setup()
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
-    })
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
-    const { rerender } = render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    await user.click(screen.getByRole('button', { name: 'Connection details' }))
-    expect(screen.getByText('Listening on all network interfaces: 0.0.0.0:23333 · [::]:23333')).toBeVisible()
-
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.endpoint', null)
-    rerender(<DeviceConnectionsSettings />)
-    expect(screen.getByText(enUS['deviceConnections.listening.stopped'])).toBeVisible()
-    expect(screen.queryByText(/Listening on this computer only/)).not.toBeInTheDocument()
-  })
-
-  it('keeps addresses behind connection details without creating another pairing invitation', async () => {
-    const user = userEvent.setup()
-    requestMock.mockImplementation(async (name: string) => {
-      if (name === 'api_gateway.remote.list_claims' || name === 'api_gateway.remote.check_networks') return []
-      if (name === 'api_gateway.remote.get_endpoints')
-        return { desktopIdentity: 'desktop', endpoints: [{ host: '100.64.0.2', port: 24444, security: 'ws' }] }
-      throw new Error(`Unexpected request: ${name}`)
-    })
-    render(<DeviceConnectionsSettings />)
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.queryByText('ws://100.64.0.2:24444/v1/remote/connect')).not.toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Connection details' }))
-    expect(await screen.findByText('ws://100.64.0.2:24444/v1/remote/connect')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Set up Tailscale' }))
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Install Tailscale on your phone' }))
-    expect(screen.getByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).toHaveAttribute(
-      'data-value',
-      'https://tailscale.com/download'
-    )
-    expect(screen.getByText(enUS['deviceConnections.setup.phoneDownload'])).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Install Tailscale on your phone' }))
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.setup.phoneDownload'] })).not.toBeInTheDocument()
-    expect(invitationMock).not.toHaveBeenCalled()
-  })
-
-  it('requires the shared device switch before showing remote setup, then continues when the listener is ready', async () => {
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
-    })
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
-    const user = userEvent.setup()
-    const { rerender } = render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.queryByRole('button', { name: 'Set up Tailscale' })).not.toBeInTheDocument()
-    expect(dialog.queryByText('On your phone')).not.toBeInTheDocument()
-    expect(requestMock).not.toHaveBeenCalled()
-    await user.click(dialog.getByRole('button', { name: 'Allow network access' }))
-    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
-    expect(dialog.queryByRole('button', { name: 'Check computer network' })).not.toBeInTheDocument()
-
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '0.0.0.0' }
-    })
-    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
-    rerender(<DeviceConnectionsSettings />)
-    expect(await dialog.findByRole('button', { name: 'Check computer network' })).toBeEnabled()
-    expect(dialog.getByText('On your phone')).toBeInTheDocument()
-    expect(dialog.queryByRole('button', { name: 'Allow network access' })).not.toBeInTheDocument()
-  })
-
-  it('keeps the enable action available after a failure without exposing VPN installation', async () => {
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
-    })
-    requestMock.mockRejectedValueOnce(new Error('Permission denied'))
-    const user = userEvent.setup()
-    render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    const dialog = within(screen.getByRole('dialog'))
-    await user.click(dialog.getByRole('button', { name: 'Allow network access' }))
-    expect(dialog.getByRole('button', { name: 'Allow network access' })).toBeEnabled()
-    expect(dialog.queryByRole('button', { name: 'Set up Tailscale' })).not.toBeInTheDocument()
-    expect(toast.error).toHaveBeenCalledWith('Failed to change network access: Permission denied')
-    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
-  })
-
-  it('routes remote setup to gateway settings when the gateway is stopped', async () => {
-    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: false })
-    const user = userEvent.setup()
-    render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Network setup and help' }))
-    const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText(enUS['deviceConnections.gateway.required'])).toBeVisible()
-    expect(dialog.queryByRole('button', { name: 'Allow network access' })).not.toBeInTheDocument()
-    await user.click(dialog.getByRole('button', { name: 'Open API Gateway settings' }))
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
-    expect(requestMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -421,17 +398,14 @@ describe('DeviceConnectionsSettings', () => {
 
     await user.click(screen.getByRole('button', { name: enabled ? 'Allow network access' : 'Disable network access' }))
 
-    expect(requestMock.mock.calls.filter(([name]) => name !== 'api_gateway.remote.list_claims')).toEqual([
+    expect(requestMock.mock.calls.filter(([name]) => name === 'api_gateway.lan.set_enabled')).toEqual([
       ['api_gateway.lan.set_enabled', { enabled }]
     ])
   })
 
-  it('renders the QR from the Main-owned invitation', async () => {
+  it('automatically renders the QR from the Main-owned invitation', async () => {
     invitationMock.mockResolvedValue(createInvitation('live-invitation'))
-    const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
     const qr = await screen.findByRole('img', { name: 'Pair a device' })
     expect(JSON.parse(qr.getAttribute('data-value') ?? '')).toEqual({
@@ -461,20 +435,17 @@ describe('DeviceConnectionsSettings', () => {
           resolveNew = resolve
         })
       )
-    const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
     rerender(<DeviceConnectionsSettings />)
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
     rerender(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
     await act(async () => resolveOld(createInvitation('old-invitation')))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeDisabled()
+    expect(screen.getByText('Loading...')).toBeVisible()
 
     await act(async () => resolveNew(createInvitation('new-invitation')))
 
@@ -491,7 +462,6 @@ describe('DeviceConnectionsSettings', () => {
     })
     const user = userEvent.setup()
     const view = render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
     await screen.findByRole('img', { name: 'Pair a device' })
     pending = true
 
@@ -510,7 +480,7 @@ describe('DeviceConnectionsSettings', () => {
     })
     expect(toast.success).toHaveBeenCalledWith('Device paired')
     expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
     view.unmount()
 
     render(<DeviceConnectionsSettings />)
@@ -538,11 +508,12 @@ describe('DeviceConnectionsSettings', () => {
 
   it('does not restore claims from a request started before the LAN listener stopped', async () => {
     let resolve!: (claims: (typeof claim)[]) => void
-    requestMock.mockImplementation(
-      () =>
-        new Promise((done) => {
-          resolve = done
-        })
+    requestMock.mockImplementation((name: string) =>
+      name === 'api_gateway.remote.list_claims'
+        ? new Promise((done) => {
+            resolve = done
+          })
+        : Promise.resolve(createInvitation('live'))
     )
     const { rerender } = render(<DeviceConnectionsSettings />)
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
@@ -625,11 +596,9 @@ describe('DeviceConnectionsSettings', () => {
         resolveInvitation = resolve
       })
     )
-    const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
-    // Keep Testing Library's post-click timer on the real clock; only simulate QR expiry.
+    // Simulate expiry without waiting for the invitation's lifetime.
     vi.useFakeTimers()
     await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
@@ -638,7 +607,12 @@ describe('DeviceConnectionsSettings', () => {
     await act(async () => vi.advanceTimersByTime(60_000))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+    expect(screen.getByText('QR code expired')).toBeVisible()
+    expect(invitationMock).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+    invitationMock.mockResolvedValueOnce(createInvitation('fresh'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByRole('img', { name: 'Pair a device' })).toBeVisible()
   })
 
   it.each([true, false])('revokes the selected device and reports success=%s', async (success) => {

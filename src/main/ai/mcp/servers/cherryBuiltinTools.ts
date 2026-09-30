@@ -67,7 +67,6 @@ import {
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
 import { CherryCliTools } from './cherryCliTools'
-import { CherryConnectionTools } from './cherryConnectionTools'
 import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
 
@@ -226,7 +225,6 @@ export class CherryBuiltinToolsServer {
     const autonomy = new CherryAutonomyTools(agentContext)
     const knowledge = new CherryKnowledgeTools(agentContext)
     const cli = new CherryCliTools()
-    const connections = new CherryConnectionTools()
     const documents = new CherryDocumentTools(agentContext)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -235,13 +233,11 @@ export class CherryBuiltinToolsServer {
         ...knowledge.tools(),
         ...autonomy.tools(),
         ...cli.tools(),
-        ...connections.tools(),
         ...documents.tools()
       ]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
-      if (connections.handles(name)) return connections.call(name, request.params.arguments)
       if (cli.handles(name)) {
         return cli.call(name, request.params.arguments)
       }

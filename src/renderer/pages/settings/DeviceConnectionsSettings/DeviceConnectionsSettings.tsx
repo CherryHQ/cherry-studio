@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowRight, MonitorSmartphone, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -19,6 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
@@ -30,14 +35,12 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
-import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
-import { ConnectionSetup } from './ConnectionSetup'
 import { MobileAppDownload } from './MobileAppDownload'
 import { MobileAppShowcase } from './MobileAppShowcase'
 
@@ -70,6 +73,7 @@ const DeviceConnectionsSettings: FC = () => {
   })
 
   const onboardingComplete = step === 'complete' || devices.length > 0
+  const pairingActive = onboardingComplete || step === 'connect'
 
   useEffect(() => {
     if (devices.length > 0 && step !== 'complete') setStep('complete')
@@ -79,6 +83,8 @@ const DeviceConnectionsSettings: FC = () => {
   const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
   const [invitation, setInvitation] = useState<Invitation>()
+  const [selectedAddress, setSelectedAddress] = useState('auto')
+  const [invitationExpired, setInvitationExpired] = useState(false)
   const [claims, setClaims] = useState<PairingClaim[]>([])
   const [selectedCapabilities, setSelectedCapabilities] = useState<Record<string, RemoteCapability[]>>({})
   const [decidingClaimId, setDecidingClaimId] = useState<string>()
@@ -97,7 +103,7 @@ const DeviceConnectionsSettings: FC = () => {
   }, [])
 
   const refreshClaims = useCallback(async () => {
-    if (!connectionReady) return
+    if (!connectionReady || !pairingActive) return
     const requestId = ++claimRequestId.current
     try {
       const pending = await ipcApi.request('api_gateway.remote.list_claims')
@@ -105,30 +111,17 @@ const DeviceConnectionsSettings: FC = () => {
     } catch {
       if (requestId === claimRequestId.current) setClaims([])
     }
-  }, [connectionReady])
+  }, [connectionReady, pairingActive])
 
   useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
   useIpcOn('api_gateway.remote.pairing_changed', () => void refreshClaims())
 
-  useEffect(() => {
-    clearInvitation()
-    void refreshClaims()
-    return () => {
-      invitationRequestId.current += 1
-      claimRequestId.current += 1
-    }
-  }, [refreshClaims, clearInvitation])
-
-  useEffect(() => {
-    if (!invitation) return
-    const timer = setTimeout(clearInvitation, Math.max(0, Date.parse(invitation.expiresAt) - Date.now()))
-    return () => clearTimeout(timer)
-  }, [invitation, clearInvitation])
-
-  const showPairingQr = async () => {
-    if (!connectionReady || isCreatingInvitation) return
+  const showPairingQr = useCallback(async () => {
+    if (!connectionReady || !pairingActive) return
     const requestId = ++invitationRequestId.current
     setIsCreatingInvitation(true)
+    setInvitationExpired(false)
+    setInvitation(undefined)
     try {
       const result = await ipcApi.request('api_gateway.remote.create_invitation')
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
@@ -139,7 +132,29 @@ const DeviceConnectionsSettings: FC = () => {
     } finally {
       if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
     }
-  }
+  }, [connectionReady, pairingActive, t])
+
+  useEffect(() => {
+    clearInvitation()
+    void refreshClaims()
+    void showPairingQr()
+    return () => {
+      invitationRequestId.current += 1
+      claimRequestId.current += 1
+    }
+  }, [refreshClaims, clearInvitation, showPairingQr])
+
+  useEffect(() => {
+    if (!invitation) return
+    const timer = setTimeout(
+      () => {
+        clearInvitation()
+        setInvitationExpired(true)
+      },
+      Math.max(0, Date.parse(invitation.expiresAt) - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [invitation, clearInvitation])
 
   const decideClaim = async (claim: PairingClaim, capabilities: RemoteCapability[] | null) => {
     if (decidingClaimId) return
@@ -187,19 +202,22 @@ const DeviceConnectionsSettings: FC = () => {
     }
   }
 
-  const qrPayload = invitation
-    ? JSON.stringify({
-        v: 2,
-        t: 'cherry-studio-pair',
-        name: invitation.hostname,
-        port: invitation.port,
-        ips: invitation.addresses,
-        invitationId: invitation.invitationId,
-        invitationSecret: invitation.invitationSecret,
-        desktopIdentity: invitation.desktopIdentity,
-        protocolVersions: invitation.protocolVersions
-      })
-    : null
+  const selectedAddressAvailable =
+    selectedAddress === 'auto' || invitation?.addressOptions.some(({ address }) => address === selectedAddress)
+  const qrPayload =
+    invitation && selectedAddressAvailable && !isCreatingInvitation
+      ? JSON.stringify({
+          v: 2,
+          t: 'cherry-studio-pair',
+          name: invitation.hostname,
+          port: invitation.port,
+          ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress],
+          invitationId: invitation.invitationId,
+          invitationSecret: invitation.invitationSecret,
+          desktopIdentity: invitation.desktopIdentity,
+          protocolVersions: invitation.protocolVersions
+        })
+      : null
   const statusKey = connectionReady
     ? 'deviceConnections.status.ready'
     : lanEnabled
@@ -386,23 +404,75 @@ const DeviceConnectionsSettings: FC = () => {
                         </div>
                       )
                     })
-                  ) : invitation && qrPayload ? (
-                    <div className="flex flex-col items-start gap-2">
-                      <div className="rounded-lg border border-border bg-white p-3">
-                        <QRCodeSVG
-                          value={qrPayload}
-                          size={180}
-                          level="M"
-                          title={t('deviceConnections.pairing.title')}
-                        />
+                  ) : invitation ? (
+                    <div className="flex flex-col items-start gap-3">
+                      <label htmlFor="pairing-address" className="text-sm font-medium">
+                        {t('deviceConnections.pairing.address')}
+                      </label>
+                      <div className="flex w-full max-w-lg items-start gap-2">
+                        <Select
+                          value={selectedAddress}
+                          onValueChange={setSelectedAddress}
+                          disabled={isCreatingInvitation}>
+                          <SelectTrigger
+                            id="pairing-address"
+                            className="h-auto min-h-9 w-full min-w-0 [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:whitespace-normal [&_[data-slot=select-value]]:break-all">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-80 max-w-[calc(100vw-2rem)]">
+                            <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
+                            {!selectedAddressAvailable && (
+                              <SelectItem value={selectedAddress} disabled>
+                                {selectedAddress}
+                              </SelectItem>
+                            )}
+                            {invitation.addressOptions.map(({ address, interfaceName }) => (
+                              <SelectItem key={address} value={address} className="whitespace-normal break-all">
+                                {address} ({interfaceName})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          loading={isCreatingInvitation}
+                          aria-label={t('deviceConnections.pairing.refreshAddresses')}
+                          onClick={() => void showPairingQr()}>
+                          <RefreshCw size={16} />
+                        </Button>
                       </div>
+                      {!selectedAddressAvailable && (
+                        <p role="alert" className="text-destructive text-sm">
+                          {t('deviceConnections.pairing.addressUnavailable')}
+                        </p>
+                      )}
+                      {qrPayload && (
+                        <div className="rounded-lg border border-border bg-white p-3">
+                          <QRCodeSVG
+                            value={qrPayload}
+                            size={180}
+                            level="M"
+                            title={t('deviceConnections.pairing.title')}
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div>
-                      <Button loading={isCreatingInvitation} disabled={isUpdatingLan} onClick={showPairingQr}>
-                        {!isCreatingInvitation && <QrCode size={14} />}
-                        {t('deviceConnections.pairing.show')}
-                      </Button>
+                    <div className="flex flex-col items-start gap-2">
+                      {isCreatingInvitation ? (
+                        <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+                      ) : (
+                        <>
+                          {invitationExpired && (
+                            <p className="text-muted-foreground text-sm">{t('deviceConnections.pairing.expired')}</p>
+                          )}
+                          <Button disabled={isUpdatingLan} onClick={showPairingQr}>
+                            <RefreshCw size={14} />
+                            {t('common.refresh')}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </SectionFields>
@@ -468,17 +538,6 @@ const DeviceConnectionsSettings: FC = () => {
                 </SectionFields>
               </SettingGroup>
             </Sections>
-            <SkillLauncherProvider>
-              <ConnectionSetup
-                connectionReady={connectionReady}
-                prerequisite={
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground text-sm leading-6">{t(statusDescriptionKey)}</p>
-                    {connectionAction}
-                  </div>
-                }
-              />
-            </SkillLauncherProvider>
             {!onboardingComplete && (
               <div className="mt-4 text-center">
                 <Button variant="ghost" size="sm" onClick={() => setStep('download')}>

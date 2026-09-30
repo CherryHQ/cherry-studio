@@ -18,14 +18,6 @@ sources:
 
 BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
-`installSystemPackage` is a separate, narrowly allowlisted system-package entry point for
-`brew-cask:tailscale-app` on Apple Silicon macOS. It shares the mise environment and mutation
-lock, runs `mise bootstrap packages apply`, and never creates a managed CLI definition or
-claims uninstall ownership. System authorization failures return to the device setup owner
-for official installation guidance. VPN login, status and mobile verification stay outside
-BinaryManager. The bundled mise 2026.7.14 command was dry-run checked; clean installation
-and system permission flows still require platform acceptance.
-
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
 ## Tool definitions and runtime facts

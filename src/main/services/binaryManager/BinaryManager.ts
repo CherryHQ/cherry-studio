@@ -1006,18 +1006,6 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  /** System packages belong to the OS package manager and are never added to the managed CLI registry. */
-  public async installSystemPackage(recipe: string, signal: AbortSignal): Promise<void> {
-    await this.mutationMutex.runExclusive(async () => {
-      signal.throwIfAborted()
-      if (this.isShuttingDown) throw new Error('Binary manager is stopping')
-      await this.runMise(['bootstrap', 'packages', 'apply', '--yes', recipe], {
-        signal,
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS
-      })
-    })
-  }
-
   private async runMise(
     args: string[],
     opts?: {

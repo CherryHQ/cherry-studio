@@ -110,7 +110,7 @@ export class RemoteAccessService extends BaseService {
 
   async getConnectionEndpoints() {
     const desktopIdentity = deviceIdentityId(await this.getIdentity())
-    const { addresses, port } = application.get('ApiGatewayService').getRemoteEndpoint()
+    const { addresses, port } = await application.get('ApiGatewayService').getRemoteEndpoint()
     return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
   }
 
