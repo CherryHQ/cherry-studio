@@ -95,6 +95,13 @@ export const appRequestSchemas = {
       target: notesDirectoryStatsSchema
     })
   }),
+  'app.notes_relocation.flush_ack': defineRoute({
+    input: z.object({
+      batchId: z.string().min(1),
+      ok: z.boolean()
+    }),
+    output: z.void()
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
@@ -141,4 +148,5 @@ export type AppEventSchemas = {
   'app.updater.not_available': void
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.notes_relocation.flush_requested': { batchId: string }
 }

@@ -7,10 +7,15 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
-import { inspectNotesRelocation, migrateNotesDirectory } from '@main/services/notesRelocation'
+import {
+  inspectNotesRelocation,
+  migrateNotesDirectory,
+  rendererEditFlushCoordinator
+} from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -41,8 +46,21 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     requestUserDataRelocation(path, copy)
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
-  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) =>
-    migrateNotesDirectory(sourcePath, targetPath, { merge }),
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, ctx) => {
+    // Drafts live in renderer memory: other windows must persist theirs before
+    // the directory moves, or the edits are stranded in the old location.
+    const flushed = await rendererEditFlushCoordinator.flush(ctx.senderId)
+    if (!flushed) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+        'a renderer window failed to flush unsaved note edits'
+      )
+    }
+    return migrateNotesDirectory(sourcePath, targetPath, { merge })
+  },
+  'app.notes_relocation.flush_ack': async ({ batchId, ok }, ctx) => {
+    rendererEditFlushCoordinator.acknowledge(batchId, ctx.senderId, ok)
+  },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),
