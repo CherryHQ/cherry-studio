@@ -1,9 +1,10 @@
 import { ChevronDown, Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
@@ -14,11 +15,12 @@ import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 import { isPlanExitToolName } from '@shared/ai/tool'
-import { isUniqueModelId, type Model } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -187,7 +189,23 @@ export default function PermissionRequestComposer({
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
   // Plan approval only: a model chosen for execution restarts the turn on that model; undefined
   // keeps the "current model" option, which approves and continues the running turn as before.
-  const [executionModel, setExecutionModel] = useState<Model | undefined>(undefined)
+  const [chosenExecutionModel, setChosenExecutionModel] = useState<Model | undefined>(undefined)
+  const [hasChosenExecutionModel, setHasChosenExecutionModel] = useState(false)
+  const [configuredExecutionModelId] = usePreference('chat.plan_execution.model_id')
+  const { model: configuredExecutionModel } = useModelById(configuredExecutionModelId as UniqueModelId | undefined)
+  // Settings → Default models pre-selects this picker; a model the gates would refuse is dropped,
+  // so the card can never request a handoff the picker itself would not offer.
+  const preferredExecutionModel = useMemo(() => {
+    if (!configuredExecutionModel) return undefined
+    if (modelFilter && !modelFilter(configuredExecutionModel)) return undefined
+    if (isModelDisabled && isModelDisabled(configuredExecutionModel)) return undefined
+    return configuredExecutionModel
+  }, [configuredExecutionModel, isModelDisabled, modelFilter])
+  const executionModel = hasChosenExecutionModel ? chosenExecutionModel : preferredExecutionModel
+  const selectExecutionModel = useCallback((model: Model | undefined) => {
+    setChosenExecutionModel(model)
+    setHasChosenExecutionModel(true)
+  }, [])
   // Main's handoff gate is name-based too, but an MCP tool that merely shares the plan-exit name
   // carries no plan semantics — hide the picker so its approval can never send an executionModelId.
   const isPlanExitApproval =
@@ -298,7 +316,7 @@ export default function PermissionRequestComposer({
                 isModelDisabled={isModelDisabled}
                 value={executionModel}
                 noneOptionLabel={t('agent.toolPermission.executionModel.current')}
-                onSelect={setExecutionModel}
+                onSelect={selectExecutionModel}
                 side="top"
                 align="start"
                 trigger={

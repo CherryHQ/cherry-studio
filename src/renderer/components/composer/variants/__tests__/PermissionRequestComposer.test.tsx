@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -94,6 +94,18 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
+const planExecutionPreference = vi.hoisted(() => ({ modelId: null as string | null }))
+const modelByIdFixture = vi.hoisted(() => ({ model: undefined as { id: string; name: string } | undefined }))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) =>
+    key === 'chat.plan_execution.model_id' ? [planExecutionPreference.modelId, vi.fn()] : [undefined, vi.fn()]
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (uniqueModelId: unknown) => ({ model: uniqueModelId ? modelByIdFixture.model : undefined })
+}))
+
 const part = {
   type: 'tool-CustomTool',
   toolName: 'CustomTool',
@@ -135,6 +147,11 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  beforeEach(() => {
+    planExecutionPreference.modelId = null
+    modelByIdFixture.model = undefined
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
@@ -423,6 +440,87 @@ describe('PermissionRequestComposer', () => {
     render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
 
     fireEvent.click(screen.getByTestId('model-selector-pick-malformed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  it('pre-selects the configured plan-execution model and approves with it', async () => {
+    planExecutionPreference.modelId = 'anthropic::claude-opus-5'
+    modelByIdFixture.model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5' }
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('anthropic::claude-opus-5')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: planRequest.match,
+      approved: true,
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+  })
+
+  // A configured model the picker would refuse must not reach Main as a requested handoff.
+  it('drops a configured plan-execution model the gates would not offer', async () => {
+    planExecutionPreference.modelId = 'banned::model'
+    modelByIdFixture.model = { id: 'banned::model', name: 'Banned' }
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(
+      <PermissionRequestComposer
+        request={planRequest}
+        onRespond={onRespond}
+        modelFilter={(model) => !model.id.startsWith('banned::')}
+      />
+    )
+
+    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('none')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  it('lets the card clear a configured plan-execution model back to the current model', async () => {
+    planExecutionPreference.modelId = 'anthropic::claude-opus-5'
+    modelByIdFixture.model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5' }
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByTestId('model-selector-none'))
+    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('none')
+
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
