@@ -272,8 +272,10 @@ function projectEndpointConfigOverrides(
       )
     )
     if (Object.keys(dialect).length > 0) override.dialect = dialect
+    // Persist the lean selector only — never the main-only wire, which the
+    // registry owns and a stored copy would freeze stale.
     if (config.reasoningFormat !== undefined && !isEqual(config.reasoningFormat, presetConfig?.reasoningFormat)) {
-      override.reasoningFormat = config.reasoningFormat
+      override.reasoningFormat = { type: config.reasoningFormat.type }
     }
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
