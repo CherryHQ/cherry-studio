@@ -9,6 +9,14 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 const FALLBACK_ASSISTANT_KEY = '__none__'
 
+// Monotonically increasing mutation identities, allocated outside cache updaters so
+// the updaters stay pure per the useCache contract. Uniqueness (not stored derivation)
+// is what finish/clear guards need to avoid erasing newer pending mutations.
+let pendingVersionSeed = 0
+function allocatePendingVersion(): number {
+  return ++pendingVersionSeed
+}
+
 function getReasoningEffortPendingKey(assistantId: string): UseCacheKey {
   return `chat.assistant.reasoning_effort_pending.${assistantId}`
 }
@@ -107,11 +115,8 @@ function useAssistantPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!assistantId) return 0
-      let version = 0
-      setPending((current) => {
-        version = (current?.version ?? 0) + 1
-        return { value, version }
-      })
+      const version = allocatePendingVersion()
+      setPending({ value, version })
       return version
     },
     [assistantId, setPending]
@@ -125,9 +130,14 @@ function useAssistantPendingSetting<T>(
     [setPending]
   )
 
-  const clearPending = useCallback(() => {
-    setPending(null)
-  }, [setPending])
+  const clearPending = useCallback(
+    (version: number) => {
+      // Drop only mutations at or before `version`: a newer pending started by
+      // another instance (e.g. the right pane) must survive this cleanup.
+      setPending((current) => (current && current.version <= version ? null : current))
+    },
+    [setPending]
+  )
 
   return { effective, startPending, finishPending, clearPending }
 }
@@ -171,11 +181,8 @@ export function useAssistantPendingSettingsPatch(
   const startPending = useCallback(
     (patch: AssistantModelSettingsPatch): number => {
       if (!assistantId) return 0
-      let version = 0
-      setPending((current) => {
-        version = (current?.version ?? 0) + 1
-        return mergePatchFields(current ?? null, patch, version)
-      })
+      const version = allocatePendingVersion()
+      setPending((current) => mergePatchFields(current ?? null, patch, version))
       return version
     },
     [assistantId, setPending]

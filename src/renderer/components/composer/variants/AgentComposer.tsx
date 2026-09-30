@@ -1356,7 +1356,7 @@ const AgentComposerInner = ({
       )
         .then((updatedAgent) => {
           if (canonicalAtMutationStart !== canonicalReasoningEffortRef.current) {
-            clearReasoningPending()
+            clearReasoningPending(pendingVersion)
           }
           finishReasoningPending(pendingVersion)
           setReasoningOverride((current) => {
@@ -1379,14 +1379,7 @@ const AgentComposerInner = ({
           setReasoningPendingSync((token) => token + 1)
         })
     },
-    [
-      agent,
-      canonicalReasoningEffort,
-      clearReasoningPending,
-      finishReasoningPending,
-      startReasoningPending,
-      updateAgent
-    ]
+    [agent, canonicalReasoningEffort, clearReasoningPending, finishReasoningPending, startReasoningPending, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {

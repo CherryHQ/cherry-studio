@@ -7,6 +7,13 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 const FALLBACK_AGENT_KEY = '__none__'
 
+// Shared with the assistant pending hooks: mutation identities are allocated outside
+// cache updaters (pure-updater contract) and are unique across hook instances.
+let pendingVersionSeed = 0
+function allocatePendingVersion(): number {
+  return ++pendingVersionSeed
+}
+
 function getReasoningEffortPendingKey(agentId: string): UseCacheKey {
   return `chat.agent.reasoning_effort_pending.${agentId}`
 }
@@ -36,11 +43,8 @@ function useAgentPendingSetting<T>(
   const startPending = useCallback(
     (value: T): number => {
       if (!agentId) return 0
-      let version = 0
-      setPending((current) => {
-        version = (current?.version ?? 0) + 1
-        return { value, version }
-      })
+      const version = allocatePendingVersion()
+      setPending({ value, version })
       return version
     },
     [agentId, setPending]
@@ -54,9 +58,14 @@ function useAgentPendingSetting<T>(
     [setPending]
   )
 
-  const clearPending = useCallback(() => {
-    setPending(null)
-  }, [setPending])
+  const clearPending = useCallback(
+    (version: number) => {
+      // Drop only mutations at or before `version`: a newer pending started by
+      // another instance (e.g. the right pane) must survive this cleanup.
+      setPending((current) => (current && current.version <= version ? null : current))
+    },
+    [setPending]
+  )
 
   return { effective, startPending, finishPending, clearPending }
 }
