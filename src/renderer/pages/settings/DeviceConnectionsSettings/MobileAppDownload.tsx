@@ -5,38 +5,41 @@ import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/
 import androidLogo from '@renderer/assets/images/deviceConnections/android.svg'
 import iosLogo from '@renderer/assets/images/deviceConnections/ios.svg'
 import { ipcApi } from '@renderer/ipc'
-
-const MOBILE_DOWNLOADS = [
-  {
-    platform: 'ios',
-    name: 'deviceConnections.download.platform.ios',
-    label: 'deviceConnections.download.ios',
-    logo: iosLogo,
-    url: 'https://testflight.apple.com/join/2ryzjB66'
-  },
-  {
-    platform: 'android',
-    name: 'deviceConnections.download.platform.android',
-    label: 'deviceConnections.download.android',
-    logo: androidLogo,
-    url: 'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
-  }
-] as const
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 export function MobileAppDownload() {
   const { t } = useTranslation()
+  const mobileDownloads = [
+    {
+      platform: 'ios',
+      name: 'deviceConnections.download.platform.ios',
+      label: 'deviceConnections.download.ios',
+      logo: iosLogo,
+      url: 'https://testflight.apple.com/join/2ryzjB66'
+    },
+    {
+      platform: 'android',
+      name: 'deviceConnections.download.platform.android',
+      label: 'deviceConnections.download.android',
+      logo: androidLogo,
+      url:
+        getAppEdition() === 'cn'
+          ? 'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+          : 'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+    }
+  ] as const
 
   return (
     <Tabs defaultValue="ios" className="items-center gap-6">
       <TabsList className="w-64">
-        {MOBILE_DOWNLOADS.map(({ platform, name, logo }) => (
+        {mobileDownloads.map(({ platform, name, logo }) => (
           <TabsTrigger key={platform} value={platform}>
             <img src={logo} alt="" className="size-4" />
             {t(name)}
           </TabsTrigger>
         ))}
       </TabsList>
-      {MOBILE_DOWNLOADS.map(({ platform, label, url }) => (
+      {mobileDownloads.map(({ platform, label, url }) => (
         <TabsContent key={platform} value={platform} className="w-64">
           <div className="flex flex-col items-center gap-4">
             <div className="rounded-xl border border-border bg-white p-3">

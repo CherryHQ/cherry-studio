@@ -81,9 +81,11 @@ const device = {
 describe('DeviceConnectionsSettings', () => {
   afterEach(() => {
     vi.useRealTimers()
+    vi.stubGlobal('__APP_EDITION__', 'global')
   })
 
   beforeEach(() => {
+    vi.stubGlobal('__APP_EDITION__', 'global')
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
     MockUseDataApiUtils.mockQueryData('/skills', [])
@@ -106,52 +108,64 @@ describe('DeviceConnectionsSettings', () => {
     })
   })
 
-  it('preserves the download and connection steps until onboarding is completed', async () => {
-    MockUseCacheUtils.resetMocks()
-    const user = userEvent.setup()
-    const first = render(<DeviceConnectionsSettings />)
-    expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
-    expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
+  it.each([
+    {
+      edition: 'cn',
+      androidDownloadUrl:
+        'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+    },
+    {
+      edition: 'global',
+      androidDownloadUrl:
+        'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+    }
+  ])(
+    'uses $edition downloads and preserves steps until onboarding is completed',
+    async ({ edition, androidDownloadUrl }) => {
+      vi.stubGlobal('__APP_EDITION__', edition)
+      MockUseCacheUtils.resetMocks()
+      const user = userEvent.setup()
+      const first = render(<DeviceConnectionsSettings />)
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] }))
-    expect(requestMock).toHaveBeenCalledWith(
-      'system.shell.open_external_website',
-      'https://testflight.apple.com/join/2ryzjB66'
-    )
-    expect(screen.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
-      'data-value',
-      'https://testflight.apple.com/join/2ryzjB66'
-    )
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: 'Android' }))
-    expect(screen.getByRole('tab', { name: 'Android' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.ios'] })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.android'] }))
-    expect(requestMock).toHaveBeenCalledWith(
-      'system.shell.open_external_website',
-      'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
-    )
-    expect(screen.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
-      'data-value',
-      'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
-    )
-    await user.click(screen.getByRole('tab', { name: 'iOS' }))
-    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] }))
-    first.unmount()
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] }))
+      expect(requestMock).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        'https://testflight.apple.com/join/2ryzjB66'
+      )
+      expect(screen.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
+        'data-value',
+        'https://testflight.apple.com/join/2ryzjB66'
+      )
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('tab', { name: 'Android' }))
+      expect(screen.getByRole('tab', { name: 'Android' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.ios'] })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.android'] }))
+      expect(requestMock).toHaveBeenCalledWith('system.shell.open_external_website', androidDownloadUrl)
+      expect(screen.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+        'data-value',
+        androidDownloadUrl
+      )
+      await user.click(screen.getByRole('tab', { name: 'iOS' }))
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] }))
+      first.unmount()
 
-    const second = render(<DeviceConnectionsSettings />)
-    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
-    expect(screen.getByText(enUS['deviceConnections.pairing.title'])).toBeVisible()
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
-    second.unmount()
+      const second = render(<DeviceConnectionsSettings />)
+      expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
+      expect(screen.getByText(enUS['deviceConnections.pairing.title'])).toBeVisible()
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
+      second.unmount()
 
-    render(<DeviceConnectionsSettings />)
-    expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
-    expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
+      render(<DeviceConnectionsSettings />)
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    }
+  )
 
   it('keeps the active pairing invitation while downloading the mobile app in a dialog', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'complete')
@@ -169,7 +183,7 @@ describe('DeviceConnectionsSettings', () => {
     await user.click(dialog.getByRole('tab', { name: 'Android' }))
     expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
       'data-value',
-      'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
+      'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.0-beta.2/cherry-studio-0.1.0-2026-09-17-android.apk'
     )
     await user.click(dialog.getByRole('button', { name: enUS['common.close'] }))
 
