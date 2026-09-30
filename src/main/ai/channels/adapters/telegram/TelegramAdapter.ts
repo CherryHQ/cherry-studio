@@ -98,6 +98,15 @@ class TelegramAdapter extends ChannelAdapter {
       })
     })
 
+    bot.command('stop', (ctx) => {
+      this.emit('command', {
+        chatId: ctx.chat.id.toString(),
+        userId: ctx.from?.id?.toString() ?? '',
+        userName: ctx.from?.first_name ?? '',
+        command: 'stop'
+      })
+    })
+
     bot.command('help', (ctx) => {
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
@@ -176,6 +185,7 @@ class TelegramAdapter extends ChannelAdapter {
     await bot.api.setMyCommands([
       { command: 'new', description: 'Start a new conversation' },
       { command: 'compact', description: 'Compact conversation history' },
+      { command: 'stop', description: 'Cancel the current turn' },
       { command: 'help', description: 'Show help information' },
       { command: 'whoami', description: 'Show the current chat ID' }
     ])

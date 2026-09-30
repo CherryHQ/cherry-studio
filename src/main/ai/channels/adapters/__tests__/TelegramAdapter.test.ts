@@ -76,16 +76,31 @@ describe('TelegramAdapter', () => {
     await adapter.connect()
 
     expect(mockBot.use).toHaveBeenCalledTimes(1) // auth middleware
-    expect(mockBot.command).toHaveBeenCalledTimes(4) // new, compact, help, whoami
+    expect(mockBot.command).toHaveBeenCalledTimes(5) // new, compact, stop, help, whoami
     expect(mockBot.on).toHaveBeenCalledWith('message:text', expect.any(Function))
     expect(mockBot.api.setMyCommands).toHaveBeenCalledWith([
       { command: 'new', description: 'Start a new conversation' },
       { command: 'compact', description: 'Compact conversation history' },
+      { command: 'stop', description: 'Cancel the current turn' },
       { command: 'help', description: 'Show help information' },
       { command: 'whoami', description: 'Show the current chat ID' }
     ])
     expect(mockBot.catch).toHaveBeenCalledTimes(1)
     expect(mockBot.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes /stop through the Telegram command handler with the sender and chat intact', async () => {
+    const adapter = createAdapter()
+    const commands: unknown[] = []
+    const messages: unknown[] = []
+    adapter.on('command', (event: unknown) => commands.push(event))
+    adapter.on('message', (event: unknown) => messages.push(event))
+    await adapter.connect()
+    const registered = mockBot.command.mock.calls.find(([name]) => name === 'stop')
+    expect(registered).toBeDefined()
+    registered?.[1]({ chat: { id: 123 }, from: { id: 456, first_name: 'Alice' } })
+    expect(commands).toEqual([{ chatId: '123', userId: '456', userName: 'Alice', command: 'stop' }])
+    expect(messages).toEqual([])
   })
 
   it('disconnect() stops the bot', async () => {
@@ -268,7 +283,7 @@ describe('TelegramAdapter', () => {
     const commandSpy = vi.fn()
     adapter.on('command', commandSpy)
 
-    const commandHandler = mockBot.command.mock.calls[3][1] as (ctx: any) => void
+    const commandHandler = mockBot.command.mock.calls.find(([name]) => name === 'whoami')![1] as (ctx: any) => void
 
     commandHandler({
       chat: { id: 123 },

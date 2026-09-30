@@ -616,7 +616,7 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private emitCommand(chatId: string, userId: string, userName: string, text: string, messageId: string): void {
-    const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
+    const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'stop' | 'help'
     this.emit('command', { chatId, userId, userName, command: cmd, messageId })
   }
 

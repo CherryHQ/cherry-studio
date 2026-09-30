@@ -460,7 +460,7 @@ class FeishuAdapter extends ChannelAdapter {
         userId: message.senderId,
         userName: message.senderName ?? '',
         messageId: message.messageId,
-        command: parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami',
+        command: parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'stop' | 'help' | 'whoami',
         args: parts.slice(1).join(' ') || undefined
       })
       return

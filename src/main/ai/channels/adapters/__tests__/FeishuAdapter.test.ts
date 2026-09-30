@@ -419,7 +419,7 @@ describe('FeishuAdapter', () => {
     })
   })
 
-  it('routes normalized slash commands without invoking the agent', async () => {
+  it.each(['new', 'stop'])('routes /%s as a control command without invoking the agent', async (command) => {
     const adapter = createAdapter()
     const onCommand = vi.fn()
     const onMessage = vi.fn()
@@ -427,14 +427,14 @@ describe('FeishuAdapter', () => {
     adapter.on('message', onMessage)
     await adapter.connect()
 
-    await channelHandlers.message(incomingMessage({ content: '/new project' }))
+    await channelHandlers.message(incomingMessage({ content: `/${command} project` }))
 
     expect(onCommand).toHaveBeenCalledWith({
       chatId: 'oc_123',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',
-      command: 'new',
+      command,
       args: 'project'
     })
     expect(onMessage).not.toHaveBeenCalled()

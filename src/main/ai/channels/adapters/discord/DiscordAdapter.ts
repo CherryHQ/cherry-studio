@@ -510,7 +510,7 @@ class DiscordAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
-      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
+      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'stop' | 'help'
       this.emit('command', {
         chatId,
         userId: msg.author.id,
@@ -647,14 +647,14 @@ class DiscordAdapter extends ChannelAdapter {
       return
     }
 
-    // For /new, /compact, /help — ACK with deferred response, then emit command
+    // For /new, /compact, /stop, /help — ACK with deferred response, then emit command
     await this.ackInteraction(interaction)
 
     this.emit('command', {
       chatId,
       userId: user?.id ?? '',
       userName: user?.username ?? '',
-      command: commandName as 'new' | 'compact' | 'help'
+      command: commandName as 'new' | 'compact' | 'stop' | 'help'
     })
   }
 

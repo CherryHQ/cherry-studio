@@ -33,7 +33,7 @@ export type ChannelCommandEvent = {
   conversationId?: string
   userId: string
   userName: string
-  command: 'new' | 'compact' | 'help' | 'whoami'
+  command: 'new' | 'compact' | 'stop' | 'help' | 'whoami'
   args?: string
   /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
   messageId?: string
