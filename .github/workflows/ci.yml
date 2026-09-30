@@ -251,7 +251,7 @@ jobs:
   basic-checks:
     runs-on: ubuntu-latest
     needs: [changes, repository-checks, lint-checks, type-checks, i18n-checks]
-    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
       - name: Verify planned jobs
@@ -262,7 +262,7 @@ jobs:
   general-test:
     runs-on: ubuntu-latest
     needs: [changes, main-test-shard, package-test, platform-test]
-    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
       - name: Verify planned jobs
@@ -273,7 +273,7 @@ jobs:
   render-test:
     runs-on: ubuntu-latest
     needs: [changes, renderer-test-shard]
-    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
       - name: Verify planned jobs
