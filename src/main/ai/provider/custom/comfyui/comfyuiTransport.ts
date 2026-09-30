@@ -178,10 +178,12 @@ class ComfyuiTransport implements ImageGenerationTransport {
     }
     if (target) {
       graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
+      applySeed(graph, input.seed, target.samplerId)
     } else {
+      // Nothing in the graph says which node the run's seed belongs to, so the
+      // whole run — the seed included — stays exactly as the workflow saved it.
       logger.warn(`workflow ${input.modelId} holds no prompt; running it as it was saved`)
     }
-    applySeed(graph, input.seed, target?.samplerId)
 
     // The submit and its body share one deadline, and we name the prompt: a lost
     // response still leaves the id ours to cancel. ComfyUI v0.37+ rejects a

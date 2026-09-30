@@ -378,10 +378,12 @@ describe('a submit is bounded by the request deadline', () => {
 
     await transport.submit({ ...submitInput, prompt: 'a cat' })
 
-    // Nothing carries the prompt, and the run's seed still reaches the sampler.
+    // Nothing carries the prompt, and nothing carries the run's seed either:
+    // with no prompt target there is no node the run owns, so the workflow goes
+    // out exactly as it was saved.
     const graph = posts[0].prompt as Record<string, { inputs: Record<string, unknown> }>
     expect(Object.values(graph).some((node) => Object.values(node.inputs).includes('a cat'))).toBe(false)
-    expect(graph['2'].inputs.seed).toBe(42)
+    expect(graph['2'].inputs.seed).toBe(0)
   })
 
   it('refuses a workflow whose text it cannot place', async () => {

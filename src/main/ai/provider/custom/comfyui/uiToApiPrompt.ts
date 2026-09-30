@@ -895,6 +895,8 @@ export function findPromptTarget(
     return undefined
   }
 
+  /** Every node that only a negative branch reaches, across the graph. */
+  const negativeOnlyNodes = new Set<string>()
   for (const [samplerId, node] of ordered) {
     const inputs = conditioningInputs(node)
     const positive =
@@ -908,6 +910,7 @@ export function findPromptTarget(
     const negativeOnly = isReference(negative)
       ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
       : new Set<string>()
+    for (const id of negativeOnly) negativeOnlyNodes.add(id)
     const found = walk([positive[0]], negativeOnly)
     if (found) return { ...found, samplerId }
   }
@@ -984,11 +987,15 @@ export function findPromptTarget(
   // STRING widget — the Qwen-Image template style string, a `string_a` the
   // graph joins into the encode — names the text a run is meant to supply even
   // when the walk above cannot tell it apart from the graph's own constants.
+  // It still has to be a text the run reads: a promotion that only the negative
+  // branch reaches, or that nothing a run executes reaches at all, would put
+  // the prompt somewhere the user never meant it.
   for (const entry of promotedText) {
-    if (typeof prompt[entry.nodeId]?.inputs[entry.input] === 'string') {
-      const sampler = samplingIds.find((id) => reaches(id, entry.nodeId))
-      return { ...entry, samplerId: sampler ?? entry.nodeId }
-    }
+    if (typeof prompt[entry.nodeId]?.inputs[entry.input] !== 'string') continue
+    if (negativeOnlyNodes.has(entry.nodeId)) continue
+    if (!rootIds.some((id) => reaches(id, entry.nodeId))) continue
+    const sampler = samplingIds.find((id) => reaches(id, entry.nodeId))
+    return { ...entry, samplerId: sampler ?? entry.nodeId }
   }
 
   return undefined

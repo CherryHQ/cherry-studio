@@ -145,6 +145,28 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'value', samplerId: '3' })
   })
 
+  it('skips a promoted text the graph only reads as a negative prompt', () => {
+    // The promotion names the widget, but the run reads it through the negative
+    // branch: writing the prompt there would replace the negative prompt.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: 'cat', string_b: 'style', delimiter: ', ' }
+      },
+      '2': { class_type: 'CLIPTextEncode', _meta: { title: 'negative' }, inputs: { text: ['1', 0] } },
+      '3': {
+        class_type: 'KSampler',
+        _meta: { title: 'sampler' },
+        inputs: { positive: ['5', 0], negative: ['2', 0], seed: 5 }
+      },
+      '5': { class_type: 'CLIPTextEncode', _meta: { title: 'positive' }, inputs: { text: ['6', 0] } },
+      '6': { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: { clip_name: 'x' } }
+    }
+    expect(findPromptTarget(graph, { promotedText: [{ nodeId: '1', input: 'string_a' }] })).toBeUndefined()
+    expect(hasPromptText(graph)).toBe(true)
+  })
+
   it('does not read a value off a node the graph feeds', () => {
     // A concat that also holds a `value` is not a text source: the text it
     // produces is the join, so writing the run's prompt into `value` would
