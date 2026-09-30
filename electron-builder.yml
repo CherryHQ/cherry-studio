@@ -199,8 +199,7 @@ releaseInfo:
     Cherry Studio 2.1.4 - New Models, Device Connections, and Bug Fixes
 
     ✨ New Features
-    - [Device connections] Simplify pairing with automatic address prioritization; remove built-in VPN setup wizard — configure VPN externally instead.
-    - [Device connections] Add Tailscale setup assistance for LAN and VPN access with IPv4/IPv6 support; mobile app update required to save additional addresses.
+    - [Device connections] Connect over reachable LAN or externally configured VPN networks with IPv4/IPv6 support, automatic address prioritization, and manual selection by network interface. Action required: update to a compatible mobile app to save and verify additional addresses and scan pairing codes containing more than 16 addresses.
     - [Messages] Add export to multi-select action bar: export selected messages as Markdown, Word, or to Notion/Yuque/Obsidian/Joplin/Siyuan.
     - [Models] Add GPT-6.1 Sol support for OpenAI and OpenAI Codex, including pricing and reasoning settings.
     - [Models] Add Claude Sonnet 5.5 and Opus 5.5 with thinking controls and native web-tool eligibility.
@@ -259,8 +258,7 @@ releaseInfo:
     Cherry Studio 2.1.4 - 新模型、设备连接与问题修复
 
     ✨ 新功能
-    - [设备连接] 简化配对，自动优先选择地址；移除内置 VPN 设置向导 — 请在外部配置 VPN。
-    - [设备连接] 新增 Tailscale 设置助手，支持局域网和 VPN 访问及 IPv4/IPv6；移动端需更新以保存额外地址。
+    - [设备连接] 支持通过可达的局域网或自行配置的 VPN 网络连接，支持 IPv4/IPv6、地址自动排序和按网卡手动选择地址。需要操作：更新至兼容的移动端版本，以保存和验证额外连接地址，并扫描包含超过 16 个地址的配对码。
     - [消息] 多选消息新增导出功能：可导出为 Markdown、Word，或发送到 Notion/语雀/Obsidian/Joplin/思源。
     - [模型] 新增 GPT-6.1 Sol 支持，适用于 OpenAI 和 OpenAI Codex，包含定价和推理设置。
     - [模型] 新增 Claude Sonnet 5.5 和 Opus 5.5，支持思考控制和原生网页工具。
