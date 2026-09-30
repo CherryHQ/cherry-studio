@@ -50,6 +50,7 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import { isPlanExitToolName } from '@shared/ai/tool'
+import type { PlanModelHandoffResult } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -123,12 +124,6 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
-
-/**
- * What happened to a requested execution-model handoff. `refused` is the fail-closed answer: the
- * chosen model cannot be honored, so the caller must not report a successful chosen-model approval.
- */
-export type PlanModelHandoffResult = 'not-requested' | 'started' | 'already-current' | 'refused'
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -1448,7 +1443,8 @@ export class AgentSessionRuntimeService extends BaseService {
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
    * `dispatched: false` means no registry entry matched, so the caller can fall back to the MCP
    * path; `handoff` reports what happened to a requested execution model so the caller never has to
-   * guess whether one will be honored (`refused` must not be answered with success).
+   * guess whether one was honored — `refused` with `dispatched: true` means the approval itself ran
+   * but the model switch did not, and the caller must surface that instead of implying it did.
    */
   respondToolApproval(
     approvalId: string,

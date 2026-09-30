@@ -236,6 +236,12 @@ export interface ApprovalDecision {
   updatedInput?: Record<string, unknown>
 }
 
+/**
+ * What happened to a requested execution-model handoff. `refused` is the fail-closed answer: the
+ * chosen model cannot be honored, so the caller must not let the user believe it was.
+ */
+export type PlanModelHandoffResult = 'not-requested' | 'started' | 'already-current' | 'refused'
+
 export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   topicId?: string
   anchorId?: string
@@ -256,6 +262,12 @@ export interface AiToolApprovalRespondResponse {
    * handoff by switching the model and sending the execution follow-up.
    */
   executionModelId?: string
+  /**
+   * What happened to a requested execution model. `refused` on an accepted response means the
+   * approval ran but the handoff did not happen — the caller must say so instead of letting the
+   * user believe the plan switched models.
+   */
+  handoff?: PlanModelHandoffResult
 }
 
 /** Subscribe to a topic's stream state. */

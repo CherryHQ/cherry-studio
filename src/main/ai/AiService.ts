@@ -439,23 +439,26 @@ export class AiService extends BaseService {
       { executionModelId: payload.executionModelId }
     )
     if (dispatched) {
-      // `refused` means the chosen execution model cannot be honored; answering success would be
-      // the silent drop the handoff protocol must never allow.
-      if (handoff === 'refused') return { ok: false }
-      // The handoff echo tells the renderer the turn was stopped and it must complete the
-      // handoff (switch model + send the execution follow-up on a fresh turn).
-      return handoff === 'started' && payload.executionModelId
-        ? { ok: true, executionModelId: payload.executionModelId }
-        : { ok: true }
+      // The user's decision was applied; `handoff` says what came of the requested execution model.
+      // `refused` is reported rather than swallowed, so the renderer can tell the user the plan is
+      // running on the current model instead of letting a stale claim stand. The handoff echo tells
+      // the renderer the turn was stopped and it must complete the handoff (switch model + send the
+      // execution follow-up on a fresh turn).
+      return {
+        ok: true,
+        handoff,
+        ...(handoff === 'started' && payload.executionModelId ? { executionModelId: payload.executionModelId } : {})
+      }
     }
 
-    // A chosen execution model is only meaningful on the live handoff path above — the MCP
-    // continuation below has no model to switch, so refuse rather than drop the choice silently.
+    // Nothing was applied here. A chosen execution model is only meaningful on the live handoff
+    // path above — the MCP continuation below has no model to switch — so fail closed rather than
+    // report a successful chosen-model approval that left the execution on the old model.
     if (payload.executionModelId) {
       logger.warn('Tool-approval response requested an execution model without the live handoff path', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, handoff: 'refused' }
     }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.

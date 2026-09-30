@@ -1,4 +1,4 @@
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -13,14 +13,15 @@ import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/A
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useModelById } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 import { isPlanExitToolName } from '@shared/ai/tool'
-import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -34,21 +35,28 @@ function isHandledElsewhere(event: KeyboardEvent) {
   return event.defaultPrevented || event.isComposing
 }
 
+/**
+ * Agent-surface gates for the Settings-configured plan-execution model. Absent on the Home path,
+ * which has no agent whose model a handoff could switch — there is nothing to hand off to.
+ */
+export type PlanExecutionHandoffOptions = {
+  /** The agent's runtime-compatibility gate; an unrunnable model must never be handed off to. */
+  modelFilter?: ModelSelectorFilter
+  /** The availability gate; a model Cherry Cloud marks unavailable must not be handed off to. */
+  isModelDisabled?: ModelSelectorFilter
+}
+
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  /** The agent's runtime-compatibility gate; keeps unrunnable models out of the execution picker. */
-  modelFilter?: ModelSelectorFilter
-  /** Keeps models the availability gate marks unavailable visible but unselectable. */
-  isModelDisabled?: ModelSelectorFilter
+  planExecution?: PlanExecutionHandoffOptions
   className?: string
 }
 
 type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  modelFilter?: ModelSelectorFilter
-  isModelDisabled?: ModelSelectorFilter
+  planExecution?: PlanExecutionHandoffOptions
 }
 
 function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
@@ -86,8 +94,7 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
 export function createPermissionRequestComposerOverride({
   request,
   onRespond,
-  modelFilter,
-  isModelDisabled
+  planExecution
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
@@ -96,8 +103,7 @@ export function createPermissionRequestComposerOverride({
       <PermissionRequestComposer
         request={request}
         onRespond={onRespond}
-        modelFilter={modelFilter}
-        isModelDisabled={isModelDisabled}
+        planExecution={planExecution}
         className={className}
       />
     )
@@ -180,36 +186,31 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
 export default function PermissionRequestComposer({
   request,
   onRespond,
-  modelFilter,
-  isModelDisabled,
+  planExecution,
   className
 }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
-  // Plan approval only: a model chosen for execution restarts the turn on that model; undefined
-  // keeps the "current model" option, which approves and continues the running turn as before.
-  const [chosenExecutionModel, setChosenExecutionModel] = useState<Model | undefined>(undefined)
-  const [hasChosenExecutionModel, setHasChosenExecutionModel] = useState(false)
   const [configuredExecutionModelId] = usePreference('chat.plan_execution.model_id')
   const { model: configuredExecutionModel } = useModelById(configuredExecutionModelId as UniqueModelId | undefined)
-  // Settings → Default models pre-selects this picker; a model the gates would refuse is dropped,
-  // so the card can never request a handoff the picker itself would not offer.
-  const preferredExecutionModel = useMemo(() => {
-    if (!configuredExecutionModel) return undefined
-    if (modelFilter && !modelFilter(configuredExecutionModel)) return undefined
-    if (isModelDisabled && isModelDisabled(configuredExecutionModel)) return undefined
-    return configuredExecutionModel
-  }, [configuredExecutionModel, isModelDisabled, modelFilter])
-  const executionModel = hasChosenExecutionModel ? chosenExecutionModel : preferredExecutionModel
-  const selectExecutionModel = useCallback((model: Model | undefined) => {
-    setChosenExecutionModel(model)
-    setHasChosenExecutionModel(true)
-  }, [])
+  const { providers } = useProviders({ enabled: true })
   // Main's handoff gate is name-based too, but an MCP tool that merely shares the plan-exit name
-  // carries no plan semantics — hide the picker so its approval can never send an executionModelId.
+  // carries no plan semantics — an approval like that must never send an executionModelId.
   const isPlanExitApproval =
     !isMcpToolResponse(request.toolResponse) && isPlanExitToolName(request.toolResponse.tool.name)
+  // Settings → Default models picks the execution model; the gates decide whether it may be handed
+  // off to here. They are called with the model's Provider because several runtime compatibility
+  // predicates are provider-aware and fail closed without one.
+  const handoffModel = useMemo(() => {
+    if (!planExecution || !isPlanExitApproval || !configuredExecutionModel) return undefined
+    const provider = providers.find((candidate) => candidate.id === configuredExecutionModel.providerId)
+    if (planExecution.modelFilter && !planExecution.modelFilter(configuredExecutionModel, provider)) return undefined
+    if (planExecution.isModelDisabled && planExecution.isModelDisabled(configuredExecutionModel, provider))
+      return undefined
+    return configuredExecutionModel
+  }, [configuredExecutionModel, isPlanExitApproval, planExecution, providers])
+  const configuredModelLabel = configuredExecutionModel?.name ?? configuredExecutionModelId ?? ''
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
@@ -238,8 +239,10 @@ export default function PermissionRequestComposer({
 
   const approve = useCallback(async () => {
     if (isSubmitting) return
-    // A malformed id would stop the approved turn without a usable handoff — only send real ones.
-    const handoffModelId = executionModel && isUniqueModelId(executionModel.id) ? executionModel.id : undefined
+    // A handoff belongs to a plan approval alone: Main refuses one for any other tool, and a
+    // malformed id would stop the approved turn without a usable follow-up — only send real ones.
+    const handoffModelId =
+      isPlanExitApproval && handoffModel && isUniqueModelId(handoffModel.id) ? handoffModel.id : undefined
     await respond(
       {
         match: request.match,
@@ -248,7 +251,7 @@ export default function PermissionRequestComposer({
       },
       'approve'
     )
-  }, [executionModel, isSubmitting, request.match, respond])
+  }, [handoffModel, isPlanExitApproval, isSubmitting, request.match, respond])
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
@@ -303,45 +306,14 @@ export default function PermissionRequestComposer({
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
-        {isPlanExitApproval ? (
-          <div className="mt-2.5 px-1" data-testid="plan-execution-model">
-            <div className="flex items-center gap-2">
-              <span className="shrink-0 text-muted-foreground text-xs">
-                {t('agent.toolPermission.executionModel.label')}
-              </span>
-              <ModelSelector
-                multiple={false}
-                includeAgentOnlyModels
-                filter={modelFilter}
-                isModelDisabled={isModelDisabled}
-                value={executionModel}
-                noneOptionLabel={t('agent.toolPermission.executionModel.current')}
-                onSelect={selectExecutionModel}
-                side="top"
-                align="start"
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isSubmitting}
-                    className="h-7 min-w-0 flex-1 justify-between gap-1 px-2 text-xs font-normal"
-                    aria-label={t('agent.toolPermission.executionModel.label')}>
-                    <span className="truncate" title={executionModel?.name}>
-                      {executionModel ? executionModel.name : t('agent.toolPermission.executionModel.current')}
-                    </span>
-                    <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                  </Button>
-                }
-              />
-            </div>
-            {/* The handoff rewrites the agent's model, so the persistence must be visible pre-approval. */}
-            {executionModel ? (
-              <p className="mt-1 text-muted-foreground text-xs">
-                {t('agent.toolPermission.executionModel.persistenceNote')}
-              </p>
-            ) : null}
-          </div>
+        {/* The handoff rewrites the agent's model, so the plan's execution model must be visible
+            before the approval — and so must a configured model the gates will not hand off to. */}
+        {isPlanExitApproval && planExecution && configuredExecutionModelId ? (
+          <p className="mt-2.5 px-1 text-muted-foreground text-xs" data-testid="plan-execution-model">
+            {handoffModel
+              ? t('agent.toolPermission.executionModel.notice', { model: handoffModel.name })
+              : t('agent.toolPermission.executionModel.unavailable', { model: configuredModelLabel })}
+          </p>
         ) : null}
 
         <label className="mt-2.5 block px-1 text-muted-foreground text-xs">

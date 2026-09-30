@@ -12,8 +12,8 @@ import PermissionRequestComposer, { type PermissionRequestComposerRequest } from
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string) =>
-      ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const table: Record<string, string> = {
         'agent.toolPermission.defaultDenyMessage': 'User denied permission for this tool.',
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
@@ -24,6 +24,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
+        'agent.toolPermission.executionModel.notice': 'Plan execution model: {{model}}',
+        'agent.toolPermission.executionModel.unavailable': '{{model}} cannot be used here',
         'message.processing': 'Processing',
         'message.tools.activity.checking': 'Checking',
         'message.tools.activity.projectChecks': 'project checks',
@@ -33,7 +35,10 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
-      })[key] ?? key
+      }
+      const value = table[key] ?? key
+      return options ? value.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options[name] ?? '')) : value
+    }
   })
 }))
 
@@ -45,57 +50,14 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({
-    value,
-    onSelect,
-    noneOptionLabel,
-    filter,
-    isModelDisabled
-  }: {
-    value?: { id: string; name: string }
-    onSelect: (model: { id: string; name: string } | undefined) => void
-    noneOptionLabel?: string
-    filter?: (model: { id: string; name: string }) => boolean
-    isModelDisabled?: (model: { id: string; name: string }) => boolean
-  }) => (
-    <div data-testid="model-selector-mock">
-      <button
-        type="button"
-        data-testid="model-selector-pick"
-        onClick={() => onSelect({ id: 'anthropic::claude-sonnet-5', name: 'Claude Sonnet 5' })}>
-        pick
-      </button>
-      <button
-        type="button"
-        data-testid="model-selector-pick-malformed"
-        onClick={() => onSelect({ id: 'not-a-model-id', name: 'Broken' })}>
-        pick-malformed
-      </button>
-      <button type="button" data-testid="model-selector-none" onClick={() => onSelect(undefined)}>
-        {noneOptionLabel}
-      </button>
-      <span data-testid="model-selector-value">{value?.id ?? 'none'}</span>
-      <span data-testid="model-selector-filter">
-        {filter
-          ? filter({ id: 'banned::model', name: 'Banned' })
-            ? 'banned-model-offered'
-            : 'banned-model-filtered'
-          : 'no-filter'}
-      </span>
-      <span data-testid="model-selector-disabled">
-        {isModelDisabled
-          ? isModelDisabled({ id: 'cherryai-subscription::quota-gone', name: 'Quota Gone' })
-            ? 'quota-model-disabled'
-            : 'quota-model-selectable'
-          : 'no-availability-gate'}
-      </span>
-    </div>
-  )
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [{ id: 'anthropic', name: 'Anthropic' }] })
 }))
 
 const planExecutionPreference = vi.hoisted(() => ({ modelId: null as string | null }))
-const modelByIdFixture = vi.hoisted(() => ({ model: undefined as { id: string; name: string } | undefined }))
+const modelByIdFixture = vi.hoisted(() => ({
+  model: undefined as { id: string; name: string; providerId: string } | undefined
+}))
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
@@ -144,6 +106,40 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
     },
     ...overrides
   }
+}
+
+function makePlanRequest(): PermissionRequestComposerRequest {
+  return makeRequest({
+    title: 'ExitPlanMode',
+    toolResponse: {
+      id: 'exit-plan-call-1',
+      toolCallId: 'exit-plan-call-1',
+      status: 'pending',
+      arguments: { plan: '# Plan' },
+      tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+    }
+  })
+}
+
+/** An MCP tool that merely shares the plan-exit name — it carries no plan semantics. */
+function makeCollidingMcpRequest(): PermissionRequestComposerRequest {
+  return makeRequest({
+    title: 'exit_plan_mode',
+    toolResponse: {
+      id: 'mcp-plan-call-1',
+      toolCallId: 'mcp-plan-call-1',
+      status: 'pending',
+      arguments: { plan: '# Plan' },
+      tool: { id: 'exit_plan_mode', name: 'exit_plan_mode', type: 'mcp', serverName: 'plans' }
+    } as NormalToolResponse
+  })
+}
+
+function configurePlanExecutionModel(overrides: Partial<{ id: string; name: string; providerId: string }> = {}) {
+  const model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5', providerId: 'anthropic', ...overrides }
+  planExecutionPreference.modelId = model.id
+  modelByIdFixture.model = model
+  return model
 }
 
 describe('PermissionRequestComposer', () => {
@@ -273,195 +269,102 @@ describe('PermissionRequestComposer', () => {
     expect(preview).toHaveTextContent('Run the focused tests')
   })
 
-  it('renders the execution-model selector only for plan-exit approvals', () => {
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    const { rerender } = render(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
-
-    expect(screen.getByTestId('plan-execution-model')).toBeInTheDocument()
-    expect(screen.getByTestId('model-selector-mock')).toBeInTheDocument()
-
-    rerender(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
-  })
-
-  it('offers only execution models the agent runtime can run', () => {
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
+  it('names the configured plan-execution model only on a plan approval', () => {
+    configurePlanExecutionModel()
     const { rerender } = render(
-      <PermissionRequestComposer
-        request={planRequest}
-        onRespond={vi.fn()}
-        modelFilter={(model) => model.id !== 'banned::model'}
-      />
+      <PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />
     )
 
-    expect(screen.getByTestId('model-selector-filter')).toHaveTextContent('banned-model-filtered')
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
 
-    // Without the agent's predicate nothing gates the picker.
-    rerender(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
-    expect(screen.getByTestId('model-selector-filter')).toHaveTextContent('no-filter')
+    rerender(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
   })
 
-  it('hands the execution picker the availability gate so unentitled models stay unselectable', () => {
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
+  it('says nothing when no plan-execution model is configured', () => {
+    const { rerender } = render(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+  })
+
+  it('warns when the agent runtime cannot run the configured plan-execution model', () => {
+    configurePlanExecutionModel()
     render(
       <PermissionRequestComposer
-        request={planRequest}
+        request={makePlanRequest()}
         onRespond={vi.fn()}
-        isModelDisabled={(model) => model.id === 'cherryai-subscription::quota-gone'}
+        planExecution={{ modelFilter: (model) => model.id !== 'anthropic::claude-opus-5' }}
       />
     )
 
-    expect(screen.getByTestId('model-selector-disabled')).toHaveTextContent('quota-model-disabled')
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
   })
 
-  it('states that the chosen execution model persists on the agent', () => {
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
+  it('warns when the availability gate rejects the configured plan-execution model', () => {
+    configurePlanExecutionModel()
+    render(
+      <PermissionRequestComposer
+        request={makePlanRequest()}
+        onRespond={vi.fn()}
+        planExecution={{ isModelDisabled: (model) => model.id === 'anthropic::claude-opus-5' }}
+      />
+    )
 
-    // "Current model" changes nothing, so there is nothing to disclose until a model is chosen.
-    expect(screen.queryByText('agent.toolPermission.executionModel.persistenceNote')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('model-selector-pick'))
-    expect(screen.getByText('agent.toolPermission.executionModel.persistenceNote')).toBeInTheDocument()
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
   })
 
-  it('hides the execution-model selector from an MCP tool that merely shares the plan-exit name', () => {
-    const collidingRequest = makeRequest({
-      title: 'exit_plan_mode',
-      toolResponse: {
-        id: 'mcp-plan-call-1',
-        toolCallId: 'mcp-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'exit_plan_mode', name: 'exit_plan_mode', type: 'mcp', serverName: 'plans' }
-      } as NormalToolResponse
-    })
-    render(<PermissionRequestComposer request={collidingRequest} onRespond={vi.fn()} />)
+  // Runtime compatibility predicates are provider-aware and fail closed without one, so the gates
+  // must see the configured model's Provider or every pi/dsh model looks unusable.
+  it('evaluates the gates against the configured model with its provider', () => {
+    configurePlanExecutionModel()
+    const seen: Array<{ modelId: string; providerId: string | undefined }> = []
+    render(
+      <PermissionRequestComposer
+        request={makePlanRequest()}
+        onRespond={vi.fn()}
+        planExecution={{
+          modelFilter: (model, provider) => {
+            seen.push({ modelId: model.id, providerId: provider?.id })
+            return true
+          }
+        }}
+      />
+    )
+
+    expect(seen).toEqual([{ modelId: 'anthropic::claude-opus-5', providerId: 'anthropic' }])
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
+  })
+
+  it('never hands off for an MCP tool that merely shares the plan-exit name', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeCollidingMcpRequest()} onRespond={onRespond} planExecution={{}} />)
 
     expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('model-selector-mock')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: makeCollidingMcpRequest().match, approved: true })
   })
 
-  it('approves a plan without a model choice exactly as before', async () => {
+  it('approves a plan without a configured model exactly as before', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
   })
 
-  it('approves a plan with the chosen execution model for the fresh-turn restart', async () => {
+  it('approves a plan with the configured execution model for the fresh-turn restart', async () => {
+    configurePlanExecutionModel()
     const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
-
-    fireEvent.click(screen.getByTestId('model-selector-pick'))
-    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('anthropic::claude-sonnet-5')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
-    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
-    expect(onRespond).toHaveBeenCalledWith({
-      match: planRequest.match,
-      approved: true,
-      executionModelId: 'anthropic::claude-sonnet-5'
-    })
-  })
-
-  // A malformed handoff id would stop the approved turn without a usable execution follow-up —
-  // the approval must go through without it rather than sending an id Main cannot resolve.
-  it('approves a plan without the handoff when the picked model id is malformed', async () => {
-    const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
-
-    fireEvent.click(screen.getByTestId('model-selector-pick-malformed'))
-    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
-    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
-    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
-  })
-
-  it('pre-selects the configured plan-execution model and approves with it', async () => {
-    planExecutionPreference.modelId = 'anthropic::claude-opus-5'
-    modelByIdFixture.model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5' }
-    const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
-
-    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('anthropic::claude-opus-5')
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
@@ -472,54 +375,57 @@ describe('PermissionRequestComposer', () => {
     })
   })
 
-  // A configured model the picker would refuse must not reach Main as a requested handoff.
-  it('drops a configured plan-execution model the gates would not offer', async () => {
-    planExecutionPreference.modelId = 'banned::model'
-    modelByIdFixture.model = { id: 'banned::model', name: 'Banned' }
+  // A malformed handoff id would stop the approved turn without a usable execution follow-up —
+  // the approval must go through without it rather than sending an id Main cannot resolve.
+  it('approves a plan without the handoff when the configured model id is malformed', async () => {
+    configurePlanExecutionModel({ id: 'not-a-model-id' })
     const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
-    render(
-      <PermissionRequestComposer
-        request={planRequest}
-        onRespond={onRespond}
-        modelFilter={(model) => !model.id.startsWith('banned::')}
-      />
-    )
-
-    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('none')
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
   })
 
-  it('lets the card clear a configured plan-execution model back to the current model', async () => {
-    planExecutionPreference.modelId = 'anthropic::claude-opus-5'
-    modelByIdFixture.model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5' }
+  // A configured model the gates refuse must not reach Main as a requested handoff.
+  it('drops a configured plan-execution model the gates would not offer', async () => {
+    configurePlanExecutionModel()
     const onRespond = vi.fn().mockResolvedValue(undefined)
-    const planRequest = makeRequest({
-      title: 'ExitPlanMode',
-      toolResponse: {
-        id: 'exit-plan-call-1',
-        toolCallId: 'exit-plan-call-1',
-        status: 'pending',
-        arguments: { plan: '# Plan' },
-        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
-      }
-    })
+    const planRequest = makePlanRequest()
+    render(
+      <PermissionRequestComposer
+        request={planRequest}
+        onRespond={onRespond}
+        planExecution={{ modelFilter: (model) => model.id !== 'anthropic::claude-opus-5' }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // Main refuses a handoff that is not a plan approval — but only after the approval has already
+  // been dispatched, so a non-plan tool must never carry one in the first place.
+  it('never requests an execution-model handoff for a non-plan tool approval', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: makeRequest().match, approved: true })
+  })
+
+  // Home has no agent whose model a handoff could switch, and its IPC layer drops the id anyway.
+  it('requests no handoff without an agent context', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
     render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
 
-    fireEvent.click(screen.getByTestId('model-selector-none'))
-    expect(screen.getByTestId('model-selector-value')).toHaveTextContent('none')
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))

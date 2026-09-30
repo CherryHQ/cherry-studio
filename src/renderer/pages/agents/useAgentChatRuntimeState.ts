@@ -148,9 +148,9 @@ interface UseAgentChatRuntimeStateParams {
    * for the stopped turn to settle, then send the execution follow-up on a fresh turn.
    */
   onPlanModelHandoff?: (modelId: string) => void
-  /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
+  /** The agent's runtime-compatibility gate for the Settings-configured plan-execution model. */
   modelFilter?: ModelSelectorFilter
-  /** Keeps unavailable models visible but unselectable in that same picker. */
+  /** The availability gate for that same model. */
   isModelDisabled?: ModelSelectorFilter
 }
 
@@ -367,18 +367,24 @@ export function useAgentChatRuntimeState({
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
         throw new Error('Tool approval response was not accepted')
       }
+      // The approval ran but Main could not stop the turn for the requested model (no live turn, or
+      // a background/subagent approval). The card promised that model, so say out loud that the plan
+      // is staying on the current one instead of leaving the claim to stand.
+      if (result.handoff === 'refused' && input.executionModelId) {
+        toast.warning(t('agent.toolPermission.executionModel.notApplied'))
+      }
       if (result.executionModelId) onPlanModelHandoff?.(result.executionModelId)
       await refresh()
     },
-    [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId, t]
   )
+  const planExecution = useMemo(() => ({ modelFilter, isModelDisabled }), [isModelDisabled, modelFilter])
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval,
-    modelFilter,
-    isModelDisabled
+    planExecution
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const editBusy = isPending || editPending || toolApprovalComposerOverrides.length > 0
