@@ -33,7 +33,10 @@ vi.mock('@cherrystudio/ui', () => {
 })
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => {
+    const result = useProviderMock(...args)
+    return { ...result, mutate: vi.fn().mockResolvedValue(result?.provider) }
+  }
 }))
 
 vi.mock('../../components/ProviderImageEndpointFields', () => ({

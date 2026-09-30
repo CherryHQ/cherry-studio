@@ -24,6 +24,10 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import {
+  awaitEndpointConfigWrites,
+  withEndpointConfigWriteLock
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpointActions'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
@@ -230,7 +234,7 @@ export function findInvalidSecondaryEndpointUrl(
 
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, mutate } = useProvider(providerId)
   const { syncProviderModels } = useProviderModelSync(providerId)
 
   const topology = getProviderHostTopology(provider)
@@ -313,7 +317,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   }, [applyJsonToRowsOrToast, headersUiMode, syncListToJson])
 
   const handleSave = useCallback(async () => {
-    if (!provider) return
+    // Other whole-endpoint-snapshot writers (API host, reasoning format) may be
+    // mid-flight; let them land, pull their result, and join the same write lock
+    // so this snapshot can't erase a concurrent field.
+    await awaitEndpointConfigWrites(providerId)
+    const freshProvider = await mutate()
+    const current = freshProvider ?? provider
+    if (!current) return
 
     // Validate the selected default baseUrl — non-empty + URL-shape, unless
     // this is Vertex (whose text endpoints are account-managed). A provider with
@@ -323,7 +333,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const defaultEndpointDraft = defaultEndpointIsImage
       ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
       : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
-    const isAccountManagedProvider = provider.authType === 'iam-gcp'
+    const isAccountManagedProvider = current.authType === 'iam-gcp'
     if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
@@ -343,9 +353,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
+    const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDrafts)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
-    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const previousDefaultBaseUrl = trim(current.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
     const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
@@ -361,16 +371,18 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
 
     try {
-      await updateProvider({
-        endpointConfigs: nextEndpointConfigs,
-        // `defaultChatEndpoint` names a text endpoint; an image-only provider
-        // keeps the value it already has instead of recording an image one.
-        defaultChatEndpoint: defaultEndpointIsImage ? provider.defaultChatEndpoint : defaultChatEndpoint,
-        providerSettings: {
-          ...provider.settings,
-          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
-        }
-      })
+      await withEndpointConfigWriteLock(providerId, () =>
+        updateProvider({
+          endpointConfigs: nextEndpointConfigs,
+          // `defaultChatEndpoint` names a text endpoint; an image-only provider
+          // keeps the value it already has instead of recording an image one.
+          defaultChatEndpoint: defaultEndpointIsImage ? current.defaultChatEndpoint : defaultChatEndpoint,
+          providerSettings: {
+            ...current.settings,
+            extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+          }
+        })
+      )
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
       // instead of silently losing their edits.
@@ -381,7 +393,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
       syncProviderModels({
-        ...provider,
+        ...current,
         endpointConfigs: nextEndpointConfigs,
         defaultChatEndpoint
       }).catch((error) => {
@@ -401,6 +413,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     primaryEndpoint,
     provider,
     providerId,
+    mutate,
     rows,
     sourceHeaders,
     syncProviderModels,
