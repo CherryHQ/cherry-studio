@@ -19,7 +19,8 @@ export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
-function normalizePathForComparison(value: string): string {
+/** Returns a platform-folded comparison key, not a path to use for filesystem I/O. */
+export function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
   return isMac || isWin ? resolved.toLowerCase() : resolved
 }
@@ -47,7 +48,7 @@ export function isPathInside(child: string, parent: string): boolean {
   const b = normalizePathForComparison(parent)
   if (a === b) return false
   const rel = path.relative(b, a)
-  return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
+  return rel.length > 0 && !isOutsidePath(rel)
 }
 
 /** True iff `candidate` equals `container` or is a descendant of it. */

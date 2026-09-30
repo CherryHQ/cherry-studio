@@ -1,8 +1,11 @@
-import fs from 'fs/promises'
 import path from 'path'
 
 import * as z from 'zod'
 
+import { ensureDir, stat, writeInPlace } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { filesystemMutationService } from '../FilesystemMutationService'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -33,52 +36,53 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
   }
 
   const filePath = parsed.data.file_path
-  const validPath = await validatePath(filePath, baseDir)
-
-  // Create parent directory if it doesn't exist
-  const parentDir = path.dirname(validPath)
-  try {
-    await fs.mkdir(parentDir, { recursive: true })
-  } catch (error: any) {
-    if (error.code !== 'EEXIST') {
-      throw new Error(`Failed to create parent directory: ${error.message}`)
-    }
-  }
-
-  // Check if file exists (for logging)
-  let isOverwrite = false
-  try {
-    await fs.stat(validPath)
-    isOverwrite = true
-  } catch {
-    // File doesn't exist, that's fine
-  }
-
-  // Write the file
-  try {
-    await fs.writeFile(validPath, parsed.data.content, 'utf-8')
-  } catch (error: any) {
-    throw new Error(`Failed to write file: ${error.message}`)
-  }
-
-  // Log the operation
-  logger.info('File written', {
-    path: validPath,
-    overwrite: isOverwrite,
-    size: parsed.data.content.length
-  })
-
-  // Format output
-  const relativePath = path.relative(baseDir, validPath)
-  const action = isOverwrite ? 'Updated' : 'Created'
-  const lines = parsed.data.content.split('\n').length
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `${action} file: ${relativePath}\n` + `Size: ${parsed.data.content.length} bytes\n` + `Lines: ${lines}`
+  return filesystemMutationService.runExclusive(filePath, baseDir, async () => {
+    const validPath = await validatePath(filePath, baseDir)
+    // Create parent directory if it doesn't exist
+    const parentDir = path.dirname(validPath)
+    try {
+      await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
+    } catch (error: any) {
+      if (error.code !== 'EEXIST') {
+        throw new Error(`Failed to create parent directory: ${error.message}`)
       }
-    ]
-  }
+    }
+
+    // Check if file exists (for logging)
+    let isOverwrite = false
+    try {
+      await stat(validPath)
+      isOverwrite = true
+    } catch {
+      // File doesn't exist, that's fine
+    }
+
+    // Write the file
+    try {
+      await writeInPlace(validPath, parsed.data.content)
+    } catch (error: any) {
+      throw new Error(`Failed to write file ${filePath}: ${error.message}`)
+    }
+
+    // Log the operation
+    logger.info('File written', {
+      path: validPath,
+      overwrite: isOverwrite,
+      size: parsed.data.content.length
+    })
+
+    // Format output
+    const relativePath = path.relative(baseDir, validPath)
+    const action = isOverwrite ? 'Updated' : 'Created'
+    const lines = parsed.data.content.split('\n').length
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `${action} file: ${relativePath}\n` + `Size: ${parsed.data.content.length} bytes\n` + `Lines: ${lines}`
+        }
+      ]
+    }
+  })
 }
