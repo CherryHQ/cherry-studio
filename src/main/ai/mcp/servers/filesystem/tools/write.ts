@@ -61,7 +61,7 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
     try {
       await writeInPlace(validPath, parsed.data.content)
     } catch (error: any) {
-      throw new Error(`Failed to write file: ${error.message}`)
+      throw new Error(`Failed to write file ${filePath}: ${error.message}`)
     }
 
     // Log the operation

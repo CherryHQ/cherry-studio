@@ -63,16 +63,12 @@ export async function handleDeleteTool(args: unknown, baseDir: string) {
         if (isDirectory) {
           await removeDir(validPath, { recursive })
         } else {
-          try {
-            await unlink(validPath)
-          } catch (error: any) {
-            if (error.code === 'ENOENT') {
-              throw new Error(`Path not found: ${targetPath}`)
-            }
-            throw error
-          }
+          await unlink(validPath)
         }
       } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          throw new Error(`Path not found: ${targetPath}`)
+        }
         if (error.code === 'ENOTEMPTY') {
           throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
         }
