@@ -94,7 +94,7 @@ The following interfaces are proposals, not available commands:
 
 | Layer | Candidate interfaces | Contract |
 | --- | --- | --- |
-| Individual tasks | `lint:check`, `lint:fix`, `format:check`, `format:write`, `typecheck:node`, `test:renderer` | One purpose, explicit scope, predictable argument forwarding; source checks do not fix source files |
+| Individual tasks | `lint`, `lint:fix`, `format:check`, `format`, `typecheck:node`, `test:renderer` | One purpose, explicit scope, predictable argument forwarding; source checks do not fix source files |
 | Daily local validation | `check`, `check --plan` | Select affected tasks and explain why; use bounded concurrency |
 | Complete validation | `check:all`, CI scheduling | Reuse the task definitions for all checks or selected CI jobs and shards |
 
@@ -153,7 +153,7 @@ Implementation through stacked PRs was authorized on 2026-10-01. Three layers fo
 2. Local validation: share task/classification rules; implement `check`, `check --plan`, and `check:all`; separate lint checks from fixes; default to sequential heavy tasks and two local test workers; update developer instructions.
 3. CI scheduling: consume the same classification, separate repository/lint/types/i18n work, select test projects, retain the three required aggregation checks, and cancel superseded PR runs.
 
-Keep old aggregate commands as compatibility entries without separate task lists. Initially, code lint remains conservative and repository-wide; typecheck selects complete projects; inexpensive format/docs checks remain repository-wide. Caching, file-level lint/related-test selection, and finer platform selection await equivalent-coverage measurements; no speedup is promised in this implementation. Validate and commit each layer independently; upper PRs target their immediate predecessor and the bottom PR targets main.
+Keep old aggregate commands as compatibility entries without separate task lists. `lint` is read-only Oxlint/ESLint only; `lint:fix` and `format` are explicit write operations, while `check` composes typecheck, i18n, and tests. Initially, code lint remains conservative and repository-wide; typecheck selects complete projects; inexpensive format/docs checks remain repository-wide. Caching, file-level lint/related-test selection, and finer platform selection await equivalent-coverage measurements; no speedup is promised in this implementation. Validate and commit each layer independently; upper PRs target their immediate predecessor and the bottom PR targets main.
 
 ## Alternatives considered
 

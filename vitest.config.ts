@@ -225,6 +225,6 @@ export default defineConfig({
     pool: 'threads',
     // Vitest 4 uses all available parallelism by default. Cap workers so the
     // full suite does not starve subprocess, worker-thread, and timing tests.
-    maxWorkers: '50%'
+    maxWorkers: process.env.CI ? '50%' : 2
   }
 })

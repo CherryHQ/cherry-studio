@@ -94,7 +94,7 @@ Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文�
 
 | 层次 | 候选接口 | 契约 |
 | --- | --- | --- |
-| 单项任务 | `lint:check`、`lint:fix`、`format:check`、`format:write`、`typecheck:node`、`test:renderer` | 单一职责、范围明确、参数转发可预测；源码检查不修复源码 |
+| 单项任务 | `lint`、`lint:fix`、`format:check`、`format`、`typecheck:node`、`test:renderer` | 单一职责、范围明确、参数转发可预测；源码检查不修复源码 |
 | 本地日常验证 | `check`、`check --plan` | 选择受影响任务并解释原因，限制并发 |
 | 完整验证 | `check:all`、CI 调度 | 复用任务定义，执行全量或选中的 CI job 与分片 |
 
@@ -153,7 +153,7 @@ Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文�
 2. 本地验证：共用任务与分类规则，实现 `check`、`check --plan`、`check:all`；将 lint 检查和修复分开，默认串行重任务、本地两个测试 worker，并更新开发指令。
 3. CI 调度：复用分类结果，拆分 repository、lint、types、i18n，选择测试项目，保留三个必需汇总检查，取消旧 PR 运行。
 
-保留旧聚合命令作为兼容入口，不再各自维护任务列表。第一版代码 lint 仍保守执行全仓检查；typecheck 选择完整项目；格式和 docs 保持便宜的全仓检查。缓存、文件级 lint/related-test 及更细的平台选择留待等价覆盖下的测量，不在本轮承诺收益。每层独立提交和验证，上层 PR 以相邻下层为 base，底层以 main 为 base。
+保留旧聚合命令作为兼容入口，不再各自维护任务列表。`lint` 仅运行只读 Oxlint/ESLint；`lint:fix` 和 `format` 显式写文件，类型检查、i18n 和测试由 `check` 组合。第一版代码 lint 仍保守执行全仓检查；typecheck 选择完整项目；格式和 docs 保持便宜的全仓检查。缓存、文件级 lint/related-test 及更细的平台选择留待等价覆盖下的测量，不在本轮承诺收益。每层独立提交和验证，上层 PR 以相邻下层为 base，底层以 main 为 base。
 
 ## Alternatives considered
 
