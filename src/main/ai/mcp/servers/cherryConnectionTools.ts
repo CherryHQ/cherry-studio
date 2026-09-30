@@ -52,7 +52,12 @@ export class CherryConnectionTools {
         }
       } else throw new Error('Unknown connection tool')
       return { content: [{ type: 'text', text: JSON.stringify(result) }] }
-    } catch {
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Connection setup error: ${(error as Error).message}` }]
+      }
+    }
       return {
         isError: true,
         content: [
