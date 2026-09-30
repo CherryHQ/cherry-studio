@@ -9,7 +9,9 @@ describe('startup database failures', () => {
     ['SQLITE_CORRUPT_INDEX', 'corrupt'],
     ['SQLITE_FULL', 'full'],
     ['SQLITE_READONLY_DIRECTORY', 'access'],
-    ['EACCES', 'access']
+    ['EACCES', 'access'],
+    ['EIO', 'io'],
+    ['EROFS', 'access']
   ])('classifies a nested %s without relying on SQL text', (code, kind) => {
     expect(classifyDatabaseFailure(new Error('Failed query', { cause: { cause: { code } } }))).toEqual({ kind, code })
   })

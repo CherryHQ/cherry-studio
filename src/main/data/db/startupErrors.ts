@@ -9,10 +9,15 @@ export function classifyDatabaseFailure(error: unknown): { kind: DatabaseFailure
     const { code, cause } = current as { code?: unknown; cause?: unknown }
     if (typeof code === 'string') {
       if (/^SQLITE_BUSY(?:_|$)/.test(code)) return { kind: 'busy', code }
-      if (/^SQLITE_IOERR(?:_|$)/.test(code)) return { kind: 'io', code }
+      if (/^SQLITE_IOERR(?:_|$)/.test(code) || code === 'EIO') return { kind: 'io', code }
       if (/^SQLITE_(?:CORRUPT|NOTADB)(?:_|$)/.test(code)) return { kind: 'corrupt', code }
       if (code === 'SQLITE_FULL' || code === 'ENOSPC') return { kind: 'full', code }
-      if (/^SQLITE_(?:READONLY|CANTOPEN|PERM)(?:_|$)/.test(code) || code === 'EACCES' || code === 'EPERM') {
+      if (
+        /^SQLITE_(?:READONLY|CANTOPEN|PERM)(?:_|$)/.test(code) ||
+        code === 'EACCES' ||
+        code === 'EPERM' ||
+        code === 'EROFS'
+      ) {
         return { kind: 'access', code }
       }
     }

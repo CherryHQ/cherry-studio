@@ -9,7 +9,7 @@
  */
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { bootConfigService } from '@main/data/bootConfig'
@@ -19,7 +19,8 @@ import { SERVICE_STOP_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS } from '../../lifecycle/co
 import { DependsOn, Injectable } from '../../lifecycle/decorators'
 import { LifecycleManager } from '../../lifecycle/LifecycleManager'
 import { ServiceContainer } from '../../lifecycle/ServiceContainer'
-import { Phase } from '../../lifecycle/types'
+import { Phase, ServiceInitError } from '../../lifecycle/types'
+import type { PathMap } from '../../paths/pathRegistry'
 import { Application } from '../Application'
 
 // The `@application` alias resolves to Application.ts, so the global
@@ -72,6 +73,25 @@ describe('Application shutdown', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     resetApplication()
+  })
+
+  it('propagates fatal bootstrap failures to the startup entry point', async () => {
+    const application = Application.getInstance()
+    application.__setPathMapForTesting({} as PathMap)
+    vi.spyOn(process, 'on').mockReturnValue(process)
+    vi.spyOn(bootConfigService, 'hasLoadError').mockReturnValue(false)
+    Object.assign(app, { whenReady: vi.fn().mockResolvedValue(undefined) })
+    const showDialog = vi.spyOn(dialog, 'showMessageBox')
+    const error = new ServiceInitError('DbService', new Error('database unavailable'))
+    const manager = application.getLifecycleManager()
+    vi.spyOn(manager, 'startPhase').mockImplementation(async (phase) => {
+      if (phase === Phase.BeforeReady) throw error
+    })
+    const allReady = vi.spyOn(manager, 'allReady')
+
+    await expect(application.bootstrap()).rejects.toBe(error)
+    expect(allReady).not.toHaveBeenCalled()
+    expect(showDialog).not.toHaveBeenCalled()
   })
 
   /** Messages a mocked logger level received, for `stringContaining` matching. */

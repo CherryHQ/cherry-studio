@@ -40,13 +40,9 @@ const logger = loggerService.withContext('V2MigrationGate')
  *
  * - `'skipped'`  : no migration needed; caller should continue with
  *                  `application.bootstrap()` as normal.
- * - `'handled'`  : the gate took over. Either a migration window is now
- *                  running (the user will drive migration through it and
- *                  the app will relaunch afterwards), or a fatal error
- *                  was surfaced via `dialog.showErrorBox` and
- *                  `application.quit()` has already been called. Either
- *                  way the caller MUST return immediately without
- *                  starting bootstrap.
+ * - `'handled'`  : migration UI or a failure/recovery flow took over. The
+ *                  caller must return without starting bootstrap, including
+ *                  when the user requested a relaunch or exit.
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
 

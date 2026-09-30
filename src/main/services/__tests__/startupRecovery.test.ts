@@ -2,9 +2,10 @@ import { app, dialog } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { ServiceInitError } from '@main/core/lifecycle'
 
 import { diagnosticBundleService } from '../diagnostics'
-import { showStartupRecovery } from '../startupRecovery'
+import { handleStartupError, showStartupRecovery } from '../startupRecovery'
 import type * as RecoveryProgressModule from '../startupRecoveryProgress'
 import { StartupRecoveryCanceled, withStartupRecoveryProgress } from '../startupRecoveryProgress'
 import { canStopDatabaseProcess, listDatabaseProcesses, stopDatabaseProcess } from '../windowsRestartManager'
@@ -148,5 +149,39 @@ describe('database process recovery', () => {
     vi.mocked(stopDatabaseProcess).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('351'))
     expect(await showStartupRecovery({ code: 'SQLITE_BUSY' })).toBe('exit')
     expect(vi.mocked(dialog.showMessageBox).mock.calls[3][0].message).toContain('强制结束进程失败')
+  })
+})
+
+describe('startup failure routing', () => {
+  it.each([
+    ['retry', 0],
+    ['exit', 2]
+  ] as const)('honors database recovery %s at the startup entry point', async (action, response) => {
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response, checkboxChecked: false })
+    const cause = Object.assign(new Error('disk I/O error'), { code: 'EIO' })
+    await handleStartupError(new ServiceInitError('DbService', cause))
+    expect(vi.mocked(dialog.showMessageBox).mock.calls[0][0].message).toContain('文件操作')
+    expect(application.relaunch).toHaveBeenCalledTimes(action === 'retry' ? 1 : 0)
+    expect(application.forceExit).toHaveBeenCalledTimes(action === 'exit' ? 1 : 0)
+  })
+
+  it('keeps restart available for other fatal service failures', async () => {
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
+    await handleStartupError(new ServiceInitError('PreferenceService', new Error('unavailable')))
+    expect(application.relaunch).toHaveBeenCalledOnce()
+    expect(application.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('exits when recovery UI fails rather than leaving a failed startup running', async () => {
+    vi.mocked(dialog.showMessageBox).mockRejectedValue(new Error('dialog unavailable'))
+    await handleStartupError(new ServiceInitError('DbService', new Error('unavailable')))
+    expect(application.forceExit).toHaveBeenCalledWith(1)
+    expect(application.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('exits for unexpected startup errors without showing a database recovery dialog', async () => {
+    await handleStartupError(new Error('unexpected startup failure'))
+    expect(application.forceExit).toHaveBeenCalledWith(1)
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
   })
 })

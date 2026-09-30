@@ -201,40 +201,28 @@ export class Application {
 
     const bootstrapStart = performance.now()
 
-    try {
-      // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
-      const backgroundPromise = this.lifecycleManager.startPhase(Phase.Background)
+    // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
+    const backgroundPromise = this.lifecycleManager.startPhase(Phase.Background)
 
-      // 2. BeforeReady phase and app.whenReady() in parallel
-      await Promise.all([this.lifecycleManager.startPhase(Phase.BeforeReady), app.whenReady()])
+    // 2. BeforeReady phase and app.whenReady() in parallel
+    await Promise.all([this.lifecycleManager.startPhase(Phase.BeforeReady), app.whenReady()])
 
-      // Setup Electron event handlers after app is ready
-      this.setupElectronHandlers()
+    // Setup Electron event handlers after app is ready
+    this.setupElectronHandlers()
 
-      // 3. WhenReady phase - services requiring Electron API
-      await this.lifecycleManager.startPhase(Phase.WhenReady)
+    // 3. WhenReady phase - services requiring Electron API
+    await this.lifecycleManager.startPhase(Phase.WhenReady)
 
-      this.isBootstrapped = true
+    this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services.
-      // ServiceInitError = fail-fast service failure → must propagate to
-      // handleFatalServiceError() via the outer catch block.
-      // Non-ServiceInitError = graceful/unexpected failure in a background
-      // service — log and continue, as background services are non-critical.
-      await backgroundPromise.catch((err) => {
-        if (err instanceof ServiceInitError) {
-          throw err
-        }
-        logger.error('Background phase failed:', err)
-      })
-      this.lifecycleManager.allReady()
-    } catch (error) {
-      if (error instanceof ServiceInitError) {
-        await this.handleFatalServiceError(error)
-        return
+    // Fail-fast errors reach the startup entry point; other background failures are non-critical.
+    await backgroundPromise.catch((err) => {
+      if (err instanceof ServiceInitError) {
+        throw err
       }
-      throw error
-    }
+      logger.error('Background phase failed:', err)
+    })
+    this.lifecycleManager.allReady()
 
     const totalDuration = performance.now() - bootstrapStart
     logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
@@ -289,51 +277,6 @@ export class Application {
 
     // Close logger LAST — after this point, no more logging
     loggerService.finish()
-  }
-
-  /**
-   * Handle fatal service initialization error by showing a dialog.
-   * Called when a fail-fast service fails to initialize.
-   */
-  private async handleFatalServiceError(error: ServiceInitError): Promise<void> {
-    logger.error(`Fatal service initialization error: ${error.serviceName}`, error.cause)
-
-    // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
-    await app.whenReady()
-
-    if (error.serviceName === 'DbService') {
-      try {
-        const { showStartupRecovery } = await import('@main/services/startupRecovery')
-        if ((await showStartupRecovery(error)) === 'retry') {
-          this.relaunch()
-          return
-        }
-      } catch (recoveryError) {
-        logger.error('Startup recovery failed', recoveryError as Error)
-      }
-      this.forceExit(1)
-      return
-    }
-
-    const result = await dialog.showMessageBox({
-      type: 'error',
-      title: 'Unable to Start',
-      message: `Cherry Studio could not start because ${error.serviceName} failed to initialize.`,
-      detail:
-        'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
-      buttons: ['Exit', 'Restart'],
-      defaultId: 1,
-      cancelId: 0
-    })
-
-    if (result.response === 0) {
-      logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
-      this.forceExit(1)
-      return
-    }
-
-    logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
-    this.relaunch()
   }
 
   /**

@@ -3,6 +3,7 @@ import { app, dialog } from 'electron'
 import { application } from '@application'
 import { classifyDatabaseFailure } from '@data/db/startupErrors'
 import { loggerService } from '@logger'
+import { ServiceInitError } from '@main/core/lifecycle'
 import { resolveSystemLanguage, t } from '@main/i18n'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
@@ -160,5 +161,49 @@ async function resolveDatabaseProcesses(database: string, language: LanguageVari
         : t('dialog.startup_recovery.process_failed', undefined, language)
     })
     return false
+  }
+}
+
+/** Handles startup failures at the entry point, outside lifecycle orchestration. */
+export async function handleStartupError(error: unknown): Promise<void> {
+  try {
+    if (!(error instanceof ServiceInitError)) {
+      logger.error('Fatal startup error', error as Error)
+      application.forceExit(1)
+      return
+    }
+    logger.error(`Fatal service initialization error: ${error.serviceName}`, error.cause)
+
+    // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
+    await app.whenReady()
+
+    if (error.serviceName === 'DbService') {
+      if ((await showStartupRecovery(error)) === 'retry') application.relaunch()
+      else application.forceExit(1)
+      return
+    }
+
+    const result = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Unable to Start',
+      message: `Cherry Studio could not start because ${error.serviceName} failed to initialize.`,
+      detail:
+        'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
+      buttons: ['Exit', 'Restart'],
+      defaultId: 1,
+      cancelId: 0
+    })
+
+    if (result.response === 0) {
+      logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
+      application.forceExit(1)
+      return
+    }
+
+    logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
+    application.relaunch()
+  } catch (recoveryError) {
+    logger.error('Startup failure handling failed', recoveryError as Error)
+    application.forceExit(1)
   }
 }
