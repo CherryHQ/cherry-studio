@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
     'chat.message.thought.auto_collapse': true,
+    'chat.message.keep_intermediate_text': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
@@ -118,6 +119,7 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
     mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 1500
+    mocks.preferenceValues['chat.message.keep_intermediate_text'] = false
     mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
   })
@@ -193,6 +195,17 @@ describe('ChatPreferenceSections', () => {
     fireEvent.click(wideModeSwitch)
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', false)
+  })
+
+  it('lets the user enable intermediate assistant text from message settings', async () => {
+    const user = userEvent.setup()
+    render(<ChatPreferenceSections />)
+
+    const toggle = screen.getByRole('button', { name: 'settings.messages.keep_intermediate_text.label' })
+    expect(toggle).toHaveAttribute('data-checked', 'false')
+    await user.click(toggle)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.keep_intermediate_text', true)
   })
 
   it('renders preference groups without collapsible controls', () => {

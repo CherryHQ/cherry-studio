@@ -12,6 +12,7 @@ export function useMessageListRenderConfig() {
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [codeFancyBlock] = usePreference('chat.code.fancy_block')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [keepIntermediateAssistantText] = usePreference('chat.message.keep_intermediate_text')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [showEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
@@ -32,6 +33,7 @@ export function useMessageListRenderConfig() {
       codeFancyBlock,
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
+      keepIntermediateAssistantText,
       mathEnableSingleDollar,
       showMessageOutline,
       showEstimatedTokens,
@@ -42,6 +44,7 @@ export function useMessageListRenderConfig() {
     [
       fontSize,
       codeFancyBlock,
+      keepIntermediateAssistantText,
       mathEnableSingleDollar,
       messageFont,
       messageStyle,

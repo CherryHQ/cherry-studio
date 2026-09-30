@@ -799,6 +799,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           messages={messages}
           partsByMessageId={partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID}
           renderUserTextAsMarkdown={renderConfig.renderInputMessageAsMarkdown}
+          keepIntermediateAssistantText={renderConfig.keepIntermediateAssistantText}
           excludedMessageIds={liveMessageIdSet}
           isStreaming={isSearchStreaming}
           locateMessage={scrollToMessageById}
