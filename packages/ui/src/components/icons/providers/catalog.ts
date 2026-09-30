@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 163
+ * Generated at: 2026-09-27T13:30:06.000Z
+ * Total icons: 164
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -20,6 +20,7 @@ import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
 import { AnthropicIcon } from './anthropic'
 import { ApplicationIcon } from './application'
+import { ApiRouteIcon } from './api-route'
 import { ArceeAiIcon } from './arcee-ai'
 import { AwsBedrockIcon } from './aws-bedrock'
 import { AzureaiIcon } from './azureai'
@@ -186,6 +187,7 @@ export const PROVIDER_ICON_CATALOG = {
   allenai: AllenaiIcon,
   anthropic: AnthropicIcon,
   application: ApplicationIcon,
+  'api-route': ApiRouteIcon,
   'arcee-ai': ArceeAiIcon,
   'aws-bedrock': AwsBedrockIcon,
   azureai: AzureaiIcon,
