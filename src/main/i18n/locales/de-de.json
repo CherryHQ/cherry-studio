@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Integrierter Cherry-Studio-Berater. Diagnostiziert Probleme, gibt Bedienungshinweise, sammelt häufige Fragen, übermittelt Fehler und Funktionswünsche und sucht oder erstellt Fähigkeiten",
   "agent.builtin.cherry_support.description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback",
+  "agent.session.attachment.audio_unsupported": "Dieser Agent unterstützt keine Audioeingaben. Entfernen Sie die Audiodatei oder wählen Sie einen anderen Agenten.",
   "agent.session.attachment.image_unsupported": "Dieser Agent unterstützt keine Bildeingabe. Entfernen Sie das Bild oder wählen Sie einen anderen Agenten.",
   "agent.session.attachment.unavailable": "Anhang kann nicht gelesen werden: {{name}}. Bitte hängen Sie die Datei erneut an.",
   "agent.session.dsh.bun_unavailable": "DSH konnte nicht gestartet werden, da die mitgelieferte Laufzeitumgebung nicht verfügbar ist. Installieren Sie Cherry Studio erneut und versuchen Sie es noch einmal.",

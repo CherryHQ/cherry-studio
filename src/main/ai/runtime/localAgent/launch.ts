@@ -86,9 +86,28 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
   appendBundledGitPathTail(env)
   return {
     executable,
+    source,
     args: config.args.length
       ? config.args
       : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
     env: { ...env, ...preset?.env, ...config.env }
   }
+}
+
+export async function openLocalAgentTerminal(config: LocalAgentConfiguration) {
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
+  if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
+  const launch = await resolveLocalAgentLaunch(config)
+  const envKeys = new Set(['PATH', ...Object.keys(preset.env ?? {}), ...Object.keys(config.env)])
+  const env = Object.fromEntries(
+    Object.entries(launch.env).filter(
+      ([key]) => envKeys.has(key) || key.toUpperCase() === 'PATH' || key.startsWith('MISE_')
+    )
+  )
+  return application.get('CodeCliService').openTerminal({
+    executable: launch.executable,
+    args: preset.terminalArgs,
+    env,
+    usesCherryExecutionEnv: launch.source !== 'system'
+  })
 }

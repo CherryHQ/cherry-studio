@@ -17,6 +17,7 @@ export interface LocalAgentPreset {
   protocol: LocalAgentConfiguration['protocol']
   executable: string
   aliases?: readonly string[]
+  terminalArgs?: readonly string[]
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
@@ -26,6 +27,7 @@ export interface LocalAgentPreset {
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'claude',
+    terminalArgs: [],
     name: 'Claude Code',
     protocol: 'claude',
     executable: 'claude',
@@ -34,6 +36,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'codex',
+    terminalArgs: [],
     name: 'Codex',
     protocol: 'codex',
     executable: 'codex',
@@ -42,6 +45,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'copilot',
+    terminalArgs: [],
     name: 'GitHub Copilot',
     protocol: 'acp',
     executable: 'copilot',
@@ -58,6 +62,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'cursor',
+    terminalArgs: [],
     name: 'Cursor',
     protocol: 'acp',
     executable: 'cursor-agent',
@@ -67,6 +72,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'kimi',
+    terminalArgs: [],
     name: 'Kimi',
     protocol: 'acp',
     executable: 'kimi',
@@ -75,6 +81,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'qwen',
+    terminalArgs: [],
     name: 'Qwen Code',
     protocol: 'acp',
     executable: 'qwen',
@@ -83,6 +90,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'opencode',
+    terminalArgs: [],
     name: 'OpenCode',
     protocol: 'acp',
     executable: 'opencode',
@@ -99,6 +107,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'qoder',
+    terminalArgs: [],
     name: 'Qoder',
     protocol: 'acp',
     executable: 'qoderclicn',
@@ -116,6 +125,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'hermes',
+    terminalArgs: [],
     name: 'Hermes',
     protocol: 'acp',
     executable: 'hermes',
@@ -132,6 +142,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'kilo',
+    terminalArgs: [],
     name: 'Kilo',
     protocol: 'acp',
     executable: 'kilo',
@@ -148,6 +159,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'codebuddy-code',
+    terminalArgs: [],
     name: 'Codebuddy Code',
     protocol: 'acp',
     executable: 'codebuddy',
@@ -224,7 +236,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'pi-acp',
-    name: 'pi ACP',
+    name: 'Pi',
     protocol: 'acp',
     executable: 'pi-acp',
     args: [],
@@ -336,6 +348,12 @@ export interface LocalAgentSelection {
   options: Array<{ value: string; name: string; description?: string }>
 }
 
+export interface LocalAgentNotice {
+  severity: 'info' | 'warning' | 'error'
+  title: string
+  description?: string
+}
+
 export type LocalAgentConfigOption = {
   id: string
   name: string
@@ -358,6 +376,7 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   thoughtLevel?: LocalAgentSelection
   protocolInfo?: LocalAgentProtocolInfo
   images: boolean
+  audio?: boolean
   resume: boolean
 }
 

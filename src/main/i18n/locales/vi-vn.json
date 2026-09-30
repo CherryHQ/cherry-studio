@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Cố vấn tích hợp của Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, đồng thời tìm kiếm hoặc tạo Kỹ năng",
   "agent.builtin.cherry_support.description": "Agent hỗ trợ chính thức của Cherry Studio cho hướng dẫn cấu hình, chẩn đoán, FAQ và phản hồi",
+  "agent.session.attachment.audio_unsupported": "Tác nhân này không hỗ trợ đầu vào âm thanh. Hãy xóa âm thanh hoặc chọn tác nhân khác.",
   "agent.session.attachment.image_unsupported": "Tác nhân này không hỗ trợ hình ảnh đầu vào. Hãy xóa hình ảnh hoặc chọn tác nhân khác.",
   "agent.session.attachment.unavailable": "Không thể đọc tệp đính kèm: {{name}}. Vui lòng đính kèm lại tệp.",
   "agent.session.dsh.bun_unavailable": "Không thể khởi động DSH vì môi trường chạy đi kèm không khả dụng. Hãy cài đặt lại Cherry Studio rồi thử lại.",

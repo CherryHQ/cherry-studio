@@ -79,8 +79,8 @@ ACP stop reasons map to stream finish reasons: `end_turn` → `stop`,
 and refusal reasons are preserved in the stream; the existing shared message
 status still describes completion of the stream, not completion of the user's task.
 
-ACP `thought_level` select options use the shared response-settings control. Known
-levels use translated labels and the same slider as provider models; custom values
+ACP `thought_level` select options use the unified Agent configuration menu. Known
+levels reuse the translated labels of provider models; custom values
 retain their native names and IDs. Fixed single-value options are not shown as
 adjustable controls. Changes apply to the current native session, not the global
 Agent. The UI updates on confirmed protocol state and does not invent a default
@@ -88,8 +88,9 @@ option. Pending changes settle before the next prompt; running turns cannot be
 reconfigured through this control.
 
 ACP session modes localize recognized names and descriptions in the composer while
-preserving custom text and native IDs. Modern
-`mode` config options take precedence over legacy `modes` / `session/set_mode`.
+preserving custom text and native IDs. When `configOptions` is provided, including
+an empty list, it takes precedence over legacy `modes` / `session/set_mode`. Legacy
+modes are used only when configuration options are omitted or null.
 Mode and reasoning changes share an in-flight guard; confirmed notifications refresh
 the controls, and failed requests preserve the last confirmed value. Modes remain
 session-owned and do not change Cherry's permission policy or the global Agent.
@@ -112,6 +113,13 @@ change removes thought levels. On reconnect, native session configuration is the
 source of truth: Cherry does not reselect an already-matching model and thereby
 reset the restored effort. Persistence of unused settings depends on the CLI; Cherry
 does not store a second copy of native thought settings.
+
+The composer remembers up to 100 sessions' configuration display snapshots in
+renderer memory. Returning to a session shows its previous options immediately;
+changes stay disabled until live session information arrives. Cached snapshots do
+not enable attachment capabilities. A single configurable item opens its choices
+directly and shows its name and current value in the trigger; multiple items use
+submenus. Starting or ending generation does not clear the configuration display.
 
 Tools merge by native call ID. Standalone permission IDs settle their own cards.
 Unknown tool results use generic cards. Missing token/cost/model data is not
@@ -138,36 +146,36 @@ non-resumable.
 
 ## Compatibility record
 
-Validation environment: macOS, 2026-09-28; ACP P0 checks refreshed 2026-09-29. Other platforms require real CLI
+Validation environment: macOS ARM64; installed-agent acceptance refreshed 2026-09-30. Other platforms require real CLI
 acceptance before being marked verified. Presets are discoverable configuration
 entries, not a claim that every installed version implements the protocol.
 
 | Preset | Launch | Observed version | Verification |
 |---|---|---|---|
-| Claude Code | Installed CLI through SDK | 2.1.207 | Handshake passed; real request blocked by expired OAuth session |
-| Codex | `codex app-server` | 0.155.1 | Handshake, multi-turn text, file write, stop, and application-restart context recovery passed |
-| GitHub Copilot | `copilot --acp` | — | Not installed locally; launch contract and shared ACP fixture tests passed |
+| Claude Code | Installed CLI through SDK | 2.1.207 | Real text, read/write tools, approval, connection release/resume, stop and continuation passed with CLI default model after reauthentication; configured `claude-sonnet-4-6` was rejected by the current endpoint (2026-09-30) |
+| Codex | `codex app-server` | 0.155.1 | Real text, read/write tools, connection process exit/recreation, native ID recovery, stop and continuation passed (2026-09-30) |
+| GitHub Copilot | `copilot --acp` | 1.0.89 | Real text, mode/reasoning changes and restoration, generic permission configuration round-trip, read/write tools, diff, approval, process release/resume, stop and continuation passed (2026-09-30) |
 | MiniMax Code | `mcode acp` | — | Not installed locally; launch contract and shared ACP fixture tests passed |
-| Cursor | `cursor-agent acp` (`agent` alias) | 2026.01.28-fd13201 | Real handshake passed; conversation blocked by missing CLI authentication |
+| Cursor | `cursor-agent acp` (`agent` alias) | 2026.01.28-fd13201 | Real text, agent → plan → agent, read/write tools and diff, process release/resume, stop and continuation passed; custom question/plan extensions not exercised (2026-09-30) |
 | Kimi | `kimi acp` | — | Not tested |
 | Qwen Code | `qwen --acp` | — | Not tested |
-| OpenCode | `opencode acp` | — | Not tested |
+| OpenCode | `opencode acp` | 1.18.33 | Real text, build → plan → build, file read/write, process release/resume, stop and continuation passed; first edit attempt stalled without output, stopped and explicit retry passed (2026-09-30) |
 | Kiro | `kiro-cli acp` | — | Not tested |
 | Qoder | `qoderclicn --acp` (aliases supported) | — | Not tested |
 | Trae | `traecli acp serve` | — | Not tested |
-| Hermes | `hermes acp` | 0.21.1 (ACP `agentInfo`) | Handshake, multi-turn context, edit approval and file write passed; application restart, stop with partial output, and continuation passed (2026-09-29) |
+| Hermes | `hermes acp` | 0.21.1 | Real text, file read/write and edit approval, process release/resume, stop and continuation passed; read/write execution cards did not receive terminal tool updates (2026-09-30) |
 | Cline | `cline --acp` | — | Registry launch definition checked (3.0.65); real CLI acceptance pending |
-| Kilo | `kilo acp` | 7.8.1 | Real handshake, model catalog, thought-level selection, restored value, and native mode switching (code → plan → code) passed (2026-09-29); GPT-6 Sol prompt blocked by CLI sign-in requirement; text and token persistence previously verified with Auto Free |
+| Kilo | `kilo acp` | 7.8.1 | Auto Free: real text, code → ask → code, read/write tools, process release/resume, stop and continuation passed; manual `/compact` works but does not emit ACP compaction updates (2026-09-30) |
 | goose | `goose acp` | — | Registry launch definition checked (1.52.0); real CLI acceptance pending |
 | Codebuddy Code | `codebuddy --acp` | — | Registry launch definition checked (2.159.0); real CLI acceptance pending |
 | Auggie CLI | `auggie --acp` | — | Registry launch definition checked (0.36.0); real CLI acceptance pending |
 | Junie | `junie --acp=true` | — | Registry launch definition checked (3419.16.0); real CLI acceptance pending |
 | Factory Droid | `droid exec --output-format acp-daemon` | — | Registry launch definition checked (0.228.0); real CLI acceptance pending |
 | Devin | `devin acp` | — | Registry launch definition checked (3000.11.3); real CLI acceptance pending |
-| Google Antigravity | `agy_acp_server.par` | 1.2.1 | System binary installation and real ACP handshake passed (macOS ARM64, 2026-09-29); model discovery requires authentication; personal Google OAuth rejected account eligibility for the current location |
+| Google Antigravity | `agy_acp_server.par` | 1.2.1 | Configured Gemini 3.7 Flash Medium: real text, read/write tools and diff, approval, process release/resume, stop and continuation passed; writing produced two approval requests (2026-09-30) |
 | Mistral Vibe | `vibe-acp ` | — | Registry launch definition checked (2.25.8); real CLI acceptance pending |
 | Amp | `amp-acp ` | — | Registry launch definition checked (0.9.0); real CLI acceptance pending |
-| pi ACP | `pi-acp ` | — | Registry launch definition checked (0.0.34); real CLI acceptance pending |
+| pi ACP | `pi-acp ` | 0.0.34 | Real text, medium → low → medium reasoning, read/write tools and diff, process release/resume, stop and continuation passed (2026-09-30) |
 | DeepAgents | `deepagents-acp ` | — | Registry launch definition checked (0.1.7); real CLI acceptance pending |
 | GLM Agent | `glm-acp-agent ` | — | Registry launch definition checked (1.12.0); real CLI acceptance pending |
 | Grok Build | `grok agent stdio` | — | Registry launch definition checked (1.0.43); real CLI acceptance pending |
@@ -180,7 +188,7 @@ entries, not a claim that every installed version implements the protocol.
 
 Gemini CLI is no longer offered as an Agent Service preset. Existing session history is retained; retired presets are excluded from the active Agent picker. This does not remove Gemini model providers or uninstall the CLI.
 
-Antigravity advertises session loading/resuming, images, audio, embedded context, and HTTP/SSE MCP in its handshake. These are advertised capabilities, not completed acceptance tests. Model discovery returns `Authentication required`. A real `oauth-personal` attempt was rejected because the account is ineligible for the free tier in its current location. Authenticated text, model switching, tools/approval, cancellation, images, and session recovery remain the next acceptance steps with an eligible account.
+Antigravity advertises session loading/resuming, images, audio, embedded context, and HTTP/SSE MCP in its handshake. Text, tools, cancellation and recovery passed with the configured credentials on 2026-09-30. The earlier personal Google OAuth location/eligibility rejection remains an authentication-method finding, not a current conversation failure. Image/audio semantics and MCP integration are still unverified; advertised capabilities alone do not certify them.
 
 The 20 additional presets use the [ACP Registry](https://github.com/agentclientprotocol/registry)
 launch definitions checked on 2026-09-28. Registry versions in this table are
@@ -206,7 +214,7 @@ existing question composer and approval flow. Question and option IDs are retain
 separately from display labels; choice-only prompts do not offer free-text answers.
 Plan approval is explicit, and stopping cancels outstanding requests. Controlled
 protocol processes cover selection, approval, rejection and cancellation. Real Cursor
-extension interactions remain unverified until CLI login is available. Cherry does
+question/plan extension interactions remain unverified; authenticated text and native mode switching passed separately. Cherry does
 not invoke browser login automatically.
 
 Hermes interruption and application-restart recovery were revalidated on 2026-09-29,
@@ -227,8 +235,65 @@ paths, and rejecting missing or unsupported attachments before dispatch.
 
 Mode/output capabilities have controlled-process coverage. Electron acceptance with
 a controlled ACP process verified thought/plan/diff rendering, persisted history
-after reload, and both themes. Kilo native mode switching was verified separately;
-other CLI output capabilities still require real-agent acceptance.
+after reload, and both themes. The real-agent run below additionally exercised tool output and native diff payloads.
+Image/audio/resource output still requires a real agent that emits those content types.
+
+### Real-agent acceptance, 2026-09-30
+
+The installed set was nine agents (seven ACP, two native) out of 32 presets.
+The other 23 presets were not installed and remain unverified. Each test used a
+separate system workspace and existing CLI credentials; no permission-bypass
+mode was enabled and existing global model selections were preserved.
+
+The real Electron main/preload/renderer and production database were used:
+
+1. Create an isolated session, verify a short reply, and retain a per-agent recall marker.
+2. Switch supported mode/reasoning controls to a safe alternative and restore the
+   original value. Copilot's generic `allow_all` option round-tripped `off`;
+   permissive alternatives were not enabled. Other tested ACP agents returned
+   no generic configuration options, so boolean configuration remains fixture-only.
+3. Read a unique marker file through the agent's tools. Confirm streamed chunks,
+   persisted tool data and the returned content in the real chat window.
+4. Release the warm lease and wait beyond its ten-second grace period. For the
+   eight original working configurations, verify their workspace process IDs
+   disappeared, then verify new process IDs, unchanged native resume IDs, correct
+   recall, and exactly two new Cherry messages (no replayed history). Claude's
+   temporary CLI-default configuration additionally passed release and recall;
+   its process IDs were not separately sampled.
+5. Abort on the first real text/reasoning delta. All nine attempts persisted as
+   `paused`; all nine subsequent turns returned `CONTINUE_OK` successfully.
+6. Create only `acceptance-result.txt` in each isolated workspace. Inspect the
+   requested path/content before allowing individual approval requests, then
+   compare actual file contents to the expected per-agent marker.
+
+| Output / configuration surface | Real evidence | Remaining boundary |
+|---|---|---|
+| Text, reasoning, file-read tools | All nine returned the correct file content; streamed deltas and persisted tool parts were inspected | Hermes tool completion missing, below |
+| ACP native diff content | pi, Antigravity, Copilot and Cursor emitted `type: diff` for the controlled write | Kilo and OpenCode writes completed without native diff content |
+| Approval presentation | Copilot, Antigravity, Hermes, Claude and Codex emitted approval requests | Denial, remembered grants and cancellation while awaiting approval were not revalidated in this run |
+| Generic configuration | Copilot `allow_all=off` accepted; native mode/reasoning changes restored successfully where safe alternatives existed | No real boolean option advertised by the tested agents |
+| Standalone image/audio/resource output | None of these turns emitted `data-acp-content` | Controlled-process coverage only; not certified as real-agent support |
+| Session titles | Copilot and Hermes updated generated titles; manually renamed titles survived connection release and reload | Other agents did not change titles in these turns; no forced conflicting title event was injected |
+| Notices, compaction events | Not emitted during the common acceptance turns | Kilo `/compact` separately succeeded without `compaction_update`; do not infer events from reply text |
+| Platform coverage | macOS ARM64 only | Windows and Linux still need real CLI acceptance |
+
+Real findings that keep full compatibility acceptance open:
+
+- **Hermes tool completion:** successful reads and writes left their execution
+  cards in `input-available`. A separate direct ACP read reproduced a lone
+  `tool_call` with no `tool_call_update`; the edit-approval card itself settled.
+  The CLI must emit a terminal tool update before Cherry can truthfully mark
+  execution successful. Do not convert end-of-turn into fabricated tool success.
+- **Antigravity duplicate approval:** one file creation emitted both a native
+  permission request and a subsequent `fs/write_text_file` request. Cherry asked
+  again for the file callback. Both requests targeted the same verified test
+  path/content; the file was created correctly. Consolidating authorization
+  requires preserving scope and matching the approved operation.
+- **Claude model configuration:** expired OAuth blocked the first attempt. After
+  the user repaired authentication, the explicitly selected `claude-sonnet-4-6`
+  was rejected with HTTP 400 by the current endpoint. A temporary CLI-default
+  configuration passed all common conversation checks; this does not validate
+  the original model selection against that endpoint.
 
 ## Validation
 

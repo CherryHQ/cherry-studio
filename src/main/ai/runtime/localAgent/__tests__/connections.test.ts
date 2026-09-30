@@ -155,6 +155,73 @@ describe('local protocol processes', () => {
     ])
   })
 
+  it.each(['inline', 'managed'])('sends audio bytes in prompt order (%s)', async (source) => {
+    const { connection } = create('acp', 'audio')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.audio).toBe(true)
+    managedFiles.read.mockResolvedValue({ content: 'YXVkaW8=', mime: 'audio/wav' })
+    const part = {
+      type: 'file',
+      mediaType: 'audio/wav',
+      filename: 'clip.wav',
+      url: source === 'inline' ? 'data:audio/wav;base64,YXVkaW8=' : 'file:///stale.wav',
+      ...(source === 'managed' ? { providerMetadata: { cherry: { fileEntryId: 'managed-audio' } } } : {})
+    }
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
+    } as AgentRuntimeUserInput)
+    const wire = (await readFile(path.join(cwd, 'wire.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(wire.find(({ method }) => method === 'session/prompt').params.prompt).toEqual([
+      { type: 'text', text: 'Listen' },
+      { type: 'audio', mimeType: 'audio/wav', data: 'YXVkaW8=' }
+    ])
+  })
+
+  it.each(['normal', 'audio'])(
+    'rejects unsupported or unreadable audio before sending a prompt (%s)',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      await connection.start(cwd)
+      await expect(
+        connection.send({
+          message: {
+            data: {
+              parts: [
+                {
+                  type: 'file',
+                  mediaType: 'audio/wav',
+                  filename: 'missing.wav',
+                  url: 'file:///missing-acp-audio.wav'
+                }
+              ]
+            }
+          }
+        } as AgentRuntimeUserInput)
+      ).rejects.toThrow(scenario === 'normal' ? 'does not support audio' : 'missing.wav')
+      expect(await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')).not.toContain('session/prompt')
+    }
+  )
+
+  it.each([undefined, 'native-session'])(
+    'keeps notices out of message content and isolates sessions (%s)',
+    async (resume) => {
+      const { connection, events, drained, text } = create('acp', 'notices')
+      await connection.start(cwd, resume)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      expect(events.filter((event) => event.type === 'notice')).toEqual([
+        { type: 'notice', notice: { severity: 'warning', title: 'Quota low', description: 'Check account' } },
+        { type: 'notice', notice: { severity: 'error', title: 'Connection degraded' } },
+        { type: 'notice', notice: { severity: 'info', title: 'Agent information' } }
+      ])
+      expect(text()).toBe('turn 1: hello')
+    }
+  )
+
   it('resolves managed attachments by file entry ID instead of their stale URL', async () => {
     const { connection } = create('acp', 'embedded-files')
     await connection.start(cwd)
@@ -244,7 +311,7 @@ describe('local protocol processes', () => {
     }
   )
 
-  it.each(['mode', 'mode-legacy', 'mode-both'])(
+  it.each(['mode', 'mode-legacy', 'mode-legacy-null', 'mode-both'])(
     'switches advertised modes and restores native state (%s)',
     async (scenario) => {
       const { connection } = create('acp', scenario)
@@ -260,10 +327,11 @@ describe('local protocol processes', () => {
         .filter(Boolean)
         .map((line) => JSON.parse(line))
       const request = wire.find(
-        (message) => message.method === (scenario === 'mode-legacy' ? 'session/set_mode' : 'session/set_config_option')
+        (message) =>
+          message.method === (scenario.startsWith('mode-legacy') ? 'session/set_mode' : 'session/set_config_option')
       )
       expect(request.params).toMatchObject(
-        scenario === 'mode-legacy' ? { modeId: 'plan' } : { configId: 'agent-mode', value: 'plan' }
+        scenario.startsWith('mode-legacy') ? { modeId: 'plan' } : { configId: 'agent-mode', value: 'plan' }
       )
     }
   )
@@ -389,6 +457,38 @@ describe('local protocol processes', () => {
       .split('\n')
       .map((line) => JSON.parse(line))
     expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
+  })
+
+  it.each(['thought-legacy-duplicate', 'thought-legacy-distinct'])(
+    'prefers configOptions over legacy modes regardless of matching labels (%s)',
+    async (scenario) => {
+      const { connection } = create('acp', scenario)
+      const acp = connection as AcpConnection
+      await acp.start(cwd)
+      expect(acp.localSessionInfo.mode).toBeUndefined()
+      await acp.setThoughtLevel('reasoning-budget', 'deep')
+      expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+      expect(acp.localSessionInfo.mode).toBeUndefined()
+    }
+  )
+
+  it('treats an empty configOptions list as authoritative', async () => {
+    const acp = create('acp', 'mode-legacy-empty').connection as AcpConnection
+    await acp.start(cwd)
+    expect(acp.localSessionInfo.mode).toBeUndefined()
+    await expect(acp.setMode('legacy-mode', 'plan')).rejects.toThrow('no longer available')
+  })
+
+  it('stops using legacy modes when configOptions arrive in an update', async () => {
+    const acp = create('acp', 'mode-legacy-upgrade').connection as AcpConnection
+    await acp.start(cwd)
+    expect(acp.localSessionInfo.mode?.currentValue).toBe('ask')
+    await acp.setMode('legacy-mode', 'plan')
+    expect(acp.localSessionInfo.mode).toBeUndefined()
+    expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
+    await acp.setThoughtLevel('reasoning-budget', 'deep')
+    expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+    expect(acp.localSessionInfo.mode).toBeUndefined()
   })
 
   it('uses advertised thought option IDs and values and publishes confirmed state', async () => {
@@ -929,7 +1029,41 @@ describe('local protocol processes', () => {
       .map((line) => JSON.parse(line))
     expect(wire.filter(({ method }) => method === 'session/set_config_option').map(({ params }) => params)).toEqual([
       { sessionId: 'native-session', configId: 'verbosity', value: 'verbose' },
-      { sessionId: 'native-session', configId: 'notifications', value: true }
+      { sessionId: 'native-session', configId: 'notifications', type: 'boolean', value: true }
+    ])
+  })
+
+  it.each(['completed', 'failed', 'cancel', 'crash', 'unfinished'])(
+    'settles compaction on %s without inventing a successful history anchor',
+    async (outcome) => {
+      const { connection, events, drained } = create('acp', `compaction-${outcome}`)
+      await connection.start(cwd)
+      const sending = connection.send(input)
+      await vi.waitFor(() => expect(events.some((event) => event.type === 'compaction-start')).toBe(true))
+      if (outcome === 'cancel') await connection.close()
+      await sending
+      await connection.close()
+      await drained
+      expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
+        { type: 'compaction-start' },
+        outcome === 'failed' ? { type: 'compaction-error', error: 'Summary failed' } : { type: 'compaction-complete' }
+      ])
+    }
+  )
+
+  it('keeps overlapping compactions busy across duplicate, old and unrelated-session events', async () => {
+    const { connection, events, drained, text } = create('acp', 'compaction-overlap')
+    await connection.start(cwd, 'native-session')
+    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([])
+    const sending = connection.send(input)
+    await vi.waitFor(() => expect(text()).toBe('Still compacting'))
+    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([{ type: 'compaction-start' }])
+    await connection.close()
+    await sending
+    await drained
+    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
+      { type: 'compaction-start' },
+      { type: 'compaction-complete' }
     ])
   })
 

@@ -3,16 +3,17 @@ import {
   CheckCircle2,
   Download,
   CircleAlert,
-  ExternalLink,
   Loader2,
   MessageSquare,
   Plus,
+  PlugZap,
   RefreshCw,
   Settings2,
+  SquareTerminal,
   Search,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -164,7 +165,7 @@ export function LocalAgentSettingsPage() {
             </InputGroupAddon>
           </InputGroup>
         </div>
-        <Scrollbar className="min-h-0 flex-1 space-y-2 px-2.5 pt-2 pb-0">
+        <Scrollbar className="min-h-0 flex-1 space-y-2 px-2.5 pt-2 pb-2.5">
           {entries
             .filter((e) => e.name.toLowerCase().includes(query.toLowerCase()))
             .map((e) => {
@@ -276,7 +277,7 @@ function LocalAgentDetails({
     env: {}
   }
   const [busyAction, setBusyAction] = useState<
-    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model'
+    'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   >()
   const {
     catalog,
@@ -295,11 +296,37 @@ function LocalAgentDetails({
     busyAction === 'model' ? '[&_button:disabled]:pointer-events-auto [&_button:disabled]:opacity-100' : undefined
   const [result, setResult] = useState<string>()
   const [resultOk, setResultOk] = useState(false)
+  const [connection, setConnection] = useState<Pick<LocalAgentCheckResult, 'status' | 'version'>>()
+  const [programHovered, setProgramHovered] = useState(false)
+  const feedbackTimer = useRef({ connection, remaining: 4000 })
+  useEffect(() => {
+    if (feedbackTimer.current.connection !== connection) feedbackTimer.current = { connection, remaining: 4000 }
+    if (connection?.status !== 'ready' || programHovered) return
+    const started = Date.now()
+    const timer = setTimeout(() => setConnection(undefined), feedbackTimer.current.remaining)
+    return () => {
+      clearTimeout(timer)
+      feedbackTimer.current.remaining = Math.max(0, feedbackTimer.current.remaining - (Date.now() - started))
+    }
+  }, [connection, programHovered])
   const [editing, setEditing] = useState(!preset && !agent)
   useEffect(() => {
     if (pendingSelection && !editing && !busy) onNavigate()
   }, [pendingSelection, editing, busy, onNavigate])
+  const openTerminal = async () => {
+    if (busy) return
+    setBusyAction('terminal')
+    try {
+      const response = await ipcApi.request('ai.local_agents.open_terminal', initial)
+      if (!response.success) toast.error(response.message ?? t('common.error'))
+    } catch (error) {
+      toast.error(String(error))
+    } finally {
+      setBusyAction(undefined)
+    }
+  }
   const openEditor = () => {
+    setConnection(undefined)
     setResult(undefined)
     setEditing(true)
   }
@@ -444,16 +471,17 @@ function LocalAgentDetails({
     }
   }
   const check = async () => {
+    if (busy) return
     setBusyAction('check')
+    setConnection(undefined)
+    setResult(undefined)
     try {
       const response = await ipcApi.request('ai.local_agents.check', initial)
+      setConnection({ status: response.status, version: response.version ?? response.protocolInfo?.agent?.version })
       setResultOk(response.ok)
-      setResult(
-        response.ok
-          ? [t('local_agents.connected'), response.version, response.path].filter(Boolean).join('\n')
-          : checkError(response)
-      )
+      if (!response.ok) setResult(checkError(response))
     } catch (error) {
+      setConnection({ status: 'failed' })
       setResultOk(false)
       setResult(String(error))
     } finally {
@@ -529,7 +557,7 @@ function LocalAgentDetails({
               </Button>
             </Tooltip>
           </div>
-          {busyAction === 'toggle' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {busyAction === 'toggle' && <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />}
           <Switch
             aria-label={t('local_agents.enable')}
             checked={initial.enabled}
@@ -543,31 +571,119 @@ function LocalAgentDetails({
       <Scrollbar className={cn('min-h-0 flex-1 overflow-x-hidden px-6 pb-6', modelSavingClass)}>
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           <section className="space-y-3">
-            <h2 className="text-sm leading-[1.3] font-medium">{t('local_agents.installation_location')}</h2>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <h2 className="text-sm leading-[1.3] font-medium">{t('local_agents.installation_location')}</h2>
+              {preset && (
+                <a
+                  className="inline-flex shrink-0 items-center text-xs leading-[1.3] text-link transition-colors hover:underline"
+                  href={preset.helpUrl}
+                  target="_blank"
+                  rel="noreferrer">
+                  {t('local_agents.login_help')}
+                </a>
+              )}
+            </div>
             <div className="flex items-start justify-end gap-2">
               {(initial.executableOverride ?? detection?.path ?? preset?.executable) && (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={openEditor}
+                <InputGroup
                   aria-label={t('local_agents.installation_location')}
-                  className="h-8 min-w-0 flex-1 justify-start rounded-lg border-border-subtle bg-muted/30 px-2.5 py-1.5 text-left font-normal shadow-none">
-                  <p dir="rtl" className="min-w-0 flex-1 truncate text-left font-mono text-xs text-foreground">
-                    <bdi dir="ltr">{initial.executableOverride ?? detection?.path ?? preset?.executable}</bdi>
-                  </p>
-                  <Badge
-                    variant="secondary"
-                    className="shrink-0 px-1.5 py-0 text-[11px] leading-4 text-muted-foreground">
-                    {initial.executableOverride
-                      ? t('settings.provider.not_checked')
-                      : detection?.path
-                        ? t('local_agents.detected')
-                        : t('local_agents.not_installed')}
-                  </Badge>
-                </Button>
+                  onMouseEnter={() => setProgramHovered(true)}
+                  onMouseLeave={() => setProgramHovered(false)}
+                  className={cn(
+                    'h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none transition-colors motion-reduce:transition-none',
+                    connection?.status === 'ready' && 'border-success-border bg-success-subtle',
+                    connection?.status === 'authentication-required' && 'border-warning-border bg-warning-subtle',
+                    connection &&
+                      !['ready', 'authentication-required'].includes(connection.status) &&
+                      'border-error-border bg-error-subtle'
+                  )}>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={openEditor}
+                    aria-label={t('local_agents.installation_location')}
+                    className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
+                    <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
+                      <bdi dir="ltr">{initial.executableOverride ?? detection?.path ?? preset?.executable}</bdi>
+                    </span>
+                  </Button>
+                  <InputGroupAddon align="inline-end" className="shrink-0 gap-1 py-0 pr-1">
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className="flex items-center gap-1 whitespace-nowrap text-[11px]">
+                      {connection ? (
+                        <span
+                          className={cn(
+                            'flex items-center gap-1',
+                            connection.status === 'ready'
+                              ? 'text-success-subtle-foreground'
+                              : connection.status === 'authentication-required'
+                                ? 'text-warning-subtle-foreground'
+                                : 'text-error-subtle-foreground'
+                          )}>
+                          {connection.status === 'ready' ? (
+                            <CheckCircle2 className="lucide-custom size-3" />
+                          ) : (
+                            <CircleAlert className="lucide-custom size-3" />
+                          )}
+                          {connection.status === 'ready'
+                            ? t('agent.channels.connected')
+                            : connection.status === 'authentication-required'
+                              ? t('local_agents.login_required')
+                              : t('local_agents.check_failed')}
+                          {connection.status === 'ready' &&
+                            connection.version &&
+                            ` · ${/^v/i.test(connection.version) ? connection.version : `v${connection.version}`}`}
+                        </span>
+                      ) : (
+                        <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4 text-muted-foreground">
+                          {initial.executableOverride
+                            ? t('settings.provider.not_checked')
+                            : detection?.path
+                              ? t('local_agents.detected')
+                              : t('local_agents.not_installed')}
+                        </Badge>
+                      )}
+                    </span>
+                    {available && (
+                      <Tooltip content={t('local_agents.check')}>
+                        <InputGroupButton
+                          size="icon-xs"
+                          aria-label={t('local_agents.check')}
+                          disabled={busy || (!preset && !agent)}
+                          onClick={() => void check()}>
+                          {busyAction === 'check' ? (
+                            <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <PlugZap className="lucide-custom size-3.5 text-muted-foreground" />
+                          )}
+                        </InputGroupButton>
+                      </Tooltip>
+                    )}
+                  </InputGroupAddon>
+                </InputGroup>
               )}
               {available ? (
                 <>
+                  {preset?.terminalArgs && (
+                    <Tooltip content={t('local_agents.open_terminal')}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+                        aria-label={t('local_agents.open_terminal')}
+                        disabled={busy}
+                        onClick={() => void openTerminal()}>
+                        {busyAction === 'terminal' ? (
+                          <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <SquareTerminal className="lucide-custom size-3.5 text-muted-foreground" />
+                        )}
+                        {t('code.terminal')}
+                      </Button>
+                    </Tooltip>
+                  )}
                   {initial.protocol === 'acp' && (
                     <LocalAgentLogin
                       config={initial}
@@ -577,6 +693,7 @@ function LocalAgentDetails({
                       disabled={busy || (!detection?.path && !initial.executableOverride)}
                       helpUrl={preset?.helpUrl}
                       onAuthenticated={async (localRuntime) => {
+                        setConnection(undefined)
                         const updated = await persistLocalRuntime(localRuntime)
                         if (!updated) throw new Error(t('common.error'))
                         try {
@@ -596,24 +713,10 @@ function LocalAgentDetails({
                     variant="outline"
                     size="sm"
                     className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
-                    disabled={busy || (!preset && !agent)}
-                    onClick={() => void check()}>
-                    <RefreshCw
-                      className={cn(
-                        'lucide-custom size-3.5 text-muted-foreground',
-                        busyAction === 'check' && 'animate-spin'
-                      )}
-                    />
-                    {t('local_agents.check')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
                     disabled={busy || !agent || !initial.enabled}
                     onClick={() => void goToChat()}>
                     <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
-                    {t('library.assistant_catalog.go_to_chat')}
+                    {t('title.chat')}
                   </Button>
                 </>
               ) : preset ? (
@@ -627,7 +730,7 @@ function LocalAgentDetails({
                   ) : (
                     <Download className="size-3.5" />
                   )}
-                  {t(busyAction === 'install' ? 'local_agents.installing' : 'local_agents.install')}
+                  {t(busyAction === 'install' ? 'local_agents.installing' : 'code.install')}
                 </Button>
               ) : !agent ? (
                 <Button size="sm" onClick={openEditor}>
@@ -649,22 +752,7 @@ function LocalAgentDetails({
               />
             )}
             {(preset || agent) && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t('local_agents.model_hint')}
-                {preset && (
-                  <a
-                    className={cn(
-                      'inline-flex items-center gap-1.5 text-xs text-link hover:underline',
-                      !detection?.path && !initial.executableOverride && 'font-medium'
-                    )}
-                    href={preset.helpUrl}
-                    target="_blank"
-                    rel="noreferrer">
-                    {t('local_agents.help')}
-                    <ExternalLink className="size-3" />
-                  </a>
-                )}
-              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.model_hint')}</p>
             )}
             {!editing && feedback}
           </section>

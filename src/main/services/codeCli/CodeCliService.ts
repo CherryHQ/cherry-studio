@@ -579,52 +579,7 @@ export class CodeCliService extends BaseService {
     if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
     logger.debug(`Environment variables:`, Object.keys(env))
 
-    // Select different terminal based on operating system
     const platform = process.platform
-    let terminalCommand: string
-    let terminalArgs: string[]
-
-    // Build environment variable prefix (based on platform)
-    const buildEnvPrefix = (isWindows: boolean) => {
-      if (Object.keys(env).length === 0) {
-        logger.info('No environment variables to set')
-        return ''
-      }
-
-      logger.info('Setting environment variables:', Object.keys(env))
-
-      if (isWindows) {
-        // Windows uses set command
-        // Escape all cmd.exe metacharacters in env values to prevent command injection
-        return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
-          .join(' && ')
-      } else {
-        // Unix-like systems use export command
-        const validEntries = Object.entries(env).filter(([key, value]) => {
-          if (!key || key.trim() === '') {
-            return false
-          }
-          if (value === undefined || value === null) {
-            return false
-          }
-          return true
-        })
-
-        const envCommands = validEntries
-          .map(([key, value]) => {
-            const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=${REDACTED}`)
-            return exportCmd
-          })
-          .join(' && ')
-        const clearAmbientMise = usesCherryExecutionEnv
-          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
-          : ''
-        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
-      }
-    }
-
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
     // The win32 command is only ever embedded in the generated .bat below, where
     // cmd.exe expands %…% even inside double quotes — double it like the
@@ -707,6 +662,96 @@ export class CodeCliService extends BaseService {
     // be a shell-injection surface. A plain launch from the CLI page is unaffected.
     if (isLoginFlow) {
       baseCommand = `${baseCommand} /login`
+    }
+
+    return this.launchTerminal({
+      cliTool,
+      directory,
+      terminal: input.terminal,
+      baseCommand,
+      env,
+      usesCherryExecutionEnv,
+      rawShellEnv
+    })
+  }
+
+  async openTerminal(input: {
+    executable: string
+    args: readonly string[]
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+  }): Promise<OperationResult> {
+    const platform = process.platform
+    const needsBatchCall =
+      platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(input.executable).toLowerCase())
+    if (input.args.some((arg) => !/^[A-Za-z0-9_./=-]+$/.test(arg))) throw new Error('Unsupported terminal argument')
+    const executable =
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${input.executable.replace(/%/g, '%%')}"`
+        : posixQuote(input.executable)
+    return this.launchTerminal({
+      cliTool: 'local-agent',
+      directory: application.getPath('sys.home'),
+      baseCommand: [executable, ...input.args.map((arg) => (platform === 'win32' ? arg : posixQuote(arg)))].join(' '),
+      env: input.env,
+      usesCherryExecutionEnv: input.usesCherryExecutionEnv
+    })
+  }
+
+  private async launchTerminal(input: {
+    cliTool: string
+    directory: string
+    terminal?: string
+    baseCommand: string
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+    rawShellEnv?: Record<string, string>
+  }): Promise<OperationResult> {
+    const { cliTool, directory, baseCommand, env, usesCherryExecutionEnv, rawShellEnv } = input
+    // Select different terminal based on operating system
+    const platform = process.platform
+    let terminalCommand: string
+    let terminalArgs: string[]
+
+    // Build environment variable prefix (based on platform)
+    const buildEnvPrefix = (isWindows: boolean) => {
+      if (Object.keys(env).length === 0) {
+        logger.info('No environment variables to set')
+        return ''
+      }
+
+      logger.info('Setting environment variables:', Object.keys(env))
+
+      if (isWindows) {
+        // Windows uses set command
+        // Escape all cmd.exe metacharacters in env values to prevent command injection
+        return Object.entries(env)
+          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
+          .join(' && ')
+      } else {
+        // Unix-like systems use export command
+        const validEntries = Object.entries(env).filter(([key, value]) => {
+          if (!key || key.trim() === '') {
+            return false
+          }
+          if (value === undefined || value === null) {
+            return false
+          }
+          return true
+        })
+
+        const envCommands = validEntries
+          .map(([key, value]) => {
+            const exportCmd = `export ${key}=${posixQuote(String(value))}`
+            logger.debug(`Setting env var: ${key}=${REDACTED}`)
+            return exportCmd
+          })
+          .join(' && ')
+        const clearAmbientMise = usesCherryExecutionEnv
+          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+          : ''
+        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
+      }
     }
 
     switch (platform) {
@@ -917,7 +962,7 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
+    const baseProcessEnv = rawShellEnv ?? (await getRawShellEnv())
     const processEnv = Object.fromEntries(
       Object.entries(baseProcessEnv).filter(
         ([key]) =>

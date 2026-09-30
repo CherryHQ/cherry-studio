@@ -9,6 +9,7 @@ import {
   LocalAgentUninstallResultSchema,
   LocalAgentCheckResultSchema,
   type LocalAgentSessionInfo,
+  type LocalAgentNotice,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
 import type {
@@ -370,6 +371,10 @@ export const aiRequestSchemas = {
   }),
   'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
+  'ai.local_agents.open_terminal': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.object({ success: z.boolean(), message: z.string().optional() })
+  }),
   'ai.local_agents.check': defineRoute({
     input: LocalAgentConfigurationSchema,
     output: LocalAgentCheckResultSchema
@@ -530,6 +535,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
   'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload

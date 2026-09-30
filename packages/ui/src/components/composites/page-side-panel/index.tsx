@@ -23,6 +23,7 @@ type PageSidePanelPlacement = 'left' | 'right'
 interface PageSidePanelProps {
   open: boolean
   onClose: () => void
+  onExitComplete?: () => void
   children?: React.ReactNode
   title?: React.ReactNode
   header?: React.ReactNode
@@ -41,6 +42,7 @@ interface PageSidePanelProps {
 function PageSidePanel({
   open,
   onClose,
+  onExitComplete,
   children,
   title,
   header,
@@ -90,7 +92,7 @@ function PageSidePanel({
   }, [open])
 
   const panel = (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <>
           <motion.div

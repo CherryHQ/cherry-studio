@@ -105,6 +105,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (process.env.FIXTURE_LOG) appendFileSync(process.env.FIXTURE_LOG, `${line}\n`)
   const { id, method } = message
   if (method === 'initialize') {
+    if (scenario.startsWith('compaction') && !message.params.clientCapabilities?.session?.compaction)
+      return emit({ id, error: { code: -32602, message: 'Compaction capability required' } })
+    if (scenario === 'config-extra' && !message.params.clientCapabilities?.session?.configOptions?.boolean)
+      return emit({ id, error: { code: -32602, message: 'Boolean capability required' } })
+    if (scenario === 'notices' && !message.params.clientCapabilities?.session?.notices)
+      return emit({ id, error: { code: -32602, message: 'Notice capability required' } })
     reply(
       id,
       protocol === 'acp'
@@ -123,6 +129,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                 : {}),
               promptCapabilities: {
                 image: scenario !== 'no-images',
+                ...(scenario === 'audio' ? { audio: true } : {}),
                 ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
               }
             },
@@ -164,9 +171,23 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
     cwd = message.params.cwd
     if (method === 'session/load') {
+      if (scenario.startsWith('compaction'))
+        update({ sessionUpdate: 'compaction_update', compactionId: 'historical', status: 'in_progress' })
       text('REPLAY MUST NOT APPEAR')
       update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'REPLAY THOUGHT' } })
       update({ sessionUpdate: 'plan', entries: [{ content: 'REPLAY PLAN', priority: 'low', status: 'pending' }] })
+    }
+    if (scenario === 'notices') {
+      update({ sessionUpdate: 'notice', severity: 'warning', title: 'Quota low', description: 'Check account' })
+      update({ sessionUpdate: 'notice', severity: 'error', title: 'Connection degraded' })
+      update({ sessionUpdate: 'notice', severity: 'custom', title: 'Agent information' })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'notice', severity: 'error', title: 'Wrong session' }
+        }
+      })
     }
     if (scenario === 'session-title') {
       update({ sessionUpdate: 'session_info_update', title: 'Native initial title' })
@@ -224,7 +245,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             }
           }
         : {}),
-      ...(scenario === 'mode-legacy' || scenario === 'mode-both'
+      ...(scenario.startsWith('mode-legacy') || scenario === 'mode-both'
         ? {
             modes: {
               currentModeId: 'ask',
@@ -232,25 +253,40 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             }
           }
         : {}),
+      ...(scenario.startsWith('thought-legacy')
+        ? {
+            modes: {
+              currentModeId: thoughtValue,
+              availableModes: thought().options[0].options.map(({ value, name }) => ({
+                id: value,
+                name: scenario === 'thought-legacy-distinct' ? `Permission: ${name}` : name
+              }))
+            }
+          }
+        : {}),
       sessionId: 'native-session',
       configOptions:
-        scenario === 'no-models' || scenario === 'legacy-models'
-          ? []
-          : [
-              ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
-                ? [mode()]
-                : []),
-              ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
-              ...(scenario.startsWith('config') ? extraConfig() : []),
-              {
-                id: 'model',
-                category: 'model',
-                name: 'Model',
-                type: 'select',
-                currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
-                options: [{ value: 'fixture-model', name: 'Fixture model' }]
-              }
-            ]
+        scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
+          ? undefined
+          : scenario === 'mode-legacy-null'
+            ? null
+            : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
+              ? []
+              : [
+                  ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                    ? [mode()]
+                    : []),
+                  ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
+                  ...(scenario.startsWith('config') ? extraConfig() : []),
+                  {
+                    id: 'model',
+                    category: 'model',
+                    name: 'Model',
+                    type: 'select',
+                    currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
+                    options: [{ value: 'fixture-model', name: 'Fixture model' }]
+                  }
+                ]
     })
   } else if (method === 'session/close') {
     if (scenario === 'close-hang') return
@@ -258,13 +294,19 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     reply(id, {})
   } else if (method === 'session/set_mode') {
     modeValue = message.params.modeId
+    if (scenario === 'mode-legacy-upgrade')
+      update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
   } else if (method === 'session/set_config_option') {
     if (scenario.startsWith('config')) {
       if (scenario === 'config-error') return emit({ id, error: { code: -32602, message: 'Configuration rejected' } })
       if (message.params.configId === 'verbosity') verbosity = message.params.value
-      if (message.params.configId === 'notifications') notifications = message.params.value
+      if (message.params.configId === 'notifications') {
+        if (message.params.type !== 'boolean')
+          return emit({ id, error: { code: -32602, message: 'Boolean discriminator required' } })
+        notifications = message.params.value
+      }
       return reply(id, { configOptions: extraConfig() })
     }
 
@@ -310,6 +352,30 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (protocol === 'codex') {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+    }
+    if (scenario.startsWith('compaction')) {
+      const compact = (compactionId, status, extra = {}) =>
+        update({ sessionUpdate: 'compaction_update', compactionId, status, ...extra })
+      compact('first', 'in_progress')
+      compact('first', 'in_progress')
+      if (scenario === 'compaction-overlap') {
+        compact('second', 'in_progress')
+        compact('first', 'completed')
+        compact('first', 'in_progress')
+        emit({
+          method: 'session/update',
+          params: {
+            sessionId: 'unrelated',
+            update: { sessionUpdate: 'compaction_update', compactionId: 'second', status: 'completed' }
+          }
+        })
+        text('Still compacting')
+        return
+      }
+      if (scenario === 'compaction-crash') return setTimeout(() => process.exit(1), 25)
+      if (scenario === 'compaction-cancel') return
+      if (scenario === 'compaction-failed') compact('first', 'failed', { error: 'Summary failed' })
+      if (scenario === 'compaction-completed') compact('first', 'completed')
     }
     if (scenario === 'context-usage') {
       update({

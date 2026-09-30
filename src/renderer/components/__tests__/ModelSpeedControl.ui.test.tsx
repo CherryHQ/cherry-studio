@@ -550,6 +550,25 @@ describe('ModelSpeedControl service tiers', () => {
 })
 
 describe('native ACP thought levels', () => {
+  it('localizes the native default-on label while retaining its value', async () => {
+    const onChange = vi.fn()
+    render(
+      <ModelSpeedControl
+        nativeReasoning={{
+          value: 'high',
+          options: [
+            { value: 'high', name: 'High' },
+            { value: 'enabled', name: 'On (default)' }
+          ],
+          onChange
+        }}
+      />
+    )
+    await userEvent.click(screen.getByText('local_agents.thinking_on_default'))
+    expect(onChange).toHaveBeenCalledWith('enabled')
+    expect(screen.queryByText('On (default)')).not.toBeInTheDocument()
+  })
+
   it('shows only advertised levels and sends the original value', async () => {
     function NativeControl() {
       const [value, setValue] = useState('balanced')

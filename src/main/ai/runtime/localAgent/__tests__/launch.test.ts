@@ -8,16 +8,20 @@ import { application } from '@application'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 
-import { detectLocalAgents, resolveLocalAgentLaunch } from '../launch'
+import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch } from '../launch'
 
 const inventory = vi.hoisted(() => ({
+  openTerminal: vi.fn(),
   snapshots: {} as Record<string, BinaryToolSnapshot>,
   bundledGitDir: null as string | null
 }))
 vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ BinaryManager: { getToolSnapshots: async () => inventory.snapshots } })
+  return mockApplicationFactory({
+    BinaryManager: { getToolSnapshots: async () => inventory.snapshots },
+    CodeCliService: { openTerminal: inventory.openTerminal }
+  })
 })
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: async () => ({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
@@ -30,11 +34,46 @@ describe('local agent installation resolution', () => {
   beforeEach(async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
     vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
+    inventory.openTerminal.mockReset()
+    inventory.openTerminal.mockResolvedValue({ success: true })
     inventory.snapshots = {}
     inventory.bundledGitDir = null
   })
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('opens the installed CLI with native terminal arguments and the selected execution environment', async () => {
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    await expect(
+      openLocalAgentTerminal({ ...config, args: ['app-server'], env: { CUSTOM: 'explicit' } })
+    ).resolves.toEqual({ success: true })
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith({
+      executable: '/user/bin/codex',
+      args: [],
+      usesCherryExecutionEnv: false,
+      env: { PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', CUSTOM: 'explicit' }
+    })
+    inventory.snapshots.codex.availability = { source: 'mise', path: '/managed/new/codex' }
+    await openLocalAgentTerminal(config)
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        executable: '/managed/new/codex',
+        usesCherryExecutionEnv: true,
+        env: expect.objectContaining({ MISE_DATA_DIR: path.join(directory, 'feature.binary.data') })
+      })
+    )
+  })
+
+  it('does not open unsupported ACP adapters or silently replace a missing explicit program', async () => {
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'pi-acp', protocol: 'acp' })).rejects.toThrow(
+      'supported interactive CLI'
+    )
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    await expect(
+      openLocalAgentTerminal({ ...config, executableOverride: path.join(directory, 'missing') })
+    ).rejects.toThrow()
+    expect(inventory.openTerminal).not.toHaveBeenCalled()
   })
 
   it('blocks new connections while the CLI is being removed', async () => {

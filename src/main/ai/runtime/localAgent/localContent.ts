@@ -27,15 +27,19 @@ async function localPartContent(part: CherryMessagePart, images: boolean): Promi
   if (part.type !== 'file') throw new Error(`Unsupported local agent input: ${part.type}`)
   if (part.mediaType.startsWith('image/')) {
     if (!images) throw new Error(t('agent.session.attachment.image_unsupported'))
-    const materialized = await materializeNativeFilePart(part)
-    const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
-    if (!parsed?.isBase64 || !parsed.data)
-      throw new Error(t('agent.session.attachment.unavailable', { name: part.filename ?? part.mediaType }))
-    return { type: 'image', mimeType: parsed.mediaType ?? part.mediaType, data: parsed.data }
+    return { type: 'image', ...(await inlineFileContent(part)) }
   }
   const path = localFilePath(part)
   if (!path) throw new Error('The attached file has no local path')
   return { type: 'text', text: `Attached file: ${JSON.stringify(path)}` }
+}
+
+async function inlineFileContent(part: FileUIPart) {
+  const materialized = await materializeNativeFilePart(part)
+  const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
+  if (!parsed?.isBase64 || !parsed.data)
+    throw new Error(t('agent.session.attachment.unavailable', { name: part.filename ?? part.mediaType }))
+  return { mimeType: parsed.mediaType ?? part.mediaType, data: parsed.data }
 }
 
 function localFilePath(part: FileUIPart): string | undefined {
@@ -53,6 +57,11 @@ export async function acpContent(
 ): Promise<ContentBlock[]> {
   const content: ContentBlock[] = []
   for (const [index, part] of (input.message.data.parts ?? []).entries()) {
+    if (part.type === 'file' && part.mediaType.startsWith('audio/')) {
+      if (capabilities.audio !== true) throw new Error(t('agent.session.attachment.audio_unsupported'))
+      content.push({ type: 'audio', ...(await inlineFileContent(part)) })
+      continue
+    }
     if (part.type !== 'file' || part.mediaType.startsWith('image/')) {
       content.push(await localPartContent(part, capabilities.image === true))
       continue

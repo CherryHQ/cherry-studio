@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
+import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
@@ -28,19 +29,6 @@ const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
   'max',
   'ultra'
 ]
-
-const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
-  default: 'assistants.settings.reasoning_effort.default',
-  none: 'assistants.settings.reasoning_effort.off',
-  minimal: 'assistants.settings.reasoning_effort.minimal',
-  low: 'assistants.settings.reasoning_effort.low',
-  medium: 'assistants.settings.reasoning_effort.medium',
-  high: 'assistants.settings.reasoning_effort.high',
-  xhigh: 'assistants.settings.reasoning_effort.xhigh',
-  max: 'assistants.settings.reasoning_effort.max',
-  ultra: 'assistants.settings.reasoning_effort.ultra',
-  auto: 'assistants.settings.reasoning_effort.auto'
-}
 
 const SUMMARY_LABEL_KEYS: Record<ReasoningSummary, string> = {
   auto: 'agent.speed.summary.auto',
@@ -231,9 +219,7 @@ export function ModelSpeedControl({
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const getEffortLabel = (effort: string) =>
-    Object.hasOwn(EFFORT_LABEL_KEYS, effort)
-      ? t(EFFORT_LABEL_KEYS[effort as ThinkingOption])
-      : (nativeReasoning?.options.find((option) => option.value === effort)?.name ?? effort)
+    reasoningEffortLabel(effort, t, nativeReasoning?.options.find((option) => option.value === effort)?.name)
   const effortLabel = displayedEffort ? getEffortLabel(displayedEffort) : ''
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
@@ -299,7 +285,7 @@ export function ModelSpeedControl({
                     className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
                     aria-pressed={false}
                     onClick={() => selectEffort('default')}>
-                    {t(EFFORT_LABEL_KEYS.default)}
+                    {getEffortLabel('default')}
                   </Button>
                 ) : null}
                 {supportsFast ? (

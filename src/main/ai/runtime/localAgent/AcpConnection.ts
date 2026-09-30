@@ -16,6 +16,7 @@ import {
   type SessionUpdate,
   type SetSessionConfigOptionResponse
 } from '@agentclientprotocol/sdk'
+import type { FinishReason } from 'ai'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
@@ -64,6 +65,7 @@ export class AcpConnection extends LocalConnection {
   private configChange?: Promise<void>
   private modeConfigId?: string
   private legacyMode?: NonNullable<NewSessionResponse['modes']>
+  private readonly compactions = new Map<string, boolean>()
   private planId?: string
   private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
@@ -100,6 +102,7 @@ export class AcpConnection extends LocalConnection {
             params.update.sessionUpdate === 'config_option_update' ||
             params.update.sessionUpdate === 'usage_update' ||
             params.update.sessionUpdate === 'session_info_update' ||
+            params.update.sessionUpdate === 'notice' ||
             params.update.sessionUpdate === 'current_mode_update'
           )
             this.pendingUpdates.push(params)
@@ -227,7 +230,11 @@ export class AcpConnection extends LocalConnection {
     const response = await this.connection.agent.request('initialize', {
       protocolVersion: 1,
       clientInfo: { name: 'cherry-studio', version: '1' },
-      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true }
+      clientCapabilities: {
+        fs: { readTextFile: true, writeTextFile: true },
+        terminal: true,
+        session: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
+      }
     })
     if (response.protocolVersion !== 1) throw new Error('Unsupported ACP protocol version')
     this.localSessionInfo.protocolInfo = {
@@ -257,6 +264,7 @@ export class AcpConnection extends LocalConnection {
     this.localSessionInfo.resume = supportsResume || response.agentCapabilities?.loadSession === true
     this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
     this.localSessionInfo.images = this.promptCapabilities.image === true
+    this.localSessionInfo.audio = this.promptCapabilities.audio === true
     if (probe === true) return this
     this.loading = true
     try {
@@ -364,6 +372,7 @@ export class AcpConnection extends LocalConnection {
             .request<SetSessionConfigOptionResponse>('session/set_config_option', {
               sessionId: this.nativeId,
               configId,
+              ...(typeof value === 'boolean' ? { type: 'boolean' as const } : {}),
               value
             })
             .then((response) => this.readConfigOptions(response.configOptions))
@@ -376,6 +385,7 @@ export class AcpConnection extends LocalConnection {
   }
 
   private readConfigOptions(options?: SessionConfigOption[] | null) {
+    if (options != null) this.legacyMode = undefined
     this.localSessionInfo.configOptions =
       options
         ?.filter(
@@ -439,6 +449,32 @@ export class AcpConnection extends LocalConnection {
     return terminal
   }
   private update(update: SessionUpdate) {
+    if (update.sessionUpdate === 'compaction_update') {
+      const { compactionId, status } = update
+      if (!['in_progress', 'completed', 'failed', 'cancelled'].includes(status)) return
+      const wasCompacting = [...this.compactions.values()].some(Boolean)
+      if (status !== 'in_progress' || !this.compactions.has(compactionId))
+        this.compactions.set(compactionId, status === 'in_progress')
+      const isCompacting = [...this.compactions.values()].some(Boolean)
+      if (!wasCompacting && isCompacting) this.events.push({ type: 'compaction-start' })
+      if (wasCompacting && !isCompacting)
+        this.events.push(
+          status === 'failed' && update.error
+            ? { type: 'compaction-error', error: update.error }
+            : { type: 'compaction-complete' }
+        )
+      return
+    }
+    if (update.sessionUpdate === 'notice' && update.title.trim()) {
+      this.events.push({
+        type: 'notice',
+        notice: {
+          title: update.title,
+          description: update.description ?? undefined,
+          severity: update.severity === 'warning' || update.severity === 'error' ? update.severity : 'info'
+        }
+      })
+    }
     if (update.sessionUpdate === 'session_info_update' && update.title?.trim())
       this.events.push({ type: 'session-title', title: update.title })
 
@@ -576,6 +612,18 @@ export class AcpConnection extends LocalConnection {
     } catch (error) {
       this.finish(error)
     }
+  }
+  private clearCompaction() {
+    if ([...this.compactions.values()].some(Boolean)) this.events.push({ type: 'compaction-complete' })
+    this.compactions.clear()
+  }
+  protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
+    this.clearCompaction()
+    super.finish(error, finishReason)
+  }
+  protected override dispose() {
+    this.clearCompaction()
+    super.dispose()
   }
   protected async stop() {
     if (this.active && this.nativeId) {

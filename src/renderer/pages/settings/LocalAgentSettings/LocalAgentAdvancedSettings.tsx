@@ -31,7 +31,7 @@ export function LocalAgentAdvancedSettings({
   preset?: LocalAgentPreset
   detection?: LocalAgentDetection
   hasAgent: boolean
-  busyAction?: 'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model'
+  busyAction?: 'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   pendingSelection?: string
   feedback?: ReactNode
   onClose: () => void
@@ -42,6 +42,7 @@ export function LocalAgentAdvancedSettings({
   onSave: (config: LocalAgentConfiguration, name: string) => Promise<boolean>
 }) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(true)
   const [draftConfig, setDraftConfig] = useState(config)
   const [name, setName] = useState(savedName)
   const [args, setArgs] = useState(JSON.stringify(config.args.length ? config.args : (preset?.args ?? [])))
@@ -52,7 +53,7 @@ export function LocalAgentAdvancedSettings({
   const close = () => {
     if (busy) return
     if (dirty) setConfirmClose(true)
-    else onClose()
+    else setOpen(false)
   }
   const requestNavigation = useEffectEvent(close)
   useEffect(() => {
@@ -67,15 +68,16 @@ export function LocalAgentAdvancedSettings({
         args: JSON.parse(args),
         env: JSON.parse(env)
       })
-      if (await onSave(localRuntime, name.trim())) onClose()
+      if (await onSave(localRuntime, name.trim())) setOpen(false)
     } catch (error) {
       onError(String(error))
     }
   }
   return (
     <PageSidePanel
-      open
+      open={open}
       onClose={close}
+      onExitComplete={onClose}
       title={t('common.advanced_settings')}
       headerClassName="pb-0"
       bodyClassName="pt-0"
@@ -94,7 +96,7 @@ export function LocalAgentAdvancedSettings({
                   }}>
                   {t('common.cancel')}
                 </Button>
-                <Button variant="destructive" onClick={onClose}>
+                <Button variant="destructive" onClick={() => setOpen(false)}>
                   {t('agent.preview_pane.edit.discard')}
                 </Button>
               </div>

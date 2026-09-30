@@ -10,7 +10,7 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -158,6 +158,7 @@ export type AgentRuntimeEvent =
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
   | { type: 'session-title'; title: string }
+  | { type: 'notice'; notice: LocalAgentNotice }
   | { type: 'local-session-info'; info: LocalAgentSessionInfo }
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */

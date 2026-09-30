@@ -21,6 +21,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'local_agents.allow_always': '始终允许',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -103,6 +104,29 @@ describe('PermissionRequestComposer', () => {
         match: request.match,
         approved: true,
         updatedInput: { localPermissionOption: 'native-session-grant' }
+      })
+    )
+  })
+
+  it('translates standard ACP approval names without widening custom grants', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow_always', kind: 'allow_always', name: 'Always Allow' },
+        { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
+        { optionId: 'reject', kind: 'reject_once', name: 'Reject' }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByRole('button', { name: 'Allow only /tmp/project' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '始终允许' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'allow_always' }
       })
     )
   })

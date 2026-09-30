@@ -1,8 +1,8 @@
-import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import { LoaderCircle, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -56,14 +56,15 @@ import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agen
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -78,7 +79,6 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -88,7 +88,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { imageExts, textExts, documentExts } from '@shared/utils/file'
+import { imageExts, textExts, documentExts, audioExts } from '@shared/utils/file'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
@@ -116,7 +116,6 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
-import { LocalAgentModeControl } from './agent/LocalAgentModeControl'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
@@ -554,9 +553,16 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
   const { t } = useTranslation()
   const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
+  const isCompacting = compaction.status === 'compacting'
+  if (isCompacting)
+    return (
+      <Badge variant="secondary" role="status" aria-live="polite" className="gap-1.5 font-normal text-muted-foreground">
+        <LoaderCircle className="size-3 animate-spin" aria-hidden />
+        {t('chat.compaction.compacting')}
+      </Badge>
+    )
   if (percentage === null || !usage) return null
 
-  const isCompacting = compaction.status === 'compacting'
   const label = t('agent.right_pane.info.context_usage')
 
   return (
@@ -810,40 +816,12 @@ const AgentComposerInner = ({
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
     [pinnedToolIds]
   )
-  const [localInfo, setLocalInfo] = useState<LocalAgentSessionInfo | null>(null)
-  const [localThoughtSaving, setLocalThoughtSaving] = useState(false)
-  useIpcOn('ai.local_agents.session_updated', ({ sessionId: updatedSessionId, info }) => {
-    if (updatedSessionId === sessionId) setLocalInfo(info)
-  })
-  const selectLocalThoughtLevel = async (value: string) => {
-    if (!localInfo?.thoughtLevel || localThoughtSaving) return
-    setLocalThoughtSaving(true)
-    try {
-      await ipcApi.request('ai.local_agents.set_thought_level', {
-        sessionId,
-        configId: localInfo.thoughtLevel.id,
-        value
-      })
-    } catch (error) {
-      toast.error(String(error))
-    } finally {
-      setLocalThoughtSaving(false)
-    }
-  }
-  useEffect(() => {
-    setLocalInfo(null)
-    if (agent?.type !== 'local') return
-    let cancelled = false
-    void ipcApi
-      .request('ai.local_agents.session_info', { sessionId })
-      .then((info) => {
-        if (!cancelled) setLocalInfo(info)
-      })
-      .catch((error) => logger.warn('Failed to read local agent capabilities', { error }))
-    return () => {
-      cancelled = true
-    }
-  }, [agent?.id, agent?.type, sessionId, isStreaming])
+  const currentTabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const { info: localInfo, options: localOptions } = useLocalAgentSessionInfo(
+    sessionId,
+    agent?.type === 'local' && (!currentTabId || isActiveTab)
+  )
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
@@ -948,9 +926,14 @@ const AgentComposerInner = ({
   const supportedExts = useMemo(
     () =>
       agent?.type === 'local'
-        ? [...textExts, ...documentExts, ...(localInfo?.images ? imageExts : [])]
+        ? [
+            ...textExts,
+            ...documentExts,
+            ...(localInfo?.images ? imageExts : []),
+            ...(localInfo?.audio ? audioExts : [])
+          ]
         : fileCapabilities.supportedExts,
-    [agent?.type, localInfo?.images, fileCapabilities.supportedExts]
+    [agent?.type, localInfo?.images, localInfo?.audio, fileCapabilities.supportedExts]
   )
 
   useEffect(() => {
@@ -1825,24 +1808,6 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
-      {agent?.type === 'local' && localInfo?.mode && !launchOptions?.editing ? (
-        <LocalAgentModeControl
-          key={sessionId}
-          sessionId={sessionId}
-          mode={localInfo.mode}
-          disabled={isStreaming || localThoughtSaving}
-        />
-      ) : null}
-      {agent?.type === 'local' && localInfo?.thoughtLevel && !launchOptions?.editing ? (
-        <ModelSpeedControl
-          nativeReasoning={{
-            value: localInfo.thoughtLevel.currentValue,
-            options: localInfo.thoughtLevel.options,
-            onChange: selectLocalThoughtLevel
-          }}
-          disabled={isStreaming || localThoughtSaving}
-        />
-      ) : null}
       {model && !launchOptions?.editing ? (
         <ModelSpeedControl
           model={model}
@@ -1854,12 +1819,15 @@ const AgentComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
-      {agent?.type === 'local' && localInfo?.configOptions && !launchOptions?.editing ? (
+      {agent?.type === 'local' && localOptions && !launchOptions?.editing ? (
         <LocalAgentConfigControl
-          key={sessionId}
+          key={`config:${sessionId}`}
           sessionId={sessionId}
-          options={localInfo.configOptions}
-          disabled={isStreaming || localThoughtSaving}
+          presetId={agent.configuration?.localRuntime?.presetId}
+          options={localOptions.configOptions}
+          mode={localOptions.mode}
+          thoughtLevel={localOptions.thoughtLevel}
+          disabled={isStreaming || !localInfo}
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

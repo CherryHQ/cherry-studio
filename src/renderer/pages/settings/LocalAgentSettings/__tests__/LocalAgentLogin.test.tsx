@@ -147,14 +147,14 @@ const props = {
 }
 
 describe('external authentication', () => {
-  it('offers a help link for terminal authentication without an ineffective login action', () => {
+  it('hides the login action for terminal-only authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
         authMethods={[{ id: 'terminal-login', name: 'Launch pi in the terminal', type: 'terminal' }]}
       />
     )
-    expect(screen.getByRole('link', { name: '登录帮助' })).toHaveAttribute('href', props.helpUrl)
+    expect(screen.queryByRole('link', { name: '登录帮助' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(ipcApi.request).not.toHaveBeenCalled()

@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2, LogIn } from 'lucide-react'
+import { Loader2, LogIn } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -141,21 +141,7 @@ export function LocalAgentLogin({
       }
     }
   }
-  if (!available || !usableMethods?.length) return null
-  if (!directMethods.length) {
-    return (
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none">
-        <a href={helpUrl} target="_blank" rel="noreferrer">
-          <ExternalLink className="lucide-custom size-3.5 text-muted-foreground" />
-          {t('local_agents.login_help')}
-        </a>
-      </Button>
-    )
-  }
+  if (!available || !usableMethods?.length || !directMethods.length) return null
   return (
     <>
       <Button
