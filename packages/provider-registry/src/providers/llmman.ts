@@ -9,11 +9,11 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'http://localhost:17434'
+      baseUrl: 'http://127.0.0.1:17434'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'http://localhost:17434',
+      baseUrl: 'http://127.0.0.1:17434',
       reasoningFormat: { type: 'openai-chat' }
     }
   },

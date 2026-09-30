@@ -800,11 +800,11 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "http://localhost:17434"
+          "baseUrl": "http://127.0.0.1:17434"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "http://localhost:17434",
+          "baseUrl": "http://127.0.0.1:17434",
           "reasoningFormat": {
             "type": "openai-chat"
           }
@@ -2704,5 +2704,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "51aee51d49e25b18"
+  "version": "96bcc22234ce0e16"
 }
