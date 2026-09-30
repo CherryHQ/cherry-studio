@@ -170,7 +170,12 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options, context.ollamaNumCtx)
+      providerSpecificOptions = buildOllamaProviderOptions(
+        model,
+        actualProvider,
+        reasoningOptions.options,
+        context.ollamaNumCtx
+      )
       break
     case 'cherryin':
     case 'cherryin-chat':
@@ -423,10 +428,11 @@ function buildBedrockProviderOptions(
 
 function buildOllamaProviderOptions(
   model: Model,
+  provider: Provider,
   reasoningOptions: Record<string, unknown>,
   ollamaNumCtx?: OllamaNumCtxRequestSnapshot
 ): Record<string, Record<string, unknown>> {
-  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model)?.numCtx
+  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model, provider)?.numCtx
   return {
     ollama: {
       ...reasoningOptions,

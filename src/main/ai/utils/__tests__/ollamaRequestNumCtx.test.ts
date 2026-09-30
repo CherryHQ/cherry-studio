@@ -1,0 +1,57 @@
+import os from 'node:os'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { describe, expect, it } from 'vitest'
+
+import {
+  isLocalOllamaApiHost,
+  resolveOllamaRequestNumCtx
+} from '../ollamaRequestNumCtx'
+
+describe('isLocalOllamaApiHost', () => {
+  it('treats loopback and empty hosts as local', () => {
+    expect(isLocalOllamaApiHost('')).toBe(true)
+    expect(isLocalOllamaApiHost('http://127.0.0.1:11434')).toBe(true)
+    expect(isLocalOllamaApiHost('http://localhost:11434')).toBe(true)
+  })
+
+  it('treats remote hosts as non-local', () => {
+    expect(isLocalOllamaApiHost('http://ollama.lan:11434')).toBe(false)
+    expect(isLocalOllamaApiHost('https://192.168.1.10:11434')).toBe(false)
+  })
+})
+
+describe('resolveOllamaRequestNumCtx', () => {
+  const model = {
+    id: 'ollama::qwen3',
+    contextWindow: 131_072
+  } as const
+
+  it('caps by local RAM for a loopback Ollama endpoint', () => {
+    const provider = {
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://127.0.0.1:11434' }
+      }
+    } as Provider
+
+    const resolution = resolveOllamaRequestNumCtx(model as never, provider)
+    expect(resolution?.freeMemoryBytes).toBe(os.freemem())
+    expect(resolution?.totalMemoryBytes).toBe(os.totalmem())
+  })
+
+  it('does not cap by Cherry client RAM for a remote Ollama endpoint', () => {
+    const provider = {
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://nas.local:11434' }
+      }
+    } as Provider
+
+    const resolution = resolveOllamaRequestNumCtx(model as never, provider)
+    expect(resolution?.freeMemoryBytes).toBe(0)
+    expect(resolution?.totalMemoryBytes).toBe(0)
+    expect(resolution?.numCtx).toBe(131_072)
+  })
+})
