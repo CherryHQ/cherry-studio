@@ -6205,9 +6205,20 @@ describe('AgentSessionRuntimeService', () => {
     let service: InstanceType<typeof AgentSessionRuntimeService>
     let prime: MockInstance<(sessionId: string) => Promise<void>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
+    let onSessionIdleWithoutWarmLease: ReturnType<typeof vi.fn>
 
     beforeEach(() => {
       vi.useFakeTimers()
+      onSessionIdleWithoutWarmLease = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn(),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdleWithoutWarmLease
+      })
+      mocks.getSessionById.mockReturnValue({ agentId: 'agent-1' })
       service = new AgentSessionRuntimeService()
       prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
       releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
@@ -6225,12 +6236,13 @@ describe('AgentSessionRuntimeService', () => {
 
       service.releaseWarmLease('session-1', asSender(windowA))
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(onSessionIdleWithoutWarmLease).not.toHaveBeenCalled()
       expect(releaseIdle).not.toHaveBeenCalled()
 
       service.releaseWarmLease('session-1', asSender(windowB))
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 
@@ -6243,7 +6255,8 @@ describe('AgentSessionRuntimeService', () => {
       expect(releaseIdle).not.toHaveBeenCalled()
 
       vi.advanceTimersByTime(1)
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 
@@ -6257,7 +6270,7 @@ describe('AgentSessionRuntimeService', () => {
       service.acquireWarmLease('session-1', asSender(windowA))
 
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(onSessionIdleWithoutWarmLease).not.toHaveBeenCalled()
       expect(releaseIdle).not.toHaveBeenCalled()
       expect(prime).toHaveBeenCalledTimes(1)
     })
@@ -6283,7 +6296,8 @@ describe('AgentSessionRuntimeService', () => {
 
       windowB.destroy()
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 

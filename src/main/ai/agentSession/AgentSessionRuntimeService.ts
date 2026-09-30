@@ -1217,9 +1217,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (existing) clearTimeout(existing)
     const timer = setTimeout(() => {
       this.pendingWarmTeardowns.delete(sessionId)
-      // Prewarm opens a real runtime connection, so releasing the warm-query park alone would
+      // Prewarm opens a real runtime connection, so releasing runtime-specific warm state alone would
       // leak the primed subprocess until the idle TTL.
-      application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+      this.notifySessionIdleWithoutWarmLease(sessionId)
       this.releaseIdleConnection(sessionId)
     }, WARM_LEASE_RELEASE_DELAY_MS)
     timer.unref()
@@ -3313,6 +3313,20 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private resolveSessionAgentType(sessionId: string): string | undefined {
+    const fromEntry = this.entries.get(sessionId)?.agentType
+    if (fromEntry) return fromEntry
+    const session = agentSessionService.getById(sessionId)
+    if (!session?.agentId) return undefined
+    return agentService.getAgent(session.agentId)?.type
+  }
+
+  private notifySessionIdleWithoutWarmLease(sessionId: string, agentType?: string): void {
+    const resolvedAgentType = agentType ?? this.resolveSessionAgentType(sessionId)
+    if (!resolvedAgentType) return
+    runtimeDriverRegistry.getAgentSessionDriver(resolvedAgentType)?.onSessionIdleWithoutWarmLease?.(sessionId)
+  }
+
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
@@ -3331,7 +3345,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (lastResumeToken && this.warmLeaseHolders.has(sessionId)) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       } else if (lastResumeToken) {
-        runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdleWithoutWarmLease?.(sessionId)
+        this.notifySessionIdleWithoutWarmLease(sessionId, agentType)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
