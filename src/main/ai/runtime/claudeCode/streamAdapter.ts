@@ -713,12 +713,14 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
-  /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
+  /** Close every open text and flush-created reasoning part so sinks see terminated parts before errors escape. */
   finalizeOpenTextParts(): void {
     this.flushAllPendingContentDeltas(this.ctx)
+    this.closeUnbackedReasoningParts(this.ctx)
     this.closeActiveTextPart(this.ctx)
     for (const flow of this.flowContexts) {
       this.flushAllPendingContentDeltas(flow.stream)
+      this.closeUnbackedReasoningParts(flow.stream)
       this.closeActiveTextPart(flow.stream)
     }
   }
@@ -1333,6 +1335,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
     this.flushAllPendingContentDeltas(ctx)
+    this.closeUnbackedReasoningParts(ctx)
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,
@@ -2049,6 +2052,17 @@ export class ClaudeCodeStreamAdapter {
   private flushAllPendingContentDeltas(ctx: StreamContext): void {
     for (const blockIndex of [...ctx.pendingContentDeltasByIndex.keys()]) {
       this.flushPendingContentDeltas(blockIndex, ctx)
+    }
+  }
+
+  // Flush-created reasoning parts have no backing content block, so no block stop will ever close
+  // them; only stream termination knows they must end here.
+  private closeUnbackedReasoningParts(ctx: StreamContext): void {
+    for (const [blockIndex, partId] of [...ctx.reasoningBlocksByIndex]) {
+      if (ctx.activeBlockTypeByIndex.has(blockIndex)) continue
+      ctx.sink.enqueue({ type: 'reasoning-end', id: partId })
+      ctx.reasoningBlocksByIndex.delete(blockIndex)
+      if (ctx.currentReasoningPartId === partId) ctx.currentReasoningPartId = undefined
     }
   }
 

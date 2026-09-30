@@ -686,12 +686,9 @@ describe('ClaudeCodeStreamAdapter', () => {
     adapter.handleMessage(successResult())
 
     expect(parts.some((part) => part.type === 'text-start')).toBe(false)
-    expect(
-      parts
-        .filter((part) => part.type === 'reasoning-delta')
-        .map((part) => (part as any).delta)
-        .join('')
-    ).toBe(thinking)
+    expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end', 'finish'])
+    expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: thinking })
+    expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
   it('does not duplicate buffered text when an assistant message arrives before the result', () => {
