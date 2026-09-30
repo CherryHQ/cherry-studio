@@ -856,8 +856,15 @@ class ProviderRegistryService {
         if (Object.keys(dialect).length > 0) config.dialect = dialect
         // `reasoningFormat` is user-owned when set; otherwise the registry's
         // protocol default (if any) carries through so custom providers can
-        // override it (e.g. `self-hosted` for vLLM/SGLang relays).
-        const reasoningFormat = rowConfig?.reasoningFormat ?? presetConfig?.reasoningFormat
+        // override it (e.g. `self-hosted` for vLLM/SGLang relays). A selector-only
+        // row matching the registry's format type is a lossy UI persist — keep the
+        // registry's wire instead of collapsing to the generic profile.
+        const userFormat = rowConfig?.reasoningFormat
+        const registryFormat = presetConfig?.reasoningFormat
+        const reasoningFormat =
+          userFormat && registryFormat?.wire && userFormat.type === registryFormat.type
+            ? registryFormat
+            : (userFormat ?? registryFormat)
         if (reasoningFormat !== undefined) config.reasoningFormat = reasoningFormat
         merged[ep] = config
       }
