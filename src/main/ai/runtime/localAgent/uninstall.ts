@@ -7,7 +7,7 @@ import { parse as parseToml } from 'smol-toml'
 import { application } from '@application'
 import { isPathWithin } from '@main/utils/binaryEnv'
 
-import { systemAgentEntry } from './launch'
+import { systemAgentEntry, systemAgentWrapper } from './launch'
 
 export async function uninstallBinaryAgent(executable: string, detectedPath: string): Promise<boolean> {
   const entry = systemAgentEntry(executable)
@@ -19,11 +19,7 @@ export async function uninstallBinaryAgent(executable: string, detectedPath: str
       : /^#!\/bin\/sh\nexec '([^\n]+)' "\$@"\n$/.exec(wrapper)
   if (!match) return false
   const command = process.platform === 'win32' ? match[1].replace(/%%/g, '%') : match[1].replace(/'\\''/g, "'")
-  const expected =
-    process.platform === 'win32'
-      ? `@echo off\r\n"${command.replace(/%/g, '%%')}" %*\r\n`
-      : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
-  if (wrapper !== expected) return false
+  if (wrapper !== systemAgentWrapper(command)) return false
   const installationRoot = application.getPath('external.acp.agents')
   const root = await fs.realpath(installationRoot)
   const resolvedCommand = await fs.realpath(command)

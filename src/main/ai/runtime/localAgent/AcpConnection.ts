@@ -445,21 +445,24 @@ export class AcpConnection extends LocalConnection {
             .some((option) => option.value === value))
     )
       throw new Error('This session option is no longer available')
-    this.configChange =
-      category === 'mode' && !this.modeConfigId && typeof value === 'string'
-        ? this.connection.agent.request('session/set_mode', { sessionId: this.nativeId, modeId: value }).then(() => {
-            if (this.legacyMode) this.legacyMode.currentModeId = value
-            if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
-            this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
-          })
-        : this.connection.agent
-            .request<SetSessionConfigOptionResponse>('session/set_config_option', {
-              sessionId: this.nativeId,
-              configId,
-              ...(typeof value === 'boolean' ? { type: 'boolean' as const } : {}),
-              value
-            })
-            .then((response) => this.readConfigOptions(response.configOptions))
+    if (category === 'mode' && !this.modeConfigId && typeof value === 'string') {
+      this.configChange = this.connection.agent
+        .request('session/set_mode', { sessionId: this.nativeId, modeId: value })
+        .then(() => {
+          if (this.legacyMode) this.legacyMode.currentModeId = value
+          if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
+          this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+        })
+    } else {
+      this.configChange = this.connection.agent
+        .request<SetSessionConfigOptionResponse>('session/set_config_option', {
+          sessionId: this.nativeId,
+          configId,
+          ...(typeof value === 'boolean' ? { type: 'boolean' as const } : {}),
+          value
+        })
+        .then((response) => this.readConfigOptions(response.configOptions))
+    }
     try {
       await this.configChange
       return this.localSessionInfo
@@ -486,26 +489,27 @@ export class AcpConnection extends LocalConnection {
 
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     this.modeConfigId = mode?.id
-    this.localSessionInfo.mode =
-      mode?.type === 'select'
-        ? {
-            id: mode.id,
-            currentValue: mode.currentValue,
-            options: mode.options
-              .flatMap((option) => ('group' in option ? option.options : [option]))
-              .map(({ value, name, description }) => ({ value, name, description: description ?? undefined }))
-          }
-        : this.legacyMode
-          ? {
-              id: 'legacy-mode',
-              currentValue: this.legacyMode.currentModeId,
-              options: this.legacyMode.availableModes.map(({ id, name, description }) => ({
-                value: id,
-                name,
-                description: description ?? undefined
-              }))
-            }
-          : undefined
+    if (mode?.type === 'select') {
+      this.localSessionInfo.mode = {
+        id: mode.id,
+        currentValue: mode.currentValue,
+        options: mode.options
+          .flatMap((option) => ('group' in option ? option.options : [option]))
+          .map(({ value, name, description }) => ({ value, name, description: description ?? undefined }))
+      }
+    } else if (this.legacyMode) {
+      this.localSessionInfo.mode = {
+        id: 'legacy-mode',
+        currentValue: this.legacyMode.currentModeId,
+        options: this.legacyMode.availableModes.map(({ id, name, description }) => ({
+          value: id,
+          name,
+          description: description ?? undefined
+        }))
+      }
+    } else {
+      this.localSessionInfo.mode = undefined
+    }
     const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
     this.localSessionInfo.thoughtLevel =
       thought?.type === 'select'

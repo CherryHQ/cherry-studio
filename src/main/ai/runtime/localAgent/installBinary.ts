@@ -15,7 +15,7 @@ import { isPathWithin } from '@main/utils/binaryEnv'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 
 import type { LocalAgentBinaryRecipe } from './installRecipe'
-import { systemAgentEntry } from './launch'
+import { systemAgentEntry, systemAgentWrapper } from './launch'
 
 const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
@@ -122,11 +122,7 @@ export async function installBinaryAgent(
     await fs.rm(archive)
     await fs.mkdir(bin, { recursive: true })
     const entry = systemAgentEntry(executable)
-    const wrapper =
-      process.platform === 'win32'
-        ? `@echo off\r\n"${command.replace(/%/g, '%%')}" %*\r\n`
-        : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
-    await fs.writeFile(entry, wrapper, { flag: 'wx', mode: 0o755 })
+    await fs.writeFile(entry, systemAgentWrapper(command), { flag: 'wx', mode: 0o755 })
     published = true
     return entry
   } finally {

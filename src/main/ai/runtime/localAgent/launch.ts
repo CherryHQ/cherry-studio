@@ -26,6 +26,12 @@ export function systemAgentEntry(executable: string): string {
   return application.getPath('external.acp.bin', `${executable}${process.platform === 'win32' ? '.cmd' : ''}`)
 }
 
+export function systemAgentWrapper(command: string): string {
+  return process.platform === 'win32'
+    ? `@echo off\r\n"${command.replace(/%/g, '%%')}" %*\r\n`
+    : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
+}
+
 async function selectAvailableInstallation(preset: LocalAgentPreset, snapshots: Record<string, BinaryToolSnapshot>) {
   const installed = selectInstallation(preset, snapshots)
   if (installed.source !== 'none') return installed
