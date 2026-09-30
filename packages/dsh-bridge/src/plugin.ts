@@ -34,7 +34,16 @@ import {
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+export const inject = [
+  'approval',
+  'agents',
+  'tools',
+  'tokenMeter',
+  'subagents',
+  'userQuestions',
+  'planMode',
+  'sessions'
+]
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -60,6 +69,7 @@ export function apply(ctx: Context): void {
   delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
+  const openedSessionIds = new Set<string>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
@@ -104,6 +114,7 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(
     () => () => {
+      openedSessionIds.clear()
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
     },
     'cherry-bridge.tools'
@@ -112,6 +123,11 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'session/flush': {
+        const { sessionId } = params as BridgeHostParams<'session/flush'>
+        await ctx.sessions.flush(requireAgent(sessionId).session)
+        return {}
+      }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
@@ -188,22 +204,12 @@ export function apply(ctx: Context): void {
     try {
       replaceTools(params.sessionId, params.tools)
       if (params.resume) {
-        try {
-          const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
-          if (resumed.agent.session.header.cwd !== params.cwd) {
-            await resumed.dispose()
-            throw new Error(
-              `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
-            )
-          }
-        } catch (error) {
-          if (!isMissingSessionError(error)) throw error
-          // No persisted log for this id yet — degrade to a fresh create (pi parity).
-          await ctx.agents.create({
-            sessionId: SessionId(params.sessionId),
-            meta: { cwd: params.cwd },
-            agentOptions
-          })
+        const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
+        if (resumed.agent.session.header.cwd !== params.cwd) {
+          await resumed.dispose()
+          throw new Error(
+            `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
+          )
         }
       } else {
         await ctx.agents.create({
@@ -212,8 +218,10 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
+      openedSessionIds.add(params.sessionId)
       return {}
     } catch (error) {
+      openedSessionIds.delete(params.sessionId)
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
@@ -347,6 +355,13 @@ export function apply(ctx: Context): void {
     }
   })
 
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (!openedSessionIds.has(agent.id)) return
+    const lastEvent = agent.session.snapshotEvents().at(-1)
+    if (!lastEvent) return
+    link.notify('session/state', { sessionId: agent.id, sessionEventSeq: lastEvent.seq, status })
+  })
+
   // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
   // read at start while the child agent is live and cached for the end edge.
   const subagentRunParents = new Map<string, string>()
@@ -376,10 +391,11 @@ export function apply(ctx: Context): void {
     })
   })
 
-  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  /** Resolve execution ownership; a host-opened fork's parentSession is history lineage only. */
   function rootSessionOf(agent: Agent): string {
     let current = agent
     while (true) {
+      if (openedSessionIds.has(current.id)) return current.id
       const parentId = current.session.header.parentSession
       if (parentId === undefined) return current.id
       const parent = ctx.agents.get(parentId)
@@ -393,11 +409,12 @@ export function apply(ctx: Context): void {
     const agent = exec.agent
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
-    const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    const delegated = agent.id !== rootSessionId
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }
+    let browserApproval: { kind: 'ask'; reason: string } | undefined
     try {
       const guard = await link.request(
         'guard/check',
@@ -410,6 +427,7 @@ export function apply(ctx: Context): void {
         exec.signal
       )
       if (guard.kind === 'deny') return guard
+      if (guard.kind === 'ask') browserApproval = guard
     } catch {
       return {
         kind: 'deny' as const,
@@ -427,9 +445,10 @@ export function apply(ctx: Context): void {
         reason: `no bridge policy is reachable for delegated agent "${agent.id}"`
       }
     }
-    return delegated
+    const decision = await (delegated
       ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
-      : decideToolCall(policy, exec.name, exec.arguments)
+      : decideToolCall(policy, exec.name, exec.arguments))
+    return decision.kind === 'deny' ? decision : (browserApproval ?? decision)
   })
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.
@@ -485,12 +504,6 @@ export function apply(ctx: Context): void {
       return req.signal?.aborted ? 'cancelled' : 'rejected'
     }
   })
-}
-
-/** dsh has no error code for a missing persisted session; the loop throws `session "<id>" not found`. */
-function isMissingSessionError(error: unknown): boolean {
-  if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return true
-  return /\bnot found\b/i.test(error instanceof Error ? error.message : String(error))
 }
 
 /** Attach the asked-about call's arguments: latest `tool/call` with the request's callId. */

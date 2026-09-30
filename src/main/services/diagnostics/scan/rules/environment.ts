@@ -19,6 +19,16 @@ export const environmentRules: readonly ScanRule[] = [
     anchors: [/\bSQLITE_BUSY(?:_[A-Z]+)*\b/]
   },
   {
+    id: 'environment-renderer-crashed',
+    domain: 'environment',
+    attribution: 'app-bug',
+    devMessage: 'A renderer process crashed or ran out of memory.',
+    anchors: [
+      /Renderer process crashed with:|(?:Migration|Relocation) renderer process (?:gone|exited)/i,
+      /["']reason["']\s*:\s*["'](?:crashed|oom)["']/i
+    ]
+  },
+  {
     id: 'environment-permission-denied',
     domain: 'environment',
     attribution: 'user-fixable',

@@ -129,6 +129,10 @@ class ToolApprovalRegistry {
     return this.pending.size
   }
 
+  hasSession(sessionId: string): boolean {
+    return [...this.pending.values()].some((entry) => entry.sessionId === sessionId)
+  }
+
   private detachAbort(entry: PendingApproval): void {
     if (entry.signal && entry.abortListener) {
       entry.signal.removeEventListener('abort', entry.abortListener)

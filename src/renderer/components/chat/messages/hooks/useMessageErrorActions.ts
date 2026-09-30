@@ -1,9 +1,13 @@
-import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
+
+import type { MessageListItem } from '../types'
+import { getMessageListItemModel } from '../utils/messageListItem'
 
 const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
 const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
@@ -12,12 +16,11 @@ type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'op
 
 interface MessageErrorActionOptions {
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
-  persistDiagnosis?: NonNullable<ErrorDetailContentProps['onDiagnosisComplete']>
+  getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
 }
 
-export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
-  const navigate = useNavigate()
-  const { diagnosticReport, persistDiagnosis } = options
+export function useMessageErrorActions(options: MessageErrorActionOptions): MessageErrorActions {
+  const { diagnosticReport, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -43,24 +46,21 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
   const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>(
     async (input) => {
       const { showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
+      const model = getMessageListItemModel(input.message)
       showErrorDetailPopup({
         error: input.error,
-        blockId: input.partId,
-        cachedDiagnosis: input.cachedDiagnosis,
-        diagnosisContext: input.diagnosisContext,
-        diagnosticReport,
-        onDiagnosisComplete: persistDiagnosis
+        subject: getDoctorSubject(input.message),
+        diagnosisContext: { providerId: model?.provider, modelId: model?.id },
+        localizedErrorMessage: input.localizedErrorMessage,
+        diagnosticReport
       })
     },
-    [diagnosticReport, persistDiagnosis]
+    [diagnosticReport, getDoctorSubject]
   )
 
-  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
-    (target) => {
-      void navigate({ to: target })
-    },
-    [navigate]
-  )
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>((target) => {
+    openRoute(target)
+  }, [])
 
   return useMemo(
     () => ({

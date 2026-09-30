@@ -1,0 +1,30 @@
+diff --git a/lib/index.js b/lib/index.js
+index c9a1f2de3fe2d6eb8bee1f5fcc7144b2b4611222..5b6ef8b315da5d55f8803114a05b6929cdc558be 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -168,8 +168,9 @@ function resolveDshLaunch(options = {}, callerCwd = process.cwd()) {
+ 	const patches = [...dshLaunch.patches, ...(options.patches ?? []).map((path) => resolve(callerCwd, path))];
+ 	const dshHome = options.dshHome === void 0 ? void 0 : resolve(callerCwd, options.dshHome);
+ 	return {
+-		command: process.execPath,
++		command: options.runtimeExecutable ?? process.execPath,
+ 		args: [
++			...options.runtimeArgs ?? [],
+ 			...dshLaunch.nodeArgs,
+ 			"--profile",
+ 			profile,
+diff --git a/lib/types/types.d.ts b/lib/types/types.d.ts
+index e8b4b15c3be69d0c1c16bd95422a543345617dfd..703403967f57ce9fda782bcd93ba15eabfd2b5d9 100644
+--- a/lib/types/types.d.ts
++++ b/lib/types/types.d.ts
+@@ -18,6 +18,10 @@ export interface HarnessNotification {
+ export type NotificationFilter = (notification: HarnessNotification) => boolean;
+ /** Launch and timeout options for {@link HarnessClient}. */
+ export interface HarnessClientOptions {
++    /** JavaScript runtime executable; defaults to the host process executable. */
++    runtimeExecutable?: string;
++    /** Runtime flags inserted before the DSH entry point. */
++    runtimeArgs?: string[];
+     /** Absolute or caller-relative dsh CLI module; omitted resolves this package's same-version dependency. */
+     dshBin?: string;
+     /** Named profile serving the SDK protocol (default `sdk`). */

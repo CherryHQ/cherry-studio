@@ -1,7 +1,7 @@
 import { Profiler } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
-import { bench, describe, vi } from 'vitest'
+import { describe, test, vi } from 'vitest'
 
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -140,16 +140,14 @@ function createComponentBenchmark(mode: ReferenceMode, scenario: UpdateScenario)
       }
     },
     options: {
-      iterations: 20,
-      warmupIterations: 5,
-      setup() {
+      beforeAll() {
         container = document.createElement('div')
         document.body.appendChild(container)
         root = createRoot(container)
         commitCount = 0
         renderDrawer(false, scenario === 'add-all' ? noModels : allModels)
       },
-      teardown() {
+      afterAll() {
         if (commitCount < 2) {
           throw new Error('Model list benchmark update did not commit')
         }
@@ -164,10 +162,15 @@ function createComponentBenchmark(mode: ReferenceMode, scenario: UpdateScenario)
 
 describe(`${MODEL_COUNT} model drawer component updates`, () => {
   for (const scenario of ['operation-status', 'add-all', 'remove-all'] as const) {
-    const stable = createComponentBenchmark('stable', scenario)
-    const churn = createComponentBenchmark('churn', scenario)
+    test(scenario, async ({ bench }) => {
+      const stable = createComponentBenchmark('stable', scenario)
+      const churn = createComponentBenchmark('churn', scenario)
 
-    bench(`${scenario}: stable list references`, stable.run, stable.options)
-    bench(`${scenario}: recreated list references (previous baseline)`, churn.run, churn.options)
+      await bench.compare(
+        bench(`${scenario}: stable list references`, stable.options, stable.run),
+        bench(`${scenario}: recreated list references (previous baseline)`, churn.options, churn.run),
+        { iterations: 20, warmupIterations: 5 }
+      )
+    })
   }
 })

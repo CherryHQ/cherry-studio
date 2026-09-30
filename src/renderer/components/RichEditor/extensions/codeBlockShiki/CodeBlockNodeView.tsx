@@ -67,7 +67,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
 
   // Special view: render diagram preview with toggle to edit source
   if (isSpecialView && showPreview) {
-    const SpecialComponent = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
+    const SpecialComponent = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS].component
     const codeContent = node.textContent || ''
 
     return (

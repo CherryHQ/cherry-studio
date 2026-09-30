@@ -290,10 +290,8 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  */
 export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiDirectProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   return resolvePiProviderInjectionFromSnapshot(provider, model)
 }
@@ -311,7 +309,12 @@ export function resolvePiProviderInjectionFromSnapshot(
   }
 
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
-  if (!resolvedApiKey.value.trim()) throw new PiMissingApiKeyError(provider.id)
+  if (!resolvedApiKey.value.trim()) {
+    // Keyless local servers (registry authOptional) need no credential; the
+    // placeholder keeps the pi-side auth storage non-empty.
+    if (provider.authOptional !== true) throw new PiMissingApiKeyError(provider.id)
+    return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
+  }
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`Pi provider credentials changed during materialization: ${provider.id}`)
   }
@@ -348,10 +351,8 @@ export async function resolvePiProviderInjectionForSession(
  */
 export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (usesPiGateway(provider)) {
@@ -387,7 +388,10 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   }
 
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
-  if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
+  // Keyless local servers (registry authOptional) carry no credential at all.
+  if (!apiKeys.some((entry) => entry.key.trim()) && provider.authOptional !== true) {
+    throw new PiMissingApiKeyError(providerId)
+  }
 }
 
 /** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */

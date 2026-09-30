@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 
-const { loggerDebug } = vi.hoisted(() => ({ loggerDebug: vi.fn() }))
+const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), loggerWarn: vi.fn() }))
 const getById = vi.fn()
 const listServers = vi.fn()
 const listTools = vi.fn()
@@ -69,7 +69,7 @@ vi.mock('@logger', () => ({
       debug: loggerDebug,
       error: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn()
+      warn: loggerWarn
     })
   }
 }))
@@ -104,6 +104,7 @@ describe('McpCatalogService', () => {
     getServerCapabilities.mockReset()
     getServerCapabilities.mockReturnValue({ tools: {} })
     loggerDebug.mockReset()
+    loggerWarn.mockReset()
     runtimeListResources.mockReset()
     runtimeListPrompts.mockReset()
     cacheStore.clear()
@@ -370,6 +371,57 @@ describe('McpCatalogService', () => {
     }
   })
 
+  it('backs off after a failed refresh triggered by a tool list change', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      getById.mockReturnValue(server())
+      listTools.mockRejectedValue(new Error('connection failed'))
+      const service = new McpCatalogService()
+      await (service as unknown as { onInit(): Promise<void> }).onInit()
+      const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
+        (event: { serverId: string }) => void
+      ]
+
+      onToolListChanged({ serverId: 'server-1' })
+      await vi.waitFor(() =>
+        expect(loggerWarn).toHaveBeenCalledWith(
+          'Failed to refresh tools after tool list changed notification',
+          expect.objectContaining({ serverId: 'server-1' })
+        )
+      )
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off after a failed prewarm', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
+      getById.mockReturnValue(server())
+      listTools.mockRejectedValue(new Error('connection failed'))
+      const service = new McpCatalogService()
+
+      await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('warmToolsCache single-flights concurrent refreshes for the same server', async () => {
     getById.mockReturnValue(server())
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })
@@ -390,6 +442,22 @@ describe('McpCatalogService', () => {
     await service.refreshTools('server-1')
 
     expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
+  })
+
+  it('publishes the replacement catalog after a restart clears the shared cache', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValueOnce({ tools: [sdkTool('search')] }).mockResolvedValueOnce({ tools: [sdkTool('fetch')] })
+
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    await service.refreshTools('server-1')
+    service.clearSharedToolsCache('server-1')
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['fetch'])
+    expect(listener).toHaveBeenCalledTimes(3)
   })
 
   it('onToolsCacheUpdated does not fire when a refresh rewrites identical content', async () => {

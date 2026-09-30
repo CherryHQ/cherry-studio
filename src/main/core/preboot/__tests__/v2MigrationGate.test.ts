@@ -46,6 +46,7 @@ const recoveryMock = vi.fn()
 vi.mock('@main/services/startupRecovery', () => ({ showStartupRecovery: recoveryMock }))
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
+const getLocaleMock = vi.fn().mockReturnValue('en-US')
 const relaunchMock = vi.fn()
 const exitMock = vi.fn()
 
@@ -74,13 +75,14 @@ const defaultResolveResult = {
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
     // The gate now imports the version-policy fns and the error helpers through the
-    // barrel, so they live on this mock. Both helpers are pure — keep the real
+    // barrel, so they live on this mock. The helpers are pure — keep the real
     // implementations so schemaOutOfSyncError() fixtures are still detected and the
     // dialogs carry the real flattened cause chain.
-    const { describeErrorChain, isSchemaOutOfSyncError } = (await vi.importActual(
+    const { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
       '@data/migration/v2/core/migrationErrors'
     )) as {
       describeErrorChain: (error: unknown) => string
+      isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -104,8 +106,9 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
-      isSchemaOutOfSyncError,
-      describeErrorChain
+      describeErrorChain,
+      isMigrationStorageError,
+      isSchemaOutOfSyncError
     }
   })
 }
@@ -117,6 +120,7 @@ function stubElectron() {
       whenReady: whenReadyMock,
       relaunch: relaunchMock,
       exit: exitMock,
+      getLocale: getLocaleMock,
       getVersion: vi.fn().mockReturnValue('2.0.0')
     },
     dialog: {
@@ -130,6 +134,9 @@ function stubApplication() {
   vi.doMock('@application', async () => {
     const { mockApplicationFactory } = await import('@test-mocks/main/application')
     const module = mockApplicationFactory()
+    module.application.getPath.mockImplementation((key: string) =>
+      key === 'cherry.home' ? '/mock/cherry-home' : '/mock/path'
+    )
     Object.assign(module.application, { quit: appQuitMock, relaunch: appRelaunchMock, forceExit: forceExitMock })
     return module
   })
@@ -168,6 +175,7 @@ beforeEach(() => {
   recoveryMock.mockReset().mockResolvedValue('exit')
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
+  getLocaleMock.mockReset().mockReturnValue('en-US')
   relaunchMock.mockReset()
   exitMock.mockReset()
   setVersionIncompatibleMock.mockReset()
@@ -655,6 +663,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock.mock.calls[0][1]).toContain('/mock/cherry-home')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

@@ -131,6 +131,25 @@ describe('AiSdkToOpenAiSse', () => {
 
       expect(events.filter((e) => e.choices[0].delta.tool_calls).length).toBe(1)
     })
+
+    it('emits an empty arguments object for an arg-less tool call', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      // A tool whose schema declares no parameters resolves with `input: undefined`;
+      // `JSON.stringify(undefined)` is `undefined`, which JSON serialization drops, so
+      // the emitted tool_call would lack the required `arguments` field.
+      const stream = createMockStream([
+        { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'list_files', input: undefined },
+        createFinish('tool-calls')
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const toolChunk = events.find((e) => e.choices[0].delta.tool_calls)
+      const emitted = toolChunk?.choices[0].delta.tool_calls?.[0]
+
+      // `arguments` must survive SSE serialization, which is what an OpenAI client parses.
+      expect(emitted?.function?.arguments).toBe('{}')
+      expect(JSON.parse(JSON.stringify(emitted ?? {}))).toMatchObject({ function: { arguments: '{}' } })
+    })
   })
 
   describe('Finish Reasons', () => {

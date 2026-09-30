@@ -17,6 +17,7 @@ import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 
+import { MigrationDatabaseError } from './migrationErrors'
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
@@ -37,28 +38,46 @@ export class MigrationDbService {
   static create(paths: MigrationPaths): MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
-    const sqlite = new Database(paths.databaseFile)
+    let sqlite: Database.Database
     try {
-      const db = drizzle({ client: sqlite, casing: 'snake_case' })
+      sqlite = new Database(paths.databaseFile)
+    } catch (error) {
+      throw new MigrationDatabaseError('open', error)
+    }
+    try {
+      // WAL mode persisted in DB file; synchronous=NORMAL is WAL's safe pairing.
       sqlite.pragma('journal_mode = WAL')
       sqlite.pragma('synchronous = NORMAL')
       logger.info('WAL mode configured')
+    } catch (error) {
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('wal', error)
+    }
 
-      if (!fs.existsSync(paths.migrationsFolder)) {
-        throw new Error(`Migrations folder not found: ${paths.migrationsFolder}`)
-      }
+    // Validate migrations folder exists before attempting schema migration
+    if (!fs.existsSync(paths.migrationsFolder)) {
+      closeSilently(sqlite)
+      throw new Error(
+        `Migrations folder not found: ${paths.migrationsFolder}. ` +
+          'This usually means the application was not packaged correctly.'
+      )
+    }
+    logger.info('Migrations folder verified', { path: paths.migrationsFolder })
+
+    // Schema migrations + custom SQL (triggers, FTS, etc. — all idempotent). Shared with
+    // DbService so table-recreate migrations get the same out-of-transaction FK handling;
+    // it restores this connection's setting (ON by default) when it returns.
+    try {
+      const db = drizzle({ client: sqlite, casing: 'snake_case' })
       applyMigrations(db, paths.migrationsFolder)
       // Migrators validate foreign keys after importing interdependent records.
       sqlite.pragma('foreign_keys = OFF')
       logger.info('Migration database ready')
       return new MigrationDbService(db, sqlite)
     } catch (error) {
-      try {
-        sqlite.close()
-      } catch (closeError) {
-        logger.warn('Failed to close migration database', closeError as Error)
-      }
-      throw new Error('Migration database initialization failed', { cause: error })
+      // Close the SQLite connection to avoid dangling handles, then re-throw with context.
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('schema', error)
     }
   }
 
@@ -73,6 +92,14 @@ export class MigrationDbService {
     } catch (error) {
       logger.warn('Failed to close migration database connection', error as Error)
     }
+  }
+}
+
+function closeSilently(sqlite: Database.Database): void {
+  try {
+    sqlite.close()
+  } catch {
+    // Preserve the database setup failure that triggered cleanup.
   }
 }
 
