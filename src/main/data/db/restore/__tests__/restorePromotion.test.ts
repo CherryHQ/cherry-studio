@@ -288,6 +288,17 @@ const noteAside = () => join(userData, 'restore-aside', RID, 'note.md')
 const liveLocalStorageDir = () => join(userData, 'Local Storage')
 const stagedLocalStorageDir = () => join(stagingDir(), 'resources', 'Local Storage')
 
+function localStorageManifest(): RestoreJournal['fileResources'] {
+  return [
+    {
+      kind: 'overwrite',
+      stagingPath: `restore-staging/${RID}/resources/Local Storage`,
+      livePath: 'Local Storage',
+      asidePath: `restore-staging/${RID}/aside/Local Storage`
+    }
+  ]
+}
+
 /** Crash arrangement helper: the additive step (blob + KB dir moved staging→live) already ran. */
 function arrangeAdditiveMoved(): void {
   renameSync(join(stagingDir(), 'files', 'blob-1'), liveBlob())
@@ -1047,17 +1058,6 @@ describe('runRestorePromotion', () => {
   })
 
   describe('Chromium runtime directory overwrites', () => {
-    function localStorageManifest(): RestoreJournal['fileResources'] {
-      return [
-        {
-          kind: 'overwrite',
-          stagingPath: `restore-staging/${RID}/resources/Local Storage`,
-          livePath: 'Local Storage',
-          asidePath: `restore-staging/${RID}/aside/Local Storage`
-        }
-      ]
-    }
-
     function seedLocalStorageFixtures(): void {
       mkdirSync(liveLocalStorageDir(), { recursive: true })
       writeFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'LIVE')
