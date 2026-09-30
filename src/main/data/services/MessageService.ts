@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -259,6 +260,8 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
   for (const part of data?.parts ?? []) {
     if (part.type === 'file') {
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (isToolUIPart(part) && part.state === 'output-available' && isNativeImageOutput(part.output)) {
+      for (const file of part.output.files) add(file.id, 'tool_output')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }

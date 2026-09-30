@@ -13,3 +13,21 @@ export function isNativeImageGenerationAvailable(model: Model | undefined, provi
     normalizeModelId(getRawModelId(model)) === 'grok-4-7'
   )
 }
+
+export const NATIVE_IMAGE_TOOL_NAME = 'imageGeneration'
+
+export interface NativeImageOutput {
+  nativeImage: true
+  files: Array<{ id: string; name: string }>
+  prompt?: string
+}
+
+export function isNativeImageOutput(value: unknown): value is NativeImageOutput {
+  if (typeof value !== 'object' || value === null) return false
+  const output = value as Partial<NativeImageOutput>
+  return (
+    output.nativeImage === true &&
+    Array.isArray(output.files) &&
+    output.files.every((file) => typeof file?.id === 'string' && typeof file?.name === 'string')
+  )
+}

@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto'
 
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
+import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
+
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -183,7 +185,15 @@ export async function toModelMessages(
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
+  const storedImages = messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) =>
+      isToolUIPart(part) && part.state === 'output-available' && isNativeImageOutput(part.output)
+        ? { ...part, output: { files: part.output.files, prompt: part.output.prompt } }
+        : part
+    )
+  }))
+  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(storedImages), tools)
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )

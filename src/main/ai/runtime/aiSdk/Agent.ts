@@ -15,6 +15,7 @@ import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
+import { NATIVE_IMAGE_TOOL_NAME } from '@shared/ai/nativeImageGeneration'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -23,6 +24,7 @@ import { serializeError } from '../../utils/serializeError'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
+import { storeNativeImageOutput } from './nativeImageOutput'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
@@ -329,6 +331,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return crypto.randomUUID()
         }
       })
+      const nativeImageCalls = new Set<string>()
+      const storedImages = new Map<string, Awaited<ReturnType<typeof storeNativeImageOutput>>>()
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
       let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
@@ -358,7 +362,23 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             pendingFinish = value
             continue
           }
-          await writer.write(value)
+          if (
+            value.type === 'tool-input-available' &&
+            value.providerExecuted &&
+            value.toolName === NATIVE_IMAGE_TOOL_NAME
+          ) {
+            nativeImageCalls.add(value.toolCallId)
+          }
+          if (value.type === 'tool-output-available' && nativeImageCalls.has(value.toolCallId)) {
+            let output = storedImages.get(value.toolCallId)
+            if (!output) {
+              output = await storeNativeImageOutput(value.output)
+              storedImages.set(value.toolCallId, output)
+            }
+            await writer.write({ ...value, output })
+          } else {
+            await writer.write(value)
+          }
         }
       } catch (error) {
         readFailure = { error }
