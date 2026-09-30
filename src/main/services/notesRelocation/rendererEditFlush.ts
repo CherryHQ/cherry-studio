@@ -51,7 +51,7 @@ class RendererEditFlushCoordinator {
       }
       pending.timer = setTimeout(() => {
         logger.warn('Notes edit flush timed out for some windows', { windowIds: [...pending.remaining] })
-        pending.resolve(!pending.failed)
+        pending.resolve(false)
       }, FLUSH_TIMEOUT_MS)
       pending.timer.unref?.()
       this.pending.set(batchId, pending)

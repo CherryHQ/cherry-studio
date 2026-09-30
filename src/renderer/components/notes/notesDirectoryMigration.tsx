@@ -97,14 +97,18 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     await notesEditFlushService.flushAll()
-
-    await ipcApi.request('app.notes_relocation.migrate', {
-      sourcePath,
-      targetPath,
-      merge
-    })
-    await onSuccess(targetPath)
-    toast.success(t('settings.data.notes_relocation.success'))
+    notesEditFlushService.beginMigrationLock()
+    try {
+      await ipcApi.request('app.notes_relocation.migrate', {
+        sourcePath,
+        targetPath,
+        merge
+      })
+      await onSuccess(targetPath)
+      toast.success(t('settings.data.notes_relocation.success'))
+    } finally {
+      notesEditFlushService.endMigrationLock()
+    }
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)
     toast.error(t('settings.data.notes_relocation.error.generic'))

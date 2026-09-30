@@ -1,4 +1,12 @@
-import { createContext, use, useEffect, useMemo, type FC, type ReactNode } from 'react'
+import {
+  createContext,
+  use,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type FC,
+  type ReactNode
+} from 'react'
 
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
@@ -18,8 +26,32 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
     [activeFilePath]
   )
   const session = useFileEditSession(activeFileHandle)
+  const migrationLocked = useSyncExternalStore(
+    (listener) => notesEditFlushService.subscribeMigrationLock(listener),
+    () => notesEditFlushService.getMigrationLocked(),
+    () => false
+  )
+
+  const guardedSession = useMemo(() => {
+    if (!migrationLocked) {
+      return session
+    }
+    return {
+      ...session,
+      setDraft: () => {
+        // Directory copy is in flight; ignore edits until migration finishes.
+      }
+    }
+  }, [session, migrationLocked])
 
   useEffect(() => notesEditFlushService.register(session.flush), [session.flush])
+
+  useIpcOn('app.notes_relocation.migration_started', () => {
+    notesEditFlushService.beginMigrationLock()
+  })
+  useIpcOn('app.notes_relocation.migration_finished', () => {
+    notesEditFlushService.endMigrationLock()
+  })
 
   // Main asks every notes-capable window to persist drafts before a directory
   // migration; this window acknowledges so the migration can safely proceed.
@@ -36,7 +68,7 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
       .catch((error) => logger.warn('Failed to acknowledge notes edit flush', error as Error))
   })
 
-  return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
+  return <NotesFileEditSessionContext value={guardedSession}>{children}</NotesFileEditSessionContext>
 }
 
 export function useNotesFileEditSession(): FileEditSession {
