@@ -386,12 +386,15 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
     expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    // `chat_template_kwargs` is body-routed: it reaches the HTTP body through the
+    // raw-body layer, never through providerOptions (whose SDK echo would beat the
+    // call-override chain in the final fetch merge).
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
-        reasoningEffort: 'high',
-        chat_template_kwargs: { enable_thinking: true }
+        reasoningEffort: 'high'
       }
     })
+    expect(result.options.providerOptions!.vertex).not.toHaveProperty('chat_template_kwargs')
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
 
