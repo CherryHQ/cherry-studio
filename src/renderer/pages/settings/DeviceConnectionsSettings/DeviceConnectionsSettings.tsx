@@ -337,7 +337,9 @@ const DeviceConnectionsSettings: FC = () => {
 
                   {(invitation || claims.length > 0) && (
                     <div
-                      role="note"
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
                       className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
                       <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                       <span>{t('deviceConnections.toggle.risk')}</span>
