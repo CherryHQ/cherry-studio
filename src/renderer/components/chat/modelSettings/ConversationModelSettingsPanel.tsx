@@ -37,7 +37,7 @@ type ConversationModelSettingsPanelProps = {
   onReasoningSummaryChange?: (summary: ReasoningSummary) => void
   onServiceTierChange: (tier: ServiceTierSelection) => void
   onFastModeChange: (enabled: boolean) => void
-  onPatchSettings: (patch: Partial<AssistantSettings>) => void | Promise<unknown>
+  onPatchSettings?: (patch: Partial<AssistantSettings>) => void | Promise<unknown>
 }
 
 export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelProps> = ({
@@ -97,7 +97,7 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
   const showTopP = isSupportTopPModel(model)
   const mutuallyExclusive = isTemperatureTopPMutuallyExclusiveModel(model)
   const showMaxTokens = model.parameterSupport?.maxTokens !== false
-  const showAssistantSection = settings && (showTemperature || showTopP || showMaxTokens)
+  const showAssistantSection = Boolean(settings && onPatchSettings && (showTemperature || showTopP || showMaxTokens))
 
   return (
     <Scrollbar className="h-full min-h-0 flex-1">
@@ -144,9 +144,9 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
                 onEnabledChange={(enabled) => {
                   const patch: Partial<AssistantSettings> = { enableTemperature: enabled }
                   if (mutuallyExclusive && enabled) patch.enableTopP = false
-                  void onPatchSettings(patch)
+                  void onPatchSettings?.(patch)
                 }}
-                onCommit={(value) => void onPatchSettings({ temperature: value })}
+                onCommit={(value) => void onPatchSettings?.({ temperature: value })}
                 min={0}
                 max={2}
                 step={0.1}
@@ -162,9 +162,9 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
                 onEnabledChange={(enabled) => {
                   const patch: Partial<AssistantSettings> = { enableTopP: enabled }
                   if (mutuallyExclusive && enabled) patch.enableTemperature = false
-                  void onPatchSettings(patch)
+                  void onPatchSettings?.(patch)
                 }}
-                onCommit={(value) => void onPatchSettings({ topP: value })}
+                onCommit={(value) => void onPatchSettings?.({ topP: value })}
                 min={0}
                 max={1}
                 step={0.05}
@@ -175,8 +175,8 @@ export const ConversationModelSettingsPanel: FC<ConversationModelSettingsPanelPr
               <MaxTokensField
                 enabled={settings.enableMaxTokens}
                 value={settings.maxTokens}
-                onEnabledChange={(enabled) => void onPatchSettings({ enableMaxTokens: enabled })}
-                onCommit={(value) => void onPatchSettings({ maxTokens: value })}
+                onEnabledChange={(enabled) => void onPatchSettings?.({ enableMaxTokens: enabled })}
+                onCommit={(value) => void onPatchSettings?.({ maxTokens: value })}
               />
             ) : null}
           </section>

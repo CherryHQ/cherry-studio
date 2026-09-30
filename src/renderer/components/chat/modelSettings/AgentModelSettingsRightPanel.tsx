@@ -24,7 +24,6 @@ export function AgentModelSettingsRightPanel({ active, scope }: RightPanelCompon
       onReasoningEffortChange={panel.handleReasoningEffortChange}
       onServiceTierChange={panel.handleServiceTierChange}
       onFastModeChange={panel.onFastModeChange}
-      onPatchSettings={() => undefined}
     />
   )
 }
