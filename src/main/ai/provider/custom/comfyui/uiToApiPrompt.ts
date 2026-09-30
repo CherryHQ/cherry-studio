@@ -65,6 +65,9 @@ export type ObjectInfo = Record<
     /** The server's own declaration order per section. Object key order is not
      * a reliable substitute: integer-like keys iterate first, in numeric order. */
     input_order?: { required?: string[]; optional?: string[] }
+    /** The server executes this class for its side effect, so a node of it is
+     * where a run ends — the anchor the target walk falls back to. */
+    output_node?: boolean
   }
 >
 
@@ -756,13 +759,18 @@ function positiveConditioning(inputs: Record<string, unknown>): Reference | unde
 /**
  * Whether the graph holds any text a run's prompt could replace. A workflow
  * that holds none — an upscaler, a background remover, a depth estimator — has
- * nothing to write and runs as it was saved.
+ * nothing to write and runs as it was saved. A prompt-named input that is a
+ * *reference* counts as text even though it holds no string itself: the graph
+ * feeds that input from somewhere, and if the walk could not follow it to the
+ * text, submitting the workflow would quietly drop the run's prompt.
  */
 export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
   return Object.values(prompt).some(
     (node) =>
       (isValueSource(node) && typeof node.inputs.value === 'string') ||
-      Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && promptInputRank(name) !== -1)
+      Object.entries(node.inputs).some(
+        ([name, value]) => promptInputRank(name) !== -1 && (typeof value === 'string' || isReference(value))
+      )
   )
 }
 
@@ -784,6 +792,15 @@ function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_fals
   return name in node.inputs ? { name, value: node.inputs[name] } : undefined
 }
 
+export interface PromptTargetOptions {
+  /** Text widgets the workflow promotes on a subgraph instance, from
+   *  `ConversionResult.promotedText`. */
+  promotedText?: { nodeId: string; input: string }[]
+  /** The server's class table. It names the classes a run executes for their
+   *  side effect, which is where the fallback walk starts. */
+  objectInfo?: ObjectInfo
+}
+
 /**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
@@ -795,7 +812,7 @@ function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_fals
  */
 export function findPromptTarget(
   prompt: Record<string, ApiPromptNode>,
-  promotedText: { nodeId: string; input: string }[] = []
+  { promotedText = [], objectInfo }: PromptTargetOptions = {}
 ): { nodeId: string; input: string; samplerId: string } | undefined {
   // Prefer real samplers — nodes that hold their own seed or take the latent —
   // over conditioning transformers that merely forward a positive stream, so
@@ -912,23 +929,54 @@ export function findPromptTarget(
   }
   const orderedIds = Object.keys(prompt).sort(byNodeId)
   const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
+
+  /** Whether `target` is reachable from `from` through reference inputs. */
+  const reaches = (from: string, target: string): boolean => {
+    const seen = new Set<string>()
+    const queue = [from]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      if (id === target) return true
+      if (seen.has(id)) continue
+      seen.add(id)
+      const node = prompt[id]
+      if (!node) continue
+      for (const value of Object.values(node.inputs)) {
+        if (isReference(value)) queue.push(value[0])
+      }
+    }
+    return false
+  }
+
+  /**
+   * The node a per-run seed belongs to: the root when it samples, otherwise the
+   * sampling node the target is reachable from. A target no sampling node
+   * reaches names itself, which writes no seed at all — landing the run's seed
+   * on whichever node happens to hold one would change a setting the run never
+   * touched.
+   */
+  const seedNodeFor = (target: string, root: string): string => {
+    if (seedInputKey(prompt[root]?.inputs ?? {}) !== undefined) return root
+    return samplingIds.find((id) => reaches(id, target)) ?? target
+  }
+
   // A graph with no seed at all still generates — the hosted image nodes
   // (`RunwayTextToImageNode` and friends) keep no seed — so the second pass
-  // drops that requirement and walks back from what the graph outputs, which is
-  // where a run without a sampler ends.
+  // drops that requirement and walks back from where a run ends: the classes
+  // the server executes for their side effect, or, when it does not know them,
+  // the nodes nothing else reads.
   const referenced = new Set<string>()
   for (const node of Object.values(prompt)) {
     for (const value of Object.values(node.inputs)) {
       if (isReference(value)) referenced.add(value[0])
     }
   }
-  const outputIds = orderedIds.filter((id) => !referenced.has(id))
-  for (const roots of [samplingIds, outputIds]) {
+  const outputIds = orderedIds.filter((id) => objectInfo?.[prompt[id].class_type]?.output_node === true)
+  const rootIds = outputIds.length > 0 ? outputIds : orderedIds.filter((id) => !referenced.has(id))
+  for (const roots of [samplingIds, rootIds]) {
     for (const root of roots) {
       const found = walk([root])
-      // The seed goes to the node that samples; an output root is only the way
-      // the walk got there, so a graph with no seed node names the text node.
-      if (found) return { ...found, samplerId: samplingIds[0] ?? found.nodeId }
+      if (found) return { ...found, samplerId: seedNodeFor(found.nodeId, root) }
     }
   }
 
@@ -938,7 +986,8 @@ export function findPromptTarget(
   // when the walk above cannot tell it apart from the graph's own constants.
   for (const entry of promotedText) {
     if (typeof prompt[entry.nodeId]?.inputs[entry.input] === 'string') {
-      return { ...entry, samplerId: samplingIds[0] ?? entry.nodeId }
+      const sampler = samplingIds.find((id) => reaches(id, entry.nodeId))
+      return { ...entry, samplerId: sampler ?? entry.nodeId }
     }
   }
 

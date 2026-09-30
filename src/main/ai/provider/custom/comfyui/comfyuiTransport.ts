@@ -166,7 +166,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     const { prompt: graph, warnings, promotedText } = convertUiWorkflowToPrompt(workflow, objectInfo)
     for (const warning of warnings) logger.warn(`workflow conversion: ${warning}`)
 
-    const target = findPromptTarget(graph, promotedText)
+    const target = findPromptTarget(graph, { promotedText, objectInfo })
     // A workflow that holds no text at all — an upscaler, a background remover,
     // a depth estimator — takes no prompt and runs as it was saved. One that
     // holds text we could not place is still an error: generating with the

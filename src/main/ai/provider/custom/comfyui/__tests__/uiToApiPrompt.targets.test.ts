@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applySeed, findPromptTarget, hasPromptText, type ApiPromptNode } from '../uiToApiPrompt'
+import { applySeed, findPromptTarget, hasPromptText, type ApiPromptNode, type ObjectInfo } from '../uiToApiPrompt'
 
 const fluxGraph = (): Record<string, ApiPromptNode> => ({
   '1': { class_type: 'RandomNoise', _meta: { title: 'RandomNoise' }, inputs: { noise_seed: 111 } },
@@ -222,7 +222,7 @@ describe('ComfyUI text held outside the encode node', () => {
       '2': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['1', 0] } },
       '3': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['2', 0], seed: 5 } }
     }
-    expect(findPromptTarget(graph, [{ nodeId: '1', input: 'string_a' }])).toEqual({
+    expect(findPromptTarget(graph, { promotedText: [{ nodeId: '1', input: 'string_a' }] })).toEqual({
       nodeId: '1',
       input: 'string_a',
       samplerId: '3'
@@ -241,6 +241,60 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'prompt', samplerId: '1' })
     applySeed(graph, 7, '1')
     expect(graph['1'].inputs['model.seed']).toBe(7)
+  })
+})
+
+describe('ComfyUI seed placement', () => {
+  it('names a sampling node the target is reachable from, not the first one', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'KSampler', _meta: { title: 'other sampler' }, inputs: { seed: 1 } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'saved text' } },
+      '3': { class_type: 'GeminiImage2Node', _meta: { title: 'generator' }, inputs: { prompt: ['2', 0], seed: 2 } },
+      '4': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['3', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'value', samplerId: '3' })
+  })
+
+  it('names the target itself when no sampling node reaches it', () => {
+    // Nothing that samples feeds this text, so the run's seed has nowhere to go
+    // and writing it to the first node that happens to hold one is not a guess
+    // worth making.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'KSampler', _meta: { title: 'unrelated sampler' }, inputs: { seed: 1 } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'saved text' } },
+      '3': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'value', samplerId: '2' })
+  })
+})
+
+describe('ComfyUI output anchors', () => {
+  const outputInfo: ObjectInfo = {
+    SaveImage: { input: {}, output_node: true },
+    RunwayTextToImageNode: { input: { required: { prompt: ['STRING', {}] } } }
+  }
+
+  it('walks back from the classes the server executes, not from a stray node', () => {
+    // The stray text node reads nothing and nothing reads it; a run never
+    // executes it, so it is not an anchor even though no node references it.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'CLIPTextEncode', _meta: { title: 'stray' }, inputs: { text: 'stray text' } },
+      '2': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: 'saved text' } },
+      '3': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['2', 0] } }
+    }
+    expect(findPromptTarget(graph, { objectInfo: outputInfo })).toEqual({
+      nodeId: '2',
+      input: 'prompt',
+      samplerId: '2'
+    })
+  })
+
+  it('falls back to the nodes nothing reads when the classes are unknown', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: 'saved text' } },
+      '2': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'prompt', samplerId: '1' })
   })
 })
 
@@ -269,6 +323,25 @@ describe('ComfyUI workflows that hold no text', () => {
     graph['4'] = { class_type: 'CLIPTextEncode', _meta: { title: 'negative' }, inputs: { text: 'blurry' } }
     graph['5'] = { class_type: 'CLIPTextEncode', _meta: { title: 'positive' }, inputs: { text: ['6', 0] } }
     graph['6'] = { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: { clip_name: 'x' } }
+    expect(hasPromptText(graph)).toBe(true)
+    expect(findPromptTarget(graph)).toBeUndefined()
+  })
+
+  it('reports text for a prompt input fed from a node whose text it cannot name', () => {
+    // The builder holds the text under names no prompt list knows, so the walk
+    // finds nothing — but the generator's `prompt` socket is fed, and running
+    // the workflow would quietly drop the prompt the user typed.
+    const graph = upscaler()
+    graph['3'] = {
+      class_type: 'IdeogramPImage',
+      _meta: { title: 'generator' },
+      inputs: { prompt: ['4', 0], seed: 1 }
+    }
+    graph['4'] = {
+      class_type: 'BuildJsonPromptIdeogram',
+      _meta: { title: 'builder' },
+      inputs: { high_level_description: 'a description' }
+    }
     expect(hasPromptText(graph)).toBe(true)
     expect(findPromptTarget(graph)).toBeUndefined()
   })
