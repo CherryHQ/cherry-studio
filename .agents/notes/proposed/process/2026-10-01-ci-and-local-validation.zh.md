@@ -155,6 +155,13 @@ Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文�
 
 保留旧聚合命令作为兼容入口，不再各自维护任务列表。`lint` 仅运行只读 Oxlint/ESLint；`lint:fix` 和 `format` 显式写文件，类型检查、i18n 和测试由 `check` 组合。第一版代码 lint 仍保守执行全仓检查；typecheck 选择完整项目；格式和 docs 保持便宜的全仓检查。缓存、文件级 lint/related-test 及更细的平台选择留待等价覆盖下的测量，不在本轮承诺收益。每层独立提交和验证，上层 PR 以相邻下层为 base，底层以 main 为 base。
 
+### 性能观测补充
+
+2026-10-01 用户同意增加第四层：非阻断的 CI 性能观测。独立 workflow 读取已完成 CI 的
+job/step 时间戳，发布摘要与 JSON artifact，仅比较任务范围、runner 和缓存上下文一致的
+样本。缺失或不可比的历史明确展示，不以耗时阈值阻断合并。这不代表已完成受控 benchmark，
+也不能证明本地多 agent 场景的提速。
+
 ## Alternatives considered
 
 - **工作流顶层 `paths-ignore`。** 不用于必需工作流：GitHub 可能让被跳过工作流的必需检查保持 Pending。优先显式计划和汇总门禁。

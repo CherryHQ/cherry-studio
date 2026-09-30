@@ -4,6 +4,10 @@ inputs:
   save-cache:
     description: Allow this job to populate the cache
     default: "false"
+outputs:
+  cache-state:
+    description: Exact pnpm store hit, or unknown for misses and fallback restores
+    value: ${{ (steps.restore.outputs.cache-hit == 'true' || steps.cache.outputs.cache-hit == 'true') && 'exact-hit' || 'unknown' }}
 runs:
   using: composite
   steps:
@@ -16,6 +20,7 @@ runs:
       shell: bash
       run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
     - uses: actions/cache/restore@v6
+      id: restore
       if: inputs.save-cache != 'true'
       with:
         path: ${{ steps.store.outputs.path }}
@@ -23,6 +28,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pnpm-
     - uses: actions/cache@v6
+      id: cache
       if: inputs.save-cache == 'true'
       with:
         path: ${{ steps.store.outputs.path }}

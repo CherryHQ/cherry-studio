@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { appendFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,9 +47,12 @@ if (process.env.VALIDATION_PLAN) {
 
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
+  const scope = createHash('sha256')
+    .update(JSON.stringify([plan.tasks, plan.projects]))
+    .digest('hex')
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `plan=${JSON.stringify(plan)}\n${Object.entries(selectedGroups(plan))
+    `scope=${scope}\nplan=${JSON.stringify(plan)}\n${Object.entries(selectedGroups(plan))
       .map(([key, value]) => `${key}=${value}`)
       .join('\n')}\n`
   )

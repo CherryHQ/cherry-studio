@@ -54,3 +54,29 @@ The required `basic-checks`, `general-test`, and `render-test` names remain stab
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
+
+## Performance observations
+
+`CI Performance` runs after CI completes and reads job/step timestamps through the
+GitHub API. It checks out only the default branch, never the measured PR's code, and
+needs no dependency installation. The observer becomes active after its workflow and
+scripts reach the default branch. It has read-only permissions and is not a required
+check; collection failures do not fail the CI gate.
+
+The summary and 30-day JSON artifact distinguish initial queue time, execution wall
+time, total elapsed time, and the sum of job durations. The latter is runner time,
+not billed minutes; initial queue time does not include later dependency/runner waits.
+Queue and total elapsed are omitted for reruns because their creation time belongs to
+the original attempt. The JSON preserves individual step durations for installation/cache analysis.
+
+Baseline P50/P90 values use matching successful runs from the latest 20 successful
+runs of the same CI workflow/event, before the measured run. Comparisons require the
+same task/project scope hash, executed jobs, runner labels, and known cache states.
+Exact dependency-store hits are marked; misses, fallback restores, or missing cache
+instrumentation remain unknown and are excluded from baselines. Cache state here
+refers only to the pnpm store, not to every build/runtime cache. Old workflows without
+scope metadata are reported without comparison. Failed/cancelled runs never become
+baseline samples. The report shows sample size and applies no regression threshold.
+
+This observes ordinary CI work without rerunning tests. Controlled repeated benchmarks
+and local 1/2/4-worktree contention tests remain separate from this observer.

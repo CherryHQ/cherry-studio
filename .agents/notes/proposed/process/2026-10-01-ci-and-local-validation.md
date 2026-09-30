@@ -155,6 +155,14 @@ Implementation through stacked PRs was authorized on 2026-10-01. Three layers fo
 
 Keep old aggregate commands as compatibility entries without separate task lists. `lint` is read-only Oxlint/ESLint only; `lint:fix` and `format` are explicit write operations, while `check` composes typecheck, i18n, and tests. Initially, code lint remains conservative and repository-wide; typecheck selects complete projects; inexpensive format/docs checks remain repository-wide. Caching, file-level lint/related-test selection, and finer platform selection await equivalent-coverage measurements; no speedup is promised in this implementation. Validate and commit each layer independently; upper PRs target their immediate predecessor and the bottom PR targets main.
 
+### Performance observation follow-up
+
+On 2026-10-01 the user approved a fourth stack layer for non-blocking CI performance
+observations. A separate workflow reads completed CI job/step timestamps, publishes a
+summary and JSON artifact, and compares only matching scope/runner/cache contexts.
+Missing or incomparable history is shown explicitly; no timing threshold blocks merges.
+This does not establish controlled benchmark results or local multi-agent speedups.
+
 ## Alternatives considered
 
 - **Top-level workflow `paths-ignore`.** Reject for required workflows: GitHub can leave required checks pending when the workflow is skipped. Prefer explicit plans and aggregation gates.

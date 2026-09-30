@@ -58,6 +58,9 @@ jobs:
             node scripts/validation/run.mjs --all --github-output
           fi
 
+      - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
+        run: ":"
+
   repository-checks:
     runs-on: ubuntu-latest
     needs: changes
@@ -102,8 +105,11 @@ jobs:
           exit 1
 
       - uses: ./.github/actions/setup-validation
+        id: dependencies
         with:
           save-cache: ${{ github.event_name != 'pull_request' }}
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
 
       - name: Check provider-registry compatibility baseline policy
         if: github.event_name == 'pull_request'
@@ -152,6 +158,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - run: pnpm check --group lint
 
   type-checks:
@@ -163,6 +172,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - run: pnpm check --group types
 
   i18n-checks:
@@ -175,6 +187,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - name: Check locale synchronization
         run: |
           pnpm i18n:sync
@@ -199,6 +214,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - run: pnpm check --group main --shard=${{ matrix.shard }}/3
 
   renderer-test-shard:
@@ -215,6 +233,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - run: pnpm check --group renderer --shard=${{ matrix.shard }}/5
 
   package-test:
@@ -226,6 +247,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - run: pnpm check --group packages
 
   platform-test:
@@ -243,6 +267,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install python-setuptools
       - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - name: Platform contracts
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
