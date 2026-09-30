@@ -67,6 +67,7 @@ const BasicDataSettings: React.FC = () => {
   )
   const { notesPath, updateNotesPath } = useNotesSettings()
   const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
+  const [notesPathUsesFallback, setNotesPathUsesFallback] = useState(false)
 
   useEffect(() => {
     if (hasV1MigrationSource) return
@@ -105,10 +106,14 @@ const BasicDataSettings: React.FC = () => {
 
   useEffect(() => {
     void resolveNotesPath(notesPath || '')
-      .then((resolved) => setResolvedNotesPath(resolved.path))
+      .then((resolved) => {
+        setResolvedNotesPath(resolved.path)
+        setNotesPathUsesFallback(resolved.isFallback)
+      })
       .catch((error) => {
         logger.warn('Failed to resolve notes path', error as Error)
         setResolvedNotesPath(undefined)
+        setNotesPathUsesFallback(false)
       })
   }, [notesPath])
 
@@ -360,12 +365,13 @@ const BasicDataSettings: React.FC = () => {
               </Button>
               <Button
                 onClick={() => {
-                  if (!resolvedNotesPath) {
+                  const migrationSourcePath = notesPathUsesFallback && notesPath ? notesPath : resolvedNotesPath
+                  if (!migrationSourcePath) {
                     return
                   }
                   void startNotesDirectoryMigration({
                     t,
-                    sourcePath: resolvedNotesPath,
+                    sourcePath: migrationSourcePath,
                     onSuccess: async (path) => {
                       await updateNotesPath(path)
                     }
