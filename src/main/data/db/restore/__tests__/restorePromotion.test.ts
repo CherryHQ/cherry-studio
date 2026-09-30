@@ -972,15 +972,19 @@ describe('runRestorePromotion', () => {
       expect(journalState()).toBe('failed')
     }, 15_000)
 
-    it('never retries on POSIX (EPERM is permanent there)', async () => {
+    // POSIX-only assertion: on Windows CI the ambient platform is win32 and
+    // fsyncDir is legitimately platform-gated, so a forced-darwin run would
+    // blow up in fsync instead of testing what this case targets. The win32
+    // retry behavior is covered by the three cases above.
+    const itOnPosix = it.skipIf(process.platform === 'win32')
+
+    itOnPosix('never retries on POSIX (EPERM is permanent there)', async () => {
       makeDb(livePath(), 'old')
       makeDb(workPath(), 'new')
       writeRestoreJournal(await buildJournal())
       const attempts = failWorkRename(Number.POSITIVE_INFINITY, 'EPERM')
 
-      // POSIX explicitly — the suite also runs on Windows CI, where the
-      // ambient platform is win32 and the retry is legitimate.
-      await withPlatform('darwin', () => runRestorePromotion())
+      await runRestorePromotion()
 
       expect(attempts()).toBe(1)
       expect(readMarker(livePath())).toBe('old')
