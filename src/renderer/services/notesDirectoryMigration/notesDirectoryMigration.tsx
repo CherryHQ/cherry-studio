@@ -102,7 +102,15 @@ export async function migrateNotesDirectoryWithUi(options: {
       targetPath,
       merge
     })
-    await onSuccess(targetPath)
+
+    try {
+      await onSuccess(targetPath)
+    } catch (error) {
+      logger.error('Notes migrated but notes path preference update failed', error as Error)
+      toast.error(t('settings.data.notes_relocation.error.preference_update_failed'))
+      return
+    }
+
     toast.success(t('settings.data.notes_relocation.success'))
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)

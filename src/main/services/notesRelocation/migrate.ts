@@ -168,34 +168,33 @@ export async function migrateNotesDirectory(
   const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
 
   try {
-    await Promise.all(
-      entries
-        .filter((entry) => !entry.isSymbolicLink())
-        .map(async (entry) => {
-          const from = path.join(resolvedSource, entry.name)
-          const to = path.join(resolvedTarget, entry.name)
-          if (entry.isDirectory()) {
-            await copyDirectoryRecursive(from, to, copyOptions)
-            return
-          }
-          if (!entry.isFile()) {
-            return
-          }
-          const targetEntry = await fs.promises.lstat(to).catch((error) => {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-              return undefined
-            }
-            throw error
-          })
-          if (targetEntry?.isSymbolicLink()) {
-            throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
-          }
-          if (targetEntry && copyOptions?.skipExistingFiles) {
-            return
-          }
-          await fs.promises.copyFile(from, to)
-        })
-    )
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+      const from = path.join(resolvedSource, entry.name)
+      const to = path.join(resolvedTarget, entry.name)
+      if (entry.isDirectory()) {
+        await copyDirectoryRecursive(from, to, copyOptions)
+        continue
+      }
+      if (!entry.isFile()) {
+        continue
+      }
+      const targetEntry = await fs.promises.lstat(to).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return undefined
+        }
+        throw error
+      })
+      if (targetEntry?.isSymbolicLink()) {
+        throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
+      }
+      if (targetEntry && copyOptions?.skipExistingFiles) {
+        continue
+      }
+      await fs.promises.copyFile(from, to)
+    }
 
     await verifySourceCopied(resolvedSource, resolvedTarget)
     const targetAfter = await scanNotesDirectory(resolvedTarget)
