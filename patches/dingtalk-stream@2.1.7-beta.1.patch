@@ -120,7 +120,15 @@ diff --git a/dist/client.cjs b/dist/client.cjs
                  "TERMINATE SOCKET: Ping Pong does not transfer heartbeat within heartbeat intervall"
                );
                return socket.terminate();
-@@ -332,6 +339,7 @@
+@@ -317,6 +324,7 @@
+           }, this.heartbeat_interval);
+         }
+         resolveOnce();
++        this.emit("connectionState", true);
+       });
+       socket.on("pong", () => {
+         this.heartbeat();
+@@ -332,6 +340,7 @@
          this.printDebug("Socket closed");
          this.connected = false;
          this.registered = false;
@@ -128,7 +136,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
          this.clearHeartbeat();
          if (!opened) {
            rejectOnce(new Error("WebSocket closed before the connection was established"));
-@@ -343,7 +351,7 @@
+@@ -343,7 +352,7 @@
          if (this.socket !== socket)
            return;
          this.printDebug("SOCKET ERROR");
@@ -137,7 +145,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
          rejectOnce(err);
          if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
            socket.terminate();
-@@ -390,6 +398,7 @@
+@@ -390,6 +399,7 @@
      } catch (err) {
        this.printDebug("Connect failed: " + (err instanceof Error ? err.message : String(err)));
        if (!this.userDisconnect) {
@@ -145,7 +153,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
          this.reconnectAttempts++;
          this.scheduleReconnect();
        }
-@@ -399,8 +408,9 @@
+@@ -399,8 +409,9 @@
      }
    }
    disconnect() {
@@ -156,7 +164,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
      if (this.reconnectTimerId) {
        clearTimeout(this.reconnectTimerId);
        this.reconnectTimerId = void 0;
-@@ -432,7 +442,7 @@
+@@ -432,7 +443,7 @@
            break;
        }
      } catch (err) {
@@ -165,7 +173,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
      }
    }
    sendFrame(socket, payload, onSent) {
-@@ -443,12 +453,12 @@
+@@ -443,12 +454,12 @@
      try {
        socket.send(JSON.stringify(payload), (err) => {
          if (err) {
@@ -180,7 +188,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
        onSent == null ? void 0 : onSent();
      }
    }
-@@ -494,7 +504,7 @@
+@@ -494,7 +505,7 @@
          this.cacheEventResult(messageId, ackData);
        }
      }).catch((err) => {
@@ -189,7 +197,7 @@ diff --git a/dist/client.cjs b/dist/client.cjs
      }).finally(() => {
        this.eventTasks.delete(task);
        if (messageId && this.inflightEvents.get(messageId) === task) {
-@@ -507,7 +517,7 @@
+@@ -507,7 +518,7 @@
        if (!(signal == null ? void 0 : signal.aborted)) {
          this.sendEventAck(message, ackData, socket);
        }
@@ -198,14 +206,6 @@ diff --git a/dist/client.cjs b/dist/client.cjs
    }
    getCachedEventResult(messageId) {
      const cached = this.eventResults.get(messageId);
-@@ -557,6 +567,7 @@
-       case "REGISTERED": {
-         if (ownsCurrentState) {
-           this.registered = true;
-+          this.emit("connectionState", true);
-           this.reconnecting = false;
-         }
-         break;
 @@ -565,6 +576,7 @@
          if (ownsCurrentState) {
            this.connected = false;
@@ -368,7 +368,15 @@ diff --git a/dist/client.mjs b/dist/client.mjs
                  "TERMINATE SOCKET: Ping Pong does not transfer heartbeat within heartbeat intervall"
                );
                return socket.terminate();
-@@ -330,6 +337,7 @@
+@@ -315,6 +322,7 @@
+           }, this.heartbeat_interval);
+         }
+         resolveOnce();
++        this.emit("connectionState", true);
+       });
+       socket.on("pong", () => {
+         this.heartbeat();
+@@ -330,6 +338,7 @@
          this.printDebug("Socket closed");
          this.connected = false;
          this.registered = false;
@@ -376,7 +384,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
          this.clearHeartbeat();
          if (!opened) {
            rejectOnce(new Error("WebSocket closed before the connection was established"));
-@@ -341,7 +349,7 @@
+@@ -341,7 +350,7 @@
          if (this.socket !== socket)
            return;
          this.printDebug("SOCKET ERROR");
@@ -385,7 +393,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
          rejectOnce(err);
          if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
            socket.terminate();
-@@ -388,6 +396,7 @@
+@@ -388,6 +397,7 @@
      } catch (err) {
        this.printDebug("Connect failed: " + (err instanceof Error ? err.message : String(err)));
        if (!this.userDisconnect) {
@@ -393,7 +401,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
          this.reconnectAttempts++;
          this.scheduleReconnect();
        }
-@@ -397,8 +406,9 @@
+@@ -397,8 +407,9 @@
      }
    }
    disconnect() {
@@ -404,7 +412,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
      if (this.reconnectTimerId) {
        clearTimeout(this.reconnectTimerId);
        this.reconnectTimerId = void 0;
-@@ -430,7 +440,7 @@
+@@ -430,7 +441,7 @@
            break;
        }
      } catch (err) {
@@ -413,7 +421,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
      }
    }
    sendFrame(socket, payload, onSent) {
-@@ -441,12 +451,12 @@
+@@ -441,12 +452,12 @@
      try {
        socket.send(JSON.stringify(payload), (err) => {
          if (err) {
@@ -428,7 +436,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
        onSent == null ? void 0 : onSent();
      }
    }
-@@ -492,7 +502,7 @@
+@@ -492,7 +503,7 @@
          this.cacheEventResult(messageId, ackData);
        }
      }).catch((err) => {
@@ -437,7 +445,7 @@ diff --git a/dist/client.mjs b/dist/client.mjs
      }).finally(() => {
        this.eventTasks.delete(task);
        if (messageId && this.inflightEvents.get(messageId) === task) {
-@@ -505,7 +515,7 @@
+@@ -505,7 +516,7 @@
        if (!(signal == null ? void 0 : signal.aborted)) {
          this.sendEventAck(message, ackData, socket);
        }
@@ -446,14 +454,6 @@ diff --git a/dist/client.mjs b/dist/client.mjs
    }
    getCachedEventResult(messageId) {
      const cached = this.eventResults.get(messageId);
-@@ -555,6 +565,7 @@
-       case "REGISTERED": {
-         if (ownsCurrentState) {
-           this.registered = true;
-+          this.emit("connectionState", true);
-           this.reconnecting = false;
-         }
-         break;
 @@ -563,6 +574,7 @@
          if (ownsCurrentState) {
            this.connected = false;
