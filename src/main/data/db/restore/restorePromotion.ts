@@ -289,6 +289,31 @@ export function isLiveDbStranded(): boolean {
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
+/**
+ * Whether Chromium runtime storage is stranded after a failed restore: the
+ * quarantine still holds the intact aside but the live path is only a cleared
+ * shell (including an empty `leveldb/` tree). Booting on would keep using the
+ * shell while the user's data stays quarantined.
+ */
+export function isChromiumStorageStranded(): boolean {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok' || read.journal.state !== 'failed') {
+    return false
+  }
+  const quarantineRoot = asideQuarantineRoot(read.journal.restoreId)
+  for (const entry of read.journal.fileResources) {
+    if (!isOverwriteEntry(entry)) {
+      continue
+    }
+    const live = path.resolve(application.getPath('app.userdata'), entry.livePath)
+    const quarantined = path.join(quarantineRoot, entry.livePath)
+    if (quarantinedChromiumLiveMayBeReinstalled(live, quarantined, entry.livePath)) {
+      return true
+    }
+  }
+  return false
+}
+
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
   return {

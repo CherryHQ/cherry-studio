@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { app, session } from 'electron'
 
@@ -40,7 +41,25 @@ function chromiumStorageDirHasSubstantiveContent(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false
   }
-  return fs.readdirSync(dirPath).some((name) => !EPHEMERAL_CHROMIUM_STORAGE_NAMES.has(name))
+  return chromiumStorageTreeHasSubstantiveContent(dirPath)
+}
+
+function chromiumStorageTreeHasSubstantiveContent(dirPath: string): boolean {
+  for (const name of fs.readdirSync(dirPath)) {
+    if (EPHEMERAL_CHROMIUM_STORAGE_NAMES.has(name)) {
+      continue
+    }
+    const entryPath = path.join(dirPath, name)
+    const stat = fs.statSync(entryPath)
+    if (stat.isDirectory()) {
+      if (chromiumStorageTreeHasSubstantiveContent(entryPath)) {
+        return true
+      }
+      continue
+    }
+    return true
+  }
+  return false
 }
 
 /**

@@ -27,6 +27,7 @@ import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   cleanupTerminalRestoreArtifacts,
+  isChromiumStorageStranded,
   isLiveDbStranded,
   markRestoreFailedAfterCrash,
   runRestorePromotion
@@ -1300,6 +1301,34 @@ describe('runRestorePromotion', () => {
 
       expect(readFileSync(join(liveLs(), 'leveldb-live'), 'utf8')).toBe('LIVE')
       expect(existsSync(quarantineRootForRid())).toBe(false)
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    })
+
+    it('reinstalls from quarantine when the live path is only an empty leveldb shell', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      const quarantinedLs = () => join(userData, 'restore-aside-quarantine', RID, 'Local Storage')
+      const liveLs = () => join(userData, 'Local Storage')
+      const liveLeveldb = () => join(liveLs(), 'leveldb')
+      const quarantinedLeveldb = () => join(quarantinedLs(), 'leveldb')
+      mkdirSync(quarantinedLeveldb(), { recursive: true })
+      writeFileSync(join(quarantinedLeveldb(), '000003.ldb'), 'LIVE')
+      mkdirSync(liveLeveldb(), { recursive: true })
+      writeFileSync(join(liveLeveldb(), 'LOCK'), '')
+      writeRestoreJournal(
+        await buildJournal({
+          state: 'failed',
+          chain: [{ folderMillis: 1, hash: 'x' }],
+          fileResources: localStorageManifest()
+        })
+      )
+
+      expect(isChromiumStorageStranded()).toBe(true)
+      cleanupTerminalRestoreArtifacts()
+      expect(existsSync(join(liveLeveldb(), '000003.ldb'))).toBe(true)
+      expect(isChromiumStorageStranded()).toBe(false)
       expect(readRestoreJournal()).toEqual({ kind: 'none' })
     })
 
