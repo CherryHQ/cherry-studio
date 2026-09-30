@@ -48,7 +48,7 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   dsh: 'library.config.agent.field.runtime.option_description.dsh'
 }
 
-const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
+const RUNTIMES = (Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]).filter((runtime) => runtime !== 'dsh')
 const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {

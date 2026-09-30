@@ -8,6 +8,8 @@ import {
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -157,6 +159,34 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('shows the edit reason when resending from an unsupported checkpoint fails', async () => {
+    const draft = {
+      messageId: 'user-1',
+      version: 'version-1',
+      parts: [{ type: 'text' as const, text: 'Original question' }]
+    }
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockRejectedValue(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, 'checkpoint_unsupported', {
+        reason: 'checkpoint_unsupported'
+      })
+    )
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+
+    expect(mocks.toastError).toHaveBeenCalledExactlyOnceWith('agent.edit_resend.error.checkpoint_unsupported')
+    expect(mocks.toastError).not.toHaveBeenCalledWith('agent_session_fork.unsupported_checkpoint')
+  })
+
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
       messageId: 'edited-user',

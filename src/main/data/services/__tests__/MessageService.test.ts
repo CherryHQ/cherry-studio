@@ -547,7 +547,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit' },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -582,7 +582,7 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [] }
+        data: { parts: [], modelSelection: 'explicit' }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')
