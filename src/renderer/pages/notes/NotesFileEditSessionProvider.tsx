@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, type FC, type ReactNode } from 'react'
+import { createContext, use, useEffect, useMemo, type FC, type ReactNode } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
-import { registerNotesEditFlush } from '@renderer/services/notesEditFlush'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { createFilePathHandle } from '@shared/utils/file'
 
 const NotesFileEditSessionContext = createContext<FileEditSession | null>(null)
@@ -15,13 +15,13 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
   )
   const session = useFileEditSession(activeFileHandle)
 
-  useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
+  useEffect(() => notesEditFlushService.register(session.flush), [session.flush])
 
-  return <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
+  return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
 }
 
 export function useNotesFileEditSession(): FileEditSession {
-  const session = useContext(NotesFileEditSessionContext)
+  const session = use(NotesFileEditSessionContext)
   if (!session) {
     throw new Error('useNotesFileEditSession must be used within NotesFileEditSessionProvider')
   }

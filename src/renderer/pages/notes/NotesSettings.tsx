@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { migrateNotesDirectoryWithUi } from '@renderer/components/notes/notesDirectoryMigration'
 import Selector from '@renderer/components/Selector'
 import {
   SettingContainer,
@@ -18,7 +19,6 @@ import {
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { migrateNotesDirectoryWithUi } from '@renderer/services/notesDirectoryMigration'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'

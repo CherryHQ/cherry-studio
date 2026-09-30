@@ -54,6 +54,16 @@ export async function copyDirectoryRecursive(
       throw new Error(`Source is not a directory: ${source}`)
     }
 
+    // A pre-existing symlinked destination would silently redirect every write
+    // below outside the validated tree — reject it instead of following it.
+    const destStats = await fs.promises.lstat(destination).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    })
+    if (destStats?.isSymbolicLink()) {
+      throw new Error(`Destination is a symlink: ${destination}`)
+    }
+
     // Create destination directory
     await fs.promises.mkdir(destination, { recursive: true })
     logger.debug('Created destination directory', { destination })

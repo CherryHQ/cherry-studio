@@ -148,6 +148,21 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects migration when the target contains a pre-existing symlinked directory', async () => {
+    const source = path.join(tempRoot, 'source-notes-symlink-dest')
+    const target = path.join(tempRoot, 'target-notes-symlink-dest')
+    const outside = path.join(tempRoot, 'outside-symlink-dest')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.mkdirSync(outside)
+    fs.mkdirSync(path.join(source, 'folder-a'))
+    fs.writeFileSync(path.join(source, 'folder-a', 'note.md'), '# A')
+    fs.symlinkSync(outside, path.join(target, 'folder-a'))
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toThrow(/Destination is a symlink/)
+    expect(fs.existsSync(path.join(outside, 'note.md'))).toBe(false)
+  })
+
   it('rejects the managed files root as a notes target', () => {
     const source = path.join(tempRoot, 'source-notes-protected')
     const filesRoot = path.join(tempRoot, 'files')
