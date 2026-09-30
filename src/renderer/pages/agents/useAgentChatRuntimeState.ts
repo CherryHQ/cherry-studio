@@ -2,6 +2,7 @@ import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { loggerService } from '@logger'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -41,6 +42,8 @@ import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -127,6 +130,8 @@ export interface AgentChatRuntimeState {
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
+  /** Sends the execution follow-up for an approved plan; a failure is reported, never thrown. */
+  sendPlanExecutionFollowUp: () => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -266,6 +271,17 @@ export function useAgentChatRuntimeState({
     },
     [send]
   )
+  // Main has already stopped the approved turn here, so a follow-up that will not go out leaves no
+  // automatic path left — and retrying blind could run the plan twice. Report and let the user re-send.
+  const sendPlanExecutionFollowUp = useCallback(async () => {
+    try {
+      return await send({ text: t('agent.toolPermission.executionModel.followUp') })
+    } catch (error) {
+      logger.error('Failed to send the plan execution follow-up', error as Error)
+      toast.error(formatErrorMessage(error))
+      return false
+    }
+  }, [send, t])
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
@@ -457,6 +473,7 @@ export function useAgentChatRuntimeState({
     isPending,
     stop,
     sendMessage,
+    sendPlanExecutionFollowUp,
     deleteMessage,
     respondToolApproval,
     composerContext,

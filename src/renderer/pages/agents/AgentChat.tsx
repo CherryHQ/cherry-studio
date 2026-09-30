@@ -312,7 +312,7 @@ const AgentChat = ({
     if (handoff.modelApplied) {
       if (runtime.isPending) return
       setPlanExecutionHandoff(undefined)
-      void runtime.sendMessage({ text: t('agent.toolPermission.executionModel.followUp') })
+      void runtime.sendPlanExecutionFollowUp()
       return
     }
     // The update revalidates the agent query, handing `activeAgent` a fresh identity while this
@@ -341,7 +341,14 @@ const AgentChat = ({
     return () => {
       cancelled = true
     }
-  }, [activeAgent, planExecutionHandoff, runtime.isPending, runtime.sendMessage, sessionSnapshot?.id, t, updateModel])
+  }, [
+    activeAgent,
+    planExecutionHandoff,
+    runtime.isPending,
+    runtime.sendPlanExecutionFollowUp,
+    sessionSnapshot?.id,
+    updateModel
+  ])
   const openDiagnosticReport = useCallback(
     (description = '') => {
       if (!currentSessionId) return

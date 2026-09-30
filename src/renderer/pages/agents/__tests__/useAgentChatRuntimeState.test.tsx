@@ -461,6 +461,38 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.toastWarning).not.toHaveBeenCalled()
   })
 
+  // Main has already stopped the approved turn here, so a follow-up that will not go out leaves no
+  // automatic path left — swallowing it would lose the plan without a word.
+  it('reports a plan execution follow-up that fails to send', async () => {
+    mocks.sendTurn.mockRejectedValueOnce(new Error('stream unavailable'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendPlanExecutionFollowUp()
+    })
+
+    expect(sent).toBe(false)
+    expect(mocks.toastError).toHaveBeenCalledWith('stream unavailable')
+  })
+
+  it('stays quiet when the plan execution follow-up goes out', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(true)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendPlanExecutionFollowUp()
+    })
+
+    expect(sent).toBe(true)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
