@@ -48,8 +48,7 @@ export function resolveOllamaRequestNumCtx(
   const trainedContextWindow = model.contextWindow
   if (!trainedContextWindow || trainedContextWindow <= 0) return undefined
 
-  const apiHost =
-    provider != null ? getBaseUrl(provider, preferredEndpoint ?? ENDPOINT_TYPE.OLLAMA_CHAT) : ''
+  const apiHost = provider != null ? getBaseUrl(provider, preferredEndpoint ?? ENDPOINT_TYPE.OLLAMA_CHAT) : ''
   const useLocalMemory = provider == null || isLocalOllamaApiHost(apiHost)
 
   const input: ResolveOllamaNumCtxInput = {
