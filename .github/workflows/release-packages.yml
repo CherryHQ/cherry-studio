@@ -68,6 +68,7 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
+          createGithubReleases: false
           publish: pnpm changeset:publish
           version: pnpm changeset:version
           commit: "chore: version packages"
