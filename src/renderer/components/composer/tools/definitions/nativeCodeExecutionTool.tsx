@@ -6,7 +6,7 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import { defineTool, type ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
-import { isNativeCodeExecutionAvailable } from '@shared/utils/provider'
+import { isNativeCodeExecutionAvailable } from '@shared/ai/nativeCodeExecution'
 
 import { NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST } from '../toolbarManifests'
 

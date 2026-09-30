@@ -1,5 +1,5 @@
 import { providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
-import { isNativeCodeExecutionAvailable } from '@shared/utils/provider'
+import { isNativeCodeExecutionAvailable } from '@shared/ai/nativeCodeExecution'
 
 import type { RequestFeature } from '../feature'
 
