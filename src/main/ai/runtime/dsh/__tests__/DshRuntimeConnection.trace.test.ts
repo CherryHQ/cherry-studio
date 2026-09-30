@@ -838,3 +838,152 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 })
+
+describe('DshRuntimeConnection child events', () => {
+  it('emits a late tool anchor before replaying the child flow and task identity', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      await connection.send({ message: {} } as never)
+      vi.mocked(DshBridgeServer).mock.calls[0][0].onSubagentLifecycle?.({
+        phase: 'start',
+        runId: 'run-1',
+        childSessionId: 'child-1',
+        parentSessionId: 'session-1',
+        provider: 'spawn'
+      })
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'child-1',
+          event: {
+            type: 'assistant/chunk',
+            seq: 1,
+            time: 0,
+            data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'early content' } }
+          }
+        }
+      })
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'session-1',
+          event: {
+            type: 'tool/call',
+            seq: 1,
+            time: 0,
+            data: {
+              turn: 1,
+              step: 1,
+              callId: 'spawn-call',
+              name: 'subagent',
+              arguments: '{"description":"research task"}'
+            }
+          }
+        }
+      })
+      subscription.push({
+        method: 'subagent.started',
+        params: { parentSessionId: 'session-1', childSessionId: 'child-1' }
+      })
+      await drain()
+
+      const chunks = events.filter((event) => event.type === 'chunk').map((event) => event.chunk)
+      const anchorIndex = chunks.findIndex(
+        (chunk) => chunk.type === 'tool-input-available' && chunk.toolCallId === 'spawn-call'
+      )
+      const childIndex = chunks.findIndex((chunk) => chunk.type === 'text-start')
+      expect(anchorIndex).toBeGreaterThanOrEqual(0)
+      expect(childIndex).toBeGreaterThan(anchorIndex)
+      expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'early content' }))
+      expect(events).toContainEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'run-1', type: 'subagent', description: 'research task', toolCallId: 'spawn-call' }]
+      })
+    } finally {
+      await connection.close()
+      await consume
+    }
+  })
+
+  it.each(['spawn-turn', 'between-turns', 'later-turn'] as const)(
+    'records child usage independently of the host message during %s',
+    async (delivery) => {
+      runtimeMocks.resolveInjection.mockReturnValue({ ...baseInjection(), usageCapture: { owner: 'agent-sdk' } })
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const events: AgentRuntimeEvent[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) events.push(event)
+      })()
+      const push = (sessionId: string, seq: number, type: string, data: unknown) =>
+        subscription.push({ method: 'session.event', params: { sessionId, event: { type, seq, time: 0, data } } })
+      try {
+        await connection.send({ message: {} } as never)
+        push('session-1', 1, 'tool/call', {
+          turn: 1,
+          step: 1,
+          callId: 'spawn-call',
+          name: 'subagent',
+          arguments: '{"run_in_background":true}'
+        })
+        subscription.push({
+          method: 'subagent.started',
+          params: { parentSessionId: 'session-1', childSessionId: 'child-1' }
+        })
+        push('child-1', 1, 'assistant/chunk', {
+          turn: 1,
+          step: 1,
+          chunk: { type: 'text-delta', index: 0, text: 'working' }
+        })
+        await drain()
+        if (delivery !== 'spawn-turn') {
+          push('session-1', 2, 'turn/end', { turn: 1, reason: { kind: 'completed' } })
+          await drain()
+        }
+        if (delivery === 'later-turn') await connection.send({ message: {} } as never)
+
+        const assistantMessage = {
+          turn: 1,
+          step: 1,
+          usage: { inputTokens: 10, outputTokens: 7, cacheReadTokens: 2, cacheWriteTokens: 3 },
+          message: { role: 'assistant', content: [], source: { kind: 'assistant', model: 'deepseek-chat' } }
+        }
+        push('child-1', 3, 'assistant/message', assistantMessage)
+        push('child-1', 3, 'assistant/message', assistantMessage)
+        await drain()
+
+        expect(events.filter((event) => event.type === 'usage')).toEqual([
+          {
+            type: 'usage',
+            invocation: {
+              requestId: 'dsh-agent:child-1:1:3',
+              model: 'deepseek-chat',
+              messageAssociation: 'stateless',
+              usage: {
+                inputTokens: 15,
+                outputTokens: 7,
+                totalTokens: 22,
+                noCacheTokens: 10,
+                cacheReadTokens: 2,
+                cacheWriteTokens: 3
+              }
+            }
+          }
+        ])
+
+        push('session-1', 3, 'assistant/message', assistantMessage)
+        await drain()
+        expect(events.filter((event) => event.type === 'usage')).toHaveLength(2)
+        expect(events.filter((event) => event.type === 'usage').at(-1)).toMatchObject({
+          invocation: { requestId: 'dsh-agent:session-1:1:3', messageAssociation: 'current-turn' }
+        })
+      } finally {
+        await connection.close()
+        await consume
+      }
+    }
+  )
+})

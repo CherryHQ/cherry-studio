@@ -26,6 +26,9 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { mergeAgentSessionTaskEvent } from '@shared/ai/agentSessionBackgroundTasks'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -1166,6 +1169,445 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
       expect(agentSessionMessageService.getLastRuntimeResumeToken(OTHER_SESSION_ID)).toBe('token-other')
     })
+
+    it('keeps the latest workflow checkpoint when crash reconciliation settles the pending row', () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d023'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: PENDING,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              { type: 'text', text: 'partial answer' },
+              {
+                type: 'data-agent-task-event',
+                data: { event: 'started', taskId: 'workflow-1', status: 'in_progress', title: 'Review' }
+              },
+              {
+                type: 'data-agent-task-event',
+                id: 'existing-workflow-checkpoint',
+                data: {
+                  event: 'progress',
+                  taskId: 'workflow-1',
+                  status: 'in_progress',
+                  title: 'Review',
+                  workflow: {
+                    runId: 'run-1',
+                    taskId: 'workflow-1',
+                    phases: [],
+                    workflowProgress: []
+                  }
+                }
+              }
+            ]
+          }
+        }
+      })
+      notifyDataApiDataChangeMock.mockClear()
+      const initialUpdatedAt = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING).updatedAt
+      const workflow = (tokens: number, cumulativeTokens: number) => ({
+        event: 'progress' as const,
+        taskId: 'workflow-1',
+        status: 'in_progress' as const,
+        title: 'Review',
+        workflow: {
+          runId: 'run-1',
+          taskId: 'workflow-1',
+          totalTokens: tokens,
+          totalCumulativeTokens: cumulativeTokens,
+          totalToolCalls: 3,
+          phases: [{ title: 'Inspect' }],
+          workflowProgress: [
+            {
+              type: 'workflow_agent' as const,
+              index: 0,
+              label: 'reviewer',
+              phaseIndex: 0,
+              phaseTitle: 'Inspect',
+              state: 'active',
+              tokens,
+              cumulativeTokens,
+              toolCalls: 3,
+              durationMs: 4_000
+            }
+          ]
+        }
+      })
+
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(20, 30))
+      const firstCheckpoint = agentSessionMessageService
+        .findCrashOrphanedAssistantMessages()[0]
+        .data.parts?.find((part) => part.type === 'data-agent-task-event' && part.data.workflow !== undefined)
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, workflow(40, 70))
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, {
+        ...workflow(60, 100),
+        event: 'notification',
+        status: 'completed'
+      })
+
+      const pending = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+      const beforeCrashParts = pending[0].data.parts ?? []
+      expect(beforeCrashParts.filter((part) => part.type === 'data-agent-task-event')).toHaveLength(2)
+      const latestCheckpoint = beforeCrashParts.find(
+        (part) => part.type === 'data-agent-task-event' && part.data.workflow !== undefined
+      )
+      expect(firstCheckpoint).toEqual(expect.objectContaining({ id: 'existing-workflow-checkpoint' }))
+      expect(latestCheckpoint).toEqual(expect.objectContaining({ id: 'existing-workflow-checkpoint' }))
+      expect(beforeCrashParts).toEqual([
+        expect.objectContaining({ type: 'text', text: 'partial answer' }),
+        expect.objectContaining({
+          type: 'data-agent-task-event',
+          data: expect.objectContaining({ event: 'started', taskId: 'workflow-1' })
+        }),
+        expect.objectContaining({
+          type: 'data-agent-task-event',
+          data: expect.objectContaining({
+            taskId: 'workflow-1',
+            workflow: expect.objectContaining({ totalTokens: 60, totalCumulativeTokens: 100, totalToolCalls: 3 })
+          })
+        })
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [PENDING]
+        }
+      ])
+
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        [{ id: PENDING, data: { ...pending[0].data, parts: beforeCrashParts } }],
+        [SESSION_ID]
+      )
+
+      const recovered = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING)
+      expect(recovered.status).toBe('error')
+      expect(recovered.data.parts).toEqual(beforeCrashParts)
+      expect(Date.parse(recovered.updatedAt)).toBeGreaterThan(Date.parse(initialUpdatedAt))
+    })
+
+    it('reports whether a workflow checkpoint reached its message row', () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d027'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: PENDING,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              {
+                type: 'data-agent-task-event',
+                data: { event: 'started', taskId: 'workflow-1', status: 'in_progress', title: 'Review' }
+              }
+            ]
+          }
+        }
+      })
+      const event = {
+        event: 'progress' as const,
+        taskId: 'workflow-1',
+        status: 'in_progress' as const,
+        title: 'Review',
+        workflow: {
+          runId: 'run-1',
+          taskId: 'workflow-1',
+          totalTokens: 10,
+          totalCumulativeTokens: 20,
+          phases: [],
+          workflowProgress: []
+        }
+      }
+
+      expect(agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, event)).toBe(true)
+
+      // A deleted parent row is the one outcome callers must not read as "persisted".
+      expect(
+        agentSessionMessageService.checkpointWorkflowTaskEvent(
+          SESSION_ID,
+          '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d028',
+          event
+        )
+      ).toBe(false)
+    })
+
+    it('replaces the terminal workflow snapshot instead of an earlier progress snapshot', () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d024'
+      const workflow = (totalTokens: number) => ({
+        runId: 'run-1',
+        taskId: 'workflow-1',
+        totalTokens,
+        phases: [{ title: 'Inspect' }],
+        workflowProgress: []
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: PENDING,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              {
+                type: 'data-agent-task-event',
+                id: 'progress-snapshot',
+                data: {
+                  event: 'progress',
+                  taskId: 'workflow-1',
+                  status: 'in_progress',
+                  workflow: workflow(100)
+                }
+              },
+              {
+                type: 'data-agent-task-event',
+                id: 'first-terminal-snapshot',
+                data: {
+                  event: 'updated',
+                  taskId: 'workflow-1',
+                  status: 'completed',
+                  workflow: workflow(200)
+                }
+              }
+            ]
+          }
+        }
+      })
+
+      agentSessionMessageService.checkpointWorkflowTaskEvent(SESSION_ID, PENDING, {
+        event: 'notification',
+        taskId: 'workflow-1',
+        status: 'completed',
+        workflow: workflow(2_400)
+      })
+
+      const restartedProjection = agentSessionMessageService.getSessionMessage(SESSION_ID, PENDING)
+      expect(restartedProjection.data.parts).toEqual([
+        expect.objectContaining({
+          id: 'progress-snapshot',
+          data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 100 }) })
+        }),
+        expect.objectContaining({
+          id: 'first-terminal-snapshot',
+          data: expect.objectContaining({
+            event: 'notification',
+            status: 'completed',
+            workflow: expect.objectContaining({ totalTokens: 2_400 })
+          })
+        })
+      ])
+    })
+  })
+
+  describe('findStaleRunTaskMessages + settleStaleRunTaskMessages (run-task reconcile)', () => {
+    const KILLED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d030'
+    const MIXED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d031'
+
+    function taskEvent(taskId: string, status: AgentTaskEventPartData['status'], id?: string): CherryMessagePart {
+      return {
+        type: 'data-agent-task-event',
+        ...(id ? { id } : {}),
+        data: { event: 'started', taskId, status, title: taskId, taskType: 'local_bash' }
+      }
+    }
+
+    /** Folds task events across a whole Session the way the status pane does: first terminal wins. */
+    function foldTaskEvents(parts: CherryMessagePart[]): Map<string, AgentTaskEventPartData> {
+      const merged = new Map<string, AgentTaskEventPartData>()
+      for (const part of parts) {
+        if (part.type !== 'data-agent-task-event') continue
+        const { data } = part as CherryMessagePart & { data: AgentTaskEventPartData }
+        merged.set(data.taskId, mergeAgentSessionTaskEvent(merged.get(data.taskId), data))
+      }
+      return merged
+    }
+
+    it('settles a completed turn whose detached task never reported its end', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'resume-after-clean-turn',
+        message: {
+          id: KILLED,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'waiting for the background command' }, taskEvent('shell-1', 'in_progress')]
+          }
+        }
+      })
+
+      const stale = agentSessionMessageService.findStaleRunTaskMessages()
+      expect(stale.map((message) => message.id)).toEqual([KILLED])
+      expect(stale[0].data.parts).toEqual([
+        expect.objectContaining({ type: 'text' }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            taskId: 'shell-1',
+            status: 'error',
+            // The row's last write is when the task was last known alive. Without it the finished
+            // group — ordered newest first — would bury the interrupted task at the very bottom.
+            completedAt: '1970-01-01T00:00:01.000Z'
+          })
+        })
+      ])
+
+      now.mockReturnValue(5_000)
+      notifyDataApiDataChangeMock.mockClear()
+      agentSessionMessageService.settleStaleRunTaskMessages(stale)
+
+      const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, KILLED))
+      expect(row.status).toBe('success')
+      expect(row.data.parts).toEqual([
+        expect.objectContaining({ type: 'text' }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            taskId: 'shell-1',
+            status: 'error',
+            error: 'Interrupted by app restart before task completed'
+          })
+        })
+      ])
+      // The turn itself completed, so its resume token stays usable and settlement is not repeatable.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-after-clean-turn')
+      expect(agentSessionMessageService.findStaleRunTaskMessages()).toEqual([])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID }
+        }
+      ])
+    })
+
+    it('keeps a task whose terminal edge landed in a sibling row of the same Session', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const OTHER_SESSION_ID = 'session-2'
+      await seedSession({ id: OTHER_SESSION_ID, name: 'Other', orderKey: 'a1' })
+      const STARTED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d032'
+      const NOTIFICATION = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d033'
+      const OTHER_SESSION_ROW = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d034'
+      const notificationParts: CherryMessagePart[] = [
+        {
+          type: 'data-agent-task-event',
+          data: {
+            event: 'notification',
+            taskId: 'shell-done',
+            status: 'completed',
+            completedAt: '2026-06-16T10:00:03.400Z'
+          }
+        }
+      ]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: STARTED,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              taskEvent('shell-done', 'in_progress', 'started-edge'),
+              taskEvent('shell-lost', 'in_progress', 'lost-edge'),
+              taskEvent('shell-elsewhere', 'in_progress', 'elsewhere-edge')
+            ]
+          }
+        }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: NOTIFICATION, role: 'assistant', status: 'success', data: { parts: notificationParts } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: OTHER_SESSION_ID,
+        message: {
+          id: OTHER_SESSION_ROW,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'data-agent-task-event',
+                data: { event: 'notification', taskId: 'shell-elsewhere', status: 'completed' }
+              }
+            ]
+          }
+        }
+      })
+
+      const stale = agentSessionMessageService.findStaleRunTaskMessages()
+      expect(stale.map((message) => message.id)).toEqual([STARTED])
+      expect(stale[0].data.parts).toEqual([
+        // A sibling row already reported this task as completed. Rewriting the stale progress edge
+        // would win the Session-wide first-terminal fold and render a finished task as interrupted.
+        expect.objectContaining({ id: 'started-edge', data: expect.objectContaining({ status: 'in_progress' }) }),
+        expect.objectContaining({
+          id: 'lost-edge',
+          data: expect.objectContaining({
+            taskId: 'shell-lost',
+            status: 'error',
+            synthetic: true,
+            error: 'Interrupted by app restart before task completed',
+            completedAt: '1970-01-01T00:00:01.000Z'
+          })
+        }),
+        // Another Session's completion of the same task id settles nothing here.
+        expect.objectContaining({
+          id: 'elsewhere-edge',
+          data: expect.objectContaining({ taskId: 'shell-elsewhere', status: 'error' })
+        })
+      ])
+      // The status pane folds a whole Session per task, first terminal edge wins — this is what renders.
+      const rendered = foldTaskEvents([...(stale[0].data.parts ?? []), ...notificationParts])
+      expect(rendered.get('shell-done')).toMatchObject({ status: 'completed' })
+      expect(rendered.get('shell-lost')).toMatchObject({
+        status: 'error',
+        error: 'Interrupted by app restart before task completed'
+      })
+      expect(rendered.get('shell-elsewhere')).toMatchObject({ status: 'error' })
+
+      expect(agentSessionMessageService.findSettledRunTaskIds([SESSION_ID])).toEqual(
+        new Map([[SESSION_ID, new Set(['shell-done'])]])
+      )
+    })
+
+    it('settles only the tasks that never reported an end, whatever the row status', () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: MIXED,
+          role: 'assistant',
+          status: 'pending',
+          data: {
+            parts: [
+              taskEvent('shell-done', 'in_progress', 'progress-before-end'),
+              taskEvent('shell-done', 'completed', 'end'),
+              taskEvent('shell-killed', 'in_progress')
+            ]
+          }
+        }
+      })
+
+      const stale = agentSessionMessageService.findStaleRunTaskMessages()
+      expect(stale.map((message) => message.id)).toEqual([MIXED])
+      expect(stale[0].data.parts).toEqual([
+        // The completed task keeps its stale progress event: rewriting it would turn a finished
+        // task into an interrupted one, because the first terminal status wins the merge.
+        expect.objectContaining({
+          id: 'progress-before-end',
+          data: expect.objectContaining({ status: 'in_progress' })
+        }),
+        expect.objectContaining({ id: 'end', data: expect.objectContaining({ status: 'completed' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ taskId: 'shell-killed', status: 'error', synthetic: true })
+        })
+      ])
+    })
   })
 
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
@@ -1706,6 +2148,96 @@ describe('AgentSessionMessageService', () => {
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
+  })
+
+  it('writes a detached flow message and its workflow statistics in one transaction', () => {
+    const MESSAGE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d024'
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: MESSAGE,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'streamed so far' },
+            {
+              type: 'data-agent-task-event',
+              id: 'task-wf-1-progress',
+              data: {
+                event: 'progress',
+                taskId: 'wf-1',
+                status: 'in_progress',
+                workflow: { runId: 'run-1', taskId: 'wf-1', totalTokens: 10, phases: [], workflowProgress: [] }
+              }
+            }
+          ]
+        }
+      }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+
+    const saved = agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
+      SESSION_ID,
+      MESSAGE,
+      [
+        { type: 'text', text: 'streamed so far' },
+        { type: 'text', text: 'final answer' },
+        {
+          type: 'data-agent-task-event',
+          id: 'task-wf-1-progress',
+          data: {
+            event: 'progress',
+            taskId: 'wf-1',
+            status: 'in_progress',
+            workflow: { runId: 'run-1', taskId: 'wf-1', totalTokens: 10, phases: [], workflowProgress: [] }
+          }
+        }
+      ],
+      [
+        {
+          event: 'updated',
+          taskId: 'wf-1',
+          status: 'completed',
+          workflow: { runId: 'run-1', taskId: 'wf-1', totalTokens: 30, phases: [], workflowProgress: [] }
+        }
+      ]
+    )
+
+    // The row holds the streamed content and the statistics the same write merged into it.
+    expect(saved?.data.parts).toEqual([
+      expect.objectContaining({ type: 'text', text: 'streamed so far' }),
+      expect.objectContaining({ type: 'text', text: 'final answer' }),
+      expect.objectContaining({
+        type: 'data-agent-task-event',
+        id: 'task-wf-1-progress',
+        data: expect.objectContaining({
+          status: 'completed',
+          workflow: expect.objectContaining({ totalTokens: 30 })
+        })
+      })
+    ])
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, MESSAGE).data.parts).toEqual(saved?.data.parts)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
+        entityIds: [MESSAGE]
+      }
+    ])
+  })
+
+  it('reports a missing row instead of throwing when the flow write finds none', () => {
+    expect(
+      agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
+        SESSION_ID,
+        '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d025',
+        [{ type: 'text', text: 'gone' }],
+        []
+      )
+    ).toBeNull()
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {

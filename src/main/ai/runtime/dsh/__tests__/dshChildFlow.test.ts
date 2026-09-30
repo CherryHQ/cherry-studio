@@ -25,12 +25,21 @@ const assistantUsage = (turn: number, usage: Record<string, number>, model = 'de
     message: { role: 'assistant', content: [], source: { kind: 'assistant', model } }
   })
 
-function spawnAnchor(callId: string, description: string, toolName = 'subagent'): CherryUIMessageChunk {
+function spawnAnchor(
+  callId: string,
+  description: string,
+  toolName = 'subagent',
+  runInBackground?: boolean
+): CherryUIMessageChunk {
   return {
     type: 'tool-input-available',
     toolCallId: callId,
     toolName,
-    input: { description, prompt: 'go' }
+    input: {
+      description,
+      prompt: 'go',
+      ...(runInBackground !== undefined ? { run_in_background: runInBackground } : {})
+    }
   }
 }
 
@@ -87,6 +96,7 @@ describe('DshSubagentCoordinator binding', () => {
 
   it('binds the child to its spawning tool call and parents its content chunks', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleChildEvent('child-1', textDelta(0, 0, 'hello'))
 
@@ -105,21 +115,159 @@ describe('DshSubagentCoordinator binding', () => {
     expect(sink.emitFlowChunk).not.toHaveBeenCalled()
 
     coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
     expect(deltas).toHaveLength(1)
     expect(deltas[0][0]).toBe('call-1')
   })
 
+  it.each([
+    ['subagent', undefined, true],
+    ['subagent', false, false],
+    ['subagent_fork', undefined, false],
+    ['send_message', undefined, true]
+  ] as const)(
+    'binds an already-running child when its %s anchor arrives (%s)',
+    (toolName, background, isBackgrounded) => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime('2026-08-17T01:00:00.000Z')
+        coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+        coordinator.handleLifecycle(startEdge('grandchild-1', 'nested-run', 'child-1'))
+        coordinator.handleChildEvent('child-1', textDelta(0, 0, 'early child'))
+        coordinator.handleChildEvent('grandchild-1', textDelta(0, 0, 'early grandchild'))
+
+        if (toolName !== 'send_message') coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
+
+        vi.setSystemTime('2026-08-17T01:00:05.000Z')
+        coordinator.noteMainChunk(
+          toolName === 'send_message'
+            ? sendAnchor('call-1', 'child-1')
+            : spawnAnchor('call-1', 'research task', toolName, background)
+        )
+
+        expect(sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')).toEqual([
+          ['call-1', expect.objectContaining({ delta: 'early child' }), null],
+          ['call-1', expect.objectContaining({ delta: 'early grandchild' }), null]
+        ])
+        expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            event: 'started',
+            taskId: 'run-1',
+            toolUseId: 'call-1',
+            status: 'in_progress',
+            createdAt: '2026-08-17T01:00:00.000Z',
+            isBackgrounded,
+            ...(toolName !== 'send_message' ? { title: 'research task' } : {})
+          }),
+          'run-1-started'
+        )
+        expect(sink.emitTasks).toHaveBeenLastCalledWith(
+          isBackgrounded
+            ? [
+                {
+                  id: 'run-1',
+                  type: 'subagent',
+                  description: toolName === 'send_message' ? 'run-1' : 'research task',
+                  toolCallId: 'call-1'
+                }
+              ]
+            : []
+        )
+        expect(coordinator.resolveActiveChildSessionId('run-1')).toBe('child-1')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['subagent', 'send_message'])(
+    'preserves completed lifecycle edges and their timestamps until a late %s anchor binds',
+    (toolName) => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime('2026-08-17T01:00:00.000Z')
+        coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+        coordinator.handleChildEvent('child-1', textDelta(0, 0, 'finished early'))
+        vi.setSystemTime('2026-08-17T01:00:02.000Z')
+        coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+        vi.setSystemTime('2026-08-17T01:00:05.000Z')
+        if (toolName !== 'send_message') coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
+        coordinator.noteMainChunk(
+          toolName === 'send_message' ? sendAnchor('call-1', 'child-1') : spawnAnchor('call-1', 'fast task')
+        )
+        const title = toolName === 'send_message' ? 'run-1' : 'fast task'
+
+        expect(sink.emitTaskEvent.mock.calls).toEqual([
+          [
+            expect.objectContaining({
+              event: 'started',
+              taskId: 'run-1',
+              toolUseId: 'call-1',
+              status: 'in_progress',
+              createdAt: '2026-08-17T01:00:00.000Z',
+              isBackgrounded: true,
+              title
+            }),
+            'run-1-started'
+          ],
+          [
+            expect.objectContaining({
+              event: 'updated',
+              taskId: 'run-1',
+              toolUseId: 'call-1',
+              status: 'completed',
+              createdAt: '2026-08-17T01:00:00.000Z',
+              completedAt: '2026-08-17T01:00:02.000Z',
+              isBackgrounded: true,
+              title
+            }),
+            'run-1-ended'
+          ]
+        ])
+        expect(sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')).toEqual([
+          ['call-1', expect.objectContaining({ delta: 'finished early' }), null]
+        ])
+        expect(sink.emitTasks).toHaveBeenLastCalledWith([])
+        expect(sink.emitWorkState).toHaveBeenLastCalledWith(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['send-first', 'spawn-first'])(
+    'keeps late spawn and cold-resume anchors separate when they arrive %s',
+    (order) => {
+      coordinator.handleLifecycle(startEdge('revived-child', 'resume-run'))
+      coordinator.handleLifecycle(startEdge('spawned-child', 'spawn-run'))
+      coordinator.handleChildEvent('spawned-child', textDelta(0, 0, 'spawned'))
+      coordinator.handleChildEvent('revived-child', textDelta(0, 0, 'resumed'))
+
+      if (order === 'spawn-first') coordinator.noteMainChunk(spawnAnchor('call-spawn', 'spawn task'))
+      coordinator.noteMainChunk(sendAnchor('call-send', 'revived-child'))
+      if (order === 'send-first') coordinator.noteMainChunk(spawnAnchor('call-spawn', 'spawn task'))
+      coordinator.handleSdkSubagentStarted(MAIN, 'spawned-child')
+
+      expect(sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')).toEqual([
+        ['call-send', expect.objectContaining({ delta: 'resumed' }), null],
+        ['call-spawn', expect.objectContaining({ delta: 'spawned' }), null]
+      ])
+    }
+  )
+
   it('flattens a grandchild into its ancestor root flow without consuming an anchor', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'parent task'))
     coordinator.noteMainChunk(spawnAnchor('call-2', 'unrelated'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleLifecycle(startEdge('grandchild-1', 'run-2', 'child-1'))
     coordinator.handleChildEvent('grandchild-1', textDelta(0, 0, 'deep'))
 
     expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-1')).toBe(true)
     // The second anchor stays queued for the next DIRECT child.
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-2')
     coordinator.handleLifecycle(startEdge('child-2', 'run-3'))
     coordinator.handleChildEvent('child-2', textDelta(0, 0, 'other'))
     expect(sink.emitFlowChunk.mock.calls.some(([root]) => root === 'call-2')).toBe(true)
@@ -127,6 +275,7 @@ describe('DshSubagentCoordinator binding', () => {
 
   it('reuses the original binding for a later epoch instead of consuming a new anchor', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
 
@@ -139,12 +288,14 @@ describe('DshSubagentCoordinator binding', () => {
 
   it('never leaks a warm send_message anchor onto the next spawned child', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'first task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
     coordinator.noteMainChunk(sendAnchor('call-send', 'child-1'))
     coordinator.handleLifecycle(startEdge('child-1', 'run-2'))
 
     coordinator.noteMainChunk(spawnAnchor('call-2', 'second task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-2')
     coordinator.handleLifecycle(startEdge('child-2', 'run-3'))
     coordinator.handleChildEvent('child-2', textDelta(0, 0, 'fresh'))
     const roots = sink.emitFlowChunk.mock.calls.map(([root]) => root)
@@ -172,6 +323,7 @@ describe('DshSubagentCoordinator binding', () => {
     expect(deltas[0][0]).toBe('call-send')
     expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-send')).toBe(true)
 
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-2')
     coordinator.handleLifecycle(startEdge('child-2', 'run-10'))
     coordinator.handleChildEvent('child-2', textDelta(0, 0, 'spawned'))
     expect(sink.emitFlowChunk.mock.calls.some(([root]) => root === 'call-2')).toBe(true)
@@ -216,32 +368,93 @@ describe('DshSubagentCoordinator binding', () => {
 
 describe('DshSubagentCoordinator task surface', () => {
   it('publishes task edges and the REPLACE list across an epoch lifecycle', () => {
-    coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-17T01:00:00.000Z')
+      coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
+      coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
+      coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+
+      expect(sink.emitTaskEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'started',
+          taskId: 'run-1',
+          toolUseId: 'call-1',
+          status: 'in_progress',
+          createdAt: '2026-08-17T01:00:00.000Z',
+          taskType: 'subagent',
+          isBackgrounded: true,
+          title: 'research task'
+        }),
+        'run-1-started'
+      )
+      expect(sink.emitTasks).toHaveBeenLastCalledWith([
+        { id: 'run-1', type: 'subagent', description: 'research task', toolCallId: 'call-1' }
+      ])
+      expect(sink.emitWorkState).toHaveBeenLastCalledWith(true)
+
+      vi.setSystemTime('2026-08-17T01:00:05.000Z')
+      coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+      expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          event: 'updated',
+          taskId: 'run-1',
+          status: 'completed',
+          createdAt: '2026-08-17T01:00:00.000Z',
+          completedAt: '2026-08-17T01:00:05.000Z',
+          isBackgrounded: true
+        }),
+        'run-1-ended'
+      )
+      expect(sink.emitTasks).toHaveBeenLastCalledWith([])
+      expect(sink.emitWorkState).toHaveBeenLastCalledWith(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ['subagent', undefined, true],
+    ['subagent', false, false],
+    ['subagent_fork', undefined, false],
+    ['send_message', undefined, true]
+  ] as const)('maps %s run_in_background=%s to background state %s', (toolName, runInBackground, isBackgrounded) => {
+    const isSendMessage = toolName === 'send_message'
+    coordinator.noteMainChunk(
+      isSendMessage ? sendAnchor('call-1', 'child-1') : spawnAnchor('call-1', 'task', toolName, runInBackground)
+    )
+    if (!isSendMessage) coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
 
-    expect(sink.emitTaskEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'started',
-        taskId: 'child-1',
-        toolUseId: 'call-1',
-        status: 'in_progress',
-        taskType: 'subagent',
-        title: 'research task'
-      }),
+    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskId: 'run-1', isBackgrounded }),
       'run-1-started'
     )
-    expect(sink.emitTasks).toHaveBeenLastCalledWith([
-      { id: 'child-1', type: 'subagent', description: 'research task', toolCallId: 'call-1' }
-    ])
-    expect(sink.emitWorkState).toHaveBeenLastCalledWith(true)
-
-    coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
-    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
-      expect.objectContaining({ event: 'updated', taskId: 'child-1', status: 'completed' }),
-      'run-1-ended'
+    expect(sink.emitTasks).toHaveBeenLastCalledWith(
+      isBackgrounded
+        ? [{ id: 'run-1', type: 'subagent', description: isSendMessage ? 'run-1' : 'task', toolCallId: 'call-1' }]
+        : []
     )
-    expect(sink.emitTasks).toHaveBeenLastCalledWith([])
-    expect(sink.emitWorkState).toHaveBeenLastCalledWith(false)
+  })
+
+  it('uses a new task identity when a continuable child starts another residency epoch', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
+    coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+    coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+    coordinator.handleLifecycle(startEdge('child-1', 'run-2'))
+
+    expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskId: 'run-2', status: 'in_progress' }),
+      'run-2-started'
+    )
+    expect(sink.emitTasks).toHaveBeenLastCalledWith([
+      { id: 'run-2', type: 'subagent', description: 'task', toolCallId: 'call-1' }
+    ])
+    expect(coordinator.resolveActiveChildSessionId('run-2')).toBe('child-1')
+
+    coordinator.handleLifecycle(endEdge('child-1', 'run-2'))
+    expect(coordinator.resolveActiveChildSessionId('run-2')).toBeUndefined()
   })
 
   it.each([
@@ -251,6 +464,7 @@ describe('DshSubagentCoordinator task surface', () => {
     ['refusal', 'error']
   ])('maps stop reason %s to task status %s', (stopReason, status) => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 't'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleLifecycle(endEdge('child-1', 'run-1', stopReason))
     expect(sink.emitTaskEvent).toHaveBeenLastCalledWith(expect.objectContaining({ status }), 'run-1-ended')
@@ -258,6 +472,7 @@ describe('DshSubagentCoordinator task surface', () => {
 
   it('does not publish task rows for nested descendants', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 't'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     sink.emitTaskEvent.mockClear()
     coordinator.handleLifecycle(startEdge('grandchild-1', 'run-2', 'child-1'))
@@ -273,6 +488,7 @@ describe('DshSubagentCoordinator task surface', () => {
 describe('DshSubagentCoordinator child projection', () => {
   beforeEach(() => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
   })
 
@@ -343,6 +559,7 @@ describe('DshSubagentCoordinator child projection', () => {
 describe('DshSubagentCoordinator destination pinning', () => {
   beforeEach(() => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'task'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child-1')
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
   })
 

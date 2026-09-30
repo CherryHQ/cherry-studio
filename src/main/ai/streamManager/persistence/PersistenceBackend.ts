@@ -8,6 +8,7 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import { isTerminalAgentSessionTaskStatus, mergeAgentSessionTaskEvent } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -35,14 +36,30 @@ export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMes
   return filtered.length === parts.length ? parts : filtered
 }
 
+/**
+ * Terminalize the parts a turn left mid-flight so nothing stays non-terminal. Task events are
+ * judged per task rather than per part: consumers merge them first-terminal-wins, so a task that
+ * already reported its terminal edge — here or in the Session's `settledTaskIds` — must survive
+ * with every part intact.
+ */
 export function finalizeInterruptedParts(
   parts: CherryMessagePart[],
-  status: 'success' | 'paused' | 'error'
+  status: 'success' | 'paused' | 'error',
+  settledTaskIds?: ReadonlySet<string>
 ): CherryMessagePart[] {
   if (status === 'success') return parts
   const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
+  const mergedTasks = new Map<string, AgentTaskEventPartData>()
+  for (const part of parts) {
+    if (part.type !== 'data-agent-task-event') continue
+    const { data } = part as CherryMessagePart & { data: AgentTaskEventPartData }
+    mergedTasks.set(data.taskId, mergeAgentSessionTaskEvent(mergedTasks.get(data.taskId), data))
+  }
+  const messageSettledTaskIds = new Set(
+    [...mergedTasks].flatMap(([taskId, data]) => (isTerminalAgentSessionTaskStatus(data.status) ? [taskId] : []))
+  )
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -72,12 +89,19 @@ export function finalizeInterruptedParts(
 
     if (part.type === 'data-agent-task-event') {
       const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
-      if (taskPart.data.status !== 'in_progress') return part
+      if (
+        taskPart.data.status !== 'in_progress' ||
+        messageSettledTaskIds.has(taskPart.data.taskId) ||
+        settledTaskIds?.has(taskPart.data.taskId)
+      )
+        return part
       return {
         ...taskPart,
         data: {
           ...taskPart.data,
-          status: 'error',
+          // A pause is the user stopping the turn, so its unfinished tasks read as stopped, not failed.
+          status: status === 'paused' ? 'stopped' : 'error',
+          synthetic: true,
           error: taskPart.data.error ?? taskError
         }
       } as CherryMessagePart
