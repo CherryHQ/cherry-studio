@@ -78,6 +78,9 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Keep Bun's internal runners independent of workspace config and preserve their argv delimiter.
+  "@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-sandbox-local@0.2.0-rc.2.patch
+  "@deepseek-ai/dsh-subprocess-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-subprocess-local@0.2.0-rc.2.patch
   # Forward transient assistant chunks on the SDK pipe, ordered with durable session events.
   "@deepseek-ai/dsh-sdk-jsonrpc-server@0.2.0-rc.2": patches/@deepseek-ai__dsh-sdk-jsonrpc-server@0.2.0-rc.2.patch
   "@napi-rs/system-ocr@1.2.0": patches/@napi-rs__system-ocr@1.2.0.patch

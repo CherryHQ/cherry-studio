@@ -23,9 +23,9 @@
 // merges; dsh-goal loads its MessageSourceMap merge.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-goal'
-import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
+import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 

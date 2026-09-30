@@ -61,7 +61,16 @@ it.skipIf(process.env.CHERRY_DSH_SMOKE !== '1')(
         arguments: {
           command:
             process.platform === 'win32'
-              ? 'if ($env:CHERRY_DSH_SMOKE_LEAK -or -not (Test-Path -LiteralPath "./pixel.png")) { exit 1 }; echo cherry-bun-shell-ok'
+              ? [
+                  "$ErrorActionPreference = 'Stop'",
+                  'if ($env:CHERRY_DSH_SMOKE_LEAK -or -not (Test-Path -LiteralPath "./pixel.png")) { exit 1 }',
+                  "$cleanupDir = Join-Path $env:TEMP ('cherry-cleanup-' + [guid]::NewGuid())",
+                  'New-Item -ItemType Directory -Path $cleanupDir | Out-Null',
+                  "Set-Content -LiteralPath (Join-Path $cleanupDir 'probe.txt') -Value 'cleanup'",
+                  'Remove-Item -LiteralPath $cleanupDir -Recurse',
+                  'if (Test-Path -LiteralPath $cleanupDir) { exit 1 }',
+                  'echo cherry-bun-shell-ok'
+                ].join('; ')
               : 'test -z "$CHERRY_DSH_SMOKE_LEAK" && test -f ./pixel.png && echo cherry-bun-shell-ok',
           description: 'Check environment isolation and workspace access'
         }
@@ -229,7 +238,10 @@ it.skipIf(process.env.CHERRY_DSH_SMOKE !== '1')(
         const results = events.filter((item) => item.event.type === 'tool/result')
         expect(results.length).toBeGreaterThanOrEqual(3)
         for (const result of results) {
-          expect(result.event.data.message).toMatchObject({ role: 'tool', isError: false })
+          expect(result.event.data.message, JSON.stringify(result.event.data.message)).toMatchObject({
+            role: 'tool',
+            isError: false
+          })
         }
         expect(JSON.stringify(results)).toContain('cherry-bun-shell-ok')
         expect(
