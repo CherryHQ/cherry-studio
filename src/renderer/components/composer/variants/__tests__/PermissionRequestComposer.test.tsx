@@ -51,12 +51,19 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [{ id: 'anthropic', name: 'Anthropic' }] })
+  useProviders: (options?: { enabled?: boolean }) => {
+    lookupRequests.providerEnabled.push(options?.enabled)
+    return { providers: [{ id: 'anthropic', name: 'Anthropic' }] }
+  }
 }))
 
 const planExecutionPreference = vi.hoisted(() => ({ modelId: null as string | null }))
 const modelByIdFixture = vi.hoisted(() => ({
   model: undefined as { id: string; name: string; providerId: string } | undefined
+}))
+const lookupRequests = vi.hoisted(() => ({
+  modelIds: [] as unknown[],
+  providerEnabled: [] as (boolean | undefined)[]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -65,7 +72,10 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (uniqueModelId: unknown) => ({ model: uniqueModelId ? modelByIdFixture.model : undefined })
+  useModelById: (uniqueModelId: unknown) => {
+    lookupRequests.modelIds.push(uniqueModelId)
+    return { model: uniqueModelId ? modelByIdFixture.model : undefined }
+  }
 }))
 
 const part = {
@@ -146,6 +156,8 @@ describe('PermissionRequestComposer', () => {
   beforeEach(() => {
     planExecutionPreference.modelId = null
     modelByIdFixture.model = undefined
+    lookupRequests.modelIds.length = 0
+    lookupRequests.providerEnabled.length = 0
   })
 
   it('marks the root panel as a composer viewport inset target', () => {
@@ -430,6 +442,28 @@ describe('PermissionRequestComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // An approval that cannot hand a model off must not resolve the plan-execution model or its
+  // Provider either — the policy belongs to the caller, not to every card this composer renders.
+  it('resolves the plan-execution model only where a handoff can happen', () => {
+    configurePlanExecutionModel()
+    const { rerender } = render(
+      <PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} planExecution={{}} />
+    )
+
+    expect(lookupRequests.modelIds.length).toBeGreaterThan(0)
+    expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).not.toContain(true)
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} />)
+    expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).not.toContain(true)
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(lookupRequests.modelIds).toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).toContain(true)
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
   })
 
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {

@@ -193,12 +193,17 @@ export default function PermissionRequestComposer({
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
   const [configuredExecutionModelId] = usePreference('chat.plan_execution.model_id')
-  const { model: configuredExecutionModel } = useModelById(configuredExecutionModelId as UniqueModelId | undefined)
-  const { providers } = useProviders({ enabled: true })
   // Main's handoff gate is name-based too, but an MCP tool that merely shares the plan-exit name
   // carries no plan semantics — an approval like that must never send an executionModelId.
   const isPlanExitApproval =
     !isMcpToolResponse(request.toolResponse) && isPlanExitToolName(request.toolResponse.tool.name)
+  // Only a plan approval carrying an agent's plan-execution policy can hand a model off, so the
+  // lookups that resolve that model stay out of Home and ordinary tool approvals entirely.
+  const canRequestHandoff = Boolean(planExecution) && isPlanExitApproval
+  const { model: configuredExecutionModel } = useModelById(
+    canRequestHandoff ? (configuredExecutionModelId as UniqueModelId | undefined) : undefined
+  )
+  const { providers } = useProviders({ enabled: canRequestHandoff })
   // Settings → Default models picks the execution model; the gates decide whether it may be handed
   // off to here. They are called with the model's Provider because several runtime compatibility
   // predicates are provider-aware and fail closed without one.
