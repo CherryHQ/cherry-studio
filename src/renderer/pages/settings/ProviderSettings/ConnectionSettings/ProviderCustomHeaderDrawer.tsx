@@ -169,7 +169,8 @@ export function resolveEndpointTypes(
 
 export interface EndpointDraft {
   baseUrl: string
-  reasoningFormat?: { type: 'self-hosted' }
+  /** `null` = user chose registry default in this drawer; omit = leave persisted value unchanged. */
+  reasoningFormat?: { type: 'self-hosted' } | null
 }
 
 const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
@@ -197,11 +198,11 @@ export function mergeEndpointConfigs(
     } else {
       delete next.baseUrl
     }
-    if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
-      if (draft.reasoningFormat) {
-        next.reasoningFormat = draft.reasoningFormat
-      } else {
+    if (REASONING_FORMAT_ENDPOINT_TYPES.has(type) && 'reasoningFormat' in draft) {
+      if (draft.reasoningFormat === null) {
         delete next.reasoningFormat
+      } else if (draft.reasoningFormat) {
+        next.reasoningFormat = draft.reasoningFormat
       }
     }
     if (!isEmpty(next)) {
@@ -511,13 +512,21 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                     {t('settings.provider.reasoning_format')}
                   </Label>
                   <Select
-                    value={endpointDrafts[type]?.reasoningFormat?.type ?? 'default'}
+                    value={(() => {
+                      const draft = endpointDrafts[type]
+                      if (draft && 'reasoningFormat' in draft) {
+                        return draft.reasoningFormat?.type ?? 'default'
+                      }
+                      return provider?.endpointConfigs?.[type]?.reasoningFormat?.type === 'self-hosted'
+                        ? 'self-hosted'
+                        : 'default'
+                    })()}
                     onValueChange={(next) =>
                       setEndpointDrafts((prev) => ({
                         ...prev,
                         [type]: {
                           ...(prev[type] ?? { baseUrl: '' }),
-                          reasoningFormat: next === 'self-hosted' ? { type: 'self-hosted' } : undefined
+                          reasoningFormat: next === 'self-hosted' ? { type: 'self-hosted' } : null
                         }
                       }))
                     }>
