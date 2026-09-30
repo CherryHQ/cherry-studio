@@ -5,7 +5,6 @@ import {
   NotesDirectoryMigrationConfirmContent,
   NotesDirectoryMigrationMergeContent
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
-import { flushAllNotesEdits } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -94,8 +93,6 @@ export async function migrateNotesDirectoryWithUi(options: {
     if (!confirmed) {
       return
     }
-
-    await flushAllNotesEdits()
 
     await ipcApi.request('app.notes_relocation.migrate', {
       sourcePath,
