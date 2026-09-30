@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowRight, MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -7,8 +7,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { RemoteCapability } from '@cherrystudio/remote-protocol'
-import { Alert, Badge, Button, Checkbox, IndicatorLight, Tooltip } from '@cherrystudio/ui'
-import { useSharedCacheValue } from '@data/hooks/useCache'
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  IndicatorLight,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   SettingGroup,
@@ -25,6 +38,8 @@ import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { ConnectionSetup } from './ConnectionSetup'
+import { MobileAppDownload } from './MobileAppDownload'
+import { MobileAppShowcase } from './MobileAppShowcase'
 
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
@@ -37,8 +52,9 @@ type PairingClaim = OutputFor<'api_gateway.remote.list_claims'>[number]
 
 const DeviceConnectionsSettings: FC = () => {
   const { theme } = useTheme()
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
+  const [step, setStep] = usePersistCache('settings.device_connections.step')
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
@@ -53,6 +69,12 @@ const DeviceConnectionsSettings: FC = () => {
     refresh: ['/api-gateway/paired-devices']
   })
 
+  const onboardingComplete = step === 'complete' || devices.length > 0
+
+  useEffect(() => {
+    if (devices.length > 0 && step !== 'complete') setStep('complete')
+  }, [devices.length, step, setStep])
+
   const lanEnabled = apiGatewayConfig.host === LAN_HOST
   const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
@@ -65,12 +87,6 @@ const DeviceConnectionsSettings: FC = () => {
   const [revokingId, setRevokingId] = useState<string>()
   const invitationRequestId = useRef(0)
   const claimRequestId = useRef(0)
-
-  const openMobileDownload = () => {
-    const language = i18n.resolvedLanguage ?? i18n.language
-    const url = language.startsWith('zh') ? 'https://cherryai.com.cn/mobile' : 'https://cherryai.com/mobile'
-    void ipcApi.request('system.shell.open_external_website', url)
-  }
 
   const clearInvitation = useCallback(() => {
     invitationRequestId.current += 1
@@ -130,7 +146,10 @@ const DeviceConnectionsSettings: FC = () => {
     setDecidingClaimId(claim.claimId)
     try {
       await ipcApi.request('api_gateway.remote.decide_pairing', { claimId: claim.claimId, capabilities })
-      if (capabilities) toast.success(t('deviceConnections.claims.approved'))
+      if (capabilities) {
+        setStep('complete')
+        toast.success(t('deviceConnections.claims.approved'))
+      }
       clearInvitation()
     } catch (error) {
       toast.error(t('deviceConnections.claims.error') + ((error as Error).message || error))
@@ -221,8 +240,8 @@ const DeviceConnectionsSettings: FC = () => {
   return (
     <SettingsContentColumn
       theme={theme}
-      className="flex h-[calc(100vh-var(--navbar-height))] flex-col"
-      innerClassName="pb-6">
+      className="@container flex h-[calc(100vh-var(--navbar-height))] min-w-0 flex-col pb-12"
+      innerClassName="flex min-h-full max-w-6xl flex-col">
       <div className="min-w-0">
         <SettingTitle className="justify-start gap-2">
           <MonitorSmartphone size={16} />
@@ -231,198 +250,246 @@ const DeviceConnectionsSettings: FC = () => {
         <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
 
-      <StatusCard>
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <StatusIcon $ready={connectionReady}>
-            <MonitorSmartphone size={22} />
-          </StatusIcon>
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <IndicatorLight color={connectionReady ? 'var(--success)' : 'var(--muted-foreground)'} size={8} />
-              <div className="font-medium text-sm">{t(statusKey)}</div>
-            </div>
-            <div className="text-muted-foreground text-xs leading-relaxed">{t(statusDescriptionKey)}</div>
-            {connectionReady && discoveryStatus === 'unavailable' && (
-              <div className="text-warning text-xs">{t('deviceConnections.discovery.unavailable')}</div>
-            )}
+      <div className="mt-6 grid min-w-0 flex-1 items-stretch gap-8 @3xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        {!onboardingComplete && step === 'download' && isLoadingDevices ? (
+          <div role="status" className="text-muted-foreground text-sm">
+            {t('common.loading')}
           </div>
-        </div>
-        {connectionAction}
-      </StatusCard>
-
-      <Sections>
-        <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
-          <SectionFields>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <SettingRowTitle>{t('deviceConnections.pairing.title')}</SettingRowTitle>
-                <div className="mt-1 text-foreground-tertiary text-xs leading-5">
-                  {t('deviceConnections.pairing.hint')}
+        ) : !onboardingComplete && step === 'download' ? (
+          <div className="flex min-w-0 items-center justify-center py-8">
+            <div className="w-full max-w-sm space-y-8 text-center">
+              <p className="text-muted-foreground text-sm leading-6">{t('deviceConnections.downloadMobileHint')}</p>
+              <MobileAppDownload />
+              <Button className="w-full" onClick={() => setStep('connect')}>
+                {t('deviceConnections.guide.continue')}
+                <ArrowRight className="size-4 rtl:rotate-180" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="min-w-0 self-start">
+            <StatusCard>
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <StatusIcon $ready={connectionReady}>
+                  <MonitorSmartphone size={22} />
+                </StatusIcon>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <IndicatorLight color={connectionReady ? 'var(--success)' : 'var(--muted-foreground)'} size={8} />
+                    <div className="font-medium text-sm">{t(statusKey)}</div>
+                  </div>
+                  <div className="text-muted-foreground text-xs leading-relaxed">{t(statusDescriptionKey)}</div>
+                  {connectionReady && discoveryStatus === 'unavailable' && (
+                    <div className="text-warning text-xs">{t('deviceConnections.discovery.unavailable')}</div>
+                  )}
                 </div>
               </div>
-              <Tooltip content={t('deviceConnections.downloadMobileHint')}>
-                <Button variant="ghost" size="sm" onClick={openMobileDownload}>
-                  {t('deviceConnections.downloadMobile')}
-                  <ArrowUpRight className="size-3.5" />
-                </Button>
-              </Tooltip>
-            </div>
+              {connectionAction}
+            </StatusCard>
 
-            {(invitation || claims.length > 0) && (
-              <div
-                role="note"
-                className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
-                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                <span>{t('deviceConnections.toggle.risk')}</span>
-              </div>
-            )}
-
-            {!connectionReady ? (
-              <div className="text-foreground-tertiary text-xs">
-                {t(
-                  gatewayAvailable ? 'deviceConnections.pairing.requiresRunning' : 'deviceConnections.gateway.required'
-                )}
-              </div>
-            ) : claims.length > 0 ? (
-              claims.map((claim) => {
-                const selected = selectedCapabilities[claim.claimId] ?? claim.capabilities
-                return (
-                  <div
-                    key={claim.claimId}
-                    role="group"
-                    aria-label={t('deviceConnections.claims.title')}
-                    className="flex flex-col gap-3 rounded-lg border border-border p-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-sm">{claim.deviceName}</div>
-                      <div className="text-muted-foreground text-xs">{claim.platform}</div>
-                    </div>
-                    <div className="font-mono text-2xl tracking-[0.3em]">{claim.verificationCode}</div>
-                    <div className="text-foreground-tertiary text-xs leading-5">
-                      {t('deviceConnections.claims.codeHint')}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {claim.capabilities.map((capability) => (
-                        <label key={capability} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={selected.includes(capability)}
-                            onCheckedChange={(checked) =>
-                              setSelectedCapabilities((current) => ({
-                                ...current,
-                                [claim.claimId]: claim.capabilities.filter((value) =>
-                                  value === capability ? checked === true : selected.includes(value)
-                                )
-                              }))
-                            }
-                          />
-                          {t(CAPABILITY_LABEL[capability])}
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        loading={decidingClaimId === claim.claimId}
-                        disabled={selected.length === 0}
-                        onClick={() => void decideClaim(claim, selected)}>
-                        {t('deviceConnections.claims.approve')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        disabled={decidingClaimId !== undefined}
-                        onClick={() => void decideClaim(claim, null)}>
-                        {t('deviceConnections.claims.reject')}
-                      </Button>
+            <Sections>
+              <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
+                <SectionFields>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <SettingRowTitle>{t('deviceConnections.pairing.title')}</SettingRowTitle>
+                      <div className="mt-1 text-foreground-tertiary text-xs leading-5">
+                        {t('deviceConnections.pairing.hint')}{' '}
+                        {onboardingComplete && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="link" className="h-auto p-0 text-xs">
+                                {t('deviceConnections.downloadMobile')}
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent size="sm" closeLabel={t('common.close')} className="gap-6">
+                              <DialogHeader className="pe-6 text-start">
+                                <DialogTitle>{t('deviceConnections.downloadMobile')}</DialogTitle>
+                                <DialogDescription className="sr-only">
+                                  {t('deviceConnections.downloadMobileHint')}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <MobileAppDownload />
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )
-              })
-            ) : invitation && qrPayload ? (
-              <div className="flex flex-col items-start gap-2">
-                <div className="rounded-lg border border-border bg-white p-3">
-                  <QRCodeSVG value={qrPayload} size={180} level="M" title={t('deviceConnections.pairing.title')} />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <Button loading={isCreatingInvitation} disabled={isUpdatingLan} onClick={showPairingQr}>
-                  {!isCreatingInvitation && <QrCode size={14} />}
-                  {t('deviceConnections.pairing.show')}
-                </Button>
-              </div>
-            )}
-          </SectionFields>
-        </SettingGroup>
 
-        <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
-          <SectionFields>
-            <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
-            {devicesError ? (
-              <Alert
-                type="error"
-                showIcon
-                message={t('deviceConnections.devices.loadError')}
-                action={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    loading={isRefreshingDevices}
-                    onClick={() => void refetchDevices().catch(() => {})}>
-                    {t('common.retry')}
-                  </Button>
-                }
-              />
-            ) : isLoadingDevices ? (
-              <div role="status" className="text-foreground-tertiary text-xs">
-                {t('common.loading')}
-              </div>
-            ) : devices.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {devices.map((device) => (
-                  <div key={device.id} className="flex items-center justify-between gap-3 py-2">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-sm">{device.name}</div>
-                      <div className="text-muted-foreground text-xs">
-                        {device.platform} · {new Date(device.createdAt).toLocaleDateString()}
-                      </div>
-                      {device.remoteAccess && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {device.remoteAccess.capabilities.map((capability) => (
-                            <Badge key={capability} variant="outline">
-                              {t(CAPABILITY_LABEL[capability])}
-                            </Badge>
-                          ))}
-                        </div>
+                  {(invitation || claims.length > 0) && (
+                    <div
+                      role="note"
+                      className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
+                      <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                      <span>{t('deviceConnections.toggle.risk')}</span>
+                    </div>
+                  )}
+
+                  {!connectionReady ? (
+                    <div className="text-foreground-tertiary text-xs">
+                      {t(
+                        gatewayAvailable
+                          ? 'deviceConnections.pairing.requiresRunning'
+                          : 'deviceConnections.gateway.required'
                       )}
                     </div>
-                    <Tooltip content={t('deviceConnections.devices.revoke')}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        loading={revokingId === device.id}
-                        aria-label={t('deviceConnections.devices.revoke')}
-                        onClick={() => void revokeDevice(device.id)}>
-                        {revokingId !== device.id && <Trash2 size={14} />}
+                  ) : claims.length > 0 ? (
+                    claims.map((claim) => {
+                      const selected = selectedCapabilities[claim.claimId] ?? claim.capabilities
+                      return (
+                        <div
+                          key={claim.claimId}
+                          role="group"
+                          aria-label={t('deviceConnections.claims.title')}
+                          className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-sm">{claim.deviceName}</div>
+                            <div className="text-muted-foreground text-xs">{claim.platform}</div>
+                          </div>
+                          <div className="font-mono text-2xl tracking-[0.3em]">{claim.verificationCode}</div>
+                          <div className="text-foreground-tertiary text-xs leading-5">
+                            {t('deviceConnections.claims.codeHint')}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {claim.capabilities.map((capability) => (
+                              <label key={capability} className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={selected.includes(capability)}
+                                  onCheckedChange={(checked) =>
+                                    setSelectedCapabilities((current) => ({
+                                      ...current,
+                                      [claim.claimId]: claim.capabilities.filter((value) =>
+                                        value === capability ? checked === true : selected.includes(value)
+                                      )
+                                    }))
+                                  }
+                                />
+                                {t(CAPABILITY_LABEL[capability])}
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              loading={decidingClaimId === claim.claimId}
+                              disabled={selected.length === 0}
+                              onClick={() => void decideClaim(claim, selected)}>
+                              {t('deviceConnections.claims.approve')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              disabled={decidingClaimId !== undefined}
+                              onClick={() => void decideClaim(claim, null)}>
+                              {t('deviceConnections.claims.reject')}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : invitation && qrPayload ? (
+                    <div className="flex flex-col items-start gap-2">
+                      <div className="rounded-lg border border-border bg-white p-3">
+                        <QRCodeSVG
+                          value={qrPayload}
+                          size={180}
+                          level="M"
+                          title={t('deviceConnections.pairing.title')}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Button loading={isCreatingInvitation} disabled={isUpdatingLan} onClick={showPairingQr}>
+                        {!isCreatingInvitation && <QrCode size={14} />}
+                        {t('deviceConnections.pairing.show')}
                       </Button>
-                    </Tooltip>
+                    </div>
+                  )}
+                </SectionFields>
+              </SettingGroup>
+
+              <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
+                <SectionFields>
+                  <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
+                  {devicesError ? (
+                    <Alert
+                      type="error"
+                      showIcon
+                      message={t('deviceConnections.devices.loadError')}
+                      action={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          loading={isRefreshingDevices}
+                          onClick={() => void refetchDevices().catch(() => {})}>
+                          {t('common.retry')}
+                        </Button>
+                      }
+                    />
+                  ) : isLoadingDevices ? (
+                    <div role="status" className="text-foreground-tertiary text-xs">
+                      {t('common.loading')}
+                    </div>
+                  ) : devices.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {devices.map((device) => (
+                        <div key={device.id} className="flex items-center justify-between gap-3 py-2">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-sm">{device.name}</div>
+                            <div className="text-muted-foreground text-xs">
+                              {device.platform} · {new Date(device.createdAt).toLocaleDateString()}
+                            </div>
+                            {device.remoteAccess && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {device.remoteAccess.capabilities.map((capability) => (
+                                  <Badge key={capability} variant="outline">
+                                    {t(CAPABILITY_LABEL[capability])}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <Tooltip content={t('deviceConnections.devices.revoke')}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              loading={revokingId === device.id}
+                              aria-label={t('deviceConnections.devices.revoke')}
+                              onClick={() => void revokeDevice(device.id)}>
+                              {revokingId !== device.id && <Trash2 size={14} />}
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-foreground-tertiary text-xs">{t('deviceConnections.devices.empty')}</div>
+                  )}
+                </SectionFields>
+              </SettingGroup>
+            </Sections>
+            <SkillLauncherProvider>
+              <ConnectionSetup
+                connectionReady={connectionReady}
+                prerequisite={
+                  <div className="space-y-4">
+                    <p className="text-muted-foreground text-sm leading-6">{t(statusDescriptionKey)}</p>
+                    {connectionAction}
                   </div>
-                ))}
+                }
+              />
+            </SkillLauncherProvider>
+            {!onboardingComplete && (
+              <div className="mt-4 text-center">
+                <Button variant="ghost" size="sm" onClick={() => setStep('download')}>
+                  {t('deviceConnections.downloadMobile')}
+                </Button>
               </div>
-            ) : (
-              <div className="text-foreground-tertiary text-xs">{t('deviceConnections.devices.empty')}</div>
             )}
-          </SectionFields>
-        </SettingGroup>
-      </Sections>
-      <SkillLauncherProvider>
-        <ConnectionSetup
-          connectionReady={connectionReady}
-          prerequisite={
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-sm leading-6">{t(statusDescriptionKey)}</p>
-              {connectionAction}
-            </div>
-          }
-        />
-      </SkillLauncherProvider>
+          </div>
+        )}
+        <MobileAppShowcase />
+      </div>
     </SettingsContentColumn>
   )
 }
