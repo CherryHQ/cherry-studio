@@ -346,6 +346,55 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(loader?.inputs.ckpt_name).toBe('model.safetensors')
   })
 
+  it('reports the text widget a subgraph promotes on its instance', () => {
+    const { promotedText } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 5,
+            type: 'sub-1',
+            inputs: [
+              { name: 'string_a', link: null, widget: { name: 'string_a' } },
+              { name: 'steps', link: null, widget: { name: 'steps' } }
+            ],
+            widgets_values: ['a harbour at dusk', 7],
+            outputs: []
+          }
+        ],
+        links: [],
+        definitions: {
+          subgraphs: [
+            {
+              id: 'sub-1',
+              inputNode: { id: -10 },
+              inputs: [
+                { name: 'string_a', type: 'STRING', linkIds: [34] },
+                { name: 'steps', type: 'INT', linkIds: [35] }
+              ],
+              nodes: [
+                {
+                  id: 27,
+                  type: 'CLIPTextEncode',
+                  inputs: [
+                    { name: 'text', link: 34, widget: { name: 'text' } },
+                    { name: 'clip', link: null }
+                  ]
+                },
+                { id: 28, type: 'KSampler', inputs: [{ name: 'steps', link: 35, widget: { name: 'steps' } }] }
+              ],
+              links: [link(34, -10, 0, 27, 0), link(35, -10, 1, 28, 0)]
+            }
+          ]
+        }
+      },
+      objectInfo
+    )
+
+    // Only the STRING promotion is a text entry point, and it names the widget
+    // the value has to be written to inside the subgraph.
+    expect(promotedText).toEqual([{ nodeId: '2', input: 'text' }])
+  })
+
   it('keeps the interior value of a promoted input the instance never bound', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applySeed, findPromptTarget, type ApiPromptNode } from '../uiToApiPrompt'
+import { applySeed, findPromptTarget, hasPromptText, type ApiPromptNode } from '../uiToApiPrompt'
 
 const fluxGraph = (): Record<string, ApiPromptNode> => ({
   '1': { class_type: 'RandomNoise', _meta: { title: 'RandomNoise' }, inputs: { noise_seed: 111 } },
@@ -154,6 +154,81 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toBeUndefined()
   })
 
+  it('reads a numbered guider stream as the positive conditioning', () => {
+    // DualCFGGuider — the Omnigen2 shape — numbers its streams cond1 and cond2
+    // instead of naming one `positive`, and cond1 is the text.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'SamplerCustomAdvanced',
+        _meta: { title: 'sampler' },
+        inputs: { guider: ['2', 0], latent_image: ['5', 0] }
+      },
+      '2': {
+        class_type: 'DualCFGGuider',
+        _meta: { title: 'guider' },
+        inputs: { model: ['4', 0], cond1: ['3', 0], cond2: ['6', 0], negative: ['6', 0] }
+      },
+      '3': { class_type: 'CLIPTextEncode', _meta: { title: 'text' }, inputs: { text: 'saved text' } },
+      '4': { class_type: 'UNETLoader', _meta: { title: 'model' }, inputs: {} },
+      '5': { class_type: 'EmptyLatentImage', _meta: { title: 'latent' }, inputs: {} },
+      '6': { class_type: 'CLIPTextEncode', _meta: { title: 'negative' }, inputs: { text: 'deformed, blurry' } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '3', input: 'text', samplerId: '1' })
+  })
+
+  it('reads a prompt the backend nests under a widget group', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'QwenImageTextToImageApi',
+        _meta: { title: 'generator' },
+        inputs: { 'model.prompt': 'saved text', 'model.negative_prompt': '', seed: 42 }
+      },
+      '2': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'model.prompt', samplerId: '1' })
+  })
+
+  it("follows a generator's linked text", () => {
+    // GeminiImage2Node takes the prompt as a socket: the text is one hop away,
+    // in the Primitive it references.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'GeminiImage2Node', _meta: { title: 'generator' }, inputs: { prompt: ['2', 0], seed: 1 } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'saved text' } },
+      '3': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'value', samplerId: '1' })
+  })
+
+  it('targets a generator that keeps no seed at all', () => {
+    // RunwayTextToImageNode holds the prompt and nothing else: there is no
+    // sampler, so the walk starts from what the graph outputs.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['2', 0] } },
+      '2': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: 'saved text' } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'prompt', samplerId: '2' })
+  })
+
+  it('falls back to the text widget the workflow promotes on its instance', () => {
+    // The graph joins the run's text with a style suffix, so nothing on the
+    // conditioning chain says which literal is the prompt. The subgraph
+    // promoted `string_a`, which is the workflow's own answer.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: 'cat', string_b: 'sugar-coated candy style', delimiter: ', ' }
+      },
+      '2': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['1', 0] } },
+      '3': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['2', 0], seed: 5 } }
+    }
+    expect(findPromptTarget(graph, [{ nodeId: '1', input: 'string_a' }])).toEqual({
+      nodeId: '1',
+      input: 'string_a',
+      samplerId: '3'
+    })
+  })
+
   it('samples a generator that nests its seed, and writes the run seed back there', () => {
     const graph: Record<string, ApiPromptNode> = {
       '1': {
@@ -166,5 +241,35 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'prompt', samplerId: '1' })
     applySeed(graph, 7, '1')
     expect(graph['1'].inputs['model.seed']).toBe(7)
+  })
+})
+
+describe('ComfyUI workflows that hold no text', () => {
+  const upscaler = (): Record<string, ApiPromptNode> => ({
+    '1': { class_type: 'ImageScaleBy', _meta: { title: 'scale' }, inputs: { upscale_method: 'lanczos' } },
+    '2': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0], filename_prefix: 'x' } }
+  })
+
+  it('says so, and reports no target', () => {
+    const graph = upscaler()
+    expect(hasPromptText(graph)).toBe(false)
+    expect(findPromptTarget(graph)).toBeUndefined()
+  })
+
+  it('reports text when the graph holds a prompt it could not place', () => {
+    // Only the negative side carries text here, and the walk never writes into
+    // it: the run's prompt would replace the negative prompt. The caller has to
+    // refuse rather than generate with something the user did not ask for.
+    const graph = upscaler()
+    graph['3'] = {
+      class_type: 'KSampler',
+      _meta: { title: 'sampler' },
+      inputs: { positive: ['5', 0], negative: ['4', 0], seed: 1 }
+    }
+    graph['4'] = { class_type: 'CLIPTextEncode', _meta: { title: 'negative' }, inputs: { text: 'blurry' } }
+    graph['5'] = { class_type: 'CLIPTextEncode', _meta: { title: 'positive' }, inputs: { text: ['6', 0] } }
+    graph['6'] = { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: { clip_name: 'x' } }
+    expect(hasPromptText(graph)).toBe(true)
+    expect(findPromptTarget(graph)).toBeUndefined()
   })
 })

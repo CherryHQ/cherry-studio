@@ -47,7 +47,7 @@ interface UiGraph {
 interface UiSubgraph extends UiGraph {
   id: string
   name?: string
-  inputs?: Array<{ name: string; linkIds?: number[] }>
+  inputs?: Array<{ name: string; type?: string; linkIds?: number[] }>
   outputs?: Array<{ name: string; type?: string; linkIds?: number[] }>
   inputNode?: { id: number }
   outputNode?: { id: number }
@@ -77,6 +77,14 @@ export interface ApiPromptNode {
 export interface ConversionResult {
   prompt: Record<string, ApiPromptNode>
   warnings: string[]
+  /**
+   * The text widgets the workflow itself exposes on a subgraph instance, in the
+   * order a run should prefer them. A subgraph that promotes a STRING widget
+   * shows it on the instance as the field the workflow is meant to be run with,
+   * which is the one place a text input is unambiguous even when the graph
+   * reaches the encoder through a concat that hides it.
+   */
+  promotedText: { nodeId: string; input: string }[]
 }
 
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
@@ -294,6 +302,7 @@ function wrapWidgetValue(value: unknown): unknown {
 export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo): ConversionResult {
   const subgraphs = new Map((ui.definitions?.subgraphs ?? []).map((sub) => [sub.id, sub]))
   const prompt: Record<string, ApiPromptNode> = {}
+  const promotedText: { nodeId: string; input: string }[] = []
   const warnings: string[] = []
   /**
    * Node ids the prompt cannot contain (subgraph instances, bypassed and
@@ -550,13 +559,15 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     // it with a widget; a socket-only promotion spends none, and only a link can
     // fill it. Linked widgets still spend their position — the frontend writes
     // one entry per widget-hosting slot whether or not it is linked.
-    const hostsWidget = (def: { linkIds?: number[] }): boolean =>
-      (def.linkIds ?? []).some((linkId) => {
+    const widgetSlotOf = (def: { linkIds?: number[] }): { nodeId: number; name: string } | undefined => {
+      for (const linkId of def.linkIds ?? []) {
         const link = innerLinks.get(linkId)
-        if (!link) return false
+        if (!link) continue
         const slot = definition.nodes.find((node) => node.id === link.target_id)?.inputs?.[link.target_slot]
-        return slot !== undefined && 'widget' in slot
-      })
+        if (slot?.widget) return { nodeId: link.target_id, name: slot.widget.name }
+      }
+      return undefined
+    }
 
     // The saved positional values are read against the subgraph's own inputs, in
     // declaration order: `SubgraphNode.configure` rebuilds the instance's input
@@ -573,7 +584,12 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       let widgetIndex = 0
       for (const def of definition.inputs ?? []) {
         const slot = saved.get(def.name)
-        const widget = hostsWidget(def)
+        const widgetSlot = widgetSlotOf(def)
+        const widget = widgetSlot !== undefined
+        if (widgetSlot && def.type === 'STRING') {
+          const target = innerRemap.get(widgetSlot.nodeId)
+          if (target !== undefined) promotedText.push({ nodeId: String(target), input: widgetSlot.name })
+        }
         if (slot?.link != null) {
           const bound = resolveLink(slot.link, links, remap, bindings)
           if (bound !== undefined) byName.set(def.name, bound)
@@ -694,7 +710,15 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     }
   }
 
-  return { prompt, warnings }
+  // A prompt-shaped name first, then declaration order (the sort is stable): a
+  // workflow that promotes both a caption and a style string means the caption.
+  const promotedRank = (entry: { input: string }): number => {
+    const rank = promptInputRank(entry.input)
+    return rank === -1 ? PROMPT_INPUT_PREFERENCE.length : rank
+  }
+  promotedText.sort((a, b) => promotedRank(a) - promotedRank(b))
+
+  return { prompt, warnings, promotedText }
 }
 
 /**
@@ -704,6 +728,43 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
  * the others are preserved.
  */
 const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 'clip_l', 'text_l', 'user_prompt']
+
+/**
+ * The rank of an input whose value is a prompt, read off the leaf of its key:
+ * the backend nests a widget under the group it belongs to, so the prompt of
+ * `QwenImageTextToImageApi` is `model.prompt` and its negative is
+ * `model.negative_prompt` — the leaf is the widget's own name.
+ */
+const promptInputRank = (name: string): number => PROMPT_INPUT_PREFERENCE.indexOf(name.slice(name.lastIndexOf('.') + 1))
+
+/**
+ * The conditioning a node names as its positive stream: a plain sampler says
+ * `positive`, and `DualCFGGuider` — the Omnigen2 shape — numbers its streams
+ * `cond1`, `cond2`, where the first carries the text and the second the
+ * reference latent. The streams are tried in declaration order, so the
+ * leftmost one wins. `conditioning` is not one of them: a combiner and a
+ * forwarder name their single stream that way without being the sampler.
+ */
+function positiveConditioning(inputs: Record<string, unknown>): Reference | undefined {
+  for (const [name, value] of Object.entries(inputs)) {
+    if (!isReference(value)) continue
+    if (name === 'positive' || /^cond\d+$/.test(name)) return value
+  }
+  return undefined
+}
+
+/**
+ * Whether the graph holds any text a run's prompt could replace. A workflow
+ * that holds none — an upscaler, a background remover, a depth estimator — has
+ * nothing to write and runs as it was saved.
+ */
+export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
+  return Object.values(prompt).some(
+    (node) =>
+      (isValueSource(node) && typeof node.inputs.value === 'string') ||
+      Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && promptInputRank(name) !== -1)
+  )
+}
 
 /**
  * The value an If/Else Switch puts on the wire. Both of its value inputs are
@@ -733,7 +794,8 @@ function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_fals
  * graph reads its own.
  */
 export function findPromptTarget(
-  prompt: Record<string, ApiPromptNode>
+  prompt: Record<string, ApiPromptNode>,
+  promotedText: { nodeId: string; input: string }[] = []
 ): { nodeId: string; input: string; samplerId: string } | undefined {
   // Prefer real samplers — nodes that hold their own seed or take the latent —
   // over conditioning transformers that merely forward a positive stream, so
@@ -742,8 +804,12 @@ export function findPromptTarget(
   const conditioningInputs = (node: ApiPromptNode): Record<string, unknown> =>
     isReference(node.inputs.guider) ? (prompt[node.inputs.guider[0]]?.inputs ?? {}) : node.inputs
   const withPositive = Object.entries(prompt).filter(([, node]) => {
+    // `conditioningInputs` follows one `guider` hop, so a sampler reading its
+    // positive stream off `CFGGuider`/`DualCFGGuider` counts here too.
     const inputs = conditioningInputs(node)
-    return isReference(inputs.positive) || (isReference(node.inputs.guider) && isReference(inputs.conditioning))
+    if (positiveConditioning(inputs) !== undefined) return true
+    // A guider that names its only stream `conditioning` — `BasicGuider`.
+    return isReference(node.inputs.guider) && isReference(inputs.conditioning)
   })
   const isSampler = ([, node]): boolean =>
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
@@ -766,33 +832,27 @@ export function findPromptTarget(
     return reached
   }
 
-  for (const [samplerId, node] of ordered) {
-    const inputs = conditioningInputs(node)
-    const positive = inputs.positive ?? inputs.conditioning
-    if (!isReference(positive)) continue
-    // Only the negative-exclusive part of the graph is out of bounds: the
-    // classic zero-out chain hangs a ConditioningZeroOut off the negative
-    // encode, and crossing into it would replace the negative prompt. Nodes
-    // shared with the positive branch stay reachable.
-    const negative = inputs.negative
-    const negativeOnly = isReference(negative)
-      ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
-      : new Set<string>()
-    const queue = [positive[0]]
+  /**
+   * The first text source reached from the node ids in `queue`, breadth first.
+   * A node the graph cannot feed is its own value: a text widget the workflow
+   * hoisted out of the sampler's chain. `value` is too generic a name to rank
+   * above the prompt names, so it is only read off such a node.
+   */
+  const walk = (queue: string[], excluded?: Set<string>): { nodeId: string; input: string } | undefined => {
     const seen = new Set<string>()
     while (queue.length > 0) {
       const nodeId = queue.shift()!
-      if (seen.has(nodeId) || negativeOnly.has(nodeId)) continue
+      if (seen.has(nodeId) || excluded?.has(nodeId)) continue
       seen.add(nodeId)
       const target = prompt[nodeId]
       if (!target) continue
       let best: { name: string; rank: number } | undefined
       for (const [name, value] of Object.entries(target.inputs)) {
         if (typeof value !== 'string') continue
-        const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
+        const rank = promptInputRank(name)
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
-      if (best) return { nodeId, input: best.name, samplerId }
+      if (best) return { nodeId, input: best.name }
       // A switch puts one branch on the wire and leaves the other unevaluated,
       // so only the selected branch is part of the graph the sampler reads.
       // When that branch carries the text as a literal — the workflow's own
@@ -800,16 +860,12 @@ export function findPromptTarget(
       // receives, which is where the prompt has to be written.
       const branch = selectedSwitchBranch(target)
       if (branch) {
-        if (typeof branch.value === 'string') return { nodeId, input: branch.name, samplerId }
+        if (typeof branch.value === 'string') return { nodeId, input: branch.name }
         if (isReference(branch.value)) queue.push(branch.value[0])
         continue
       }
-      // A node the graph cannot feed is its own value: a text widget the
-      // workflow hoisted out of the sampler's chain, reached here through the
-      // conditioning the sampler reads. `value` is too generic a name to rank
-      // above the prompt names, so it is only read off such a node.
       if (isValueSource(target) && typeof target.inputs.value === 'string') {
-        return { nodeId, input: 'value', samplerId }
+        return { nodeId, input: 'value' }
       }
       for (const [name, value] of Object.entries(target.inputs)) {
         // Never follow an intermediate node's negative edge (e.g. a
@@ -819,13 +875,33 @@ export function findPromptTarget(
         if (isReference(value)) queue.push(value[0])
       }
     }
+    return undefined
+  }
+
+  for (const [samplerId, node] of ordered) {
+    const inputs = conditioningInputs(node)
+    const positive =
+      positiveConditioning(inputs) ?? (isReference(inputs.conditioning) ? inputs.conditioning : undefined)
+    if (!positive) continue
+    // Only the negative-exclusive part of the graph is out of bounds: the
+    // classic zero-out chain hangs a ConditioningZeroOut off the negative
+    // encode, and crossing into it would replace the negative prompt. Nodes
+    // shared with the positive branch stay reachable.
+    const negative = inputs.negative
+    const negativeOnly = isReference(negative)
+      ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
+      : new Set<string>()
+    const found = walk([positive[0]], negativeOnly)
+    if (found) return { ...found, samplerId }
   }
 
   // A self-contained generator — one node that takes the prompt as a widget and
   // samples it internally, e.g. MiniMaxH3MLXTurbo — has no `positive` edge to
   // walk: the prompt and the seed are both its own widgets. Nothing better can
-  // be said about which text input a graph means, so take the highest-ranked
-  // prompt-like input on a node that also samples a seed, lowest node id first.
+  // be said about which text input a graph means, so start from the nodes that
+  // sample, lowest node id first, and take the first text source reached from
+  // one: the node's own prompt input, or the text node it links to — a Gemini
+  // or Seedream generator keeps its prompt in a Primitive it references.
   const byNodeId = (a: string, b: string): number => {
     // A node id is a string to the API but a number to ComfyUI: ordering the
     // tie-break lexicographically would read "10" as lower than "9".
@@ -834,22 +910,36 @@ export function findPromptTarget(
     if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
     return a < b ? -1 : a > b ? 1 : 0
   }
-  let standalone: { nodeId: string; input: string; rank: number } | undefined
-  for (const [nodeId, node] of Object.entries(prompt)) {
-    if (seedInputKey(node.inputs) === undefined) continue
-    for (const [name, value] of Object.entries(node.inputs)) {
-      if (typeof value !== 'string') continue
-      const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
-      if (rank === -1) continue
-      const better =
-        standalone === undefined ||
-        rank < standalone.rank ||
-        (rank === standalone.rank && byNodeId(nodeId, standalone.nodeId) < 0)
-      if (better) standalone = { nodeId, input: name, rank }
+  const orderedIds = Object.keys(prompt).sort(byNodeId)
+  const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
+  // A graph with no seed at all still generates — the hosted image nodes
+  // (`RunwayTextToImageNode` and friends) keep no seed — so the second pass
+  // drops that requirement and walks back from what the graph outputs, which is
+  // where a run without a sampler ends.
+  const referenced = new Set<string>()
+  for (const node of Object.values(prompt)) {
+    for (const value of Object.values(node.inputs)) {
+      if (isReference(value)) referenced.add(value[0])
     }
   }
-  if (standalone) {
-    return { nodeId: standalone.nodeId, input: standalone.input, samplerId: standalone.nodeId }
+  const outputIds = orderedIds.filter((id) => !referenced.has(id))
+  for (const roots of [samplingIds, outputIds]) {
+    for (const root of roots) {
+      const found = walk([root])
+      // The seed goes to the node that samples; an output root is only the way
+      // the walk got there, so a graph with no seed node names the text node.
+      if (found) return { ...found, samplerId: samplingIds[0] ?? found.nodeId }
+    }
+  }
+
+  // Last, the field the workflow itself promotes. A subgraph that exposes a
+  // STRING widget — the Qwen-Image template style string, a `string_a` the
+  // graph joins into the encode — names the text a run is meant to supply even
+  // when the walk above cannot tell it apart from the graph's own constants.
+  for (const entry of promotedText) {
+    if (typeof prompt[entry.nodeId]?.inputs[entry.input] === 'string') {
+      return { ...entry, samplerId: samplingIds[0] ?? entry.nodeId }
+    }
   }
 
   return undefined
