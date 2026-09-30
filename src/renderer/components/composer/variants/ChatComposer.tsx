@@ -877,8 +877,9 @@ const ChatComposerInner = ({
         return
       }
       const version = startReasoningPending(option)
+      // `updateAssistantSettings` resolves `undefined` when the save does not go through — finish as failed.
       void updateAssistantSettings({ reasoning_effort: option })
-        .then(() => finishReasoningPending(version))
+        .then((updated) => finishReasoningPending(version, !updated))
         .catch((error) => {
           finishReasoningPending(version, true)
           logger.warn('Failed to persist reasoning effort', { error })
@@ -898,7 +899,7 @@ const ChatComposerInner = ({
     (summary: ReasoningSummary) => {
       const version = startSettingsPatchPending({ reasoning_summary: summary })
       void updateAssistantSettings({ reasoning_summary: summary })
-        .then(() => finishSettingsPatchPending(version))
+        .then((updated) => finishSettingsPatchPending(version, !updated))
         .catch((error) => {
           finishSettingsPatchPending(version, true)
           logger.warn('Failed to persist reasoning summary', { error })
@@ -911,7 +912,7 @@ const ChatComposerInner = ({
       if (!selectedAssistantId) return
       const version = startServiceTierPending(tier)
       void updateAssistantSettings({ service_tier: tier })
-        .then(() => finishServiceTierPending(version))
+        .then((updated) => finishServiceTierPending(version, !updated))
         .catch((error) => {
           finishServiceTierPending(version, true)
           logger.warn('Failed to persist service tier', { error })

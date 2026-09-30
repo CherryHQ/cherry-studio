@@ -47,12 +47,15 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
   const [fastMode, setFastMode] = useChatTurnFastMode(topicId)
 
   const persistSettings = useCallback(
-    (patch: Partial<AssistantSettings>) => {
-      if (!selectedAssistantId) return Promise.resolve(undefined)
-      return updateAssistantSettings(patch)?.catch((error) => {
-        logger.warn('Failed to persist assistant model settings', { error })
-        toast.error(t('common.save_failed'))
-      })
+    (patch: Partial<AssistantSettings>): Promise<boolean> => {
+      if (!selectedAssistantId) return Promise.resolve(false)
+      return updateAssistantSettings(patch)
+        .then((updated) => Boolean(updated))
+        .catch((error) => {
+          logger.warn('Failed to persist assistant model settings', { error })
+          toast.error(t('common.save_failed'))
+          return false
+        })
     },
     [selectedAssistantId, t, updateAssistantSettings]
   )
@@ -60,9 +63,9 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
   const patchSettings = useCallback(
     (patch: Partial<AssistantSettings>) => {
       const version = startSettingsPatchPending(patch)
-      return persistSettings(patch)
-        ?.then(() => finishSettingsPatchPending(version))
-        .catch(() => finishSettingsPatchPending(version, true))
+      // `persistSettings` resolves false on failure — finish as failed so the
+      // optimistic patch cannot outlive the rejected persistence.
+      return persistSettings(patch).then((saved) => finishSettingsPatchPending(version, !saved))
     },
     [finishSettingsPatchPending, persistSettings, startSettingsPatchPending]
   )
@@ -80,9 +83,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
         return
       }
       const version = startReasoningPending(option)
-      void persistSettings({ reasoning_effort: option })
-        ?.then(() => finishReasoningPending(version))
-        .catch(() => finishReasoningPending(version, true))
+      void persistSettings({ reasoning_effort: option }).then((saved) => finishReasoningPending(version, !saved))
     },
     [
       assistant?.settings.enableWebSearch,
@@ -106,9 +107,7 @@ export function useAssistantModelSettingsPanel(assistantId: string | undefined, 
     (tier: ServiceTierSelection) => {
       if (!selectedAssistantId) return
       const version = startServiceTierPending(tier)
-      void persistSettings({ service_tier: tier })
-        ?.then(() => finishServiceTierPending(version))
-        .catch(() => finishServiceTierPending(version, true))
+      void persistSettings({ service_tier: tier }).then((saved) => finishServiceTierPending(version, !saved))
     },
     [finishServiceTierPending, persistSettings, selectedAssistantId, startServiceTierPending]
   )

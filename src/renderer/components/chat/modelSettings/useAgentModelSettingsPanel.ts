@@ -35,8 +35,10 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
     (option: ReasoningEffortOption) => {
       if (!agent?.id) return
       const version = startReasoningPending(option)
+      // updateAgent resolves `undefined` when the save fails — treat it as a failure
+      // so the optimistic value cannot outlive the rejected persistence.
       void updateAgent({ id: agent.id, configuration: { reasoning_effort: option } }, { showSuccessToast: false })
-        .then(() => finishReasoningPending(version))
+        .then((updatedAgent) => finishReasoningPending(version, !updatedAgent))
         .catch(() => finishReasoningPending(version, true))
     },
     [agent?.id, finishReasoningPending, startReasoningPending, updateAgent]
@@ -47,7 +49,7 @@ export function useAgentModelSettingsPanel(agentId: string | undefined, sessionI
       if (!agent?.id) return
       const version = startServiceTierPending(tier)
       void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
-        .then(() => finishServiceTierPending(version))
+        .then((updatedAgent) => finishServiceTierPending(version, !updatedAgent))
         .catch(() => finishServiceTierPending(version, true))
     },
     [agent?.id, finishServiceTierPending, startServiceTierPending, updateAgent]

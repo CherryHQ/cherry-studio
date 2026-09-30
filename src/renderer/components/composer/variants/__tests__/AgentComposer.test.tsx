@@ -1373,6 +1373,36 @@ describe('AgentComposer', () => {
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })
 
+  it('reverts the optimistic reasoning effort when the agent save resolves without a result', async () => {
+    mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
+    mocks.updateAgent.mockResolvedValue(undefined)
+
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const { rerender } = render(<AgentComposer {...props} />)
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+    rerender(<AgentComposer {...props} />)
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
+
+    await act(async () => {})
+    rerender(<AgentComposer {...props} />)
+
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+  })
+
   it('persists and snapshots the selected Agent service tier', async () => {
     mocks.modelResult = {
       ...model,

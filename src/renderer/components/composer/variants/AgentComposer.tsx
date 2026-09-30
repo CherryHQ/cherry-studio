@@ -1358,7 +1358,9 @@ const AgentComposerInner = ({
           if (canonicalAtMutationStart !== canonicalReasoningEffortRef.current) {
             clearReasoningPending(pendingVersion)
           }
-          finishReasoningPending(pendingVersion)
+          // updateAgent resolves `undefined` when the save fails — finish as failed
+          // so the optimistic value cannot outlive the rejected persistence.
+          finishReasoningPending(pendingVersion, !updatedAgent)
           setReasoningOverride((current) => {
             if (current?.agentId !== agent.id || current.version !== version) return current
             if (!updatedAgent) return null
@@ -1388,8 +1390,8 @@ const AgentComposerInner = ({
       const version = ++serviceTierMutationVersionRef.current
       setServiceTierOverride({ agentId: agent.id, value: tier, version })
       void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false })
-        .then(() => {
-          finishServiceTierPending(pendingVersion)
+        .then((updatedAgent) => {
+          finishServiceTierPending(pendingVersion, !updatedAgent)
           setServiceTierOverride((current) =>
             current?.agentId === agent.id && current.version === version ? null : current
           )
