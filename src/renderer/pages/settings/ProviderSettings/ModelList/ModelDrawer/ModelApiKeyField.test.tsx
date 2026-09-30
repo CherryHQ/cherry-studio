@@ -21,23 +21,29 @@ const apiKeys: RuntimeApiKey[] = [
   { id: 'key-2', label: 'Backup', isEnabled: true }
 ]
 
+const fieldLabel = 'settings.models.edit.api_key.label'
+const autoLabel = 'settings.models.edit.api_key.auto'
+
+function selectedKeyTrigger(label: string) {
+  return screen.getByRole('button', { name: `${fieldLabel} ${label}` })
+}
+
 describe('ModelApiKeyField', () => {
   it('shows the bound key label as the current selection', () => {
     render(<ModelApiKeyField apiKeys={apiKeys} value="key-2" onChange={vi.fn()} />)
 
-    expect(screen.getByText('Backup')).toBeInTheDocument()
+    expect(selectedKeyTrigger('Backup')).toBeInTheDocument()
   })
 
   it('shows automatic selection when the bound key no longer exists', () => {
-    // A deleted key id must render as automatic, not as an unset-looking stale value.
     render(<ModelApiKeyField apiKeys={apiKeys} value="deleted-key" onChange={vi.fn()} />)
 
-    expect(screen.getByText('settings.models.edit.api_key.auto')).toBeInTheDocument()
+    expect(selectedKeyTrigger(autoLabel)).toBeInTheDocument()
   })
 
   it('shows automatic selection when no key is bound', () => {
     render(<ModelApiKeyField apiKeys={apiKeys} value={null} onChange={vi.fn()} />)
 
-    expect(screen.getByText('settings.models.edit.api_key.auto')).toBeInTheDocument()
+    expect(selectedKeyTrigger(autoLabel)).toBeInTheDocument()
   })
 })

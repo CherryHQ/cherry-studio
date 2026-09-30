@@ -1237,16 +1237,14 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
-    // A set `apiKeyId` wins in the resolver, so sync can serve it per model; a
-    // selection that fell back to automatic is omitted so the provider-level
-    // credential serves the model instead of a pinned rotation result.
-    const resolved = model.apiKeyId
-      ? providerService.resolveApiKey(model.providerId, undefined, model.apiKeyId)
+    // Resolve bindings without `resolveApiKey` so a stale id cannot advance rotation
+    // while the serialized model omits the credential and uses the provider key.
+    const boundEntry = model.apiKeyId
+      ? providerService
+          .getApiKeys(model.providerId)
+          .find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
       : undefined
-    const boundApiKey =
-      resolved && resolved.apiKeySelection.attribution !== 'unknown' && resolved.apiKeySelection.id === model.apiKeyId
-        ? resolved.value
-        : undefined
+    const boundApiKey = boundEntry?.key
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
@@ -1328,6 +1326,40 @@ export class OpenClawService extends BaseService {
     return 'openai'
   }
 
+  private readExistingOpenClawConfig(): OpenClawConfig {
+    const primaryPath = openclawConfigPath()
+    const legacyPath = openclawLegacyConfigPath()
+    const sourcePath = fs.existsSync(primaryPath)
+      ? primaryPath
+      : fs.existsSync(legacyPath)
+        ? legacyPath
+        : null
+
+    if (!sourcePath) {
+      return {}
+    }
+
+    const content = fs.readFileSync(sourcePath, 'utf-8')
+    try {
+      return JSON.parse(content) as OpenClawConfig
+    } catch {
+      throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${sourcePath}`)
+    }
+  }
+
+  private migrateLegacyOpenClawConfigFiles(): void {
+    if (!fs.existsSync(openclawLegacyConfigPath())) {
+      return
+    }
+
+    if (fs.existsSync(openclawConfigPath())) {
+      fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
+      logger.info('Migrated openclaw.json → openclaw.json.bak')
+    }
+    fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
+    logger.info('Migrated openclaw.cherry.json → openclaw.json')
+  }
+
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       const runtime = await this.resolveOpenClawRuntime()
@@ -1338,28 +1370,10 @@ export class OpenClawService extends BaseService {
         fs.mkdirSync(openclawConfigDir(), { recursive: true })
       }
 
-      // Migrate legacy openclaw.cherry.json → openclaw.json
-      if (fs.existsSync(openclawLegacyConfigPath())) {
-        if (fs.existsSync(openclawConfigPath())) {
-          fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
-          logger.info('Migrated openclaw.json → openclaw.json.bak')
-        }
-        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
-        logger.info('Migrated openclaw.cherry.json → openclaw.json')
-      }
-
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
-      let config: OpenClawConfig = {}
-      if (fs.existsSync(openclawConfigPath())) {
-        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
-        try {
-          config = JSON.parse(content)
-        } catch {
-          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
-        }
-      }
+      let config = this.readExistingOpenClawConfig()
 
       // Build provider key
       const providerKey = `cherry-${provider.id}`
@@ -1505,6 +1519,7 @@ export class OpenClawService extends BaseService {
       }
 
       const serialized = JSON.stringify(config, null, 2)
+      this.migrateLegacyOpenClawConfigFiles()
       const candidatePath = AbsoluteFilePathSchema.parse(
         path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
       )

@@ -1516,6 +1516,8 @@ describe('OpenClawService gateway status state machine', () => {
         }),
         expect.objectContaining({ id: 'gpt-4o' })
       )
+      // Per-model serialization must not call the rotation-aware resolver for stale bindings.
+      expect(providerService.resolveApiKey).toHaveBeenCalledTimes(1)
     })
 
     it('resolves a unique model id before syncing OpenClaw config', async () => {
@@ -2051,6 +2053,26 @@ describe('OpenClawService gateway status state machine', () => {
       expect('message' in result && result.message).toContain('GPT-4o mini')
       // The formal config must be untouched rather than written with misrouted credentials.
       expect(fs.existsSync(path.join(configDir, 'openclaw.json'))).toBe(false)
+    })
+
+    it('does not migrate legacy config files when sync fails before writing', async () => {
+      const legacyPath = path.join(configDir, 'openclaw.cherry.json')
+      fs.writeFileSync(legacyPath, JSON.stringify({ gateway: { mode: 'local' } }))
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow']))
+      const provider = {
+        ...legacyProvider,
+        models: [
+          { id: 'gpt-4o', name: 'GPT-4o' },
+          { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound' }
+        ]
+      }
+
+      const result = await service.syncProviderConfig(provider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect(fs.existsSync(legacyPath)).toBe(true)
+      expect(fs.existsSync(path.join(configDir, 'openclaw.json'))).toBe(false)
+      expect(fs.existsSync(path.join(configDir, 'openclaw.json.bak'))).toBe(false)
     })
 
     it('drops a retained per-model api key once the model is no longer bound', async () => {
