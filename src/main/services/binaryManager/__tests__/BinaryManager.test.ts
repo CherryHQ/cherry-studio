@@ -2362,6 +2362,32 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
+    it('is a no-op when an applied CodeMate CLI already matches the catalog pin', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.2.0-rc.2', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'dsh' })
+
+      expect(miseArgs()).not.toContainEqual([
+        'use',
+        '-g',
+        '--minimum-release-age',
+        '0s',
+        'npm:@deepseek-ai/dsh@0.2.0-rc.2'
+      ])
+    })
+
     it('repairs an inactive-only fixed recipe instead of treating it as already applied', async () => {
       const service = makeService()
       ;(mockFs.existsSync as any).mockImplementation((candidate: unknown) =>

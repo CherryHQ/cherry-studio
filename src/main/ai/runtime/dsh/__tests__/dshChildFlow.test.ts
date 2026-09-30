@@ -333,6 +333,30 @@ describe('DshSubagentCoordinator child projection', () => {
       })
     )
   })
+
+  it('records failed provider attempts from assistant/attempt events', () => {
+    coordinator.handleChildEvent(
+      'child-1',
+      event('assistant/attempt', {
+        turn: 3,
+        step: 1,
+        stream: [
+          {
+            type: 'chunk',
+            time: Date.now(),
+            chunk: { type: 'usage', usage: { inputTokens: 12, outputTokens: 3 } }
+          }
+        ]
+      })
+    )
+    expect(sink.recordChildUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childSessionId: 'child-1',
+        turn: 3,
+        usage: { inputTokens: 12, outputTokens: 3 }
+      })
+    )
+  })
 })
 
 // The 2026-08-15 incident class: an item whose opener went to one host stream must

@@ -1672,7 +1672,15 @@ export class BinaryManager extends BaseService {
             const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
             return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
           }
-          if (status === 'applied' && !targetVersion) return { kind: 'done' }
+          if (status === 'applied' && !targetVersion) {
+            const requested = definition.requestedVersion ? semverValid(definition.requestedVersion) : null
+            const installedVersion = snapshot.application?.version
+            const matchesCatalogPin =
+              requested !== null &&
+              installedVersion !== undefined &&
+              semverValid(installedVersion) === requested
+            if (!definition.requestedVersion || matchesCatalogPin) return { kind: 'done' }
+          }
           // absent + an external copy: a race already satisfied it — never lay down a
           // managed shadow copy over a bundled/system binary.
           if (status === 'absent' && (source === 'bundled' || source === 'system')) {

@@ -119,6 +119,38 @@ describe('DSH runtime packaging', () => {
     ).not.toThrow()
   })
 
+  it('unpacks only the JS bundles and native runtime packages', () => {
+    const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+      asarUnpack: string[]
+    }
+    const requiredPatterns = [
+      'node_modules/@cherrystudio/dsh-bridge/dist/runtime/**',
+      'node_modules/sharp/**',
+      'node_modules/node-pty/**',
+      'node_modules/koffi/**',
+      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**',
+      'node_modules/@deepseek-ai/dsh-win32-process/**',
+      'node_modules/@deepseek-ai/dsh-lazy-require/**',
+      'node_modules/@deepseek-ai/dsh-subprocess/**',
+      'node_modules/@deepseek-ai/dsh-skill/**',
+      'node_modules/@deepseek-ai/dsh-scope/**',
+      'node_modules/@deepseek-ai/dsh-util-values/**',
+      'node_modules/@deepseek-ai/node-addon-system*/**',
+      'node_modules/yaml/**'
+    ]
+
+    expect(config.asarUnpack).toEqual(expect.arrayContaining(requiredPatterns))
+    expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([
+      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**',
+      'node_modules/@deepseek-ai/dsh-win32-process/**',
+      'node_modules/@deepseek-ai/dsh-lazy-require/**',
+      'node_modules/@deepseek-ai/dsh-subprocess/**',
+      'node_modules/@deepseek-ai/dsh-skill/**',
+      'node_modules/@deepseek-ai/dsh-scope/**',
+      'node_modules/@deepseek-ai/dsh-util-values/**'
+    ])
+  })
+
   it('builds every DSH subprocess entry into a bounded bundle directory', () => {
     for (const specifier of Object.keys(DSH_RUNTIME_ENTRY_NAMES) as DshRuntimeEntrySpecifier[]) {
       expect(existsSync(resolveBundledDshRuntimeEntry(specifier)), specifier).toBe(true)

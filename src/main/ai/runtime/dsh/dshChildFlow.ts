@@ -1,4 +1,4 @@
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { SessionEventMap } from '@deepseek-ai/dsh-session'
 
 /**
@@ -307,6 +307,18 @@ class DshChildProjection {
       case 'tool/result':
         this.handleToolResult(event.data)
         return
+      case 'assistant/attempt': {
+        const usage = lastAssistantStreamChunk(event.data.stream, 'usage')?.usage
+        if (usage) {
+          this.sink.recordChildUsage({
+            childSessionId: this.childSessionId,
+            turn: event.data.turn,
+            seq: event.seq,
+            usage
+          })
+        }
+        return
+      }
       case 'assistant/message': {
         const usage = event.data.usage
         if (usage) {
