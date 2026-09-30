@@ -547,10 +547,13 @@ const CodeViewer = ({
           measuredRowHeightsRef.current.set(index, measured)
         }
       } else {
+        const line = rawLinesRef.current[index] ?? ''
         const estimated = estimateSize(index)
         const cached = measuredRowHeightsRef.current.get(index)
+        const pessimistic =
+          line.length === 0 ? lineHeight : lineHeight * Math.max(1, Math.ceil(line.length / 8))
         // Never shrink offscreen rows — undersized estimates make translateY rows overlap.
-        const nextSize = cached !== undefined ? Math.max(estimated, cached) : estimated
+        const nextSize = Math.max(estimated, pessimistic, cached ?? 0)
         virtualizer.resizeItem(index, nextSize)
         measuredRowHeightsRef.current.set(index, nextSize)
       }
