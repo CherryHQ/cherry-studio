@@ -8,11 +8,18 @@ const RICH_TEXT_PREVIEW_MAX_AVERAGE_LINE_CHARS = 5000
 function measureLines(content: string): { lines: number; contentChars: number } {
   if (content.length === 0) return { lines: 0, contentChars: 0 }
   let newlines = 0
+  let crlf = 0
   for (let i = 0; i < content.length; i++) {
-    if (content.charCodeAt(i) === 10) newlines++
+    if (content.charCodeAt(i) !== 10) continue
+    newlines++
+    if (i > 0 && content.charCodeAt(i - 1) === 13) crlf++
   }
-  // A trailing newline terminates its line rather than starting a second one.
-  return { lines: content.endsWith('\n') ? newlines : newlines + 1, contentChars: content.length - newlines }
+  // Line terminators are not content: a CRLF is two characters for one separator, and a trailing
+  // newline terminates its line rather than starting a second one.
+  return {
+    lines: content.endsWith('\n') ? newlines : newlines + 1,
+    contentChars: content.length - newlines - crlf
+  }
 }
 
 function hasHighRatioOfLongLines(content: string): boolean {
