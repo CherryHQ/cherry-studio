@@ -53,7 +53,9 @@ describe('database connection cleanup', () => {
       return original.call(this, source, options)
     })
     const before = dbh.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()
-    expect(() => MigrationDbService.create(migrationPaths())).toThrow('Migration database initialization failed')
+    expect(() => MigrationDbService.create(migrationPaths())).toThrow(
+      expect.objectContaining({ name: 'MigrationDatabaseError', stage: 'wal', cause: error })
+    )
     expect(failedConnections[0]?.open).toBe(false)
     expect(dbh.sqlite.prepare('SELECT * FROM __drizzle_migrations').all()).toEqual(before)
     expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
