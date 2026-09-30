@@ -3,14 +3,16 @@ import { useEffect, useMemo } from 'react'
 
 import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
 import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
-import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
+import {
+  createPermissionRequestComposerOverride,
+  type PlanExecutionHandoffOptions
+} from './variants/PermissionRequestComposer'
 import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
@@ -19,10 +21,11 @@ type ToolApprovalComposerOverridesOptions = {
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
-  modelFilter?: ModelSelectorFilter
-  /** Keeps unavailable models visible but unselectable in that same picker. */
-  isModelDisabled?: ModelSelectorFilter
+  /**
+   * Gates for the Settings-configured plan-execution model. Omitted on the Home path, which has no
+   * agent whose model a handoff could switch — there the card must neither offer nor request one.
+   */
+  planExecution?: PlanExecutionHandoffOptions
 }
 
 export function useToolApprovalComposerOverrides({
@@ -30,8 +33,7 @@ export function useToolApprovalComposerOverrides({
   persistedPartsByMessageId,
   streamingLayers,
   onRespond,
-  modelFilter,
-  isModelDisabled
+  planExecution
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
@@ -102,12 +104,11 @@ export function useToolApprovalComposerOverrides({
         createPermissionRequestComposerOverride({
           request: permissionRequest,
           onRespond,
-          modelFilter,
-          isModelDisabled
+          planExecution
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, isModelDisabled, modelFilter, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, planExecution])
 }

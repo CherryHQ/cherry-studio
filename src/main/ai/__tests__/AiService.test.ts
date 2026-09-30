@@ -1117,7 +1117,7 @@ describe('AiService tool approval', () => {
       approved: true
     })
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual({ ok: true, handoff: 'not-requested' })
     expect(respondToolApproval).toHaveBeenCalledWith(
       'agent-approval-1',
       {
@@ -1146,7 +1146,7 @@ describe('AiService tool approval', () => {
       executionModelId: 'anthropic::claude-sonnet-5'
     })
 
-    expect(result).toEqual({ ok: true, executionModelId: 'anthropic::claude-sonnet-5' })
+    expect(result).toEqual({ ok: true, handoff: 'started', executionModelId: 'anthropic::claude-sonnet-5' })
     expect(respondToolApproval).toHaveBeenCalledWith(
       'plan-approval-1',
       { approved: true, reason: undefined, updatedInput: undefined },
@@ -1155,7 +1155,7 @@ describe('AiService tool approval', () => {
     )
   })
 
-  it('refuses a chosen execution model the live handoff could not honor', async () => {
+  it('reports a refused handoff rather than failing an approval the runtime already applied', async () => {
     const respondToolApproval = vi.fn(() => ({ dispatched: true, handoff: 'refused' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
@@ -1168,8 +1168,9 @@ describe('AiService tool approval', () => {
       executionModelId: 'anthropic::claude-sonnet-5'
     })
 
-    // Success here would claim the plan runs on the chosen model while it does not.
-    expect(result).toEqual({ ok: false })
+    // The decision was applied, so this is a success; `handoff` is what keeps the caller from
+    // letting "approved" read as "the plan now runs on the chosen model".
+    expect(result).toEqual({ ok: true, handoff: 'refused' })
   })
 
   it('refuses a chosen execution model that missed the live handoff path', async () => {
@@ -1191,8 +1192,9 @@ describe('AiService tool approval', () => {
       executionModelId: 'anthropic::claude-sonnet-5'
     })
 
-    // The MCP continuation cannot switch models — refuse instead of dropping the choice silently.
-    expect(result).toEqual({ ok: false })
+    // Nothing was applied at all: the MCP continuation cannot switch models, so refuse instead of
+    // reporting a successful chosen-model approval that left the execution on the old model.
+    expect(result).toEqual({ ok: false, handoff: 'refused' })
     expect(apply).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()
   })
@@ -1211,7 +1213,7 @@ describe('AiService tool approval', () => {
     })
 
     // No echo: the renderer must not tear down a turn that already runs the chosen model.
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual({ ok: true, handoff: 'already-current' })
   })
 
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
