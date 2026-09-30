@@ -14,21 +14,9 @@ const fixedSamplingParameterSupport = {
 export const moonshotReasoningFormat: ProviderReasoningFormat = {
   type: 'openai-chat',
   wire: {
-    off: {
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' }
-      ]
-    },
-    auto: {
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'auto' }, delivery: 'provider-option' }
-      ]
-    },
-    effort: {
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' }
-      ]
-    }
+    off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+    auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'auto' } }] },
+    effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
   }
 }
 

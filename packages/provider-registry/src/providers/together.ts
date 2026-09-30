@@ -6,23 +6,9 @@ const hybridWire = modeWire('reasoning.enabled', { off: false, auto: true, effor
 const adjustableWire = modeWire('reasoning_effort', { effort: EFFORT })
 
 const deepSeekV4Wire = {
-  off: {
-    operations: [
-      {
-        target: 'reasoning.enabled' as const,
-        value: { source: 'literal' as const, value: false },
-        delivery: 'provider-option' as const
-      }
-    ]
-  },
+  off: { operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false } }] },
   effort: {
-    operations: [
-      {
-        target: 'reasoning_effort' as const,
-        value: { source: 'effort' as const },
-        delivery: 'provider-option' as const
-      }
-    ],
+    operations: [{ target: 'reasoning_effort' as const, value: { source: 'effort' as const } }],
     effortMap: { minimal: 'high' as const, low: 'high' as const, medium: 'high' as const, xhigh: 'max' as const }
   }
 }

@@ -157,13 +157,11 @@ describe('OpenAI Responses summary compatibility', () => {
 
     expect(enabled.default?.operations).toContainEqual({
       target: 'reasoningSummary',
-      value: { source: 'assistant-summary' },
-      delivery: 'provider-option' as const
+      value: { source: 'assistant-summary' }
     })
     expect(enabled.effort?.operations).toContainEqual({
       target: 'reasoningEffort',
-      value: { source: 'effort' },
-      delivery: 'provider-option' as const
+      value: { source: 'effort' }
     })
     expect(targetsOf(disabled)).not.toContain('reasoningSummary')
     expect(disabled.default).toBeUndefined()
