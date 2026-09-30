@@ -93,60 +93,52 @@ export function LocalAgentModelSelector({
             <Scrollbar className="scroll-pt-1.5 px-1 py-1">
               <CommandEmpty>{t('common.no_results')}</CommandEmpty>
               <CommandGroup className="p-0 [&_[cmdk-group-items]]:space-y-1">
-                <CommandItem
-                  asChild
-                  className="cursor-pointer gap-1 rounded-[10px] py-1 text-xs data-[selected=true]:bg-accent/60"
-                  ref={!value ? scrollToSelected : undefined}
-                  value="__cli_default__"
-                  keywords={[t('local_agents.follow_cli')]}
-                  disabled={disabled}
-                  onSelect={() => void select()}>
-                  <ModelSelectorRow
-                    selected={!value}
-                    disabled={disabled}
-                    showSelectedIndicator={!value}
-                    className={!value ? 'data-[selected=true]:bg-accent/70' : undefined}
-                    optionProps={{ role: 'presentation' }}
-                    leading={<CliModelAvatar className="size-6 border border-border" />}>
-                    <span className="min-w-0 flex-1 truncate">{t('local_agents.follow_cli')}</span>
-                  </ModelSelectorRow>
-                </CommandItem>
-                {options.map((model) => (
-                  <CommandItem
-                    asChild
-                    className="cursor-pointer gap-1 rounded-[10px] py-1 text-xs data-[selected=true]:bg-accent/60"
-                    key={model.id}
-                    ref={value === model.id ? scrollToSelected : undefined}
-                    value={model.id}
-                    keywords={[model.name]}
-                    disabled={disabled}
-                    onSelect={() => void select(model.id)}>
-                    <ModelSelectorRow
-                      selected={value === model.id}
+                {[undefined, ...options].map((model) => {
+                  const selected = model ? value === model.id : !value
+                  const label = model ? model.name || model.id : t('local_agents.follow_cli')
+                  return (
+                    <CommandItem
+                      asChild
+                      className="cursor-pointer gap-1 rounded-[10px] py-1 text-xs data-[selected=true]:bg-accent/60"
+                      key={model?.id ?? '__cli_default__'}
+                      ref={selected ? scrollToSelected : undefined}
+                      value={model?.id ?? '__cli_default__'}
+                      keywords={[model?.name ?? label]}
                       disabled={disabled}
-                      showSelectedIndicator={value === model.id}
-                      className={value === model.id ? 'data-[selected=true]:bg-accent/70' : undefined}
-                      optionProps={{ role: 'presentation' }}
-                      leading={<ModelAvatar model={model} size={24} className="rounded-full border border-border" />}
-                      trailing={
-                        /free/i.test(model.id) || /free/i.test(model.name) ? (
-                          <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
-                            <ModelTag
-                              tag="free"
-                              size={9}
-                              showLabel={false}
-                              showTooltip
-                              className="h-full items-center [&_svg]:size-[9px]!"
-                            />
-                          </div>
-                        ) : undefined
-                      }>
-                      <span className="min-w-0 flex-1 truncate" title={model.name || model.id}>
-                        {model.name || model.id}
-                      </span>
-                    </ModelSelectorRow>
-                  </CommandItem>
-                ))}
+                      onSelect={() => void select(model?.id)}>
+                      <ModelSelectorRow
+                        selected={selected}
+                        disabled={disabled}
+                        showSelectedIndicator={selected}
+                        className={selected ? 'data-[selected=true]:bg-accent/70' : undefined}
+                        optionProps={{ role: 'presentation' }}
+                        leading={
+                          model ? (
+                            <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
+                          ) : (
+                            <CliModelAvatar className="size-6 border border-border" />
+                          )
+                        }
+                        trailing={
+                          model && /free/i.test(`${model.id} ${model.name}`) ? (
+                            <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
+                              <ModelTag
+                                tag="free"
+                                size={9}
+                                showLabel={false}
+                                showTooltip
+                                className="h-full items-center [&_svg]:size-[9px]!"
+                              />
+                            </div>
+                          ) : undefined
+                        }>
+                        <span className="min-w-0 flex-1 truncate" title={model ? label : undefined}>
+                          {label}
+                        </span>
+                      </ModelSelectorRow>
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             </Scrollbar>
           </CommandList>

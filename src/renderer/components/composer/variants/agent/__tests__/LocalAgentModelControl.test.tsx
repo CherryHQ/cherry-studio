@@ -43,20 +43,23 @@ beforeEach(() => {
 })
 
 describe('local agent model persistence', () => {
-  it('retains the current selection and open menu when persistence fails, and allows retry', async () => {
+  it.each([
+    ['Second', 'second'],
+    ['跟随 CLI', undefined]
+  ] as const)('retains the selection on failure and allows retry: %s', async (label, nativeModel) => {
     const user = userEvent.setup()
     updateAgent.mockResolvedValueOnce(undefined).mockResolvedValueOnce(agent)
     render(<LocalAgentModelControl agent={agent} info={info} disabled={false} side="bottom" />)
     await user.click(screen.getByRole('button', { name: '选择模型' }))
-    await user.click(await screen.findByText('Second'))
-    expect(await screen.findByText('Second')).toBeVisible()
+    await user.click(await screen.findByText(label))
+    expect(await screen.findByText(label)).toBeVisible()
     expect(screen.getByRole('button', { name: '选择模型' })).toHaveTextContent('First')
-    await user.click(screen.getByText('Second'))
-    await waitFor(() => expect(screen.queryByText('Second')).not.toBeInTheDocument())
+    await user.click(screen.getByText(label))
+    await waitFor(() => expect(screen.queryByText(label)).not.toBeInTheDocument())
     expect(updateAgent).toHaveBeenLastCalledWith(
       {
         id: agent.id,
-        configuration: { localRuntime: { ...agent.configuration!.localRuntime, nativeModel: 'second' } }
+        configuration: { localRuntime: { ...agent.configuration!.localRuntime, nativeModel } }
       },
       { showSuccessToast: false }
     )

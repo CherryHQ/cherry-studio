@@ -37,6 +37,62 @@ describe('installed agent translations', () => {
     }
   )
 
+  it.each([
+    ['code', 'The default agent. Executes tools based on configured permissions.', '编程', '根据配置的权限执行工具。'],
+    ['Always Ask', 'Prompts for permission on first use of each tool', '始终询问', '首次使用每个工具时请求授权'],
+    ['Delegate', 'Permissions managed by parent session', '委派', '权限由父会话管理'],
+    ['My custom mode', 'Project-specific behavior', 'My custom mode', 'Project-specific behavior']
+  ])('translates known mode %s without changing native values', (name, description, label, detail) => {
+    expect(
+      localAgentModeOptions(
+        { id: 'mode', currentValue: 'native-id', options: [{ value: 'native-id', name, description }] },
+        i18n.t
+      )
+    ).toEqual([{ value: 'native-id', name: label, description: detail }])
+  })
+
+  it('scopes CodeBuddy config translations to its preset and preserves custom options', () => {
+    const options: LocalAgentConfigOption[] = [
+      {
+        id: 'sandbox',
+        name: 'Sandbox',
+        type: 'select',
+        currentValue: 'false',
+        description: 'Run shell commands inside the sandbox-cli isolation layer',
+        options: [
+          {
+            value: 'true',
+            name: 'Sandbox Environment',
+            description: 'Bash/PowerShell commands run inside the sandbox and require escalation to touch the host'
+          },
+          {
+            value: 'false',
+            name: 'Local Environment',
+            description: 'Commands run with full user permissions (no sandbox isolation)'
+          },
+          { value: 'custom', name: 'Custom environment', description: 'Project policy' }
+        ]
+      }
+    ]
+    expect(localAgentConfigOptions(options, 'codebuddy-code', i18n.t)).toEqual([
+      {
+        ...options[0],
+        name: '沙箱',
+        description: '在 sandbox-cli 隔离环境中执行 Shell 命令',
+        options: [
+          {
+            value: 'true',
+            name: '沙箱环境',
+            description: '在沙箱中执行 Bash／PowerShell 命令；访问宿主机需要提权授权。'
+          },
+          { value: 'false', name: '本机环境', description: '以用户的完整权限执行命令，不使用沙箱隔离。' },
+          { value: 'custom', name: 'Custom environment', description: 'Project policy' }
+        ]
+      }
+    ])
+    expect(localAgentConfigOptions(options, 'custom-agent', i18n.t)).toEqual(options)
+  })
+
   it('keeps unknown descriptions intact even inside a recognized mode', () => {
     const mode = {
       id: 'mode',
@@ -60,6 +116,7 @@ describe('installed agent translations', () => {
       i18n.t('assistants.settings.reasoning_effort.off')
     )
     expect(reasoningEffortLabel('custom', i18n.t, 'Project thinking')).toBe('Project thinking')
+    expect(reasoningEffortLabel('enabled', i18n.t, 'On (default)')).toBe(i18n.t('local_agents.thinking_on_default'))
   })
 
   it('localizes Copilot approval choices while preserving string values and custom choices', () => {

@@ -1,8 +1,8 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabIdContext, TabsContext, type Tab, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
@@ -28,6 +28,8 @@ beforeEach(() => {
   )
 })
 
+afterEach(() => vi.useRealTimers())
+
 describe('local agent settings navigation', () => {
   it('shows the checked version inline, pauses dismissal on hover, and restores installation status', async () => {
     vi.mocked(ipcApi.request).mockImplementation(
@@ -42,17 +44,16 @@ describe('local agent settings navigation', () => {
     const button = await screen.findByRole('button', { name: '检查连接' })
     const program = screen.getByRole('group', { name: '程序' })
     expect(within(program).getByRole('button', { name: '检查连接' })).toBe(button)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     fireEvent.click(button)
-    await waitFor(() => expect(within(program).getByRole('status')).toHaveTextContent('1.2.3'))
-    expect(within(program).getByRole('status')).toHaveTextContent('1.2.3')
+    await vi.waitFor(() => expect(within(program).getByRole('status')).toHaveTextContent('1.2.3'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.mouseEnter(program)
-    const started = Date.now()
-    await waitFor(() => expect(Date.now() - started).toBeGreaterThanOrEqual(4200), { timeout: 5000 })
+    void act(() => vi.advanceTimersByTime(4200))
     expect(within(program).getByRole('status')).toHaveTextContent('1.2.3')
     fireEvent.mouseLeave(program)
-    await waitFor(() => expect(within(program).getByRole('status')).toHaveTextContent('已安装'), { timeout: 5000 })
-    expect(program).not.toHaveClass('bg-success-subtle')
+    void act(() => vi.advanceTimersByTime(4200))
+    expect(within(program).getByRole('status')).toHaveTextContent('已安装')
   })
 
   it.each(['failed', 'authentication-required'])('keeps unsuccessful check feedback visible: %s', async (status) => {
@@ -66,11 +67,13 @@ describe('local agent settings navigation', () => {
     )
     render(<LocalAgentSettingsPage />)
     const button = await screen.findByRole('button', { name: '检查连接' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     fireEvent.click(button)
-    const started = Date.now()
-    await waitFor(() => expect(Date.now() - started).toBeGreaterThanOrEqual(4200), { timeout: 5000 })
     const program = screen.getByRole('group', { name: '程序' })
-    expect(program).toHaveClass(status === 'failed' ? 'bg-error-subtle' : 'bg-warning-subtle')
+    await vi.waitFor(() =>
+      expect(within(program).getByRole('status')).toHaveTextContent(status === 'failed' ? '连接失败' : '需要登录')
+    )
+    void act(() => vi.advanceTimersByTime(4200))
     expect(within(program).getByRole('status')).toHaveTextContent(status === 'failed' ? '连接失败' : '需要登录')
     expect(within(program).getByRole('button', { name: '检查连接' })).toBeEnabled()
   })

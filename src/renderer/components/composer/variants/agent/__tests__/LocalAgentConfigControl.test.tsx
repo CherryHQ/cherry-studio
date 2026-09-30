@@ -3,12 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
 
 import { LocalAgentConfigControl } from '../LocalAgentConfigControl'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 
 const options: LocalAgentConfigOption[] = [
   {
@@ -31,72 +33,55 @@ const options: LocalAgentConfigOption[] = [
   { id: 'notify', name: 'Notifications', type: 'boolean', currentValue: false }
 ]
 beforeEach(() => {
+  vi.clearAllMocks()
   vi.mocked(ipcApi.request).mockReset()
   HTMLElement.prototype.scrollIntoView = vi.fn()
 })
 
 describe('LocalAgentConfigControl', () => {
-  it.each(['codebuddy-code', 'custom-agent'])(
-    'localizes known CodeBuddy options without changing native IDs: %s',
-    async (presetId) => {
-      const user = userEvent.setup()
-      vi.mocked(ipcApi.request).mockResolvedValue(null)
-      render(
-        <LocalAgentConfigControl
-          sessionId="session"
-          presetId={presetId}
-          disabled={false}
-          options={[
-            {
-              id: 'sandbox',
-              name: 'Sandbox',
-              type: 'select',
-              currentValue: 'false',
-              description: 'Run shell commands inside the sandbox-cli isolation layer',
-              options: [
-                {
-                  value: 'true',
-                  name: 'Sandbox Environment',
-                  description:
-                    'Bash/PowerShell commands run inside the sandbox and require escalation to touch the host'
-                },
-                {
-                  value: 'false',
-                  name: 'Local Environment',
-                  description: 'Commands run with full user permissions (no sandbox isolation)'
-                },
-                { value: 'custom', name: 'Custom environment', description: 'Project policy' }
-              ]
-            }
-          ]}
-        />
-      )
-      await user.click(screen.getByRole('button', { name: '智能体配置' }))
-      const translated = presetId === 'codebuddy-code'
-      expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
-      expect(
-        screen.getByRole('menuitemradio', { name: translated ? /本机环境/ : /Local Environment/ })
-      ).toHaveAttribute('aria-checked', 'true')
-      expect(
-        screen.getByText(
-          translated
-            ? '在 sandbox-cli 隔离环境中执行 Shell 命令'
-            : 'Run shell commands inside the sandbox-cli isolation layer'
-        )
-      ).toBeVisible()
-      expect(screen.getByText('Project policy')).toBeVisible()
-      const enabled = screen.getByRole('menuitemradio', { name: translated ? /沙箱环境/ : /Sandbox Environment/ })
-      expect(enabled).toHaveTextContent(translated ? '访问宿主机需要提权授权' : 'require escalation')
-      fireEvent.click(enabled)
-      await waitFor(() =>
-        expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
-          sessionId: 'session',
-          configId: 'sandbox',
-          value: 'true'
-        })
-      )
+  it.each([
+    ['mode', 'ai.local_agents.set_mode'],
+    ['thoughtLevel', 'ai.local_agents.set_thought_level']
+  ] as const)('opens a lone %s directly and keeps the confirmed selection when rejected', async (kind, route) => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockRejectedValue(new Error('Cannot switch now'))
+    const selection = {
+      id: 'native-config',
+      currentValue: 'low',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'high', name: 'High' }
+      ]
     }
-  )
+    render(<LocalAgentConfigControl sessionId="session" {...{ [kind]: selection }} disabled={false} />)
+    const trigger = screen.getByRole('button', { name: '智能体配置' })
+    expect(trigger).toHaveTextContent(kind === 'mode' ? '会话模式：Low' : '思考强度：低')
+    await user.click(trigger)
+    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitemradio', { name: kind === 'mode' ? 'High' : '高' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error: Cannot switch now'))
+    expect(ipcApi.request).toHaveBeenCalledWith(route, {
+      sessionId: 'session',
+      configId: 'native-config',
+      value: 'high'
+    })
+    const confirmed = screen.getByRole('menuitemradio', { name: kind === 'mode' ? 'Low' : '低' })
+    expect(confirmed).toHaveAttribute('aria-checked', 'true')
+    expect(confirmed).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it.each(['mode', 'thoughtLevel'] as const)('hides a fixed %s without a configurable choice', (kind) => {
+    render(
+      <LocalAgentConfigControl
+        sessionId="session"
+        disabled={false}
+        {...{
+          [kind]: { id: 'fixed', currentValue: 'only', options: [{ value: 'only', name: 'Only' }] }
+        }}
+      />
+    )
+    expect(screen.queryByRole('button', { name: '智能体配置' })).not.toBeInTheDocument()
+  })
 
   it('offers mode, reasoning, and extra settings through one entry and keeps confirmed values while saving', async () => {
     const user = userEvent.setup()

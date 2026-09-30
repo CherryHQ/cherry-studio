@@ -294,8 +294,9 @@ function LocalAgentDetails({
   const busy = busyAction !== undefined || openingChat
   const modelSavingClass =
     busyAction === 'model' ? '[&_button:disabled]:pointer-events-auto [&_button:disabled]:opacity-100' : undefined
-  const [result, setResult] = useState<string>()
-  const [resultOk, setResultOk] = useState(false)
+  const [result, setResult] = useState<{ message?: string; ok: boolean }>({ ok: false })
+  const clearResult = () => setResult(({ ok }) => ({ ok }))
+  const showError = (error: unknown) => setResult({ ok: false, message: String(error) })
   const [connection, setConnection] = useState<Pick<LocalAgentCheckResult, 'status' | 'version'>>()
   const [programHovered, setProgramHovered] = useState(false)
   const feedbackTimer = useRef({ connection, remaining: 4000 })
@@ -327,12 +328,12 @@ function LocalAgentDetails({
   }
   const openEditor = () => {
     setConnection(undefined)
-    setResult(undefined)
+    clearResult()
     setEditing(true)
   }
   const closeEditor = () => {
     setEditing(false)
-    setResult(undefined)
+    clearResult()
     if (pendingSelection) onNavigate()
   }
   const persistLocalRuntime = (localRuntime: LocalAgentConfiguration, name?: string) =>
@@ -388,27 +389,25 @@ function LocalAgentDetails({
           .join('\n')
   const loadModels = async () => {
     if (busy) return
-    setResult(undefined)
+    clearResult()
     try {
       await refreshModels()
     } catch (error) {
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
     }
   }
   const selectModel = async (nativeModel?: string) => {
     if (busy) return false
     if (nativeModel === initial.nativeModel) return true
     setBusyAction('model')
-    setResult(undefined)
+    clearResult()
     try {
       const localRuntime = { ...initial, nativeModel }
       const updated = await persistLocalRuntime(localRuntime)
       if (updated) await onSaved(updated.id, false)
       return !!updated
     } catch (error) {
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
       return false
     } finally {
       setBusyAction(undefined)
@@ -417,20 +416,19 @@ function LocalAgentDetails({
   const install = async () => {
     if (!preset || busy) return
     setBusyAction('install')
-    setResult(undefined)
+    clearResult()
     try {
       const response = await ipcApi.request('ai.local_agents.install', { presetId: preset.id })
-      setResultOk(response.ok)
-      setResult(
-        response.ok
+      setResult({
+        ok: response.ok,
+        message: response.ok
           ? `${t('local_agents.install_success')}\n${response.path}`
           : [t(installErrorKeys[response.reason], { manager: response.manager ?? '' }), response.detail]
               .filter(Boolean)
               .join('\n')
-      )
+      })
     } catch (error) {
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
     } finally {
       setBusyAction(undefined)
     }
@@ -454,18 +452,17 @@ function LocalAgentDetails({
         }))
       )
         return
-      setResult(undefined)
+      clearResult()
       setBusyAction('uninstall')
       const response = await ipcApi.request('ai.local_agents.uninstall', { presetId: preset.id, expectedPath })
-      setResultOk(response.ok)
-      setResult(
-        response.ok
+      setResult({
+        ok: response.ok,
+        message: response.ok
           ? t('local_agents.uninstall_success')
           : [t(`local_agents.uninstall_error.${response.reason}`), response.detail].filter(Boolean).join('\n')
-      )
+      })
     } catch (error) {
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
     } finally {
       setBusyAction(undefined)
     }
@@ -474,16 +471,14 @@ function LocalAgentDetails({
     if (busy) return
     setBusyAction('check')
     setConnection(undefined)
-    setResult(undefined)
+    clearResult()
     try {
       const response = await ipcApi.request('ai.local_agents.check', initial)
       setConnection({ status: response.status, version: response.version ?? response.protocolInfo?.agent?.version })
-      setResultOk(response.ok)
-      if (!response.ok) setResult(checkError(response))
+      setResult({ ok: response.ok, message: response.ok ? undefined : checkError(response) })
     } catch (error) {
       setConnection({ status: 'failed' })
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
     } finally {
       setBusyAction(undefined)
     }
@@ -491,14 +486,13 @@ function LocalAgentDetails({
   const save = async (localRuntime: LocalAgentConfiguration, savedName: string, action: 'save' | 'toggle') => {
     if (busy) return false
     setBusyAction(action)
-    setResult(undefined)
+    clearResult()
     try {
       if (!savedName) throw new Error(t('local_agents.name_required'))
       if (localRuntime.enabled || (!preset && !agent)) {
         const response = await ipcApi.request('ai.local_agents.check', localRuntime)
         if (!response.ok) {
-          setResultOk(false)
-          setResult(checkError(response))
+          showError(checkError(response))
           return false
         }
       }
@@ -509,25 +503,24 @@ function LocalAgentDetails({
       }
       return !!updated
     } catch (error) {
-      setResultOk(false)
-      setResult(String(error))
+      showError(error)
       return false
     } finally {
       setBusyAction(undefined)
     }
   }
-  const feedbackMessage = result ?? modelsError
+  const feedbackMessage = result.message ?? modelsError
   const classifiedError = feedbackMessage ? classifyLocalAgentError(feedbackMessage) : undefined
   const feedback = feedbackMessage && (
     <div
       role="status"
       className={cn(
         'flex items-start gap-2 rounded-lg border p-3 text-xs',
-        resultOk
+        result.ok
           ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
           : 'border-error-border bg-error-subtle text-error-subtle-foreground'
       )}>
-      {resultOk ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
+      {result.ok ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
       <p className="min-w-0 whitespace-pre-wrap break-words">
         {classifiedError?.kind === 'authentication'
           ? t('local_agents.sign_in_required')
@@ -698,8 +691,10 @@ function LocalAgentDetails({
                         if (!updated) throw new Error(t('common.error'))
                         try {
                           const response = await ipcApi.request('ai.local_agents.check', localRuntime)
-                          setResultOk(response.ok)
-                          setResult(response.ok ? t('local_agents.connected') : checkError(response))
+                          setResult({
+                            ok: response.ok,
+                            message: response.ok ? t('local_agents.connected') : checkError(response)
+                          })
                           if (JSON.stringify(localRuntime.env) === JSON.stringify(initial.env)) await refreshModels()
                         } catch (error) {
                           toast.error(String(error))
@@ -770,11 +765,8 @@ function LocalAgentDetails({
           feedback={feedback}
           onClose={closeEditor}
           onCancelNavigation={onCancelNavigation}
-          onChange={() => setResult(undefined)}
-          onError={(error) => {
-            setResultOk(false)
-            setResult(error)
-          }}
+          onChange={clearResult}
+          onError={showError}
           onUninstall={uninstall}
           onSave={(localRuntime, name) => save(localRuntime, name, 'save')}
         />

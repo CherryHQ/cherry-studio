@@ -1,5 +1,5 @@
 import { Loader2, LogIn } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
@@ -37,7 +37,6 @@ export function LocalAgentLogin({
   ])
   const methods = authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined)
   const usableMethods = methods?.filter((method) => method.type === 'agent' || helpUrl)
-  const directMethods = usableMethods?.filter((method) => method.type === 'agent') ?? []
   useEffect(() => {
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
@@ -62,23 +61,19 @@ export function LocalAgentLogin({
   const [error, setError] = useState<string>()
   const request = useRef<string | undefined>(undefined)
   const generation = useRef(0)
-  const cancel = () => {
+  const cancelRequest = useCallback(() => {
     generation.current++
     const requestId = request.current
     request.current = undefined
     if (requestId) void ipcApi.request('ai.local_agents.cancel_auth', { requestId }).catch(() => undefined)
+  }, [])
+  const cancel = () => {
+    cancelRequest()
     setBusy(false)
     setApiKey('')
     setMethod(undefined)
   }
-  useEffect(
-    () => () => {
-      generation.current++
-      const requestId = request.current
-      if (requestId) void ipcApi.request('ai.local_agents.cancel_auth', { requestId }).catch(() => undefined)
-    },
-    []
-  )
+  useEffect(() => cancelRequest, [cancelRequest])
   const showError = (failure: unknown) => {
     const { kind, message } = classifyLocalAgentError(failure)
     setError(
@@ -100,7 +95,6 @@ export function LocalAgentLogin({
       return
     }
     setMethod(methodId)
-    setError(undefined)
     setApiKey(config.env[methodId === 'gemini-api-key' ? 'GEMINI_API_KEY' : 'GOOGLE_API_KEY'] ?? '')
     setProject(config.env.GOOGLE_CLOUD_PROJECT ?? '')
     setLocation(config.env.GOOGLE_CLOUD_LOCATION ?? '')
@@ -141,7 +135,7 @@ export function LocalAgentLogin({
       }
     }
   }
-  if (!available || !usableMethods?.length || !directMethods.length) return null
+  if (!available || !usableMethods?.some((method) => method.type === 'agent')) return null
   return (
     <>
       <Button

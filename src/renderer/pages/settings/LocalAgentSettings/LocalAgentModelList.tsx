@@ -55,9 +55,8 @@ export function LocalAgentModelList({
   }
   const options =
     value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
-  const filtered = options.filter((model) =>
-    `${model.name} ${model.id}`.toLowerCase().includes(query.trim().toLowerCase())
-  )
+  const search = query.trim().toLowerCase()
+  const filtered = options.filter((model) => `${model.name} ${model.id}`.toLowerCase().includes(search))
   const grouped = new Map<string, LocalAgentModelCatalog['models']>()
   for (const model of filtered) {
     const group = deriveModelGroupName(model.id) ?? groupFallback ?? t('models.group.ungrouped')
