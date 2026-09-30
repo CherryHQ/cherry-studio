@@ -150,7 +150,7 @@ describe('buildPersistedEndpointConfigs', () => {
   it('persists a self-hosted reasoning format for a custom endpoint', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { reasoningFormat: { type: 'self-hosted' } }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result).not.toBeNull()
     expect(result!['openai-chat-completions'].reasoningFormat).toEqual({ type: 'self-hosted' })
@@ -163,13 +163,7 @@ describe('buildPersistedEndpointConfigs', () => {
           type: 'openai-responses',
           wire: {
             default: {
-              operations: [
-                {
-                  target: 'reasoningSummary',
-                  value: { source: 'assistant-summary' },
-                  delivery: 'provider-option' as const
-                }
-              ]
+              operations: [{ target: 'reasoningSummary', value: { source: 'assistant-summary' } }]
             }
           }
         }

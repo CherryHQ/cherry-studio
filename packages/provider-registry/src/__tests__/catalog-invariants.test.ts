@@ -434,7 +434,7 @@ describe('catalog invariants (data/*.json)', () => {
   it('budget wire operations require an explicit budget policy', () => {
     const result = ReasoningWireProfileSchema.safeParse({
       effort: {
-        operations: [{ target: 'thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }]
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }]
       }
     })
     expect(result.success).toBe(false)
