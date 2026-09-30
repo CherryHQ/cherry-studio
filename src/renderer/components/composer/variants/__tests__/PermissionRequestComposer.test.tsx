@@ -50,12 +50,14 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     value,
     onSelect,
     noneOptionLabel,
-    filter
+    filter,
+    isModelDisabled
   }: {
     value?: { id: string; name: string }
     onSelect: (model: { id: string; name: string } | undefined) => void
     noneOptionLabel?: string
     filter?: (model: { id: string; name: string }) => boolean
+    isModelDisabled?: (model: { id: string; name: string }) => boolean
   }) => (
     <div data-testid="model-selector-mock">
       <button
@@ -80,6 +82,13 @@ vi.mock('@renderer/components/ModelSelector', () => ({
             ? 'banned-model-offered'
             : 'banned-model-filtered'
           : 'no-filter'}
+      </span>
+      <span data-testid="model-selector-disabled">
+        {isModelDisabled
+          ? isModelDisabled({ id: 'cherryai-subscription::quota-gone', name: 'Quota Gone' })
+            ? 'quota-model-disabled'
+            : 'quota-model-selectable'
+          : 'no-availability-gate'}
       </span>
     </div>
   )
@@ -292,6 +301,28 @@ describe('PermissionRequestComposer', () => {
     // Without the agent's predicate nothing gates the picker.
     rerender(<PermissionRequestComposer request={planRequest} onRespond={vi.fn()} />)
     expect(screen.getByTestId('model-selector-filter')).toHaveTextContent('no-filter')
+  })
+
+  it('hands the execution picker the availability gate so unentitled models stay unselectable', () => {
+    const planRequest = makeRequest({
+      title: 'ExitPlanMode',
+      toolResponse: {
+        id: 'exit-plan-call-1',
+        toolCallId: 'exit-plan-call-1',
+        status: 'pending',
+        arguments: { plan: '# Plan' },
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+      }
+    })
+    render(
+      <PermissionRequestComposer
+        request={planRequest}
+        onRespond={vi.fn()}
+        isModelDisabled={(model) => model.id === 'cherryai-subscription::quota-gone'}
+      />
+    )
+
+    expect(screen.getByTestId('model-selector-disabled')).toHaveTextContent('quota-model-disabled')
   })
 
   it('states that the chosen execution model persists on the agent', () => {

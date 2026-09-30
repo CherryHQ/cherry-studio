@@ -151,6 +151,8 @@ interface UseAgentChatRuntimeStateParams {
   onPlanModelHandoff?: (modelId: string) => void
   /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
   modelFilter?: ModelSelectorFilter
+  /** Keeps unavailable models visible but unselectable in that same picker. */
+  isModelDisabled?: ModelSelectorFilter
 }
 
 export function useAgentChatRuntimeState({
@@ -159,7 +161,8 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages,
   onPlanModelHandoff,
-  modelFilter
+  modelFilter,
+  isModelDisabled
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const { t } = useTranslation()
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
@@ -376,7 +379,8 @@ export function useAgentChatRuntimeState({
     persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval,
-    modelFilter
+    modelFilter,
+    isModelDisabled
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const editBusy = isPending || editPending || toolApprovalComposerOverrides.length > 0

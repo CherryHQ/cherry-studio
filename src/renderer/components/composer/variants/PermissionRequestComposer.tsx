@@ -37,6 +37,8 @@ type PermissionRequestComposerProps = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   /** The agent's runtime-compatibility gate; keeps unrunnable models out of the execution picker. */
   modelFilter?: ModelSelectorFilter
+  /** Keeps models the availability gate marks unavailable visible but unselectable. */
+  isModelDisabled?: ModelSelectorFilter
   className?: string
 }
 
@@ -44,6 +46,7 @@ type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
 }
 
 function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
@@ -81,7 +84,8 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
 export function createPermissionRequestComposerOverride({
   request,
   onRespond,
-  modelFilter
+  modelFilter,
+  isModelDisabled
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
@@ -91,6 +95,7 @@ export function createPermissionRequestComposerOverride({
         request={request}
         onRespond={onRespond}
         modelFilter={modelFilter}
+        isModelDisabled={isModelDisabled}
         className={className}
       />
     )
@@ -174,6 +179,7 @@ export default function PermissionRequestComposer({
   request,
   onRespond,
   modelFilter,
+  isModelDisabled,
   className
 }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
@@ -289,6 +295,7 @@ export default function PermissionRequestComposer({
                 multiple={false}
                 includeAgentOnlyModels
                 filter={modelFilter}
+                isModelDisabled={isModelDisabled}
                 value={executionModel}
                 noneOptionLabel={t('agent.toolPermission.executionModel.current')}
                 onSelect={setExecutionModel}
