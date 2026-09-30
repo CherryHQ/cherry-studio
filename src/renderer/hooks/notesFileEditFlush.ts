@@ -1,6 +1,19 @@
 type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
+let relocationEditLock = false
+
+export function lockNotesEditsForRelocation(): void {
+  relocationEditLock = true
+}
+
+export function unlockNotesEditsForRelocation(): void {
+  relocationEditLock = false
+}
+
+export function areNotesEditsLockedForRelocation(): boolean {
+  return relocationEditLock
+}
 
 export function registerNotesEditFlush(flush: NotesEditFlush): () => void {
   flushCallbacks.add(flush)

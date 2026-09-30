@@ -27,6 +27,19 @@ export function registerRendererNotesEditsFlushWindow(windowId: string): void {
 
 export function unregisterRendererNotesEditsFlushWindow(windowId: string): void {
   registeredFlushWindowIds.delete(windowId)
+
+  for (const [requestId, pending] of pendingByRequestId) {
+    if (!pending.expected.has(windowId)) {
+      continue
+    }
+    pending.expected.delete(windowId)
+    if (pending.expected.size > 0) {
+      continue
+    }
+    clearTimeout(pending.timer)
+    pendingByRequestId.delete(requestId)
+    pending.resolve()
+  }
 }
 
 function listRegisteredFlushTargetWindowIds(): string[] {
@@ -76,11 +89,7 @@ export async function requestRendererNotesEditsFlush(): Promise<void> {
   })
 }
 
-export function acknowledgeRendererNotesEditsFlush(
-  requestId: string,
-  senderId: string | null,
-  ok: boolean
-): void {
+export function acknowledgeRendererNotesEditsFlush(requestId: string, senderId: string | null, ok: boolean): void {
   if (senderId == null) {
     return
   }
@@ -95,9 +104,7 @@ export function acknowledgeRendererNotesEditsFlush(
   if (!ok) {
     clearTimeout(pending.timer)
     pendingByRequestId.delete(requestId)
-    pending.reject(
-      new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED, 'notes edit flush failed')
-    )
+    pending.reject(new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED, 'notes edit flush failed'))
     return
   }
 
