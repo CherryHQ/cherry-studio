@@ -376,8 +376,7 @@ const BasicDataSettings: React.FC = () => {
                   void (async () => {
                     try {
                       const resolved = await resolveNotesPath(notesPath || '')
-                      const migrationSourcePath =
-                        resolved.isFallback && notesPath ? notesPath : resolved.path
+                      const migrationSourcePath = resolved.isFallback && notesPath ? notesPath : resolved.path
                       if (!migrationSourcePath) {
                         return
                       }

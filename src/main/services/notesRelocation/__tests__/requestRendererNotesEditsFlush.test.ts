@@ -80,4 +80,13 @@ describe('requestRendererNotesEditsFlush', () => {
     await expect(requestRendererNotesEditsFlush()).resolves.toBeUndefined()
     expect(broadcastMock).not.toHaveBeenCalled()
   })
+
+  it('resolves when a registered window unregisters before acknowledging', async () => {
+    registerRendererNotesEditsFlushWindow('window-a')
+
+    const flushPromise = requestRendererNotesEditsFlush()
+    unregisterRendererNotesEditsFlushWindow('window-a')
+
+    await expect(flushPromise).resolves.toBeUndefined()
+  })
 })
