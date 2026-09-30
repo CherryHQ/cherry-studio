@@ -45,6 +45,17 @@ describe('startup recovery without database services', () => {
     expect(options.buttons).toHaveLength(3)
   })
 
+  it.each([
+    ['zh', '暂时无法打开本地数据'],
+    ['zh-HK', '暫時無法開啟本機資料'],
+    ['de', 'Lokale Daten können nicht geöffnet werden']
+  ])('uses the system language for %s without preference services', async (locale, title) => {
+    vi.mocked(app.getLocale).mockReturnValueOnce(locale)
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 2, checkboxChecked: false })
+    expect(await showStartupRecovery({ code: 'SQLITE_BUSY' })).toBe('exit')
+    expect(vi.mocked(dialog.showMessageBox).mock.calls[0][0].title).toBe(title)
+  })
+
   it('keeps recovery available after an export error so the user can exit', async () => {
     vi.mocked(dialog.showMessageBox)
       .mockResolvedValueOnce({ response: 1, checkboxChecked: false })

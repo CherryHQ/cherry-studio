@@ -3,9 +3,8 @@ import { app, dialog } from 'electron'
 import { application } from '@application'
 import { classifyDatabaseFailure } from '@data/db/startupErrors'
 import { loggerService } from '@logger'
-import { SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { resolveSystemLanguage, t } from '@main/i18n'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
 
 import { StartupRecoveryCanceled, withStartupRecoveryProgress } from './startupRecoveryProgress'
 import { canStopDatabaseProcess, listDatabaseProcesses, stopDatabaseProcess } from './windowsRestartManager'
@@ -19,8 +18,7 @@ export async function showStartupRecovery(
   instanceConflict = false
 ): Promise<'retry' | 'exit'> {
   await app.whenReady()
-  const locale = app.getLocale() as LanguageVarious
-  const language = SUPPORTED_LANGUAGES.includes(locale) ? locale : defaultLanguage
+  const language = resolveSystemLanguage(app.getLocale())
   const failure = classifyDatabaseFailure(error)
   const messages = {
     busy: t('dialog.startup_recovery.busy', undefined, language),

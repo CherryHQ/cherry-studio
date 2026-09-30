@@ -44,9 +44,9 @@ describe('main i18n', () => {
       expect(getAppLanguage()).toBe(expected)
     })
 
-    it('uses the Traditional Chinese recovery dialog for a Hong Kong system locale', () => {
+    it('uses Traditional Chinese translations for a Hong Kong system locale', () => {
       vi.mocked(app.getLocale).mockReturnValueOnce('zh-HK')
-      expect(t('dialog.migration_database_unavailable.title')).toBe('資料庫無法使用')
+      expect(t('dialog.save_file')).toBe('儲存檔案')
     })
 
     it('falls back to the default language when the system locale is not in the catalog', () => {

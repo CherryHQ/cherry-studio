@@ -78,11 +78,10 @@ function stubMigrationV2() {
     // barrel, so they live on this mock. The helpers are pure — keep the real
     // implementations so schemaOutOfSyncError() fixtures are still detected and the
     // dialogs carry the real flattened cause chain.
-    const { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
+    const { describeErrorChain, isSchemaOutOfSyncError } = (await vi.importActual(
       '@data/migration/v2/core/migrationErrors'
     )) as {
       describeErrorChain: (error: unknown) => string
-      isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -107,7 +106,6 @@ function stubMigrationV2() {
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
       describeErrorChain,
-      isMigrationStorageError,
       isSchemaOutOfSyncError
     }
   })
