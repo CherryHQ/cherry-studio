@@ -23,7 +23,7 @@ it does not claim that file-level affected tests cover runtime dependencies.
 
 ## Execution
 
-`--group repository|lint|types|i18n|main|renderer|packages|checks|tests` restricts an
+`--group repository|lint|types|i18n|main|renderer|packages|platform|checks|tests` restricts an
 existing plan. `--shard=N/M` forwards Vitest's built-in sharding option. `--plan --json`
 prints a machine-readable plan. Test commands are one Vitest invocation with explicit
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
@@ -37,3 +37,20 @@ worktree. Use isolated worktrees and dependency installations for concurrent age
 `--github-output` emits that plan and selected job groups without installing dependencies.
 Unknown tasks or groups fail before execution. Summary validation rejects failed,
 cancelled, missing, or unexpectedly skipped jobs selected by the plan.
+
+## CI
+
+PRs compare the checked-out merge commit with its first parent, so earlier commits
+remain covered. Pushes compare the event's before/after range. A daily schedule and
+manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
+are not cancelled. Pull requests targeting a parent stack branch also run CI.
+
+Repository, lint, typecheck, and i18n groups run independently. Main/preload retain
+three Linux shards; renderer retains five. Selected package tests run once in their
+own job. macOS/Windows retain the platform-gated test inventory (now including the
+DSH bridge); platform selection is deliberately conservative whenever main is selected.
+
+The required `basic-checks`, `general-test`, and `render-test` names remain stable.
+Their verifier requires classification to succeed, checks every planned job, and
+accepts a skipped dependency only when the plan explicitly excludes it. Schema drift,
+provider generation, changeset policy, and catalog edit guards remain CI checks.

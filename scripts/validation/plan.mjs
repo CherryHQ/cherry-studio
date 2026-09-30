@@ -140,7 +140,8 @@ export function changedFiles(cwd, base = 'origin/main', head = 'HEAD', local = t
   const comparison = local ? git('merge-base', baseCommit, headCommit).trim() : baseCommit
   const files = git('diff', '--name-only', '--no-renames', '-z', comparison, headCommit).split('\0')
   if (local) {
-    files.push(...git('diff', '--name-only', '--no-renames', '-z', 'HEAD').split('\0'))
+    files.push(...git('diff', '--cached', '--name-only', '--no-renames', '-z', 'HEAD').split('\0'))
+    files.push(...git('diff', '--name-only', '--no-renames', '-z').split('\0'))
     files.push(...git('ls-files', '--others', '--exclude-standard', '-z').split('\0'))
   }
   return [...new Set(files.filter(Boolean))]

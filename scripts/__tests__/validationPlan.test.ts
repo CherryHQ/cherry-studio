@@ -55,6 +55,17 @@ describe('validation selection', () => {
     expect(createPlan([file]).projects).toContain('renderer')
     expect(createPlan([file]).tasks).toContain('types-e2e')
   })
+  it.each([
+    'backport-release-fixes',
+    'auto-release-build',
+    'post-release',
+    'prepare-release',
+    'preview-release',
+    'publish-release',
+    'release'
+  ])('runs script contracts for release-workflow-only changes: %s', (name) => {
+    expect(createPlan([`.github/workflows/${name}.yml`]).projects).toContain('scripts')
+  })
   it('checks translation references after source changes and migration integrity after schema changes', () => {
     expect(createPlan(['src/renderer/pages/Chat.tsx']).tasks).toContain('i18n-unused')
     expect(createPlan(['src/main/data/db/schemas/messages.ts']).tasks).toContain('migrations')
@@ -99,6 +110,7 @@ describe('working tree changes', () => {
     git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'docs')
     write('staged.ts', 'export const a = 2')
     git('add', 'staged.ts')
+    write('staged.ts', 'export const a = 1')
     write('edit.ts', 'export const a = 3')
     write('untracked.ts', 'new')
     expect(changedFiles(cwd, base).sort()).toEqual([

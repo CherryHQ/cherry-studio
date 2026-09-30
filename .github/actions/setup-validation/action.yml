@@ -1,0 +1,34 @@
+name: Set up validation dependencies
+description: Install the pinned runtime and dependencies using the shared pnpm store cache
+inputs:
+  save-cache:
+    description: Allow this job to populate the cache
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version-file: .node-version
+    - uses: pnpm/action-setup@v5
+    - name: Locate pnpm store
+      id: store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache/restore@v6
+      if: inputs.save-cache != 'true'
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-
+    - uses: actions/cache@v6
+      if: inputs.save-cache == 'true'
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
