@@ -108,6 +108,7 @@ const CodeViewer = ({
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
+  const measuredRowHeightsRef = useRef(new Map<number, number>())
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -540,8 +541,17 @@ const CodeViewer = ({
       const row = scroller.querySelector(`[data-index="${index}"]`)
       if (row instanceof HTMLElement) {
         virtualizer.measureElement(row)
+        const measured = row.getBoundingClientRect().height
+        if (measured > 0) {
+          measuredRowHeightsRef.current.set(index, measured)
+        }
       } else {
-        virtualizer.resizeItem(index, estimateSize(index))
+        const estimated = estimateSize(index)
+        const cached = measuredRowHeightsRef.current.get(index)
+        // Never shrink offscreen rows — undersized estimates make translateY rows overlap.
+        const nextSize = cached !== undefined ? Math.max(estimated, cached) : estimated
+        virtualizer.resizeItem(index, nextSize)
+        measuredRowHeightsRef.current.set(index, nextSize)
       }
     }
   }, [estimateSize, virtualizer, wrapped])
