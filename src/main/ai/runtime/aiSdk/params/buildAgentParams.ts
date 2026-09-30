@@ -290,10 +290,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           return automationRun
         }
       : undefined
+
   const ollamaNumCtxResolution =
     sdkConfig.providerId === SystemProviderIds.ollama ? resolveOllamaRequestNumCtx(model) : undefined
   const ollamaNumCtx = ollamaNumCtxResolution
-    ? { trainedContextWindow: ollamaNumCtxResolution.trainedContextWindow, numCtx: ollamaNumCtxResolution.numCtx }
+    ? {
+        uniqueModelId: model.id,
+        trainedContextWindow: ollamaNumCtxResolution.trainedContextWindow,
+        numCtx: ollamaNumCtxResolution.numCtx
+      }
+    : undefined
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,

@@ -28,7 +28,7 @@ import {
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import { loggerService } from '@logger'
-import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
@@ -48,8 +48,12 @@ export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
-  /** Cross-model fallback: refresh or clear Ollama context metadata on stream errors. */
-  streamErrorOllamaNumCtx?: OllamaNumCtxRequestSnapshot | null
+  /**
+   * Cross-model fallback: replaces the request's stream error-serialization
+   * context while this fallback is active (`null` clears provider context, e.g.
+   * a non-Ollama fallback). Absent leaves the primary's context untouched.
+   */
+  streamErrorSerialization?: SerializeErrorContext | null
 }
 
 /**

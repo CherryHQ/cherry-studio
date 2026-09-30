@@ -27,7 +27,6 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
-import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import type {
   InferSharedCacheValue,
   MainPersistCacheKey,
@@ -826,35 +825,13 @@ export class CacheService extends BaseService {
         // This path bypasses setShared/deleteShared and must notify independently.
         const oldValue = this.peekShared(message.key)
 
-        let nextValue = message.value
-        if (
-          message.key === OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY &&
-          nextValue !== undefined &&
-          typeof nextValue === 'object' &&
-          nextValue !== null &&
-          !Array.isArray(nextValue)
-        ) {
-          const prior =
-            typeof oldValue === 'object' && oldValue !== null && !Array.isArray(oldValue)
-              ? (oldValue as Record<string, number>)
-              : {}
-          // Session caps only shrink on retry, so merge per-key minima — a stale
-          // window's higher cap must not raise a newer lowered one.
-          const merged: Record<string, number> = { ...prior }
-          for (const [key, value] of Object.entries(nextValue as Record<string, number>)) {
-            const current = merged[key]
-            merged[key] = typeof current === 'number' && typeof value === 'number' ? Math.min(current, value) : value
-          }
-          nextValue = merged
-        }
-
-        if (nextValue === undefined) {
+        if (message.value === undefined) {
           // Handle deletion
           this.sharedCache.delete(message.key)
         } else {
           // Handle set - use expireAt directly (absolute timestamp)
           const entry: CacheEntry = {
-            value: nextValue,
+            value: message.value,
             expireAt: message.expireAt
           }
           this.sharedCache.set(message.key, entry)
@@ -862,11 +839,11 @@ export class CacheService extends BaseService {
 
         // Relay to other windows first so cross-window state is coherent before
         // main-process subscribers observe the change.
-        this.broadcastSync(nextValue === message.value ? message : { ...message, value: nextValue }, senderWindowId)
+        this.broadcastSync(message, senderWindowId)
 
         // Only fire when the value actually changed, matching main-origin paths.
-        if (!isEqual(oldValue, nextValue)) {
-          this.sharedNotifier.notify(message.key, nextValue, oldValue)
+        if (!isEqual(oldValue, message.value)) {
+          this.sharedNotifier.notify(message.key, message.value, oldValue)
         }
         return
       }

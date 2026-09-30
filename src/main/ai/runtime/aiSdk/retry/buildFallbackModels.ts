@@ -186,6 +186,6 @@ async function resolveFallback(
     model: resolved,
     options: pickFallbackCallOptions(options),
     repairToolCall: options.repairToolCall,
-    streamErrorOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
+    streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null
   }
 }

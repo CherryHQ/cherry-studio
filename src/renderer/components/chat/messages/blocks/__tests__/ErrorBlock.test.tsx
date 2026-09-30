@@ -4,7 +4,6 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
-import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 import type { MessageListActions, MessageListItem } from '../../types'
@@ -13,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
   language: 'en',
-  sharedCache: {} as Record<string, unknown>,
+  ipcRequest: vi.fn(),
   translations: new Map<string, string>()
 }))
 
@@ -59,13 +58,8 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => mocks.actions
 }))
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getShared: (key: string) => mocks.sharedCache[key],
-    setShared: (key: string, value: unknown) => {
-      mocks.sharedCache[key] = value
-    }
-  }
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mocks.ipcRequest(...args) }
 }))
 
 import ErrorBlock from '../ErrorBlock'
@@ -88,7 +82,7 @@ describe('ErrorBlock', () => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
     mocks.language = 'en'
-    mocks.sharedCache = {}
+    mocks.ipcRequest = vi.fn().mockResolvedValue(undefined)
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
@@ -128,8 +122,48 @@ describe('ErrorBlock', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
     await waitFor(() => expect(removeMessageErrorPart).toHaveBeenCalled())
     expect(regenerateMessage).toHaveBeenCalledWith('message-1')
-    const caps = mocks.sharedCache[OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY] as Record<string, number>
-    expect(caps[uniqueModelId]).toBe(32_768)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+      uniqueModelId,
+      numCtxCap: 32_768
+    })
+  })
+
+  it('keys the cap to the model that actually failed, not the primary model', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    mocks.actions = {
+      removeMessageErrorPart: vi.fn().mockResolvedValue(undefined),
+      regenerateMessage: vi.fn().mockResolvedValue(undefined)
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaNumCtxModelId: 'ollama::fallback-model',
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          modelId: 'ollama::primary-model',
+          model: { id: 'primary-model', name: 'primary', provider: 'ollama' }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+        uniqueModelId: 'ollama::fallback-model',
+        numCtxCap: 32_768
+      })
+    )
   })
 
   it('hides the reduced-context retry when context is already at the minimum', () => {
