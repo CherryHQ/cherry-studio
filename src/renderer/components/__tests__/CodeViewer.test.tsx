@@ -424,6 +424,49 @@ describe('CodeViewer', () => {
     expect(mocks.measure).not.toHaveBeenCalled()
   })
 
+  it('estimates enough height for offscreen wrapped rows in narrow scrollers', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const longLine = 'x'.repeat(100)
+    mockRowHeights(new Map([[0, 21]]))
+    const lineHeight = 21
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      render(<CodeViewer value={`line 1\n${longLine}`} language="text" wrapped maxHeight="350px" />)
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      const estimatedHeight = offscreenResize![1] as number
+      // Narrow scroller (~4 chars/row at fontSize 13) needs far more than the old 8-char floor.
+      const narrowCharsPerRow = 4
+      expect(estimatedHeight).toBeGreaterThanOrEqual(lineHeight * Math.ceil(longLine.length / narrowCharsPerRow))
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
   it('does not shrink offscreen wrapped rows below their cached height when remeasuring', () => {
     const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
     mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
@@ -439,6 +482,15 @@ describe('CodeViewer', () => {
     mockRowHeights(new Map([[0, 55]]))
 
     try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 800
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 55
+        }
+      })
+
       const { rerender } = render(
         <CodeViewer value={`line 1\n${longSecondLine}`} language="text" wrapped maxHeight="350px" />
       )
@@ -448,14 +500,6 @@ describe('CodeViewer', () => {
       const cachedOffscreenSize = offscreenResize![1] as number
 
       mocks.resizeItem.mockClear()
-      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
-        configurable: true,
-        get(this: HTMLElement) {
-          if (this.classList?.contains('shiki-scroller')) return 800
-          const index = this.getAttribute('data-index')
-          return index === null ? 300 : 55
-        }
-      })
 
       rerender(
         <CodeViewer
