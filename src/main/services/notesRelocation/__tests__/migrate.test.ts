@@ -134,6 +134,33 @@ describe('notesRelocation', () => {
     copyFileSpy.mockRestore()
   })
 
+  it('stops copying top-level entries after the first failure', async () => {
+    const source = path.join(tempRoot, 'source-notes-stop')
+    const target = path.join(tempRoot, 'target-notes-stop')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'first.md'), '# First')
+    fs.writeFileSync(path.join(source, 'second.md'), '# Second')
+    fs.writeFileSync(path.join(source, 'third.md'), '# Third')
+
+    const copyFile = fs.promises.copyFile
+    let copyCalls = 0
+    const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to) => {
+      copyCalls += 1
+      if (copyCalls === 2) {
+        throw new Error('simulated copy failure')
+      }
+      await copyFile(from, to)
+    })
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_FAILED'
+    })
+    expect(fs.existsSync(path.join(target, 'first.md'))).toBe(true)
+    expect(fs.existsSync(path.join(target, 'third.md'))).toBe(false)
+    copyFileSpy.mockRestore()
+  })
+
   it('rejects merge when the same relative path exists with different content', async () => {
     const source = path.join(tempRoot, 'source-notes-4')
     const target = path.join(tempRoot, 'target-notes-4')

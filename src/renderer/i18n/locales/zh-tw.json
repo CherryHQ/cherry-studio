@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "新目錄",
   "settings.data.notes_relocation.error.generic": "筆記目錄移轉失敗",
   "settings.data.notes_relocation.error.invalid_target": "所選目錄無效或沒有存取權限",
+  "settings.data.notes_relocation.error.preference_update_failed": "筆記已複製到新資料夾，但無法儲存新的筆記路徑。請在設定中手動指定。",
   "settings.data.notes_relocation.error.same_path": "新目錄與目前筆記目錄相同",
   "settings.data.notes_relocation.error.source_contains_symlinks": "目前筆記資料夾包含符號連結，無法遷移",
   "settings.data.notes_relocation.error.source_missing": "無法讀取目前筆記目錄",

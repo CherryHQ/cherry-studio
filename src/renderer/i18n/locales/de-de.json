@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "Nach",
   "settings.data.notes_relocation.error.generic": "Migration des Notizverzeichnisses fehlgeschlagen",
   "settings.data.notes_relocation.error.invalid_target": "Das ausgewählte Verzeichnis ist ungültig oder der Zugriff wurde verweigert",
+  "settings.data.notes_relocation.error.preference_update_failed": "Notizen wurden in den neuen Ordner kopiert, aber der neue Notizpfad konnte nicht gespeichert werden. Legen Sie ihn manuell in den Einstellungen fest.",
   "settings.data.notes_relocation.error.same_path": "Das neue Verzeichnis ist identisch mit dem aktuellen Notizverzeichnis",
   "settings.data.notes_relocation.error.source_contains_symlinks": "Der aktuelle Notizordner enthält symbolische Links und kann nicht migriert werden",
   "settings.data.notes_relocation.error.source_missing": "Das aktuelle Notizverzeichnis konnte nicht gelesen werden",
