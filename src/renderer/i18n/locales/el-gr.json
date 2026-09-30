@@ -3880,6 +3880,7 @@
   "settings.data.notes_relocation.confirm.summary": "Μετακίνηση {{notes}} σημειώσεων και {{folders}} φακέλων (περίπου {{size}}) στον νέο κατάλογο;",
   "settings.data.notes_relocation.confirm.title": "Μεταφορά σημειώσεων",
   "settings.data.notes_relocation.confirm.to": "Προς",
+  "settings.data.notes_relocation.error.flush_failed": "Δεν ήταν δυνατή η αποθήκευση των ανοιχτών σημειώσεων πριν από τη μετεγκατάσταση. Κλείστε ή αποθηκεύστε τις σημειώσεις σας και δοκιμάστε ξανά.",
   "settings.data.notes_relocation.error.generic": "Αποτυχία μεταφοράς καταλόγου σημειώσεων",
   "settings.data.notes_relocation.error.invalid_target": "Ο επιλεγμένος κατάλογος είναι άκυρος ή δεν επιτρέπεται η πρόσβαση",
   "settings.data.notes_relocation.error.preference_update_failed": "Οι σημειώσεις αντιγράφηκαν στον νέο φάκελο, αλλά δεν ήταν δυνατή η αποθήκευση της νέας διαδρομής. Ορίστε την χειροκίνητα στις ρυθμίσεις.",

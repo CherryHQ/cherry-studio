@@ -3880,6 +3880,7 @@
   "settings.data.notes_relocation.confirm.summary": "{{notes}} 件のノートと {{folders}} 個のフォルダー（約 {{size}}）を新しいディレクトリへ移動しますか？",
   "settings.data.notes_relocation.confirm.title": "ノートを移行",
   "settings.data.notes_relocation.confirm.to": "移行先",
+  "settings.data.notes_relocation.error.flush_failed": "移行前に開いているノートを保存できませんでした。ノートを閉じるか保存してから、もう一度お試しください。",
   "settings.data.notes_relocation.error.generic": "ノートディレクトリの移行に失敗しました",
   "settings.data.notes_relocation.error.invalid_target": "選択したディレクトリが無効か、アクセスが拒否されました",
   "settings.data.notes_relocation.error.preference_update_failed": "ノートは新しいフォルダにコピーされましたが、新しいノートパスを保存できませんでした。設定で手動で指定してください。",
