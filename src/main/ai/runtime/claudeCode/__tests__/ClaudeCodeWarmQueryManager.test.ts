@@ -532,6 +532,17 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm.close).toHaveBeenCalledOnce()
   })
 
+  it('releases the process cap when warm query startup fails after spawning a child', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
+    const manager = new ClaudeCodeWarmQueryManager()
+    startupMock.mockRejectedValueOnce(new Error('startup failed'))
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await Promise.resolve()
+
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
+  })
+
   it('releases the process cap when closing a parked warm query', async () => {
     const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()

@@ -31,7 +31,7 @@ describe('claudeCodeSpawnCapacity', () => {
     vi.clearAllMocks()
   })
 
-  it('evicts parked warm queries until a cap slot frees for a live spawn', () => {
+  it('evicts parked warm queries but refuses a live spawn while evicted children keep the active count at the cap', () => {
     const counts: ManagerCounts = { active: 6, capSlots: 6 }
     const evictOldestWarmQuery = vi.fn(() => {
       if (counts.capSlots === 0) return false
@@ -40,13 +40,13 @@ describe('claudeCodeSpawnCapacity', () => {
     })
     mockManagers(counts, evictOldestWarmQuery)
 
-    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(true)
-    expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
-    expect(counts.capSlots).toBe(5)
+    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(false)
+    expect(evictOldestWarmQuery).toHaveBeenCalledTimes(7)
+    expect(counts.capSlots).toBe(0)
   })
 
-  it('admits a live spawn into the slot an evicted child freed while it still counts as active', () => {
-    const evictOldestWarmQuery = mockManagers({ active: 6, capSlots: 5 })
+  it('admits a live spawn when the active count is under the cap', () => {
+    const evictOldestWarmQuery = mockManagers({ active: 5, capSlots: 5 })
 
     expect(prepareClaudeCodeSpawnCapacity('live')).toBe(true)
     expect(evictOldestWarmQuery).not.toHaveBeenCalled()

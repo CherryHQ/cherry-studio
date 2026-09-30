@@ -262,6 +262,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       if (this.entries.get(request.key)?.promise === promise) {
         this.entries.delete(request.key)
       }
+      application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(processDiagnostics.reference)
       logger.warn('Claude warm query startup failed', { key: request.key, error })
       return undefined
     })
