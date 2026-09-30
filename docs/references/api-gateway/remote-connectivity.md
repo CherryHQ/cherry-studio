@@ -318,9 +318,6 @@ Android 使用系统 NSD；Apple 平台使用 Bonjour 的受支持 API。优先�
 
 ### 9.1 Tailscale / ZeroTier
 
-后续的统一连接体验见 [统一设备连接与设置助手方案](./device-connection-setup.md)。该草案增加 Agent 辅助设置，
-不改变本文首期实现的范围，也不把自动发现地址隐式转换为持久配置。
-
 系统已建立的 VPN 提供正常网络路径。虚拟 IP 或域名加应用端口形成 direct route，继续复用 WebSocket 与 Noise。
 Tailscale MagicDNS 是主机名解析，不是 Cherry 服务/端口发现；不要求 mDNS 广播能够跨 tailnet。
 ZeroTier 有 multicast 能力，但不保证所有手机平台、虚拟接口和网络配置都能进行服务发现。

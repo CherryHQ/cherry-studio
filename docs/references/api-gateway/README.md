@@ -473,8 +473,6 @@ streaming `buildStreamErrorFrame`.
 
 ## Related references
 
-- [统一设备连接与设置助手方案](./device-connection-setup.md) — proposed unified LAN / VPN
-  connection setup, address management, and optional Agent-assisted VPN installation.
 - [Remote Connectivity Design](./remote-connectivity.md) — proposed identity-based
   discovery, address-change recovery, VPN endpoints, and future relay ownership;
   includes the current implementation baseline and device acceptance plan.

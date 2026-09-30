@@ -7,7 +7,11 @@ does not cancel installation.
 
 `vpnStatus.ts` is private to this module. It reads local Tailscale / ZeroTier state and
 returns only this computer's usable addresses. `BinaryManager` executes the official-source
-system package installation; unsupported platforms and installation failures return manual guidance.
+system package installation. This setup service selects the Tailscale recipe and limits automatic
+installation to Apple Silicon macOS; other platforms and installation failures return manual guidance.
+
+The maintainer explicitly decided on 2026-09-29 to retain official-source automatic installation
+without a China mirror. Existing npm / Python / GitHub mirror settings do not cover this installer.
 
 The public entry is `index.ts`; the repository's barrel lint rule forbids external deep imports.
 The service is registered in the lifecycle container and consumers resolve it through `application.get()`.
