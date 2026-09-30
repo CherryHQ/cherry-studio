@@ -147,7 +147,7 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
  * the whole set here makes the child's baseline explicit and complete instead of
  * relying on that backfill, and matches what Cherry's other Windows children get.
  *
- * None of them is a credential or a user-configured setting, so forwarding them
+ * None of them contains credentials or application secrets, so forwarding them
  * does not widen what a deliberately scoped child env exposes.
  */
 const WIN32_SYSTEM_ENV_KEYS = [
