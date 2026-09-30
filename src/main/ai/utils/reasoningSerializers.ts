@@ -14,9 +14,6 @@ import type {
 } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
-
-// Local alias: provider-registry no longer exports a delivery type useful here
-export type ReasoningWireDelivery = 'provider-option' | 'request-body'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -269,10 +266,6 @@ export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocatio
 }
 
 /** Whether a wire emission is delivered via raw request body rather than providerOptions. */
-export function isRequestBodyTarget(_target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
-  return delivery === 'request-body'
-}
-
 function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
   return emission.delivery === 'request-body'
 }
@@ -287,17 +280,5 @@ export function filterReasoningForProviderOptions(
 
 /** Extract body-routed reasoning params as a nested object for fetch injection. */
 export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
-  const body: Record<string, unknown> = {}
-  for (const emission of invocation.emissions) {
-    if (!isBodyEmission(emission)) continue
-    const path = emission.target.split('.')
-    let cursor = body
-    for (let index = 0; index < path.length - 1; index += 1) {
-      const key = path[index]
-      cursor[key] ??= {}
-      cursor = cursor[key] as Record<string, unknown>
-    }
-    cursor[path[path.length - 1]] = emission.value
-  }
-  return body
+  return encodeEmissions({ ...invocation, emissions: invocation.emissions.filter(isBodyEmission) })
 }
