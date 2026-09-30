@@ -58,12 +58,5 @@ export class CherryConnectionTools {
         content: [{ type: 'text', text: `Connection setup error: ${(error as Error).message}` }]
       }
     }
-      return {
-        isError: true,
-        content: [
-          { type: 'text', text: 'Connection setup could not complete. Check Device Connections settings and retry.' }
-        ]
-      }
-    }
   }
 }
