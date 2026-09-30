@@ -518,6 +518,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes unused warm queries after the idle ttl', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
@@ -527,6 +528,21 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.advanceTimersByTime(5 * 60 * 1000)
     await Promise.resolve()
 
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('releases the process cap when closing a parked warm query', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await manager.close('session-1')
+    await Promise.resolve()
+
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     expect(warm.close).toHaveBeenCalledOnce()
   })
 

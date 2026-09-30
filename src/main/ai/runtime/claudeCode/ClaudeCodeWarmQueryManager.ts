@@ -300,13 +300,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const entry = this.entries.get(key)
     if (!entry) return Promise.resolve()
     this.entries.delete(key)
-    return this.closeEntry(entry)
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    this.releaseWarmQueryCapAndClose(entry)
+    return entry.closePromise ?? Promise.resolve()
   }
 
   closeAll(): Promise<void> {
     const entries = [...this.entries.values()]
     this.entries.clear()
-    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
+    for (const entry of entries) {
+      if (entry.idleTimer) clearTimeout(entry.idleTimer)
+      this.releaseWarmQueryCapAndClose(entry)
+    }
+    return Promise.allSettled(entries.map((entry) => entry.closePromise ?? Promise.resolve())).then(() => undefined)
   }
 
   protected onStop(): Promise<void> {
@@ -322,7 +328,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      void this.closeEntry(entry)
+      this.releaseWarmQueryCapAndClose(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
   }
