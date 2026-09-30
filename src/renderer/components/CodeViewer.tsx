@@ -509,9 +509,11 @@ const CodeViewer = ({
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
   }, [rawLines.length, totalSize, onHeightChange])
 
+  // rawLines 变更（流式输出）不重置测量缓存：重置会让未变更的行退回估算高度、再次互相重叠；
+  // 行内实际尺寸变化由 measureElement 挂载的 ResizeObserver 跟进。
   useLayoutEffect(() => {
     virtualizer.measure()
-  }, [expanded, wrapped, fontSize, lineNumbers, rawLines, virtualizer])
+  }, [expanded, wrapped, fontSize, lineNumbers, virtualizer])
 
   useLayoutEffect(() => {
     if (!wrapped) return
