@@ -21,6 +21,8 @@ type ToolApprovalComposerOverridesOptions = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   /** The agent's runtime-compatibility gate for the plan-approval execution-model picker. */
   modelFilter?: ModelSelectorFilter
+  /** Keeps unavailable models visible but unselectable in that same picker. */
+  isModelDisabled?: ModelSelectorFilter
 }
 
 export function useToolApprovalComposerOverrides({
@@ -28,7 +30,8 @@ export function useToolApprovalComposerOverrides({
   persistedPartsByMessageId,
   streamingLayers,
   onRespond,
-  modelFilter
+  modelFilter,
+  isModelDisabled
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
@@ -99,11 +102,12 @@ export function useToolApprovalComposerOverrides({
         createPermissionRequestComposerOverride({
           request: permissionRequest,
           onRespond,
-          modelFilter
+          modelFilter,
+          isModelDisabled
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, modelFilter, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, isModelDisabled, modelFilter, onRespond, permissionRequest])
 }
