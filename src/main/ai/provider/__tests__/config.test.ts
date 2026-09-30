@@ -1895,5 +1895,31 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
+
+    it('routes AIOnly Anthropic-synced models through the newapi adapter (issue #21166)', async () => {
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.aiionly.com',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        id: 'aionly::claude-sonnet',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as Record<string, unknown>).endpointType).toBe('anthropic')
+    })
   })
 })
