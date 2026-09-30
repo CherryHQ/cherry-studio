@@ -549,12 +549,7 @@ describe('IpcChatTransport', () => {
   it('reconnectToStream drops orphaned tool-output from attach overflow', async () => {
     const replay = [{ topicId, seq: 1, chunk: { type: 'text-start', id: 't' } }]
     mock.mockApi.streamAttach.mockImplementation(async () => {
-      mock.emitChunk(
-        topicId,
-        { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' },
-        undefined,
-        99
-      )
+      mock.emitChunk(topicId, { type: 'tool-output-available', toolCallId: 't1', output: 'orphan' }, undefined, 99)
       return { status: 'attached', bufferedChunks: replay }
     })
 
