@@ -9,6 +9,7 @@ import {
   type BaseMessage,
   type WsFrame
 } from '@wecom/aibot-node-sdk'
+import { delay } from 'es-toolkit'
 import { fileTypeFromBuffer } from 'file-type'
 import { LRUCache } from 'lru-cache'
 import PQueue from 'p-queue'
@@ -36,6 +37,7 @@ const FILE_BYTES = 20 * 1024 * 1024
 const MESSAGE_BYTES = 40 * 1024 * 1024
 
 type ResponseContext = {
+  chatId: string
   reqId: string
   streamId: string
   expiresAt: number
@@ -95,6 +97,7 @@ export class WeComAdapter extends ChannelAdapter {
       context.flusher?.cancelPendingFlush()
     }
   })
+  private readonly deliveries = new Map<string, { queue: PQueue; sent: number[] }>()
   private waiting = 0
   private waitingBytes = 0
   private readonly downloads = new PQueue({ concurrency: 4 })
@@ -165,6 +168,7 @@ export class WeComAdapter extends ChannelAdapter {
     this.client = null
     this.responses.clear()
     this.downloads.clear()
+    this.deliveries.clear()
     this.markDisconnected(reason)
   }
 
@@ -241,16 +245,19 @@ export class WeComAdapter extends ChannelAdapter {
     this.seen.set(body.msgid, true)
     if (this.responses.size >= 1000) {
       this.log.warn('WeCom response capacity reached')
-      await this.client?.replyStreamNonBlocking(
-        { headers: { req_id: frame.headers.req_id } },
-        randomUUID(),
-        t('common.channel_message_dropped'),
-        true
+      await this.sendToChat(chatId, () =>
+        this.client!.replyStreamNonBlocking(
+          { headers: { req_id: frame.headers.req_id } },
+          randomUUID(),
+          t('common.channel_message_dropped'),
+          true
+        )
       )
       return
     }
     const opts = { replyToMessageId: body.msgid }
     const context: ResponseContext = {
+      chatId,
       reqId: frame.headers.req_id,
       streamId: randomUUID(),
       expiresAt: Date.now() + STREAM_WINDOW_MS,
@@ -274,8 +281,9 @@ export class WeComAdapter extends ChannelAdapter {
     const files: FileAttachment[] = []
     let text = ''
     let total = 0
-    const signal = this.lifetime.signal
-    const download = async (media: { url: string; aeskey?: string }, image: boolean) => {
+    const controller = new AbortController()
+    const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
+    const download = async (media: { url: string; aeskey?: string }, image: boolean, index = 0) => {
       if (this.downloads.size >= 32) throw new Error('Attachment queue full')
       const result = await this.downloads.add(
         () =>
@@ -293,7 +301,7 @@ export class WeComAdapter extends ChannelAdapter {
       const type = await fileTypeFromBuffer(bytes)
       if (image) {
         if (!type?.mime.startsWith('image/')) throw new Error('Invalid image')
-        images.push({ data: bytes.toString('base64'), media_type: type.mime })
+        images[index] = { data: bytes.toString('base64'), media_type: type.mime }
       } else {
         const disposition = result.headers['content-disposition']
         const filename = filenameFromContentDisposition(typeof disposition === 'string' ? disposition : null)
@@ -316,20 +324,25 @@ export class WeComAdapter extends ChannelAdapter {
         case 'file':
           await download(body.file, false)
           break
-        case 'mixed':
+        case 'mixed': {
           if (body.mixed.msg_item.length > 20) throw new Error('Too many attachments')
-          for (const item of body.mixed.msg_item) {
-            if (item.msgtype === 'text') text += item.text.content
-            else if (item.msgtype === 'image') await download(item.image, true)
-            else throw new Error('Unsupported mixed message')
-          }
+          let imageIndex = 0
+          await Promise.all(
+            body.mixed.msg_item.map(async (item) => {
+              if (item.msgtype === 'text') text += item.text.content
+              else if (item.msgtype === 'image') await download(item.image, true, imageIndex++)
+              else throw new Error('Unsupported mixed message')
+            })
+          )
           break
+        }
         default:
           await this.sendMessage(chatId, t('common.wecom_unsupported_message'), opts)
           return
       }
     } catch {
-      if (!signal.aborted) await this.sendMessage(chatId, t('common.wecom_attachment_failed'), opts)
+      controller.abort()
+      if (!this.lifetime.signal.aborted) await this.sendMessage(chatId, t('common.wecom_attachment_failed'), opts)
       return
     }
     if (signal.aborted) return
@@ -354,14 +367,66 @@ export class WeComAdapter extends ChannelAdapter {
     }
   }
 
-  private async flush(context: ResponseContext, finish: boolean): Promise<void> {
-    if (!this.client || !this.connected) return
-    await this.client.replyStreamNonBlocking(
-      { headers: { req_id: context.reqId } },
-      context.streamId,
-      context.text,
-      finish
+  private async sendToChat(chatId: string, send: () => Promise<unknown>, intermediate = false): Promise<void> {
+    const signal = this.lifetime.signal
+    signal.throwIfAborted()
+    let delivery = this.deliveries.get(chatId)
+    if (!delivery) {
+      for (const [id, entry] of this.deliveries) {
+        if (!entry.queue.size && !entry.queue.pending && (entry.sent.at(-1) ?? 0) <= Date.now() - 3_600_000) {
+          this.deliveries.delete(id)
+        }
+      }
+      if (this.deliveries.size >= 1000) throw new Error('Delivery capacity reached')
+      delivery = { queue: new PQueue({ concurrency: 1 }), sent: [] }
+      this.deliveries.set(chatId, delivery)
+    }
+    if (intermediate && (delivery.queue.size || delivery.queue.pending)) return
+    if (delivery.queue.size >= 100) throw new Error('Delivery queue full')
+    const state = delivery
+    await state.queue.add(
+      async () => {
+        while (true) {
+          signal.throwIfAborted()
+          const now = Date.now()
+          state.sent = state.sent.filter((time) => time > now - 3_600_000)
+          const minute = state.sent.filter((time) => time > now - 60_000)
+          // Intermediate updates leave two slots for notifications and terminal replies.
+          if (intermediate && (minute.length >= 28 || state.sent.length >= 998)) return
+          const wait = Math.max(
+            minute.length >= 30 ? minute[minute.length - 30] + 60_000 - now : 0,
+            state.sent.length >= 1000 ? state.sent[state.sent.length - 1000] + 3_600_000 - now : 0
+          )
+          if (!wait) break
+          await delay(wait, { signal })
+        }
+        await this.waitConnected(undefined, signal)
+        signal.throwIfAborted()
+        state.sent.push(Date.now())
+        await send()
+      },
+      { priority: intermediate ? 0 : 1 }
     )
+  }
+
+  private async flush(context: ResponseContext, finish: boolean): Promise<boolean> {
+    if (!this.client || !this.connected) return false
+    let sent = false
+    await this.sendToChat(
+      context.chatId,
+      async () => {
+        if (Date.now() > context.expiresAt || (!finish && (context.finished || context.active))) return
+        await this.client!.replyStreamNonBlocking(
+          { headers: { req_id: context.reqId } },
+          context.streamId,
+          context.text,
+          finish
+        )
+        sent = true
+      },
+      !finish
+    )
+    return sent
   }
 
   private async transfer(context: ResponseContext): Promise<void> {
@@ -432,7 +497,7 @@ export class WeComAdapter extends ChannelAdapter {
       await this.waitConnected(undefined, undefined, Buffer.byteLength(text))
       if (context && !context.active && Date.now() < context.expiresAt && Buffer.byteLength(text) <= TEXT_BYTES) {
         context.text = text
-        await this.flush(context, true)
+        if (!(await this.flush(context, true))) await this.sendActive(chatId, text)
       } else {
         if (context && context.started && !context.active && Date.now() < context.expiresAt) {
           context.text = t('common.wecom_continued')
@@ -485,10 +550,12 @@ export class WeComAdapter extends ChannelAdapter {
     await this.waitConnected(undefined, undefined, Buffer.byteLength(text))
     for (const chunk of textChunks(text)) {
       this.lifetime.signal.throwIfAborted()
-      await this.client!.sendMessage(chatId.slice(chatId.indexOf(':') + 1), {
-        msgtype: 'markdown',
-        markdown: { content: chunk }
-      })
+      await this.sendToChat(chatId, () =>
+        this.client!.sendMessage(chatId.slice(chatId.indexOf(':') + 1), {
+          msgtype: 'markdown',
+          markdown: { content: chunk }
+        })
+      )
     }
   }
 
@@ -504,7 +571,9 @@ export class WeComAdapter extends ChannelAdapter {
       const client = this.client!
       const media = await client.uploadMedia(buffer, { type: 'file', filename: sanitizeFilename(file.filename) })
       this.lifetime.signal.throwIfAborted()
-      await client.sendMediaMessage(chatId.slice(chatId.indexOf(':') + 1), 'file', media.media_id)
+      await this.sendToChat(chatId, () =>
+        client.sendMediaMessage(chatId.slice(chatId.indexOf(':') + 1), 'file', media.media_id)
+      )
     } catch {
       throw new Error(t('common.wecom_delivery_failed'))
     }

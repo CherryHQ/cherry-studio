@@ -303,6 +303,159 @@ describe('WeCom channel contract', () => {
     expect(client.sendMessage).not.toHaveBeenCalled()
   })
 
+  it('downloads mixed images concurrently and preserves their order when downloads finish in reverse', async () => {
+    const { instance, client } = await adapter()
+    const messages: any[] = []
+    instance.on('message', (event) => messages.push(event))
+    const releases: Array<() => void> = []
+    const images = [1, 2, 3, 4, 5].map((value) =>
+      Buffer.from(`474946383961${value.toString(16).padStart(2, '0')}001000`, 'hex')
+    )
+    vi.mocked(fetchRemoteBytes).mockImplementation(
+      (url) =>
+        new Promise((resolve) => {
+          const index = Number(new URL(url).pathname.slice(1))
+          releases[index] = () => resolve({ body: images[index], headers: {} })
+        })
+    )
+    client.emit(
+      'message',
+      frame('mixed', {
+        msgtype: 'mixed',
+        mixed: {
+          msg_item: [
+            { msgtype: 'text', text: { content: 'compare' } },
+            ...images.map((_, index) => ({ msgtype: 'image', image: { url: `https://example.com/${index}` } }))
+          ]
+        }
+      })
+    )
+    await tick()
+    expect(releases.filter(Boolean)).toHaveLength(4)
+    releases[3]()
+    await tick()
+    expect(releases.filter(Boolean)).toHaveLength(5)
+    for (const index of [4, 2, 1, 0]) releases[index]()
+    await tick()
+    expect(messages).toHaveLength(1)
+    expect(messages[0].text).toBe('compare')
+    expect(messages[0].images.map((image: { data: string }) => image.data)).toEqual(
+      images.map((image) => image.toString('base64'))
+    )
+  })
+
+  it('shares the minute quota across stream updates and active messages while reserving final delivery', async () => {
+    vi.useFakeTimers()
+    const { instance, client } = await adapter()
+    const sent: Array<{ time: number; text: string; finish: boolean }> = []
+    client.replyStreamNonBlocking.mockImplementation(
+      async (_frame: unknown, _id: string, text: string, finish: boolean) => {
+        sent.push({ time: Date.now(), text, finish })
+      }
+    )
+    client.sendMessage.mockImplementation(async (_chat: string, body: { markdown: { content: string } }) => {
+      sent.push({ time: Date.now(), text: body.markdown.content, finish: true })
+    })
+    client.emit('message', frame('quota'))
+    await instance.sendTypingIndicator('dm:alice', reply('quota'))
+    for (let index = 0; index < 80; index++) {
+      await instance.onTextUpdate('dm:alice', `part ${index}`, reply('quota'))
+      await vi.advanceTimersByTimeAsync(500)
+    }
+    await instance.sendMessage('dm:alice', 'notification')
+    await instance.onStreamComplete('dm:alice', 'complete answer', reply('quota'))
+    expect(sent.length).toBeLessThanOrEqual(30)
+    expect(sent.slice(-2).map(({ text }) => text)).toEqual(['notification', 'complete answer'])
+    expect(sent.at(-1)?.finish).toBe(true)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sent.at(-1)?.text).toBe('complete answer')
+  })
+
+  it('waits for the rolling quota and cancels delayed delivery when disconnected', async () => {
+    vi.useFakeTimers()
+    const { instance, client } = await adapter()
+    for (let index = 0; index < 30; index++) await instance.sendMessage('dm:alice', `message ${index}`)
+    const pending = instance.sendMessage('dm:alice', 'after window')
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(client.sendMessage.mock.calls).toHaveLength(30)
+    await instance.sendMessage('dm:bob', 'independent chat')
+    await vi.advanceTimersByTimeAsync(2)
+    await pending
+    expect(client.sendMessage.mock.calls.at(-1)?.[1].markdown.content).toBe('after window')
+    for (let index = 0; index < 29; index++) await instance.sendMessage('dm:alice', `next ${index}`)
+    const cancelled = instance.sendMessage('dm:alice', 'must not arrive')
+    const rejected = expect(cancelled).rejects.toThrow(t('common.wecom_delivery_failed'))
+    await vi.advanceTimersByTimeAsync(1)
+    await instance.disconnect()
+    await rejected
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(client.sendMessage.mock.calls.some(([, body]: any[]) => body.markdown.content === 'must not arrive')).toBe(
+      false
+    )
+  })
+
+  it('enforces the hourly quota even when every minute remains within its limit', async () => {
+    vi.useFakeTimers()
+    const { instance, client } = await adapter()
+    for (let index = 0; index < 1000; index++) {
+      if (index && index % 30 === 0) await vi.advanceTimersByTimeAsync(60_000)
+      await instance.sendMessage('dm:alice', `message ${index}`)
+    }
+    const pending = instance.sendMessage('dm:alice', 'next hour')
+    await vi.advanceTimersByTimeAsync(1_619_999)
+    expect(client.sendMessage.mock.calls).toHaveLength(1000)
+    await vi.advanceTimersByTimeAsync(1)
+    await pending
+    expect(client.sendMessage.mock.calls.at(-1)?.[1].markdown.content).toBe('next hour')
+  })
+
+  it('delivers a final result actively when quota waiting outlasts its reply window', async () => {
+    vi.useFakeTimers()
+    const { instance, client } = await adapter()
+    client.emit('message', frame('expires'))
+    await vi.advanceTimersByTimeAsync(160_000)
+    for (let index = 0; index < 30; index++) await instance.sendMessage('dm:alice', `message ${index}`)
+    const final = instance.onStreamComplete('dm:alice', 'preserved result', reply('expires'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    await final
+    expect(client.replyStreamNonBlocking.mock.calls).toHaveLength(0)
+    expect(client.sendMessage.mock.calls.at(-1)?.[1].markdown.content).toBe('preserved result')
+  })
+
+  it('cancels sibling mixed-image downloads on failure without dispatching a partial message', async () => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    const signals: AbortSignal[] = []
+    instance.on('message', (event) => messages.push(event))
+    vi.mocked(fetchRemoteBytes).mockImplementation(async (url, options) => {
+      if (url.endsWith('/bad')) throw new Error('download failed')
+      signals.push(options!.signal!)
+      return new Promise((_resolve, reject) =>
+        options!.signal!.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+      )
+    })
+    client.emit(
+      'message',
+      frame('mixed-failure', {
+        msgtype: 'mixed',
+        mixed: {
+          msg_item: ['bad', 'pending'].map((name) => ({
+            msgtype: 'image',
+            image: { url: `https://example.com/${name}` }
+          }))
+        }
+      })
+    )
+    await tick()
+    expect(signals).toHaveLength(1)
+    expect(signals[0].aborted).toBe(true)
+    expect(messages).toEqual([])
+    expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.slice(2)).toEqual([
+      t('common.wecom_attachment_failed'),
+      true
+    ])
+  })
+
   it('decrypts file bytes before forwarding and rejects an entire mixed message if any attachment fails', async () => {
     const { instance, client } = await adapter()
     const key = Buffer.alloc(32, 1)
