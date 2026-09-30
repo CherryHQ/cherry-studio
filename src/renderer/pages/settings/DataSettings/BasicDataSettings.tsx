@@ -16,7 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
+import { startNotesDirectoryMigration } from '@renderer/services/notesDirectoryMigration/notesDirectoryMigration'
 import {
   SettingDivider,
   SettingGroup,

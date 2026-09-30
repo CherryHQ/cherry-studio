@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Προς",
   "settings.data.notes_relocation.error.generic": "Αποτυχία μεταφοράς καταλόγου σημειώσεων",
   "settings.data.notes_relocation.error.invalid_target": "Ο επιλεγμένος κατάλογος είναι άκυρος ή δεν επιτρέπεται η πρόσβαση",
+  "settings.data.notes_relocation.error.preference_update_failed": "Οι σημειώσεις αντιγράφηκαν στον νέο φάκελο, αλλά δεν ήταν δυνατή η αποθήκευση της νέας διαδρομής. Ορίστε την χειροκίνητα στις ρυθμίσεις.",
   "settings.data.notes_relocation.error.same_path": "Ο νέος κατάλογος είναι ίδιος με τον τρέχοντα κατάλογο σημειώσεων",
   "settings.data.notes_relocation.error.source_contains_symlinks": "Ο τρέχων φάκελος σημειώσεων περιέχει συμβολικούς συνδέσμους και δεν μπορεί να μεταφερθεί",
   "settings.data.notes_relocation.error.source_missing": "Δεν ήταν δυνατή η ανάγνωση του τρέχοντος καταλόγου σημειώσεων",

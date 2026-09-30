@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "移行先",
   "settings.data.notes_relocation.error.generic": "ノートディレクトリの移行に失敗しました",
   "settings.data.notes_relocation.error.invalid_target": "選択したディレクトリが無効か、アクセスが拒否されました",
+  "settings.data.notes_relocation.error.preference_update_failed": "ノートは新しいフォルダにコピーされましたが、新しいノートパスを保存できませんでした。設定で手動で指定してください。",
   "settings.data.notes_relocation.error.same_path": "新しいディレクトリは現在のノートディレクトリと同じです",
   "settings.data.notes_relocation.error.source_contains_symlinks": "現在のノートフォルダにはシンボリックリンクが含まれており、移行できません",
   "settings.data.notes_relocation.error.source_missing": "現在のノートディレクトリを読み取れませんでした",
