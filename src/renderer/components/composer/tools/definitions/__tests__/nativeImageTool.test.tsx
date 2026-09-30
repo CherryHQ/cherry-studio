@@ -46,6 +46,8 @@ describe('native image composer opt-in', () => {
     const register = mount()
     await waitFor(() => expect(register).toHaveBeenCalled())
     const launcher = register.mock.calls[0][0][0]
+    expect(launcher.label).toBe('chat.input.generate_image_native')
+    expect(launcher.label).not.toBe('chat.input.generate_image')
     expect(launcher.active).toBe(false)
     launcher.action?.({} as never)
     expect(updateAssistant).toHaveBeenCalledWith({ settings: { enableNativeImageGeneration: true } })

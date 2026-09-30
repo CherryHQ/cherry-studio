@@ -651,6 +651,7 @@
   "chat.input.followup_queue.steer": "yönlendir",
   "chat.input.followup_queue.title": "Kuyrukta ({{count}})",
   "chat.input.generate_image": "Görsel oluştur",
+  "chat.input.generate_image_native": "Grok ile görsel oluştur",
   "chat.input.generate_image_no_model": "Ayarlar › Varsayılan Model bölümünde bir görsel oluşturma modeli yapılandırın",
   "chat.input.image_preview_failed": "Görsel önizlemesi başarısız oldu",
   "chat.input.knowledge_base": "Bilgi Tabanı",

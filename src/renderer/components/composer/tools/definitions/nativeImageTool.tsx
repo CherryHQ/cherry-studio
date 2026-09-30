@@ -36,7 +36,7 @@ const NativeImageRuntime = ({
         order: 21,
         icon: <Image size={18} />,
         sources: ['popover'],
-        label: t('chat.input.generate_image'),
+        label: t('chat.input.generate_image_native'),
         active: enabled,
         action: toggle
       }
@@ -47,7 +47,7 @@ const NativeImageRuntime = ({
 
 export default defineTool({
   key: 'native_image',
-  label: (t) => t('chat.input.generate_image'),
+  label: (t) => t('chat.input.generate_image_native'),
   visibleInScopes: [TopicType.Chat],
   composer: {
     runtime: ({ context }) => (
