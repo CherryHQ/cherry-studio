@@ -2,7 +2,7 @@
 description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
 sources:
   - patches/@ai-sdk__xai@3.0.126.patch
-  - src/main/ai/runtime/aiSdk/nativeImageOutput.ts
+  - src/main/ai/messages/nativeImageOutput.ts
   - src/shared/ai/nativeImageGeneration.ts
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
   - src/renderer/pages/paintings
