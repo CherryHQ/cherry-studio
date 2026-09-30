@@ -27,7 +27,7 @@ the revised assessment; old paths and code counts must be rechecked before imple
 | Original decision | Current assessment | Next verification |
 |---|---|---|
 | D1: stay on v6 | Reopen SDK version selection independently of runtime unification | Compare native tool search, stream recovery, patch removal opportunities, and migration costs |
-| D2: reject Harness | Reopen per adapter; experimental status remains a constraint, while execution environment and sandbox ownership vary | Test local filesystem/process needs, approval, steering, resume, history, and packaged dependencies |
+| D2: reject Harness | Target Harness for all Agent execution backends, with replacement gated separately for each runtime | Prove the Cherry contract through real runtime black-box tests; close upstream adapter gaps before cutover |
 | D3–D4: context/safety model and prepareStep limits | Retain as design principles for the proposed shared loop, not a description of every driver | Identify concrete product requirements before changing orchestration |
 | D5: collapse drivers, stores, and permission logic | Not a prerequisite for the SDK upgrade | Audit current data/lifecycle owners; propose each change separately if needed |
 | D6: steer always aborts/restarts | Do not impose globally; runtime-native steering is adapter-dependent | Verify acceptance, ordering, cancellation, and user-visible behavior per runtime |
@@ -49,12 +49,130 @@ the revised assessment; old paths and code counts must be rechecked before imple
    and usage attribution under retry. Default-off SDK recovery is not automatically a product default.
 5. **Optional Code Mode experiment.** Restrict nested tools to those that do not require human approval.
    Verify cancellation, execution limits, result size, and Electron main-process compatibility.
-6. **Optional Harness adapter experiment.** Evaluate one adapter against current session requirements.
-   Caller-owned sandbox cleanup stays with the caller; `readHistory` is a contract without built-in
-   adapter support in the checked capability table. Do not equate package availability with parity.
+6. **Harness migration with black-box acceptance.** Target Claude Code, Pi, and DSH execution through
+   Harness. Start with one vertical slice, apply the acceptance matrix below to each runtime, and remove
+   a direct driver only after its replacement passes. Package availability alone does not establish parity.
 
 Each work package needs its own scope and evidence. Passing the SDK migration does not imply adopting
 Code Mode or Harness, merging message stores, or deleting a driver.
+
+## Harness migration direction
+
+The target is to move all **Agent execution backends** behind Harness. Full replacement is the desired
+end state; compatibility has not yet been demonstrated. This updates the earlier optional-experiment
+position. It does not imply moving ordinary chat into Harness.
+
+Cherry continues to own session admission, durable messages, approval decisions, cross-session delivery,
+UI projection, credentials, and application lifecycle. Harness should own the reusable runtime adapter
+and native execution mechanics. Implement the integration at the existing
+`AgentSessionRuntimeDriver` / `AgentRuntimeConnection` boundary; avoid a second competing session host.
+Replace direct SDK plumbing where upstream covers it, without merely relocating the whole old driver
+into a nominal Harness adapter.
+
+| Existing runtime | Upstream starting point | Required evidence before replacement |
+|---|---|---|
+| Claude Code | Official adapter, sandbox bridge; approval, filtering, and steering surfaces exist | Local filesystem/process bridge works in packaged Electron; steer consumption and message ordering, background work, fork/edit, native session recovery, and live policy changes preserve the Cherry contract |
+| Pi | Official adapter, native runtime in the host process | Selected provider/model and credentials, tool approvals, skills, steering, compaction, fork/edit, and close/reopen behavior work through the real adapter |
+| DSH | No official DSH adapter in the checked catalog; Deep Agents is a different runtime | Establish an upstream/custom adapter route; use generic ACP only if DSH exposes a compatible endpoint and the necessary semantics survive it. Goal rounds, autonomous output, fork checkpoints, and approval behavior remain required |
+
+Sources: [upstream adapter catalog](https://github.com/vercel/ai/blob/ai%407.0.123/content/docs/03-ai-sdk-harnesses/05-harness-adapters.mdx),
+[HarnessAgent API](https://ai-sdk.dev/docs/ai-sdk-harnesses/harness-agent), and Cherry's
+[current runtime contract](../../../../src/main/ai/runtime/types.ts).
+The checked upstream capability table marks built-in history access unsupported. Resuming native agent
+state, reading native history, and restoring Cherry's transcript are separate requirements.
+Caller-owned sandbox resources still require caller cleanup.
+
+If an adapter drops required native events or lifecycle operations, record the missing contract and
+propose an upstream improvement before implementing a Cherry workaround. Do not infer fork, history,
+background-task, or live-policy support from basic stream/send/stop support. Shared integration must
+preserve runtime-specific capabilities rather than silently reducing every runtime to the common subset.
+
+### Known gaps in the inspected implementation
+
+The following are static findings in the inspected upstream snapshot, not reproduced upstream bugs:
+
+- **Fork/edit:** `HarnessV1Session` exposes resume/continue but no fork/edit/rewind operation; the checked
+  Claude/Pi adapters do not wire the native branch/edit capabilities needed by Cherry.
+- **Background output:** Pi's subscription drops non-compaction events when no turn consumer exists.
+  Claude's bridge closes its query after a result when no active steering messages remain. Neither is
+  evidence of parity with Cherry's long-lived background/autonomous output handling.
+- **Live policy:** built-in permission mode/filtering are start options; there is no corresponding public
+  live setter. Harness host-tool approval is a status map without core `ToolLoopAgent` policy callbacks.
+  Per-turn `prepareCall` does not itself supply Cherry's live policy reconciliation contract.
+- **Steering:** Claude waits for native acceptance acknowledgements; Pi calls the native steer queue.
+  Neither a returned promise nor acceptance proves consumption. Cherry needs consumption boundaries
+  and undelivered-input recovery to preserve message attribution.
+- **Introspection and recovery:** the common session contract does not expose Cherry's context-usage or
+  slash-command catalog queries. A stopped/lost runtime may continue by rerunning work; that is different
+  from attaching to a still-running turn and does not guarantee non-idempotent tool effects occur once.
+
+Evidence: [session contract](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness/src/v1/harness-v1-session.ts),
+[Pi event subscription](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness-pi/src/pi-session.ts#L1159),
+[Claude turn termination](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness-claude-code/src/bridge/index.ts#L673),
+and [Harness settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness/src/agent/harness-agent-settings.ts).
+These are requirements for upstream adapter/contract work before full replacement, not reasons to
+silently remove existing Cherry features. Track request acceptance, actual input consumption, execution,
+and durable completion separately in black-box evidence.
+
+## Black-box acceptance
+
+**Status: planned, not executed.** A passing upstream suite or a Cherry suite that mocks the runtime SDK
+cannot certify this migration. The test subject includes Cherry's integration, the installed Harness
+package, the real adapter, and its real native SDK/child process.
+
+Use three complementary levels:
+
+1. **Deterministic protocol-boundary tests.** Where a runtime supports a configurable endpoint, use a
+   controlled HTTP model server to return scripted real protocol responses, tool calls, delays, disconnects,
+   and errors. Keep Harness, the adapter, and native execution real. Run tools against temporary workspaces
+   and a local MCP server; inspect file contents, effect counters, approvals, persisted messages, and process
+   lifetime. Use production migrations for database-backed host tests. Never mock the SDK into emitting the
+   event sequence being asserted. Unsupported endpoint injection is a coverage gap, not permission to call
+   an SDK mock a black-box test.
+2. **Real-provider runs.** Exercise supported authentication/model routes, actual tool execution, approval,
+   multi-turn continuation, steering, and restart recovery. Assert task outcomes and safety invariants rather
+   than exact model prose. These runs cover protocol assumptions that a controlled endpoint can miss.
+3. **Packaged Electron runs.** Repeat the critical scenarios in installed builds on supported macOS,
+   Windows, and Linux targets. Verify binary acquisition, native modules, paths with spaces/non-ASCII text,
+   child-process environment, cancellation, and application shutdown. A Node-only test is insufficient.
+
+| Scenario / injected fault | Observable acceptance condition |
+|---|---|
+| Multi-turn conversation, tools, MCP, skills, attachments | Correct workspace artifacts and tool results; one durable user admission; transcript survives reopening; no cross-session content |
+| Denied approval, disabled tool, stale/duplicate approval reply | Zero prohibited effects; approval binds to the intended session, tool, and input; duplicate responses cannot execute twice; pending UI resolves correctly |
+| Policy changes during an active turn; update failure | Tool-policy changes and turn-frozen permission mode follow the existing reconcile contract; failed application prevents execution under stale policy |
+| Steer during tool execution and just before completion | No abort caused by steer; consumed input appears between pre/post-steer assistant output; accepted-but-unconsumed input becomes the next turn exactly once |
+| User Stop, blocked tool, hung process, app shutdown | Terminal UI state settles; no new work is admitted; cancellation and cleanup complete within a declared deadline; caller-owned resources are not accidentally destroyed |
+| Bridge disconnect before/after tool effect; duplicate event delivery | No silent duplicate side effect or transcript replay; an uncertain non-idempotent outcome is surfaced instead of blindly retried; completed messages and usage are not duplicated |
+| Crash during generation or approval; cold restart | Resume reaches the right native session and Cherry transcript; stale approval cannot auto-execute; unsupported in-flight continuation is explicitly surfaced without losing the request |
+| Fork/edit at a saved boundary | Original session stays intact; branch starts from the selected boundary with no future-message leakage or active writer corrupting history |
+| Background subagent/DSH goal round overlaps queued input | Output stays attached to its actual owner; autonomous turns cannot consume interactive steering; delivery and scheduled turns keep distinct attribution |
+| Model/credential change, compaction, usage events | Selected settings reach the next eligible turn; tool-call/result pairs survive compaction; credentials stay out of persisted config/logs; usage is attributed once to the correct invocation |
+| Concurrent sessions, archive/restore/purge, repeated reconnect | Native identity and workspace remain isolated; recovery does not duplicate admitted work; cleanup respects surviving/trashed sessions and ownership |
+
+For each case define the promised result before running it. Run the same contract scenarios against the
+current direct driver and the Harness path; disagreements require investigation, because the existing
+driver can also contain bugs. Do not use byte-for-byte traces or existing behavior snapshots as the oracle.
+Trigger races with explicit protocol/tool barriers, then repeat schedules with recorded seeds; avoid
+sleep-only assertions. Record exact package/native-binary versions, platform, scenario, expected/observed
+outcomes, sanitized event timeline, database/artifact evidence, and remaining coverage gaps.
+
+## Cutover gates
+
+1. Pin the Harness, adapter, transitive native SDK/CLI, and sandbox versions used by the experiment.
+   Audit existing Cherry patches and native features; name every unsupported required capability.
+2. Build the common contract suite and run a baseline against the current drivers. Prove one complete
+   Harness vertical slice before expanding to the remaining runtimes.
+3. Require every applicable acceptance scenario to pass for a runtime, including real-provider and
+   packaged runs. A missing required capability blocks that runtime's replacement; it is not a skipped
+   green test. Establish a safe path for existing native sessions and persisted resume tokens.
+4. Switch one runtime at a time. Keep a tested rollback route during rollout, without dispatching a user
+   request to both implementations. Verify state compatibility before reverting a session already used
+   by the new path. Remove the superseded driver after acceptance and rollout validation.
+5. For upstream defects, retain a minimal reproduction and regression case, report the upstream issue,
+   and pin a known-good version or explicitly scoped fix. Rerun affected black-box cases on each adapter
+   or native SDK upgrade. Upstream ownership reduces maintained code; it does not transfer responsibility
+   for Cherry's user-visible behavior.
 
 ## Compaction and file handling
 

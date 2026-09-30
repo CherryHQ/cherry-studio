@@ -26,8 +26,9 @@ remove drivers, or introduce a new permission engine.
 
 - **Version selection is reopened.** Native tool discovery, stream recovery, and upstream patch fixes
   justify an independent upgrade assessment; v6 is not a permanently locked choice.
-- **Harness requires per-adapter evaluation.** Experimental APIs, varying execution environments,
-  caller-owned sandboxes, steering support, and missing built-in history access replace the old blanket rejection.
+- **Harness is the target for Agent execution.** The [migration plan](./migration-plan.md#harness-migration-direction)
+  gates each replacement on black-box acceptance. Adapter gaps, local execution, and native events must
+  be resolved while Cherry retains its session host and durable product state.
 - **Context APIs differ by major.** v6 uses `experimental_context`; v7 calls it `runtimeContext` and adds
   per-tool `toolsContext` / `contextSchema`. `CALL_OPTIONS` / `prepareCall` already exist in v6.
   The original claim that all three v7 surfaces exist in v6 was incorrect.

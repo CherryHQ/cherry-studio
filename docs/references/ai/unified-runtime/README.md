@@ -16,16 +16,17 @@ sources:
 |---|---|
 | [AI SDK v7 assessment](./aisdk-v7-research.md) | Current recommendation, compatibility boundaries, patch audit, and verification order |
 | [Feature delta inventory](./aisdk-v7-feature-inventory.md) | Changes since 7.0.0, first relevant versions, experimental status, and official sources |
-| [Migration plan](./migration-plan.md) | Separates SDK upgrade from runtime unification; preserves the original phased proposal as historical rationale |
+| [Migration plan](./migration-plan.md) | Harness migration target, per-runtime gaps, black-box acceptance, and staged cutover; historical proposal retained |
 | [Architecture proposal](./architecture.md) | The original context (`C`) / safety gate (`G`) model, with current scope and compatibility corrections |
 | [Tool approval](./tool-approval-refactor.md) | Updated approval constraints, including Code Mode, followed by the original centralization proposal |
 | [Large-file upload](./large-file-upload-port.md) | Current attachment boundary and the expanded FilesV4 lifecycle assessment |
 
 ## Decision boundary
 
-Evaluate SDK upgrade, native tool search, streaming recovery, Code Mode, and individual Harness adapters
-separately. The research does not authorize message-store migration, driver removal, or a new permission
-system. Cherry's current architecture is documented in the [AI reference](../README.md) and
+Target Harness for all Agent execution backends, with each replacement gated by the
+[migration plan and black-box acceptance](./migration-plan.md#black-box-acceptance). Full compatibility
+has not yet been proven. SDK upgrade, native tool search, streaming recovery, and Code Mode remain
+separate work packages; message-store migration and a new permission system are outside this plan. Cherry's current architecture is documented in the [AI reference](../README.md) and
 [agent-session runtime reference](../agent-session-runtime.md).
 
 The June proposal treats runtime as an environment with context and safety controls. That is a design

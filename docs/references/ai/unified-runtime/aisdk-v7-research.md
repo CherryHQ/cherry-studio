@@ -17,8 +17,9 @@ sources:
 
 Evaluate an SDK upgrade independently of runtime unification. The strongest new reasons to evaluate v7
 are native deferred-tool discovery, streaming recovery, and upstream fixes overlapping Cherry's patches.
-Code Mode and Harness adapters deserve separate compatibility experiments; adopting them is not a
-prerequisite for upgrading `ai`. The previous blanket recommendations to stay on v6 and reject Harness
+Code Mode remains a separate experiment. The [migration plan](./migration-plan.md#harness-migration-direction)
+now targets Harness for all Agent execution backends, gated by per-runtime black-box acceptance;
+completing that migration is not a prerequisite for upgrading `ai`. The previous blanket recommendations to stay on v6 and reject Harness
 are superseded by this capability-based assessment.
 
 ## Reproducible baseline
@@ -120,7 +121,8 @@ Harness session compaction, message pruning, and application-owned summarization
 2. Prototype the core API migration, usage semantics, approval round trips, and ESM packaging without changing runtime ownership.
 3. Compare native tool search and stream recovery with Cherry's existing implementations using real tool-heavy and interrupted streams.
 4. Evaluate Code Mode separately, with approval-required tools excluded from nested execution.
-5. Evaluate individual Harness adapters for local execution, permissions, steering, history, and packaged dependencies before proposing adoption.
+5. Execute the Harness migration acceptance plan per runtime, including real adapters, failure injection,
+   real providers, and packaged Electron, before replacing direct drivers.
 
 No compatibility prototype, SDK upgrade, real-provider run, or Electron packaging test was performed as
 part of this documentation refresh.
