@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, type FC, type ReactNode } from 'react'
+import { createContext, use, useEffect, useMemo, type FC, type ReactNode } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
 import { registerNotesEditFlush } from '@renderer/hooks/notesFileEditFlush'
@@ -17,11 +17,11 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
 
-  return <NotesFileEditSessionContext.Provider value={session}>{children}</NotesFileEditSessionContext.Provider>
+  return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
 }
 
 export function useNotesFileEditSession(): FileEditSession {
-  const session = useContext(NotesFileEditSessionContext)
+  const session = use(NotesFileEditSessionContext)
   if (!session) {
     throw new Error('useNotesFileEditSession must be used within NotesFileEditSessionProvider')
   }

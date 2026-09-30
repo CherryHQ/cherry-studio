@@ -5,7 +5,7 @@ import type { NotesDirectoryStats } from '@shared/types/notesRelocation'
 
 const MARKDOWN_EXT = '.md'
 
-export function scanNotesDirectory(dirPath: string): NotesDirectoryStats {
+export async function scanNotesDirectory(dirPath: string): Promise<NotesDirectoryStats> {
   const stats: NotesDirectoryStats = {
     markdownFileCount: 0,
     fileCount: 0,
@@ -13,12 +13,12 @@ export function scanNotesDirectory(dirPath: string): NotesDirectoryStats {
     totalBytes: 0
   }
 
-  walk(dirPath, stats)
+  await walk(dirPath, stats)
   return stats
 }
 
-function walk(currentPath: string, stats: NotesDirectoryStats): void {
-  const entries = fs.readdirSync(currentPath, { withFileTypes: true })
+async function walk(currentPath: string, stats: NotesDirectoryStats): Promise<void> {
+  const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
   for (const entry of entries) {
     const entryPath = path.join(currentPath, entry.name)
     if (entry.isSymbolicLink()) {
@@ -26,14 +26,14 @@ function walk(currentPath: string, stats: NotesDirectoryStats): void {
     }
     if (entry.isDirectory()) {
       stats.folderCount += 1
-      walk(entryPath, stats)
+      await walk(entryPath, stats)
       continue
     }
     if (!entry.isFile()) {
       continue
     }
     stats.fileCount += 1
-    const fileStats = fs.statSync(entryPath)
+    const fileStats = await fs.promises.stat(entryPath)
     stats.totalBytes += fileStats.size
     if (entry.name.toLowerCase().endsWith(MARKDOWN_EXT)) {
       stats.markdownFileCount += 1

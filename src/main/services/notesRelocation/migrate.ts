@@ -12,11 +12,13 @@ import { assertNotesRelocationPaths, NotesRelocationValidationError } from './va
 
 const logger = loggerService.withContext('NotesRelocation')
 
-export function inspectNotesRelocation(sourcePath: string, targetPath: string): NotesRelocationInspection {
+export async function inspectNotesRelocation(
+  sourcePath: string,
+  targetPath: string
+): Promise<NotesRelocationInspection> {
   try {
-    assertNotesRelocationPaths(sourcePath, targetPath)
-    const source = scanNotesDirectory(sourcePath)
-    const target = scanNotesDirectory(targetPath)
+    await assertNotesRelocationPaths(sourcePath, targetPath)
+    const [source, target] = await Promise.all([scanNotesDirectory(sourcePath), scanNotesDirectory(targetPath)])
     return {
       valid: true,
       source,
@@ -32,11 +34,12 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
   }
 }
 
-function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[] {
+async function listMergePathConflicts(sourceRoot: string, targetRoot: string): Promise<string[]> {
   const conflicts: string[] = []
 
-  const walk = (currentSource: string, relativePrefix: string) => {
-    for (const entry of fs.readdirSync(currentSource, { withFileTypes: true })) {
+  const walk = async (currentSource: string, relativePrefix: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentSource, { withFileTypes: true })
+    for (const entry of entries) {
       if (entry.isSymbolicLink()) {
         continue
       }
@@ -45,7 +48,7 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
       const targetEntryPath = path.join(targetRoot, relativePath)
 
       if (entry.isDirectory()) {
-        walk(sourceEntryPath, relativePath)
+        await walk(sourceEntryPath, relativePath)
         continue
       }
 
@@ -53,36 +56,37 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
         continue
       }
 
-      if (!fs.existsSync(targetEntryPath)) {
+      const targetEntry = await fs.promises.lstat(targetEntryPath).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return undefined
+        }
+        throw error
+      })
+      if (!targetEntry) {
         continue
       }
-
-      const targetEntry = fs.lstatSync(targetEntryPath)
-      if (targetEntry.isSymbolicLink()) {
+      if (targetEntry.isSymbolicLink() || !targetEntry.isFile()) {
         conflicts.push(relativePath)
         continue
       }
-      if (!targetEntry.isFile()) {
-        conflicts.push(relativePath)
-        continue
-      }
 
-      const sourceSize = fs.statSync(sourceEntryPath).size
+      const sourceSize = (await fs.promises.stat(sourceEntryPath)).size
       if (targetEntry.size !== sourceSize) {
         conflicts.push(relativePath)
       }
     }
   }
 
-  walk(sourceRoot, '')
+  await walk(sourceRoot, '')
   return conflicts
 }
 
-function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
+async function verifySourceCopied(sourceRoot: string, targetRoot: string): Promise<void> {
   const unresolved: string[] = []
 
-  const walk = (currentSource: string, relativePrefix: string) => {
-    for (const entry of fs.readdirSync(currentSource, { withFileTypes: true })) {
+  const walk = async (currentSource: string, relativePrefix: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentSource, { withFileTypes: true })
+    for (const entry of entries) {
       if (entry.isSymbolicLink()) {
         continue
       }
@@ -91,11 +95,17 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
       const targetEntryPath = path.join(targetRoot, relativePath)
 
       if (entry.isDirectory()) {
-        if (!fs.existsSync(targetEntryPath) || !fs.statSync(targetEntryPath).isDirectory()) {
+        try {
+          const stats = await fs.promises.stat(targetEntryPath)
+          if (!stats.isDirectory()) {
+            unresolved.push(relativePath)
+            continue
+          }
+        } catch {
           unresolved.push(relativePath)
           continue
         }
-        walk(sourceEntryPath, relativePath)
+        await walk(sourceEntryPath, relativePath)
         continue
       }
 
@@ -103,20 +113,19 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
         continue
       }
 
-      const sourceSize = fs.statSync(sourceEntryPath).size
-      if (!fs.existsSync(targetEntryPath)) {
-        unresolved.push(relativePath)
-        continue
-      }
-
-      const targetSize = fs.statSync(targetEntryPath).size
-      if (targetSize !== sourceSize) {
+      const sourceSize = (await fs.promises.stat(sourceEntryPath)).size
+      try {
+        const targetSize = (await fs.promises.stat(targetEntryPath)).size
+        if (targetSize !== sourceSize) {
+          unresolved.push(relativePath)
+        }
+      } catch {
         unresolved.push(relativePath)
       }
     }
   }
 
-  walk(sourceRoot, '')
+  await walk(sourceRoot, '')
 
   if (unresolved.length > 0) {
     throw new IpcError(
@@ -131,7 +140,7 @@ export async function migrateNotesDirectory(
   targetPath: string,
   options: { merge: boolean }
 ): Promise<NotesRelocationResult> {
-  const inspection = inspectNotesRelocation(sourcePath, targetPath)
+  const inspection = await inspectNotesRelocation(sourcePath, targetPath)
   if (!inspection.valid) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, inspection.reason)
   }
@@ -144,10 +153,10 @@ export async function migrateNotesDirectory(
 
   const resolvedSource = path.resolve(sourcePath)
   const resolvedTarget = path.resolve(targetPath)
-  const entries = fs.readdirSync(resolvedSource, { withFileTypes: true })
+  const entries = await fs.promises.readdir(resolvedSource, { withFileTypes: true })
 
   if (options.merge) {
-    const conflicts = listMergePathConflicts(resolvedSource, resolvedTarget)
+    const conflicts = await listMergePathConflicts(resolvedSource, resolvedTarget)
     if (conflicts.length > 0) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_MERGE_CONFLICT,
@@ -159,30 +168,37 @@ export async function migrateNotesDirectory(
   const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
 
   try {
-    for (const entry of entries) {
-      if (entry.isSymbolicLink()) {
-        continue
-      }
-      const from = path.join(resolvedSource, entry.name)
-      const to = path.join(resolvedTarget, entry.name)
-      if (entry.isDirectory()) {
-        await copyDirectoryRecursive(from, to, copyOptions)
-      } else if (entry.isFile()) {
-        if (fs.existsSync(to)) {
-          const targetEntry = fs.lstatSync(to)
-          if (targetEntry.isSymbolicLink()) {
+    await Promise.all(
+      entries
+        .filter((entry) => !entry.isSymbolicLink())
+        .map(async (entry) => {
+          const from = path.join(resolvedSource, entry.name)
+          const to = path.join(resolvedTarget, entry.name)
+          if (entry.isDirectory()) {
+            await copyDirectoryRecursive(from, to, copyOptions)
+            return
+          }
+          if (!entry.isFile()) {
+            return
+          }
+          const targetEntry = await fs.promises.lstat(to).catch((error) => {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+              return undefined
+            }
+            throw error
+          })
+          if (targetEntry?.isSymbolicLink()) {
             throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
           }
-          if (copyOptions?.skipExistingFiles) {
-            continue
+          if (targetEntry && copyOptions?.skipExistingFiles) {
+            return
           }
-        }
-        await fs.promises.copyFile(from, to)
-      }
-    }
+          await fs.promises.copyFile(from, to)
+        })
+    )
 
-    verifySourceCopied(resolvedSource, resolvedTarget)
-    const targetAfter = scanNotesDirectory(resolvedTarget)
+    await verifySourceCopied(resolvedSource, resolvedTarget)
+    const targetAfter = await scanNotesDirectory(resolvedTarget)
 
     logger.info('Notes directory migrated', {
       from: resolvedSource,

@@ -66,20 +66,21 @@ function resolveExistingAncestor(value: string): { path: string; effectivePath: 
   return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
-function assertSourceHasNoSymbolicLinks(dirPath: string): void {
-  const walk = (currentPath: string) => {
-    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+async function assertSourceHasNoSymbolicLinks(dirPath: string): Promise<void> {
+  const walk = async (currentPath: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+    for (const entry of entries) {
       if (entry.isSymbolicLink()) {
         invalid('source_contains_symlinks', `source contains a symbolic link: ${entry.name}`)
       }
       const entryPath = path.join(currentPath, entry.name)
       if (entry.isDirectory()) {
-        walk(entryPath)
+        await walk(entryPath)
       }
     }
   }
 
-  walk(path.resolve(dirPath))
+  await walk(path.resolve(dirPath))
 }
 
 function assertNotesTargetDirectory(dirPath: string): void {
@@ -131,7 +132,7 @@ function assertNotesTargetDirectory(dirPath: string): void {
   }
 }
 
-export function assertNotesRelocationPaths(sourcePath: string, targetPath: string): void {
+export async function assertNotesRelocationPaths(sourcePath: string, targetPath: string): Promise<void> {
   const sourceReal = normalizeForCompare(realPath(sourcePath))
   const targetEffective = normalizeForCompare(resolveExistingAncestor(targetPath).effectivePath)
 
@@ -147,7 +148,7 @@ export function assertNotesRelocationPaths(sourcePath: string, targetPath: strin
     invalid('source_missing', `source is not readable: ${sourcePath}`)
   }
 
-  assertSourceHasNoSymbolicLinks(sourcePath)
+  await assertSourceHasNoSymbolicLinks(sourcePath)
 
   if (sourceReal === targetEffective) {
     invalid('same_path', `source and target are the same path: ${targetPath}`)

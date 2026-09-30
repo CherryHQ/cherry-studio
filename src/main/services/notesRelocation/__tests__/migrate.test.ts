@@ -47,7 +47,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'folder-a', 'note-b.md'), '# B')
     fs.writeFileSync(path.join(source, 'image.png'), 'png')
 
-    const inspection = inspectNotesRelocation(source, target)
+    const inspection = await inspectNotesRelocation(source, target)
     expect(inspection.valid).toBe(true)
     if (!inspection.valid) return
 
@@ -148,16 +148,16 @@ describe('notesRelocation', () => {
     })
   })
 
-  it('rejects the managed files root as a notes target', () => {
+  it('rejects the managed files root as a notes target', async () => {
     const source = path.join(tempRoot, 'source-notes-protected')
     const filesRoot = path.join(tempRoot, 'files')
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'note.md'), '# Note')
 
-    expect(() => assertNotesRelocationPaths(source, filesRoot)).toThrow()
+    await expect(assertNotesRelocationPaths(source, filesRoot)).rejects.toThrow()
   })
 
-  it('rejects a target inside the managed application data directory', () => {
+  it('rejects a target inside the managed application data directory', async () => {
     const source = path.join(tempRoot, 'source-notes-appdata')
     const appDataRoot = path.join(tempRoot, 'appdata')
     const target = path.join(appDataRoot, 'notes-export')
@@ -165,10 +165,10 @@ describe('notesRelocation', () => {
     fs.mkdirSync(target, { recursive: true })
     fs.writeFileSync(path.join(source, 'note.md'), '# Note')
 
-    expect(() => assertNotesRelocationPaths(source, target)).toThrow()
+    await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
   })
 
-  it('rejects a source directory that contains symbolic links', () => {
+  it('rejects a source directory that contains symbolic links', async () => {
     const source = path.join(tempRoot, 'source-notes-symlink')
     const target = path.join(tempRoot, 'target-notes-symlink')
     fs.mkdirSync(source)
@@ -176,7 +176,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Note')
     fs.symlinkSync(path.join(source, 'note.md'), path.join(source, 'link.md'))
 
-    const inspection = inspectNotesRelocation(source, target)
+    const inspection = await inspectNotesRelocation(source, target)
     expect(inspection.valid).toBe(false)
     if (inspection.valid) return
     expect(inspection.reason).toBe('source_contains_symlinks')
