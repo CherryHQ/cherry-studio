@@ -41,6 +41,10 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
+  it('shows the Quick Assistant tab bar entry by default', () => {
+    expect(DefaultPreferences.default['feature.quick_assistant.show_in_tab_bar']).toBe(true)
+  })
+
   it('preserves the legacy favorites shape independently of resource shortcut defaults', () => {
     const legacyFavorites: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
       { type: 'app', id: 'agents' },

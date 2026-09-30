@@ -1,14 +1,16 @@
-import { CircleArrowUp, Search, Settings, Stethoscope } from 'lucide-react'
+import { CircleArrowUp, PictureInPicture2, Search, Settings, Stethoscope } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
 import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 import { WindowControls } from '../WindowControls'
@@ -19,12 +21,20 @@ const logger = loggerService.withContext('ShellTabBarActions')
 export function ShellTabBarActions() {
   const { t } = useTranslation()
   const [sidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
+  const [showQuickAssistantInTabBar] = usePreference('feature.quick_assistant.show_in_tab_bar')
   const { appUpdateState } = useAppUpdateState()
   const isSidebarHidden = getSidebarLayout(sidebarWidth) === 'hidden'
   const hasUpdateAction = Boolean(appUpdateState.available && appUpdateState.downloaded && appUpdateState.info)
 
   const handleSearchClick = () => {
     void GlobalSearchPopup.show()
+  }
+
+  const handleQuickAssistantClick = () => {
+    void ipcApi
+      .request('quick_assistant.show')
+      .catch((error) => logger.error('Failed to open Quick Assistant', error as Error))
   }
 
   const handleSettingsClick = () => {
@@ -51,6 +61,19 @@ export function ShellTabBarActions() {
   return (
     <div className="flex h-full shrink-0 items-stretch">
       <div className="flex items-center gap-1 pr-2 [-webkit-app-region:no-drag]">
+        {quickAssistantEnabled && showQuickAssistantInTabBar ? (
+          <Tooltip placement="bottom" content={t('quickAssistant.tooltip.open')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('quickAssistant.tooltip.open')}
+              onClick={handleQuickAssistantClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+              <PictureInPicture2 size={16} strokeWidth={1.8} />
+            </Button>
+          </Tooltip>
+        ) : null}
         {hasUpdateAction && (
           <Tooltip content={updateLabel} placement="bottom" delay={800}>
             <Button
