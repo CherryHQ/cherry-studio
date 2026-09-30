@@ -7,6 +7,7 @@
  */
 
 import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -46,7 +47,6 @@ import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { isRetiredProvider } from '../retiredProviders'
 

@@ -1,3 +1,6 @@
+import { Copy, RotateCcw, Settings } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import type { ProviderReasoningFormat, ProviderReasoningFormatSelector } from '@cherrystudio/provider-registry'
 import {
   Button,
@@ -11,9 +14,6 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { Copy, RotateCcw, Settings } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-
 import { cn } from '@renderer/utils/style'
 
 import ProviderField from '../primitives/ProviderField'
