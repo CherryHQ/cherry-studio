@@ -25,12 +25,12 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
-import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 

@@ -27,6 +27,7 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
+import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import type {
   InferSharedCacheValue,
   MainPersistCacheKey,
@@ -34,7 +35,6 @@ import type {
   ProcessKey,
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
@@ -838,7 +838,14 @@ export class CacheService extends BaseService {
             typeof oldValue === 'object' && oldValue !== null && !Array.isArray(oldValue)
               ? (oldValue as Record<string, number>)
               : {}
-          nextValue = { ...prior, ...(nextValue as Record<string, number>) }
+          // Session caps only shrink on retry, so merge per-key minima — a stale
+          // window's higher cap must not raise a newer lowered one.
+          const merged: Record<string, number> = { ...prior }
+          for (const [key, value] of Object.entries(nextValue as Record<string, number>)) {
+            const current = merged[key]
+            merged[key] = typeof current === 'number' && typeof value === 'number' ? Math.min(current, value) : value
+          }
+          nextValue = merged
         }
 
         if (nextValue === undefined) {
@@ -855,10 +862,7 @@ export class CacheService extends BaseService {
 
         // Relay to other windows first so cross-window state is coherent before
         // main-process subscribers observe the change.
-        this.broadcastSync(
-          nextValue === message.value ? message : { ...message, value: nextValue },
-          senderWindowId
-        )
+        this.broadcastSync(nextValue === message.value ? message : { ...message, value: nextValue }, senderWindowId)
 
         // Only fire when the value actually changed, matching main-origin paths.
         if (!isEqual(oldValue, nextValue)) {
