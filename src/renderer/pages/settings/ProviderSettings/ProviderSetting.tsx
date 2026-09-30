@@ -33,6 +33,7 @@ function ProviderSettingSections({
   initialApiSetupStep?: ProviderApiSetupInitialStep
   onApiSetupClosed?: () => void
 }) {
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const [apiSetupStep, setApiSetupStep] = useState<ProviderApiSetupInitialStep | null>(initialApiSetupStep ?? null)
   const requestModelPullGuide = useCallback(() => {
@@ -46,7 +47,7 @@ function ProviderSettingSections({
 
   return (
     <>
-      <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
+      <Scrollbar ref={setScrollElement} className={providerDetailColumnClasses.scrollStrip}>
         <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
           <AuthenticationSection
             providerId={providerId}
@@ -54,9 +55,9 @@ function ProviderSettingSections({
             onOpenApiSetup={() => openApiSetup('api-key')}
             onContinueApiSetup={() => openApiSetup('models')}
           />
-          {/* Floor keeps the list usable when a tall auth section leaves no room; the strip scrolls instead. */}
-          <div className="flex min-h-[280px] flex-1 flex-col">
+          <div className="flex shrink-0 flex-col">
             <ModelList
+              scrollElement={scrollElement}
               providerId={providerId}
               modelPullGuideVersion={modelPullGuideVersion}
               onContinueApiSetup={() => openApiSetup('models')}

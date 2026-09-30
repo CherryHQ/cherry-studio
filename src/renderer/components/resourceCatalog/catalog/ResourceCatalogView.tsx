@@ -6,6 +6,7 @@ import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalo
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 import { ResourceGrid } from './ResourceGrid'
 
@@ -18,14 +19,14 @@ type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'sk
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenSkill?: (skill: InstalledSkill) => void
+  onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
   resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
   /** `settings` swaps the full-bleed toolbar for a settings page header (title + add button + search row). */
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
-  selectedSkillId?: string
-  onSelectedSkillIdChange?: (skillId: string | undefined) => void
   toolbarFooter?: ReactNode
   allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
@@ -34,24 +35,23 @@ export type ResourceCatalogViewProps = {
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
+  onOpenSkill,
+  onLaunchSkill,
   resourceType,
   toolbarLeading,
   variant = 'library',
   title,
   description,
-  selectedSkillId,
-  onSelectedSkillIdChange,
   toolbarFooter,
   allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(
-    resourceType,
-    onSelectedSkillIdChange ? { id: selectedSkillId, onChange: onSelectedSkillIdChange } : undefined
-  )
+  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType, {
+    onOpenSkill,
+    onLaunchSkill
+  })
   const hasActiveDialog = Boolean(
-    dialogs.selectedSkill ||
     dialogs.assistantImportOpen ||
     (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
     dialogs.skillImportOpen ||

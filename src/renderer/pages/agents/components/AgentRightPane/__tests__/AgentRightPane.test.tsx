@@ -12,6 +12,7 @@ import type {
 import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import {
   HoverCard as RealHoverCard,
   HoverCardContent as RealHoverCardContent,
@@ -97,7 +98,8 @@ vi.mock('../agentRightPaneProjection', async (importActual) => {
   }
 })
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUi>()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
     <button type="button" {...props}>
@@ -166,7 +168,8 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  TooltipSurface: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -216,11 +219,16 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
     children,
     value
   }: PropsWithChildren<{
-    value: { state: { renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string } } }
+    value: {
+      state: {
+        renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string; subagentListTitle?: string }
+      }
+    }
   }>) => (
     <div
       data-testid="message-list-provider"
       data-collapse-completed-tool-history={String(value.state.renderConfig.collapseCompletedToolHistory)}
+      data-subagent-list-title={value.state.renderConfig.subagentListTitle}
       data-message-style={value.state.renderConfig.messageStyle}>
       {children}
     </div>
@@ -520,16 +528,18 @@ function TestAgentRightPane({
 function OpenFlowButton({
   label = 'open flow',
   title = 'Inspect flow',
-  toolCallId = 'flow-1'
+  toolCallId = 'flow-1',
+  nested = false
 }: {
   label?: string
   title?: string
   toolCallId?: string
+  nested?: boolean
 }) {
   const { openAgentToolFlow } = useAgentRightPaneActions()
 
   return (
-    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title })}>
+    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title }, nested)}>
       {label}
     </button>
   )
@@ -2144,6 +2154,45 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
   })
 
+  it('identifies the parent task when opening a nested subtask', () => {
+    const parent = {
+      type: 'dynamic-tool',
+      toolCallId: 'parent',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { description: 'Review architecture' },
+      output: 'Started'
+    } as unknown as CherryMessagePart
+    const child = {
+      type: 'dynamic-tool',
+      toolCallId: 'child',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { description: 'Inspect imports' },
+      output: 'Done',
+      callProviderMetadata: { 'claude-code': { parentToolCallId: 'parent' } }
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [parent, child], metadata: {} }] as CherryUIMessage[]
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [parent, child] }}>
+        <OpenFlowButton toolCallId="child" title="Inspect imports" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    expect(screen.getByRole('navigation', { name: 'agent.right_pane.flow.main_task' })).toHaveTextContent(
+      'agent.right_pane.flow.main_task › Review architecture › Inspect imports'
+    )
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute(
+      'data-subagent-list-title',
+      'agent.right_pane.flow.child_subtasks'
+    )
+  })
+
   it('opens tool-flow website links in the current session browser pane', async () => {
     const flowPart = {
       type: 'dynamic-tool',
@@ -2469,6 +2518,31 @@ describe('AgentRightPane', () => {
 
     const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
     expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
+  })
+
+  it('returns through nested tasks in order and resets the path for a new root task', () => {
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton title="Parent task" />
+        <OpenFlowButton label="open child" title="Child task" toolCallId="child" nested />
+        <OpenFlowButton label="open grandchild" title="Grandchild task" toolCallId="grandchild" nested />
+        <OpenFlowButton label="open other root" title="Other root" toolCallId="other" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open child' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open grandchild' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Child task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Parent task')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open child' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open other root' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
   })
 
   it('returns from a subagent flow to the status panel', async () => {

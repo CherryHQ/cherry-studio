@@ -1158,6 +1158,18 @@ describe('MainWindowService', () => {
   })
 
   describe('showMainWindow init data', () => {
+    it('restores a hidden macOS window without transforming the app process type', () => {
+      platformState.isMac = true
+      win.isVisible.mockReturnValue(false)
+      ;(svc as any).mainWindow = win
+
+      svc.showMainWindow()
+
+      expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+      expect(win.show).toHaveBeenCalledOnce()
+      expect(win.focus).toHaveBeenCalledOnce()
+    })
+
     it('pushes init data to an existing main window', () => {
       const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
       ;(svc as any).mainWindow = win
@@ -1283,6 +1295,41 @@ describe('MainWindowService', () => {
       }
 
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    })
+
+    // Regression guard for the "A JavaScript error occurred in the main process" dialog:
+    // render-process-gone can arrive after the window is already destroyed.
+    it('neither reloads nor forceExits when the window is already destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Only the window is gone: the webContents arm is covered on its own below,
+      // so each half of the guard is exercised by itself.
+      win.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
+      // The crash is still reported — only the recovery attempt is skipped.
+      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+    })
+
+    it('neither reloads nor forceExits when only the webContents is destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Window object still alive (teardown in flight) but its renderer side is gone.
+      win.webContents.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
   })
 

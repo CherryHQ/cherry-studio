@@ -26,6 +26,7 @@ import {
 } from '@shared/utils/diagnostics'
 import { projectDoctorReport } from '@shared/utils/doctor'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
+import { isExternalCliProvider } from '@shared/utils/provider'
 import { redactSecretText, redactUrlToOrigin } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpServer:Assistant')
@@ -714,7 +715,8 @@ class AssistantServer {
       const apiHost = providerChatBaseUrl(provider) ?? ''
       const host = redactUrlToOrigin(apiHost)
 
-      if (provider.apiKeys.length === 0) {
+      // External-CLI providers (e.g. Claude Code) authenticate through the CLI's own login, not an app key.
+      if (provider.apiKeys.length === 0 && !isExternalCliProvider(provider)) {
         const result = this.jsonResult({ providerId, status: 'error', error: 'No API key configured', host })
         cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result

@@ -166,7 +166,7 @@ export function apply(ctx: Context): void {
         const children: BridgeSubagentChild[] = []
         for (const entry of entries) {
           // One-shot children cannot be continued and diagnostics are not tasks.
-          if (entry.kind !== 'child' || entry.mode !== 'continuable') continue
+          if (entry.mode !== 'continuable') continue
           const live = ctx.agents.get(entry.id)
           children.push({
             id: entry.id,
@@ -353,6 +353,13 @@ export function apply(ctx: Context): void {
       }
       throw error
     }
+  })
+
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (!openedSessionIds.has(agent.id)) return
+    const lastEvent = agent.session.snapshotEvents().at(-1)
+    if (!lastEvent) return
+    link.notify('session/state', { sessionId: agent.id, sessionEventSeq: lastEvent.seq, status })
   })
 
   // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
