@@ -109,6 +109,8 @@ const CodeViewer = ({
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
   const measuredRowHeightsRef = useRef(new Map<number, number>())
+  const remeasureLayoutKeyRef = useRef('')
+  const scrollerWidthRef = useRef(0)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -392,16 +394,23 @@ const CodeViewer = ({
     const charWidth = Math.max(1, fontSize * 0.55)
     return Math.max(8, Math.floor(contentWidth / charWidth))
   }, [fontSize, gutterDigits, lineNumbers])
-  const estimateSize = useCallback(
-    (index: number) => {
-      if (!wrapped) return lineHeight
-      const line = rawLinesRef.current[index] ?? ''
+  const estimateWrappedRowHeight = useCallback(
+    (line: string) => {
       if (line.length === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
       const charsPerRow = Math.min(wrappedCharsPerRow(), 24)
-      return lineHeight * Math.max(1, Math.ceil(line.length / charsPerRow))
+      const fromWidth = lineHeight * Math.max(1, Math.ceil(line.length / charsPerRow))
+      const pessimistic = lineHeight * Math.max(1, Math.ceil(line.length / 8))
+      return Math.max(fromWidth, pessimistic)
     },
-    [lineHeight, wrapped, wrappedCharsPerRow]
+    [lineHeight, wrappedCharsPerRow]
+  )
+  const estimateSize = useCallback(
+    (index: number) => {
+      if (!wrapped) return lineHeight
+      return estimateWrappedRowHeight(rawLinesRef.current[index] ?? '')
+    },
+    [estimateWrappedRowHeight, lineHeight, wrapped]
   )
 
   // 创建 virtualizer 实例
@@ -537,6 +546,12 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller) return
 
+    const layoutKey = `${fontSize}|${lineNumbers}|${wrapped}|${scroller.clientWidth}`
+    if (layoutKey !== remeasureLayoutKeyRef.current) {
+      remeasureLayoutKeyRef.current = layoutKey
+      measuredRowHeightsRef.current.clear()
+    }
+
     const lineCount = rawLinesRef.current.length
     for (let index = 0; index < lineCount; index++) {
       const row = scroller.querySelector(`[data-index="${index}"]`)
@@ -548,17 +563,15 @@ const CodeViewer = ({
         }
       } else {
         const line = rawLinesRef.current[index] ?? ''
-        const estimated = estimateSize(index)
+        const estimated = estimateWrappedRowHeight(line)
         const cached = measuredRowHeightsRef.current.get(index)
-        const pessimistic =
-          line.length === 0 ? lineHeight : lineHeight * Math.max(1, Math.ceil(line.length / 8))
-        // Never shrink offscreen rows — undersized estimates make translateY rows overlap.
-        const nextSize = Math.max(estimated, pessimistic, cached ?? 0)
+        // Never shrink offscreen rows within the same layout — undersized estimates overlap rows.
+        const nextSize = Math.max(estimated, cached ?? 0)
         virtualizer.resizeItem(index, nextSize)
         measuredRowHeightsRef.current.set(index, nextSize)
       }
     }
-  }, [estimateSize, virtualizer, wrapped])
+  }, [estimateWrappedRowHeight, fontSize, lineNumbers, virtualizer, wrapped])
 
   useLayoutEffect(() => {
     remeasureRows()
@@ -569,7 +582,11 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller || typeof ResizeObserver === 'undefined') return
 
+    scrollerWidthRef.current = scroller.clientWidth
     const resizeObserver = new ResizeObserver(() => {
+      const width = scroller.clientWidth
+      if (width === scrollerWidthRef.current) return
+      scrollerWidthRef.current = width
       remeasureRows()
     })
     resizeObserver.observe(scroller)
