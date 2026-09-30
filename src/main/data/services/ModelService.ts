@@ -993,6 +993,28 @@ class ModelService {
     return this.enrichRowsFromRegistryTx(db, rows)
   }
 
+  private assertApiKeyBindingValid(
+    providerId: string,
+    modelId: string,
+    apiKeyId: string | null | undefined,
+    getProviderKeyIds: (pid: string) => Set<string>
+  ): void {
+    if (apiKeyId === '') {
+      throw DataApiErrorFactory.invalidOperation(
+        `update model ${providerId}/${modelId}`,
+        'api key id must not be empty'
+      )
+    }
+    if (apiKeyId != null && apiKeyId !== '') {
+      if (!getProviderKeyIds(providerId).has(apiKeyId)) {
+        throw DataApiErrorFactory.invalidOperation(
+          `update model ${providerId}/${modelId}`,
+          'api key does not belong to this provider'
+        )
+      }
+    }
+  }
+
   /**
    * Update an existing model
    */
@@ -1000,21 +1022,12 @@ class ModelService {
     providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
-    if (dto.apiKeyId === '') {
-      throw DataApiErrorFactory.invalidOperation(
-        `update model ${providerId}/${modelId}`,
-        'api key id must not be empty'
-      )
-    }
-    if (dto.apiKeyId != null && dto.apiKeyId !== '') {
-      const keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
-      if (!keyIds.has(dto.apiKeyId)) {
-        throw DataApiErrorFactory.invalidOperation(
-          `update model ${providerId}/${modelId}`,
-          'api key does not belong to this provider'
-        )
-      }
-    }
+    this.assertApiKeyBindingValid(
+      providerId,
+      modelId,
+      dto.apiKeyId,
+      (pid) => new Set(providerService.getApiKeys(pid).map((entry) => entry.id))
+    )
 
     const db = application.get('DbService').getDb()
 
@@ -1068,25 +1081,14 @@ class ModelService {
 
     for (const { providerId, modelId, patch } of items) {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
-      if (patch.apiKeyId === '') {
-        throw DataApiErrorFactory.invalidOperation(
-          `update model ${providerId}/${modelId}`,
-          'api key id must not be empty'
-        )
-      }
-      if (patch.apiKeyId != null && patch.apiKeyId !== '') {
-        let keyIds = providerKeyIds.get(providerId)
+      this.assertApiKeyBindingValid(providerId, modelId, patch.apiKeyId, (pid) => {
+        let keyIds = providerKeyIds.get(pid)
         if (!keyIds) {
-          keyIds = new Set(providerService.getApiKeys(providerId).map((entry) => entry.id))
-          providerKeyIds.set(providerId, keyIds)
+          keyIds = new Set(providerService.getApiKeys(pid).map((entry) => entry.id))
+          providerKeyIds.set(pid, keyIds)
         }
-        if (!keyIds.has(patch.apiKeyId)) {
-          throw DataApiErrorFactory.invalidOperation(
-            `update model ${providerId}/${modelId}`,
-            'api key does not belong to this provider'
-          )
-        }
-      }
+        return keyIds
+      })
     }
 
     const rows = db.transaction((tx) => {

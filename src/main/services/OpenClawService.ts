@@ -314,6 +314,7 @@ export interface OpenClawConfig {
 export interface OpenClawModelConfig {
   id: string
   name: string
+  apiKey?: string
   contextWindow?: number
   maxTokens?: number
   reasoning?: boolean
@@ -343,7 +344,7 @@ export interface OpenClawProviderConfig {
 }
 
 type OpenClawSyncModel = Model &
-  Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
+  Pick<OpenClawModelConfig, 'apiKey' | 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
 type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
@@ -1236,12 +1237,18 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
+    // A model's own key binding is resolved per model (never round-robins: a
+    // set `apiKeyId` wins in the resolver), so sync can serve it per model.
+    const boundApiKey = model.apiKeyId
+      ? providerService.resolveApiKey(model.providerId, undefined, model.apiKeyId).value
+      : undefined
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
       endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      ...(boundApiKey !== undefined ? { apiKey: boundApiKey } : {}),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
@@ -1417,6 +1424,11 @@ export class OpenClawService extends BaseService {
             cost = { ...cost }
             delete cost.tieredPricing
           }
+          // Model-level credentials are Cherry-owned like the provider key:
+          // retained overrides are dropped so unbinding regenerates instead of
+          // leaking a stale key.
+          const retained = pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing) as OpenClawModelConfig
+          delete retained.apiKey
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1427,7 +1439,8 @@ export class OpenClawService extends BaseService {
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
             ...(supportsModelField('cost') && cost ? { cost } : {}),
             ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
-            ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
+            ...retained,
+            ...(supportsModelField('apiKey') && synced.apiKey !== undefined ? { apiKey: synced.apiKey } : {}),
             id: m.id,
             name: m.name
           }

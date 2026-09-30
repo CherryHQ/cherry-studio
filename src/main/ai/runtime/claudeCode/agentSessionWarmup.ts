@@ -706,7 +706,10 @@ function deriveRouteFacts(
     (ref) =>
       requiresAgentGateway(ref.providerId) ||
       ref.providerId !== primaryProvider.id ||
-      !usesAnthropicMessagesEndpoint(ref)
+      !usesAnthropicMessagesEndpoint(ref) ||
+      // The direct spawn exports one ANTHROPIC_API_KEY for every alias, so a
+      // sub-model with its own key binding needs the gateway to serve it.
+      (ref.model?.apiKeyId ?? '') !== (primaryModel.apiKeyId ?? '')
   )
 
   if (shouldUseGateway) {

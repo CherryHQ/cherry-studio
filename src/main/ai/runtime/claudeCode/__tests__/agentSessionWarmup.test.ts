@@ -871,6 +871,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('routes through the gateway when a same-provider sub-model has its own api key binding', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'model-2'
+        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-sub' }
+        : { id: modelId, apiModelId: `${modelId}-api` }
+    )
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // The direct spawn exports a single ANTHROPIC_API_KEY for every alias, so a
+    // distinct sub-model binding must fall back to the per-model gateway route.
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
     // Provider derived from the Anthropic preset (presetProviderId stays 'anthropic') but its Base URL
     // was changed to a custom proxy — must NOT be treated as first-party, so the 1M suffix still applies.
