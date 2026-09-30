@@ -100,6 +100,9 @@ export function useMessageSelectionController({
     toggleMultiSelectMode(false)
     selectAllPendingRef.current = false
     return () => {
+      // Invalidate in-flight exports: once this controller hands off (unmount
+      // or topic switch), a late success must not clear the next selection.
+      exportSelectionEpochRef.current += 1
       toggleMultiSelectMode(false)
     }
   }, [topicId, toggleMultiSelectMode])
@@ -110,7 +113,7 @@ export function useMessageSelectionController({
         const previous = prev ?? []
         const next = selected
           ? previous.includes(messageId)
-            ? previous
+            ? [...previous]
             : [...previous, messageId]
           : previous.filter((id) => id !== messageId)
         if (next.length !== previous.length || next.some((id, index) => id !== previous[index])) {

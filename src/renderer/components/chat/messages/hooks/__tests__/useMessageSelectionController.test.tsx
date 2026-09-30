@@ -654,6 +654,40 @@ describe('useMessageSelectionController', () => {
       expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
     })
 
+    it('ignores a late export success from an unmounted topic controller', async () => {
+      let finish!: (success: boolean) => void
+      exportMessages.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      const first = renderExportController()
+      act(() => {
+        first.result.current.actions.toggleMultiSelectMode?.(true)
+        first.result.current.actions.selectMessage?.('a', true)
+      })
+      let exporting!: Promise<void>
+      act(() => {
+        exporting = first.result.current.actions.exportSelectedMessages!(['a'], 'notion') as Promise<void>
+      })
+      act(() => {
+        first.unmount()
+      })
+      // The next topic mounts with its own selection; the stale export from
+      // the unmounted controller must not clear it on success.
+      act(() => {
+        setCacheValue('chat.multi_select_mode', true)
+        setCacheValue('chat.selected_message_ids', ['b'])
+      })
+      await act(async () => {
+        finish(true)
+        await exporting
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+    })
+
     it.each(['cancelled', 'failed'] as const)('preserves the selection when export is %s', async (outcome) => {
       if (outcome === 'failed') exportMessages.mockRejectedValueOnce(new Error('export failed'))
       else exportMessages.mockResolvedValueOnce(false)
