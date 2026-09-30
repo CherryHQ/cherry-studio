@@ -127,6 +127,32 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
+    it('tags Ollama KV-cache allocation failures inside a RetryError with context metadata', () => {
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: true
+      })
+      const retryError = new RetryError({
+        message: 'Failed after 3 attempts',
+        reason: 'maxRetriesExceeded',
+        errors: [providerError]
+      })
+
+      const result = serializeError(retryError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBe('ollama_context_memory')
+      expect(result.ollamaNumCtxModelId).toBe('ollama::qwen3:32b')
+      expect(result.ollamaTrainedNumCtx).toBe(131_072)
+      expect(result.ollamaEffectiveNumCtx).toBe(65_536)
+    })
+
     it('tags Ollama KV-cache allocation failures with context metadata', () => {
       const providerError = new APICallError({
         message: 'Internal Server Error',
