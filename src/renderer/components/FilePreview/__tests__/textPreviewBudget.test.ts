@@ -35,4 +35,11 @@ describe('shouldRenderRichTextPreview', () => {
   it('refuses a document whose average line length exceeds the budget', () => {
     expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(6_000)}\n${'b'.repeat(6_000)}\n`)).toBe(false)
   })
+
+  it('treats a CRLF terminator as one terminator rather than content', () => {
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\r\n`)).toBe(true)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_001)}\r\n`)).toBe(false)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\r\n${'b'.repeat(5_000)}\r\n`)).toBe(true)
+    expect(shouldRenderRichTextPreview(ONE_MIB, `${'a'.repeat(5_000)}\r\n${'b'.repeat(5_002)}\r\n`)).toBe(false)
+  })
 })
