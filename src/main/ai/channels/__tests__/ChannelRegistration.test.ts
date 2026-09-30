@@ -144,14 +144,17 @@ describe('channel QR registration', () => {
     return begin()
   }
 
-  it('registers DingTalk with Cherry identity and saves robot credentials without losing settings', async () => {
+  it('uses the official DingTalk registration source and waits for bot creation before saving credentials', async () => {
     const result = await startDingTalk()
     expect(result.url).toBe(dingBegin.verification_uri_complete)
     const [initUrl, initOptions] = vi.mocked(net.fetch).mock.calls[0]
     expect(initUrl).toBe('https://oapi.dingtalk.com/app/registration/init')
-    expect(JSON.parse(initOptions!.body as string)).toEqual({ source: 'CHERRY_STUDIO' })
-    vi.mocked(net.fetch).mockResolvedValue(response({ errcode: 0, status: 'WAITING' }))
-    expect(await poll()).toEqual({ status: 'pending' })
+    expect(JSON.parse(initOptions!.body as string)).toEqual({ source: 'DING_DWS_CLAW' })
+    for (const status of ['WAITING', 'CREATING', 'CREATING']) {
+      vi.mocked(net.fetch).mockResolvedValue(response({ errcode: 0, status }))
+      expect(await poll()).toEqual({ status: 'pending' })
+      expect(agentChannelService.getChannel(channelId)?.config).toMatchObject({ client_id: '', client_secret: '' })
+    }
     vi.mocked(net.fetch).mockResolvedValue(
       response({ errcode: 0, status: 'SUCCESS', client_id: 'ding-app', client_secret: ' secret ' })
     )

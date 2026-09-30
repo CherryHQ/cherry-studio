@@ -267,10 +267,12 @@ P1 不新增自动离线结果补发队列。若 HTTP 也失败，记录投递�
 
 设置页提供二维码授权及手动凭据两种入口。扫码协议采用
 [钉钉官方连接器注册流程](https://github.com/DingTalk-Real-AI/dingtalk-openclaw-connector/blob/main/src/device-auth.ts)：
-`POST /app/registration/init`（来源 `CHERRY_STUDIO`）→ `begin` → `poll`，固定请求 `https://oapi.dingtalk.com`。
+`POST /app/registration/init`（沿用官方连接器来源 `DING_DWS_CLAW`）→ `begin` → `poll`，固定请求 `https://oapi.dingtalk.com`。
 二维码仅接受官方 `open-dev.dingtalk.com/openapp/registration/openClaw` 地址。
 
 复用 ChannelRegistration 的窗口绑定、取消、响应大小限制与主进程凭据保存；遵循服务端轮询间隔，应用侧单次扫码最多等待 5 分钟。
+`WAITING` 和 `CREATING` 均继续轮询，界面保留二维码和等待提示；仅在 `SUCCESS` 且凭据完整后结束等待。
 成功将 Client ID / Secret 写入未启用频道；Robot Code 按官方连接器使用 Client ID，仍可手动修改。原有白名单和卡片模板保留。
 关闭弹窗或窗口、超时、停止应用都会取消；配置已变化、频道已删除或启用时不覆盖。成功后仍需绑定 Agent 并启用。
-官方 init / begin 已用 Cherry 来源标识实测返回有效二维码；真实手机授权成功、权限开通与机器人收发仍需验收。
+原 `CHERRY_STUDIO` 来源虽能生成二维码，但手机端实测提示创建来源无效，已改为官方默认来源。
+真实手机授权成功、权限开通与机器人收发仍需验收。

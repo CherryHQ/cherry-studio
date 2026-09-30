@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelQrRegistration } from '../ChannelQrRegistration'
@@ -14,6 +14,24 @@ beforeEach(() => {
 })
 
 describe('QR setup', () => {
+  it('keeps showing the waiting status until DingTalk finishes creating the bot', async () => {
+    const polls: Array<(value: unknown) => void> = []
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'channel.registration.begin') return ok(begin)
+      if (route === 'channel.registration.poll') return new Promise((resolve) => polls.push(resolve))
+      return ok(undefined)
+    })
+    render(<ChannelQrRegistration channel={{ ...channel, type: 'dingtalk' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.channels.qrSetup.start' }))
+    await waitFor(() => expect(polls).toHaveLength(1))
+    await act(async () => polls[0](ok({ status: 'pending' })))
+    expect(screen.getByRole('status')).toHaveTextContent('agent.channels.qrSetup.pending')
+    expect(screen.queryByText('agent.channels.qrSetup.error')).not.toBeInTheDocument()
+    await waitFor(() => expect(polls).toHaveLength(2))
+    await act(async () => polls[1](ok({ status: 'confirmed' })))
+    expect(screen.getByRole('status')).toHaveTextContent('agent.channels.qrSetup.confirmed')
+  })
+
   it('shows the QR code, reports expiration and permits a fresh attempt that saves credentials', async () => {
     let finish!: (value: unknown) => void
     let expired = true

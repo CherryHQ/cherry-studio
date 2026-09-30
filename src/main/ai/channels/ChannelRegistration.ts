@@ -22,7 +22,7 @@ const dingtalkBegin = z.object({
 })
 const dingtalkPoll = z.object({
   errcode: z.literal(0),
-  status: z.enum(['WAITING', 'SUCCESS', 'FAIL', 'EXPIRED']),
+  status: z.enum(['WAITING', 'CREATING', 'SUCCESS', 'FAIL', 'EXPIRED']),
   client_id: text.optional(),
   client_secret: text.optional()
 })
@@ -93,7 +93,7 @@ export class ChannelRegistration {
       if (session.type === 'dingtalk') {
         const base = 'https://oapi.dingtalk.com/app/registration'
         const init = dingtalkInit.parse(
-          await this.request(`${base}/init`, controller.signal, { source: 'CHERRY_STUDIO' })
+          await this.request(`${base}/init`, controller.signal, { source: 'DING_DWS_CLAW' })
         )
         const result = dingtalkBegin.parse(
           await this.request(`${base}/begin`, controller.signal, { nonce: init.nonce })
@@ -161,7 +161,12 @@ export class ChannelRegistration {
           await this.request('https://oapi.dingtalk.com/app/registration/poll', signal, { device_code: session.code! })
         )
         if (data.status === 'FAIL') throw new Error('Registration denied')
-        status = data.status === 'WAITING' ? 'pending' : data.status === 'EXPIRED' ? 'expired' : 'success'
+        status =
+          data.status === 'WAITING' || data.status === 'CREATING'
+            ? 'pending'
+            : data.status === 'EXPIRED'
+              ? 'expired'
+              : 'success'
         if (data.client_id && data.client_secret) {
           credentials = {
             client_id: data.client_id.trim(),
