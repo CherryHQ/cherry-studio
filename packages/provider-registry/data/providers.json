@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -47,27 +47,6 @@
           "vendors": ["anthropic", "gemini"]
         }
       ]
-    },
-    {
-      "availableInEditions": ["global", "cn"],
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "AMD GPU Cloud - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
-        }
-      },
-      "id": "radeon-cloud",
-      "metadata": {
-        "website": {
-          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
-          "docs": "https://developer.amd.com.cn/radeon/",
-          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
-          "official": "https://developer.amd.com.cn/radeon/"
-        }
-      },
-      "name": "AMD GPU Cloud"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -201,7 +180,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -213,7 +191,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -225,7 +202,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -274,7 +250,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -286,7 +261,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -298,7 +272,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -322,8 +295,8 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
-          "docs": "https://platform.deepseek.com/api-docs/",
-          "models": "https://platform.deepseek.com/api-docs/",
+          "docs": "https://api-docs.deepseek.com/",
+          "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
         }
       },
@@ -547,7 +520,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -615,13 +589,15 @@
             "type": "openai-chat",
             "wire": {
               "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
                 "operations": [
                   {
                     "delivery": "request-body",
                     "target": "reasoning.effort",
                     "value": {
-                      "source": "literal",
-                      "value": "medium"
+                      "source": "effort"
                     }
                   }
                 ]
@@ -723,6 +699,71 @@
         }
       },
       "name": "Ollama"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AMD GPU Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
+        }
+      },
+      "id": "radeon-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "docs": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "official": "https://developer.amd.com.cn/radeon/"
+        }
+      },
+      "name": "AMD GPU Cloud"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenDance - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
+          }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://tokendance.space/gateway"
+        }
+      },
+      "id": "tokendance",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
+        }
+      },
+      "name": "TokenDance"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -873,14 +914,12 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -888,7 +927,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -899,7 +937,6 @@
               "default": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -907,7 +944,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -918,14 +954,12 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -933,7 +967,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -944,7 +977,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -992,6 +1024,37 @@
       "name": "Grok CLI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-responses",
+      "description": "oMLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
+      },
+      "id": "omlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/jundot/omlx",
+          "official": "https://omlx.ai"
+        }
+      },
+      "name": "oMLX"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
@@ -1008,14 +1071,12 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1023,7 +1084,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1034,7 +1094,6 @@
               "default": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1042,7 +1101,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1053,14 +1111,12 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1068,7 +1124,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1079,7 +1134,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1143,14 +1197,12 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1158,7 +1210,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1169,7 +1220,6 @@
               "default": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1177,7 +1227,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1188,14 +1237,12 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1203,7 +1250,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1214,7 +1260,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1257,14 +1302,12 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1272,7 +1315,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1283,7 +1325,6 @@
               "default": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1291,7 +1332,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1302,14 +1342,12 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1317,7 +1355,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1328,7 +1365,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1425,7 +1461,8 @@
           "modelScope": "model-dependent",
           "vendors": ["gemini"]
         }
-      ]
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -1463,7 +1500,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1475,7 +1511,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1487,7 +1522,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1512,6 +1546,79 @@
       "name": "Moonshot AI",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Moonshot - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.moonshot.ai/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.moonshot.ai",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "moonshot-global",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.moonshot.ai/console/api-keys",
+          "docs": "https://platform.moonshot.ai/docs/",
+          "models": "https://platform.moonshot.ai/docs/",
+          "official": "https://www.moonshot.ai/"
+        }
+      },
+      "name": "Moonshot",
+      "presetProviderId": "moonshot",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
           "id": "web-search",
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
@@ -1612,7 +1719,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "doubao - AI model provider",
+      "description": "Doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -1623,7 +1730,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1635,7 +1741,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1647,7 +1752,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1680,7 +1784,7 @@
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao",
+      "name": "Doubao",
       "serverTools": [
         {
           "id": "web-search",
@@ -1794,7 +1898,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1802,7 +1905,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.budgetTokens",
                     "value": {
                       "source": "literal",
@@ -1817,7 +1919,6 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1825,7 +1926,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.budgetTokens",
                     "value": {
                       "source": "literal",
@@ -1833,7 +1933,6 @@
                     }
                   },
                   {
-                    "delivery": "provider-option",
                     "target": "effort",
                     "value": {
                       "source": "effort"
@@ -1844,7 +1943,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1880,7 +1978,8 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -1930,7 +2029,6 @@
                 },
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
@@ -1941,7 +2039,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
@@ -1952,7 +2049,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -2293,7 +2389,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2305,7 +2400,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2317,7 +2411,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2338,7 +2431,6 @@
               "auto": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2350,7 +2442,6 @@
               "effort": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2362,7 +2453,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2447,7 +2537,6 @@
               "off": {
                 "operations": [
                   {
-                    "delivery": "provider-option",
                     "target": "disable_reasoning",
                     "value": {
                       "source": "literal",
@@ -2470,6 +2559,46 @@
         }
       },
       "name": "Cerebras AI"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-image-generation": {
+          "adapterFamily": "comfyui",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://docs.comfy.org",
+          "official": "https://www.comfy.org"
+        }
+      },
+      "modelResolution": {
+        "defaults": {
+          "capabilities": ["image-generation"],
+          "endpointTypes": ["openai-image-generation"],
+          "imageGeneration": {
+            "modes": {
+              "generate": {
+                "supports": {
+                  "seed": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          },
+          "inputModalities": ["text"],
+          "outputModalities": ["image"],
+          "supportsStreaming": false
+        },
+        "source": "provider"
+      },
+      "name": "ComfyUI"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2562,5 +2691,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "325d4d3b46331796"
+  "version": "9cb835b3cbdcd1be"
 }

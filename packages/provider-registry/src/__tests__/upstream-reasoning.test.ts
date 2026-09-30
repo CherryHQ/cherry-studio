@@ -49,13 +49,7 @@ describe('OpenRouter reasoning descriptor ingestion', () => {
   it('keeps hand-written endpoint fields above generated support', () => {
     const handwrittenWire = {
       effort: {
-        operations: [
-          {
-            target: 'reasoning.effort' as const,
-            value: { source: 'effort' as const },
-            delivery: 'provider-option' as const
-          }
-        ]
+        operations: [{ target: 'reasoning.effort' as const, value: { source: 'effort' as const } }]
       }
     }
     const generatedSupport = {
