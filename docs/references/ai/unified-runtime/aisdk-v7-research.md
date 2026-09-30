@@ -1,118 +1,126 @@
 ---
-description: June 2026 AI SDK v7 upgrade-cost research covering provider changes, patches, and usage semantics
+description: AI SDK 7.0.123 assessment against Cherry Studio 6.0.185, with migration boundaries and patch audit priorities
 sources:
   - src/main/ai
+  - packages/aiCore/src/core/context/compaction.ts
   - package.json
+  - pnpm-workspace.yaml
 ---
 
-# AI SDK v7 Research Report — STABLE
+# AI SDK v7 — Upgrade Assessment
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Verified 2026-10-01. Published baseline: **`ai@7.0.123`**, released 2026-09-30.
+> Cherry baseline: **`e51a3ad0643`**, `ai@6.0.185`. This is research, not an SDK upgrade or a runtime migration approval.
+> The [June report](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/aisdk-v7-research.md) remains available in Git history.
 
-> Date: 2026-06-25 | Status: **`ai@7.0.0` STABLE** (npm `latest`) | Supersedes the 2026-04-04 beta report below the fold.
-> Branch synced to `origin/main` (ec9e9bd324). Cherry currently pins **`ai@6.0.143`** (v6 stable).
+## Recommendation
 
-## 0. TL;DR
+Evaluate an SDK upgrade independently of runtime unification. The strongest new reasons to evaluate v7
+are native deferred-tool discovery, streaming recovery, and upstream fixes overlapping Cherry's patches.
+Code Mode and Harness adapters deserve separate compatibility experiments; adopting them is not a
+prerequisite for upgrading `ai`. The previous blanket recommendations to stay on v6 and reject Harness
+are superseded by this capability-based assessment.
 
-- v7 shipped stable. It is **not** the friction-free bump v6 was: every `@ai-sdk/*` provider jumped a **major** (V4 provider spec), and there's a wide layer of top-level **renames** in `streamText`/`generateText` result + callback surface.
-- The two scariest rumored breaks from the beta tracking **did NOT land**: `providerOptions` is **not** renamed (61 call-site files safe), and `experimental_prepareStep/activeTools/output` were already off our codebase.
-- Real cost is concentrated in **6 provider patches** (all pinned to v3.x, won't apply to v4) + a batch of mechanical renames (mostly codemod-able).
-- New strategic item: **HarnessAgent** — wraps Claude Code / Codex / Pi / OpenCode as swappable agent harnesses. This is the *black-box-wrapper* approach we explicitly rejected in the runtime design; it does **not** change our "build our own (C,G) runtime on ToolLoopAgent" thesis.
-- **Escape hatch**: npm `ai-v6` dist-tag exists on `ai` and every provider — we can stay on v6 indefinitely and upgrade deliberately.
+## Reproducible baseline
 
-## 1. Version matrix (v6 → v7)
+| Surface | Observed value | Evidence |
+|---|---|---|
+| Published stable SDK | `ai@7.0.123` | [Release](https://github.com/vercel/ai/releases/tag/ai%407.0.123) |
+| v6 maintenance line | `ai@6.0.297`, npm `ai-v6` tag | [Release](https://github.com/vercel/ai/releases/tag/ai%406.0.297); `npm view ai dist-tags --json` |
+| Cherry SDK pin | `ai@6.0.185` | `package.json`, `pnpm-lock.yaml` |
+| Upstream source inspected | `09aa6c2af27ec15482c5476f601984a9c7361890` | [Main snapshot](https://github.com/vercel/ai/commit/09aa6c2af27ec15482c5476f601984a9c7361890) |
+| Published comparison point | `ai@7.0.123` tag | [Core changelog](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md) |
 
-| Package | Cherry now (v6) | v7 `latest` | v6 escape tag |
-|---|---|---|---|
-| `ai` | 6.0.143 | **7.0.0** | `ai-v6` → 6.0.210 |
-| `@ai-sdk/provider` | 3.0.8 | **4.0.0** | `ai-v6` → 3.0.11 |
-| `@ai-sdk/provider-utils` | 4.0.19 | **5.0.0** | `ai-v6` → 4.0.31 |
-| `@ai-sdk/anthropic` | 3.0.71 | **4.0.0** | `ai-v6` → 3.0.87 |
-| `@ai-sdk/openai` | 3.0.x | **4.0.0** | `ai-v6` → 3.0.75 |
-| `@ai-sdk/google` | 3.0.x | **4.0.0** | `ai-v6` → 3.0.84 |
-| `@ai-sdk/openai-compatible` | 2.0.37 | **3.0.0** | `ai-v6` → 2.0.52 |
+The main snapshot contains changes after the release, including the Topaz provider addition. Those are
+not counted as released v7.0.123 capabilities here. npm tags and live docs can move; use the fixed tag
+when reproducing this assessment. A v6 maintenance tag is not a promise of indefinite support.
 
-All `@ai-sdk/*` deps move in lockstep. The `ai-v6` dist-tag is the supported "don't upgrade yet" pin.
+## What changed after 7.0.0
 
-## 2. Breaking changes that actually hit Cherry (grounded by grep)
+See the [feature inventory](./aisdk-v7-feature-inventory.md) for versions, constraints, and sources.
 
-| Area | v6 | v7 | Cherry call sites | Codemod? |
-|---|---|---|---|---|
-| **Tool context** | `experimental_context` | **`runtimeContext`** (ambient request state) + new **`toolsContext`** (per-tool, isolated) | **17 files** | yes |
-| **Tool approval** | `needsApproval` (on tool def) | **`toolApproval`** (on call/agent, keyed by tool name) | **17 files** | partial |
-| **Step callback** | `onStepFinish` | `onStepEnd` (and `onFinish`→`onEnd`) | **9 files** | yes |
-| **Stream prop** | `result.fullStream` | `result.stream` | **5 files** | yes |
-| **Telemetry** | `experimental_telemetry` + built-in OTel | `telemetry` + **separate `@ai-sdk/otel` package**; opt-out only once globally registered (Cherry stays opt-in via per-call `integrations`) | **3 files** | partial |
-| **Stop condition** | `stepCountIs()` | `isStepCount()` | **3 files** | yes |
-| **Usage semantics** | `result.usage`=final step, `result.totalUsage`=all | **swapped**: `result.usage`=all steps, `result.finalStep.usage`=final | **3 files** | ⚠️ silent |
-| **UI stream** | `result.toUIMessageStream()` | stateless `toUIMessageStream({stream})` | **2 files** | yes |
-| **system prompt** | `system:` | **`instructions:`** (system in `messages` now needs `allowSystemInMessages:true`) | audit needed | yes |
+- **Tool discovery:** `toolSearch()` and `deferLoading` can overlap Cherry's deferred-tool infrastructure.
+- **Code Mode:** QuickJS-hosted tool composition adds parallel calls and result filtering, but nested
+  calls cannot pause for human approval. It remains experimental and Node-only.
+- **Streaming recovery:** `StreamProviderError` plus `streamRetries` cover provider error events after
+  streaming starts. This is distinct from cross-model fallback and transport reconnection.
+- **Files and media:** FilesV4 adds lifecycle operations; batches, realtime voice, streaming transcription,
+  speech translation, and asynchronous video APIs expand the SDK beyond request/response text.
+- **Harness:** more adapters, caller-owned sandboxes, per-turn settings, steering, and a history-access
+  contract make the old blanket rejection too broad. Experimental status and adapter gaps remain.
+- **UI streams:** upstream fixes address long-text snapshot copying, resumable partial parts, cancellation,
+  approval continuation, and optional SSE heartbeats.
 
-⚠️ **Usage swap is the dangerous one** — same property name, inverted meaning, no type error. Manually audit the 3 files.
+## Migration boundaries that still need verification
 
-### Confirmed NON-breaks (rumors from beta tracking that didn't ship)
-- `providerOptions` → ~~`options`~~: **NOT renamed**. 61 files safe. (`providerMetadata` top-level is deprecated → read from `result.finalStep` instead.)
-- `experimental_prepareStep / activeTools / output`: **0 call sites** — we're already clean.
+| Boundary | v7 contract / migration concern | Cherry verification |
+|---|---|---|
+| Context | `experimental_context` becomes `runtimeContext`; `toolsContext` / `contextSchema` are a separate per-tool facility | Audit `Agent.ts`, tool execution adapters, and request-context ownership; v6 does not expose all three under the v7 names |
+| Approval | Central `toolApproval` replaces per-tool `needsApproval`; reasons, transformed inputs, and signed approvals affect continuation | Preserve approval state and validate resumed tool inputs; SDK contracts do not replace Cherry authorization |
+| Lifecycle | `onStepFinish` → `onStepEnd`, `onFinish` → `onEnd`; native tool/model-call callbacks | Reconcile `AgentLoopHooks`, `composeHooks`, observers, aborts, and per-attempt telemetry before removing shims |
+| Results / usage | `usage` is aggregate; final-step data lives in `finalStep`; `fullStream` → `stream` | Audit usage/cost accounting and persistence, not just compilation |
+| Prompt / UI | `system` → `instructions`; system messages require explicit allowance; UI stream helpers change | Verify prompt assembly, attachments, stream projections, and restored history |
+| Telemetry | `telemetry` and separate `@ai-sdk/otel` integrations | Preserve Cherry's opt-in policy and parent spans across tools, retries, and approvals |
+| Provider contracts | V4 adds new parts and options; older model interfaces have compatibility adapters | Test native and OpenAI-compatible providers separately; do not infer new-feature parity from accepted types |
+| Packaging | ESM-only SDK; current upstream builds target ES2022 and use tsdown | Verify Electron main/preload/renderer builds and packaged runtime; Node compatibility alone is insufficient |
 
-### Other v7 facts
-- Image/media tool-result parts unified: `{type:'image-*'|'media'}` → `{type:'file', mediaType, data}`. Audit attachment/file rendering.
-- `CallSettings` type split → `LanguageModelCallOptions & Omit<RequestOptions,'timeout'>`. Affects `packages/aiCore/src/core/runtime/types.ts`.
-- CJS exports removed (ESM-only). Cherry is ESM — verify main-process build only.
-- Node ≥22 required. Cherry already requires ≥22. ✅
-- Codemods: `npx @ai-sdk/codemod v7` covers ~25 of the mechanical renames above.
+Sources: [migration guide](https://github.com/vercel/ai/blob/ai%407.0.123/content/docs/08-migration-guides/23-migration-guide-7-0.mdx),
+[agent settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/agent/tool-loop-agent-settings.ts),
+[core changelog](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md).
+June call-site counts and codemod counts are intentionally not reused: they were measured on a different
+Cherry tree. Select and dry-run codemods against the version used by an actual upgrade PR.
 
-## 3. The real migration cost: patches
+### Provider upgrades need not be all-or-nothing
 
-Old report said "2 patches". Current reality — **6 `@ai-sdk/*` patches + 1 openrouter**, all pinned to **v3.x/v2.x** versions that will not apply on v4:
+The published SDK accepts V2/V3/V4 language models. Its
+[compatibility adapter](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/model/as-language-model-v4.ts) translates older prompts,
+results, and streams. This permits evaluating a staged migration; it does not make new V4 file references,
+reasoning controls, or provider-specific options work on every old provider. Package peer dependencies,
+custom middleware, and patched wire formats still need verification.
 
-```
-@ai-sdk__anthropic.patch
-@ai-sdk__deepseek@2.0.30.patch
-@ai-sdk__google@3.0.64.patch
-@ai-sdk__openai@3.0.53.patch
-@ai-sdk__openai-compatible@2.0.37.patch
-@ai-sdk__xai@3.0.83.patch
-@openrouter__ai-sdk-provider.patch
-```
+### Audit the current patches, not the June count
 
-Each must be re-derived against the v4 provider source, or upstreamed, or dropped if v7 already fixes the reason it exists. **This is the gating work item** — more than the renames.
+The directly relevant core / first-party / OpenRouter entries in `pnpm-workspace.yaml` are:
 
-## 4. HarnessAgent — new, and it intersects our agent-runtime design
+| Patch | Audit focus |
+|---|---|
+| `ai@6.0.185` | Image-download customization and UI-message snapshots; assess each hunk separately |
+| `@ai-sdk/react@3.0.187` | Streaming snapshot behavior and nested-value isolation |
+| `@ai-sdk/anthropic` | Provider-specific changes against the selected target version |
+| `@ai-sdk/openai@3.0.109` | Provider-specific request/response behavior |
+| `@ai-sdk/google@3.0.113` | Provider-specific request/response behavior |
+| `@ai-sdk/openai-compatible@2.0.72` | Reasoning replay and media output on compatible endpoints |
+| `@ai-sdk/open-responses@1.0.34` | Reasoning replay and reasoning-part identity |
+| `@openrouter/ai-sdk-provider@2.10.0` | Community-provider compatibility and patched behavior |
 
-v7 shipped (experimental) **HarnessAgent**: one API to run Claude Code / Codex / Pi / OpenCode as swappable "harnesses", each in a **sandboxed workspace**, returning AI-SDK-compatible `generate()`/`stream()` results. Harnesses own skills, sessions, permission flows, compaction, sub-agents.
+Also include community-provider patches such as Ollama and GitHub Copilot when defining the upgrade's
+provider coverage. The table is not a count of every AI-related patch in the repository.
 
-```ts
-const agent = new HarnessAgent({ harness: claudeCode, sandbox: createVercelSandbox(...), tools, skills })
-```
+For each patch record **remove / retain / reimplement**, the upstream equivalent, and a regression case.
+For example, v7.0.65 optimized `readUIMessageStream` by excluding accumulated text from deep copies while
+still isolating mutable nested data. That overlaps Cherry's snapshot patch but is not proof that the
+entire `ai` or React patch can be deleted. See the
+[published snapshot implementation](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/ui-message-stream/read-ui-message-stream.ts).
 
-**How this lands against our design** (see [`architecture.md`](./architecture.md)):
-- This is precisely the **black-box-wrapper** path we rejected — it wraps Claude Code as an opaque harness, requires a sandbox, is experimental, and is Anthropic/CLI-centric. It does **not** give model-agnostic control and doesn't unify chat+agent on one data model. Our reasons for *not* taking it still hold.
-- Our thesis is unchanged and sits on **stable** primitives: `ToolLoopAgent` + `prepareStep`/`runtimeContext` (= our `C`) are stable in v7 and present in v6; approval (= our `G`) is `needsApproval` + the message-based flow in v6, the centralized `toolApproval` setting in v7. We build `Runtime(C, G)` on those, we don't adopt HarnessAgent.
-- Watch only if we ever want a "run real Claude Code in a sandbox" power-user feature — then HarnessAgent is the off-the-shelf path, but track until it leaves experimental.
+## Runtime and compaction conclusions
 
-## 5. Recommendation
+Cherry's current [agent-session runtime](../agent-session-runtime.md) has Claude Code, Pi, and DSH drivers.
+The June description of a Claude-Code-only agent stack is historical. SDK upgrade, new adapter adoption,
+message-store unification, and driver removal are separate decisions.
 
-1. **Do not upgrade now.** Stay on `ai@6` (pin `ai-v6` tag). v6 has every primitive our runtime design needs.
-2. **Pre-work, low risk, do anytime:** re-derive the 6 provider patches against v4 source (or eliminate them). This is the long pole — start it decoupled from the version bump.
-3. **When we do bump:** run `npx @ai-sdk/codemod v7`, then hand-fix the ⚠️ usage-semantics swap (3 files) + telemetry `@ai-sdk/otel` split (`buildTelemetry.ts` + `aiSdkSpanAdapter.ts` under `src/main/ai/observability/`) + `system→instructions`. (Full telemetry plan: [`migration-plan.md`](./migration-plan.md) → "Deferred to v7".)
-4. **External tracking issue** [#14022](https://github.com/CherryHQ/cherry-studio/issues/14022) should reflect: status STABLE, `providerOptions` rename cancelled, patch count 6, HarnessAgent assessment.
+`ToolLoopAgent` still has no published top-level `compact()` / `compactWhen` facility;
+[the proposal remains open](https://github.com/vercel/ai/issues/14017). Cherry already has
+`packages/aiCore/src/core/context/compaction.ts` and the aiSdk `contextCompaction` feature. Evaluate and reuse
+that implementation; do not plan a second compaction subsystem from scratch. Provider-native compaction,
+Harness session compaction, message pruning, and application-owned summarization are different contracts.
 
-## Sources
-- npm dist-tags: `ai@7.0.0` = latest, `ai-v6` = 6.0.210 (verified via `npm view`)
-- [v6→v7 Migration Guide](https://ai-sdk.dev/docs/migration-guides/migration-guide-7-0)
-- [Program agent harnesses with AI SDK (HarnessAgent)](https://vercel.com/changelog/program-agent-harnesses-with-ai-sdk)
-- [v7 Epic #14011](https://github.com/vercel/ai/issues/14011) · Cherry tracking [#14022](https://github.com/CherryHQ/cherry-studio/issues/14022)
+## Suggested validation order
 
----
+1. Inventory resolved SDK/provider versions and every applicable patch; reproduce the behavior each patch protects.
+2. Prototype the core API migration, usage semantics, approval round trips, and ESM packaging without changing runtime ownership.
+3. Compare native tool search and stream recovery with Cherry's existing implementations using real tool-heavy and interrupted streams.
+4. Evaluate Code Mode separately, with approval-required tools excluded from nested execution.
+5. Evaluate individual Harness adapters for local execution, permissions, steering, history, and packaged dependencies before proposing adoption.
 
-<details><summary>Archived: 2026-04-04 beta report (status now outdated — kept for history)</summary>
-
-The original beta-era report (v7 7.0.0-beta.53, milestone 28%) lived here. Its feature list is still roughly correct, but these specifics are now superseded by §1–§4 above:
-- "2 patches" → actually 6+1
-- "providerOptions → options rename" → cancelled, never shipped
-- beta-era mid-flight names (`context`→`runtimeContext` churn, `CallSettings` naming) → see final names in §2
-- v7 status beta/canary → now STABLE
-
-</details>
+No compatibility prototype, SDK upgrade, real-provider run, or Electron packaging test was performed as
+part of this documentation refresh.

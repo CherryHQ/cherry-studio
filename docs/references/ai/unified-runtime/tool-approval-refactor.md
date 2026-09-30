@@ -1,20 +1,53 @@
 ---
-description: June 2026 proposal to centralize tool approval decisions in a shared permission engine
+description: Tool approval migration constraints for AI SDK 7.0.123 and the historical permission centralization proposal
 sources:
   - src/main/ai
   - package.json
 ---
 
-# Tool-Approval Refactor — centralize `G`, retire per-tool `needsApproval`
+# Tool Approval — Migration Constraints & Proposal
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Reassessed 2026-10-01. The original permission-engine design follows as historical rationale.
+> This update does not approve a new permission subsystem or change persisted approval ownership.
 
-> Status: design, not implemented. Grounds Phase 1 of [`migration-plan.md`](./migration-plan.md) (Lift `G`).
-> Decision (`G`) and state (message parts) are **two separate things** — this doc is about the *decision*;
-> the *state* is owned by the in-tree consolidation design ([`../tool-approval-state-consolidation.md`](https://github.com/CherryHQ/cherry-studio/blob/13252a526ce01e9406c90b3492f1150706374eb5/v2-refactor-temp/docs/ai/tool-approval-state-consolidation.md)).
-> No OPA — `PermissionEngine` is hand-rolled by folding existing scattered logic.
+## Current SDK boundaries
+
+| Surface | v6 | v7.0.123 |
+|---|---|---|
+| Approval request/response message flow | Available | Available |
+| Per-tool `needsApproval` | Existing trigger | Deprecated compatibility surface |
+| Central `toolApproval` | Absent | Call/Agent policy function or tool map |
+| Approval request reason | Audit current projection | Distinct request reason and approver response reason |
+| Signed approval continuation | Do not assume from old snippets | Verify secret configuration, serialization, input/schema validation, and persistent state |
+| Code Mode nested approval | Not applicable | Cannot suspend nested execution for approval; approval-required calls are rejected |
+
+Keep approval-required tools directly callable if evaluating Code Mode. A policy verdict or signed SDK
+approval does not replace Cherry's own authorization and state ownership. Validate approval-resumed
+inputs against the actual schemas, including transforms, rather than treating persisted input as trusted.
+
+SDK request reasons and the signed-approval / schema-transform fixes are relevant upgrade work; they do
+not establish that the original `PermissionEngine` design is the right owner for every current runtime.
+Compare with the [current approval reference](../tool-approval.md) and
+[agent-session runtime](../agent-session-runtime.md) first.
+
+## Verification before removing existing logic
+
+- Exercise allow, deny, ask, and restart/resume with the current UI and persistence boundary.
+- Verify denial completes correctly, request reasons survive projection, and modified tool schemas do not
+  silently execute stale approved inputs.
+- Test deferred tools under the same authorization rules as directly exposed tools.
+- Confirm Code Mode cannot route around a required approval; do not expose such tools as nested callers.
+- Keep provider-side execution and adapter-native approvals distinct from host-executed AI SDK tools.
+
+Sources: [Code Mode approval limitations](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
+[published core changes](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md),
+[Agent settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/agent/tool-loop-agent-settings.ts).
+
+<details>
+<summary>June 2026 proposal — historical rationale, not a current implementation checklist</summary>
+
+The following text preserves the original proposal, including its then-current paths, measurements,
+and decision statuses. The dated assessment above supersedes its version and adoption conclusions.
 
 ## v6 / v7 reality (verified in `node_modules/ai`)
 
@@ -107,3 +140,5 @@ back as a `tool-approval-response` part → re-invoke to resume) is exactly the 
 state" that D6/D7 proposed borrowing from HarnessAgent — and it's native, in-history, durable. So Phase 5 should
 **lean on this native flow** rather than build a custom suspend/continue store, and it resolves the approval
 split-brain the consolidation doc wrestles with (single authority = the message part).
+
+</details>

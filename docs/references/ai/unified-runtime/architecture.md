@@ -1,18 +1,52 @@
 ---
-description: June 2026 proposal for a unified runtime using context engineering and a centralized safety gate
+description: Unified-runtime design proposal with current runtime boundaries and AI SDK v7 compatibility corrections
 sources:
   - src/main/ai
+  - packages/aiCore/src/core/context/compaction.ts
   - package.json
 ---
 
-# Cherry Unified Runtime — Architecture Proposal (v2)
+# Unified Runtime — Architecture Proposal
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Reassessed 2026-10-01 against ai@7.0.123 and Cherry e51a3ad0643.
+> The detailed June proposal is preserved below as design history; it is not the current system map.
 
-> Supersedes the 2026-04 `cherry-agent-runtime-design` draft (written before the `runtime/aiSdk` stack existed).
-> Grounded in current `main` (ec9e9bd324). Version stance: build on **`ai@6`** (current); do not adopt v7 or HarnessAgent yet — see [`aisdk-v7-research.md`](./aisdk-v7-research.md).
+## Current ownership and proposal scope
+
+Cherry's chat path uses the model-agnostic aiSdk loop. Agent sessions use the existing host/driver
+boundary with Claude Code, Pi, and DSH. Session lifecycle, persistence, permissions, and UI projection
+remain application responsibilities even when a library supplies a loop or adapter.
+See the [agent-session runtime reference](../agent-session-runtime.md).
+
+The proposed `(C, G)` model separates context preparation from safety decisions. It remains useful for
+reasoning about a shared loop, but neither the SDK upgrade nor this document decides to merge stores,
+remove drivers, or introduce a new permission engine.
+
+## Corrections to the original proposal
+
+- **Version selection is reopened.** Native tool discovery, stream recovery, and upstream patch fixes
+  justify an independent upgrade assessment; v6 is not a permanently locked choice.
+- **Harness requires per-adapter evaluation.** Experimental APIs, varying execution environments,
+  caller-owned sandboxes, steering support, and missing built-in history access replace the old blanket rejection.
+- **Context APIs differ by major.** v6 uses `experimental_context`; v7 calls it `runtimeContext` and adds
+  per-tool `toolsContext` / `contextSchema`. `CALL_OPTIONS` / `prepareCall` already exist in v6.
+  The original claim that all three v7 surfaces exist in v6 was incorrect.
+- **Approval also differs by major.** v6 has per-tool `needsApproval` and the message-based approval flow;
+  centralized `toolApproval` is a v7 facility. Code Mode cannot suspend nested calls for human approval.
+- **Compaction already exists in Cherry.** Reuse `packages/aiCore/src/core/context/compaction.ts` and the
+  aiSdk context-compaction feature instead of creating the proposed parallel implementation.
+- **Steering is not universally abort+restart.** Preserve runtime-native capabilities and verify their
+  admission/ordering contracts before choosing common semantics.
+
+The [revised migration assessment](./migration-plan.md) records independent work packages, and the
+[SDK research](./aisdk-v7-research.md) supplies versioned evidence. The historical snippets below use
+June-era paths and types; rederive them from the selected target SDK before implementation.
+
+<details>
+<summary>June 2026 proposal — historical rationale, not a current implementation checklist</summary>
+
+The following text preserves the original proposal, including its then-current paths, measurements,
+and decision statuses. The dated assessment above supersedes its version and adoption conclusions.
 
 ## 0. The one-paragraph thesis
 
@@ -321,3 +355,5 @@ The hard part was never the loop (≈100 lines; we already have it). Quality liv
 - Current code: `src/main/ai/runtime/{aiSdk,claudeCode}`, `runtime/registry.ts`, `agentSession/`, `streamManager/`, `schemas/{message,agentSessionMessage}.ts`
 - Formal `(C,G)` model + prepareStep red line: the design-discussion transcript (session scratch, not in repo)
 - Version constraints: [`aisdk-v7-research.md`](./aisdk-v7-research.md)
+
+</details>

@@ -1,40 +1,32 @@
 ---
-description: June 2026 unified-runtime design snapshot and AI SDK v7 research, preserved for reassessment against the current runtime
+description: Current AI SDK v7 research and migration assessment, with the original unified-runtime proposal preserved for context
 sources:
   - src/main/ai
   - package.json
 ---
 
-# Unified Runtime — June 2026 Design & Research
+# Unified Runtime — Design & AI SDK Research
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Updated 2026-10-01. The SDK research is verified against **ai@7.0.123** and Cherry **ai@6.0.185**.
+> Architecture proposals are not implementation status or approval to replace existing runtimes.
 
-> **Original scope:** a proposal to collapse the chat `aiSdk` and agent `claudeCode` runtimes
-> into one model-agnostic runtime. This snapshot is not a statement of the current implementation.
+## Start here
 
-## The thesis in one line
-
-A runtime is an **environment**, not a controller: two levers — `C` (context engineering, the only
-input-side lever) and `G` (safety gate on side-effecting actions, the only output-side lever) — and the
-loop is *emergent*, not driven. Chat and Agent are the same runtime with different `C`. The
-model-agnostic loop already exists (`src/main/ai/runtime/aiSdk/`); the work is collapsing the fork, not
-building a runtime.
-
-## Documents
-
-| Doc | What it is |
+| Document | Purpose |
 |---|---|
-| [migration-plan.md](./migration-plan.md) | **Start here.** Decision log (D1–D7), the full v6→v7 upgrade checklist, a self-contained scheme per phase (problem → approach → files → steps → verify → risk), and open decisions with recommendations. |
-| [architecture.md](./architecture.md) | The `(C, G)` design: the three collapses, the `prepareStep` red line, and the full context & call-options model (`CALL_OPTIONS` / `runtimeContext` / `toolsContext`) including the `builtin/` worked example. |
-| [tool-approval-refactor.md](./tool-approval-refactor.md) | Grounds Phase 1: centralize the approval *decision* (`G`) into one `PermissionEngine` (no OPA), retire scattered per-tool `needsApproval`; v6/v7 wiring; the native message-based flow = D6/D7. |
-| [aisdk-v7-research.md](./aisdk-v7-research.md) | Upgrade-cost analysis: why stay on `ai@6` for now; what the v7 bump actually costs (provider V4 spec, 6 patches, the silent `usage` flip). |
-| [aisdk-v7-feature-inventory.md](./aisdk-v7-feature-inventory.md) | Source-grounded inventory of what's new in AI SDK v7.0.0 (read from the `tallinn` checkout), flagged for Cherry relevance. |
-| [large-file-upload-port.md](./large-file-upload-port.md) | Original large-file upload wiring proposal and AI SDK v7 convergence notes. |
+| [AI SDK v7 assessment](./aisdk-v7-research.md) | Current recommendation, compatibility boundaries, patch audit, and verification order |
+| [Feature delta inventory](./aisdk-v7-feature-inventory.md) | Changes since 7.0.0, first relevant versions, experimental status, and official sources |
+| [Migration plan](./migration-plan.md) | Separates SDK upgrade from runtime unification; preserves the original phased proposal as historical rationale |
+| [Architecture proposal](./architecture.md) | The original context (`C`) / safety gate (`G`) model, with current scope and compatibility corrections |
+| [Tool approval](./tool-approval-refactor.md) | Updated approval constraints, including Code Mode, followed by the original centralization proposal |
+| [Large-file upload](./large-file-upload-port.md) | Current attachment boundary and the expanded FilesV4 lifecycle assessment |
 
-## Relationship to current documentation
+## Decision boundary
 
-The [AI reference](../README.md) documents the current implementation. These proposals retain
-their original rationale; links to retired design documents point to the original PR commit.
-The [agent-session runtime reference](../agent-session-runtime.md) describes the current host/driver split.
+Evaluate SDK upgrade, native tool search, streaming recovery, Code Mode, and individual Harness adapters
+separately. The research does not authorize message-store migration, driver removal, or a new permission
+system. Cherry's current architecture is documented in the [AI reference](../README.md) and
+[agent-session runtime reference](../agent-session-runtime.md).
+
+The June proposal treats runtime as an environment with context and safety controls. That is a design
+hypothesis retained for discussion, not evidence that every current runtime should be collapsed.

@@ -58,8 +58,8 @@ renderer-side transport that connects to them.
 
 ## Design research
 
-- [Unified Runtime and AI SDK v7](./unified-runtime/README.md) — June 2026 design and research snapshot;
-  proposals and version claims require reassessment against the current implementation.
+- [Unified Runtime and AI SDK v7](./unified-runtime/README.md) — SDK research refreshed on 2026-10-01
+  against ai@7.0.123, with migration boundaries and the original June design rationale.
 
 ## Where the code lives
 

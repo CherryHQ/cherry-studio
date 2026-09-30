@@ -1,113 +1,54 @@
 ---
-description: June 2026 large-file upload port proposal and proposed convergence on the AI SDK v7 upload API
+description: Current attachment routing boundary and assessment of AI SDK v7 file uploads and lifecycle operations
 sources:
-  - src/main/ai
+  - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/fileProcessor.ts
+  - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - package.json
 ---
 
-# Large-File Upload — Port Plan
+# Large-File Upload — Current Boundary & v7 Assessment
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Updated 2026-10-01 against Cherry e51a3ad0643 and ai@7.0.123.
+> The [June port recipe](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/large-file-upload-port.md) is historical: its `services/remotefile`,
+> `FileServiceManager`, and `resolveFileUIPart` wiring must not be used as the current implementation map.
 
-> **Status update (2026-06-26):** the per-provider upload *mechanism* now exists — `src/main/services/remotefile/`
-> (`BaseFileService` + `FileServiceManager` + `GeminiService` / `MistralService` / `OpenaiService`, each with
-> `uploadFile` / `retrieveFile` / `deleteFile` / `listFiles` talking to the vendor Files API). So the "new"
-> `fileService.uploadTo*` rows below are largely **already built**; the **remaining gap is the wiring** — `resolveFileUIPart`
-> still base64-inlines and never calls `FileServiceManager`. Treat the table below as "where the dispatch should land",
-> not "what to build from scratch". See also the AI SDK v7 `uploadFile` convergence at the end.
+## Current attachment flow
 
-## What's missing on Main
+`src/main/ai/messages/attachmentRouting.ts` decides native file versus extracted text per attachment.
+`materializeNativeFilePart` in `fileProcessor.ts` materializes native parts as inline data. Extracted text
+is capped; `read_file` pages eligible overflow. See [Chat Attachments](../chat-attachments.md) for modality,
+OCR, errors, and fallback behavior.
 
-`src/main/ai/messages/fileProcessor.ts::resolveFileUIPart` currently inlines
-file contents as base64 data URLs. For provider-native File APIs (Gemini File,
-OpenAI Files) this is wrong above ~20 MB / a few MB respectively — it either
-blows past payload limits or burns large amounts of tokens on base64
-re-encoding. The renderer used to upload via `window.api.fileService` and
-reference by URI / `fileid://…`; that path has not been ported.
+Provider-native upload would extend the native-file materialization boundary. It must preserve the
+current routing contract: the model sees supported native content or extracted text without depending
+on a discretionary tool call. A provider upload failure is not permission to silently drop an attachment.
 
-## What to port
+## Upstream capabilities
 
-A Main-side equivalent of the deleted renderer module
-`src/renderer/src/aiCore/prepareParams/fileProcessor.ts`, specifically the
-three exports:
+The v7 baseline introduced `uploadFile` and provider references. **7.0.89** expanded FilesV4 with optional
+metadata lookup, streaming download, delete, stream upload, cancellation/headers, and upload size/time/
+expiry metadata. This makes the integration a file-lifecycle problem, not just a one-time upload call.
 
-| Renderer export | Main equivalent (new) | Notes |
-|---|---|---|
-| `handleGeminiFileUpload(file, model)` | `fileService.uploadToGemini(provider, file)` | Talks to `@google/genai` `files.upload` directly |
-| `handleOpenAILargeFileUpload(file, model)` | `fileService.uploadToOpenAI(provider, file)` | Talks to `openai.files.create`; respect `purpose='file-extract'` for qwen-long / qwen-doc |
-| `handleLargeFileUpload(file, model)` | dispatch wrapper used by `resolveFileUIPart` | Routes by `getAiSdkProviderId(provider)` |
+These operations are optional and provider-specific. A V2/V3 compatibility adapter does not establish
+support for V4 references. Check the selected provider/model and resolved endpoint before choosing an
+uploaded reference over inline materialization.
 
-And the capability helpers (was `prepareParams/modelCapabilities.ts`):
+Sources: [File Uploads](https://ai-sdk.dev/docs/ai-sdk-core/file-uploads),
+[7.0.89 release](https://github.com/vercel/ai/releases/tag/ai%407.0.89),
+[provider contract history](https://github.com/vercel/ai/blob/ai%407.0.123/packages/provider/CHANGELOG.md).
 
-- `supportsImageInput(model)` — alias for `isVisionModel`
-- `supportsLargeFileUpload(model)` — `qwen-long` / `qwen-doc` or Gemini family
-- `getFileSizeLimit(model, fileType)` — Anthropic PDF 32 MB / Gemini 20 MB / Dashscope-large-upload 0 / others `Infinity`
+## Questions an implementation must resolve
 
-## Wiring on Main
+| Concern | Required decision / verification |
+|---|---|
+| Reference ownership | Scope cached references to the actual provider account and endpoint; a model switch may need another upload |
+| Expiration and deletion | Decide when to refresh expired references and who owns remote cleanup |
+| Streaming and cancellation | Bound memory, propagate cancellation, and verify failure-path stream cleanup |
+| Capability fallback | Preserve current native/extracted-text routing where provider upload is unsupported |
+| Persistence | Keep durable local file identity distinct from provider-specific remote references |
+| Replay and branching | Verify saved messages still resolve after restart, account/endpoint changes, or remote expiry |
 
-1. **File access** — replace every `window.api.file.*` /
-   `window.api.fileService.*` with the Main `FileStorage` service
-   (`src/main/services/FileStorage.ts`: `getFilePathById`, `base64File`,
-   `base64Image`). Add a Main-side `fileService.upload(provider, file)` /
-   `fileService.retrieve(provider, fileId)` that talks to the provider SDK's
-   Files API.
-2. **Provider lookup** — replace `getProviderByModel(model)` with an async
-   `providerService.getByModelId(uniqueModelId)` or have the caller pass
-   `Provider` in.
-3. **User-facing errors** — replace `window.toast.*` / `i18next` with logger
-   warnings; the caller decides how to surface failure (chat-side overlay,
-   silent skip, …).
-4. **Dispatch** — in `resolveFileUIPart`, before falling back to base64
-   inlining, call `handleLargeFileUpload(file, model)` when `file.size >
-   getFileSizeLimit(model, fileType)` and `supportsLargeFileUpload(model)`.
-5. **FileMetadata** — v2 `FileBlock` / `ImageBlock` carry only `fileId`. The
-   helpers above expect a `FileMetadata` (with `size`, `ext`, `type`,
-   `origin_name`). Either synthesise one in `resolveFileUIPart` or extend
-   `FileStorage` with `getMetadataById(fileId)`.
-
-## Reference source
-
-The renderer implementation was kept in-repo as a verbatim copy at
-`src/main/ai/messages/largeFileUpload.ts` during the early port. It has since
-been deleted — the original renderer file
-(`src/renderer/src/aiCore/prepareParams/fileProcessor.ts` on `origin/main`)
-remains the canonical reference until this port lands.
-
-## AI SDK v7 `uploadFile` — the convergence target (v7-only)
-
-v7 ships a provider-agnostic upload API that is exactly the unified version of `services/remotefile/`:
-
-```ts
-const { providerReference } = await uploadFile({
-  api: openai.files(),                              // or google / anthropic / xai .files()
-  data, filename,
-  providerOptions: { openai: { purpose: 'assistants' } },
-})
-// attach to the message instead of base64:
-{ type: 'file', data: providerReference, mediaType }   // providerReference = { [provider]: fileId }
-```
-
-- `ProviderReference` is a provider-keyed file-id map; **multi-provider merge** lets one uploaded file carry refs for
-  several providers → switch model mid-conversation without re-upload (fits Cherry's multi-model use).
-- **v7-only** (absent in v6 — `uploadFile`/`ProviderReference`/`.files()` not in `node_modules/ai`). Covers only
-  providers with `.files()`: **anthropic / google / openai / xai**; others throw `UnsupportedFunctionalityError`.
-
-**Implication for this port:**
-1. **Do the wiring now on v6** using the existing `services/remotefile/` — large-file support does **not** need v7.
-2. **Shape the reference part to converge:** have `resolveFileUIPart` emit `{ type:'file', data: { [providerId]: fileId } }`
-   (mirroring `ProviderReference`) rather than a bespoke shape, so the v7 swap is internal.
-3. **At v7:** replace `OpenaiService` / `GeminiService` internals with `uploadFile({ api: provider.files() })`. But
-   **`MistralService`** (not in v7's `.files()` list) and any qwen-long / dashscope / openai-compatible providers stay
-   hand-rolled — same first-party-vs-custom boundary as reasoning/`toolsContext`. So `services/remotefile/` shrinks, it
-   doesn't disappear.
-4. The reverse direction (URL → bytes) is the `download` function / `DEFAULT_MAX_DOWNLOAD_SIZE` — already in v6, no change.
-
-## Out of scope here
-
-- v1 block→part conversion (`convertFileBlockToTextPart` /
-  `convertFileBlockToFilePart`). v2 Main operates on `data.parts` directly,
-  so block conversion isn't on the critical path.
-- OCR. PDF text extraction currently uses `extractPdfText` (`@shared/utils/pdf`).
-  Swapping to a real OCR service is a separate epic.
+This refresh does not choose a cache/store schema, implement remote cleanup, or upgrade the SDK.
+Those decisions need a separately scoped change with provider-backed tests. The previous recommendation
+to wire an existing `services/remotefile` manager immediately is superseded by the current boundary above.

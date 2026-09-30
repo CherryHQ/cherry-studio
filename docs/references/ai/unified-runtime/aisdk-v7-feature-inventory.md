@@ -1,116 +1,107 @@
 ---
-description: June 2026 source-based AI SDK v7 feature inventory and proposed Cherry Studio integration points
+description: AI SDK 7.0.0 to 7.0.123 feature deltas, experimental boundaries, and implications for Cherry Studio
 sources:
   - src/main/ai
   - package.json
 ---
 
-# AI SDK v7.0.0 — Source-Grounded Feature Inventory
+# AI SDK v7 — Feature Delta Inventory
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Verified 2026-10-01 against published **`ai@7.0.123`**, comparing with **`7.0.0`**.
+> Published package versions do not imply every API is stable. Experimental surfaces are identified below.
+> The [June inventory](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/aisdk-v7-feature-inventory.md) is retained in Git history.
 
-> Read from the actual monorepo at `/Users/suyao/conductor/workspaces/ai/tallinn` (HEAD = `v7.0.0` tag), not docs.
-> Companion to [`aisdk-v7-research.md`](./aisdk-v7-research.md) (upgrade-cost analysis) and [`architecture.md`](./architecture.md) (our design). 70 packages; this covers what's NEW.
-> Legend: 🟢 stable · 🧪 experimental · ⭐ high relevance to Cherry's unified runtime.
+## Core and tool execution
 
-## A. Agent abstraction (3 layers) — `packages/ai/src/agent/`, `packages/harness/`
-
-```
-Agent (interface, 🟢)  →  ToolLoopAgent (🟢, generic LLM loop)  →  HarnessAgent (🧪, wraps CLI agents)
-```
-
-- **`Agent`** — interface: `generate(opts)` / `stream(opts)`, both model-agnostic. `version: 'agent-v1'`.
-- ⭐ **`ToolLoopAgent`** (`agent/tool-loop-agent.ts`) — 🟢 stateless `while(toolCalls)` loop. This is what Cherry's `runtime/aiSdk` already uses. Settings now include (final names): `model`, `tools`, `instructions`, `allowSystemInMessages`, `stopWhen` (default `isStepCount(20)`), `toolApproval`, `prepareStep`, `runtimeContext`, `activeTools`, `toolOrder`, `output`, `telemetry`, `include`, `prepareCall` (prompt-template hook), `onStepEnd`/`onEnd`/`onToolExecutionStart`/`onToolExecutionEnd`. Per-call: `timeout`, `experimental_sandbox`.
-- **`HarnessAgent`** (`harness/src/agent/harness-agent.ts`) — 🧪 drives third-party CLI agents. **Requires a sandbox provider.** Explicit session lifecycle: `createSession()` → `generate/stream({session})` → `continueGenerate/continueStream` (for tool-approval resume) → `session.compact()/detach()/stop()/destroy()/suspendTurn()`. `permissionMode: 'allow-all'|'allow-edits'|'allow-reads'` for builtin tools; `toolApproval` for user tools.
-  - Adapters (each 🟢 itself, but the harness layer is 🧪): **claude-code** (Anthropic, bridge+WebSocket), **codex** (OpenAI, *no* builtin approval → forces `allow-all`), **pi** (flexible model, **in-process, no bridge** → works with `just-bash`), **opencode** (configurable provider+model, bridge).
-  - **This is the black-box-wrapper path Cherry rejected.** Anthropic/OpenAI-locked per adapter, sandbox-required, experimental. Confirms: don't adopt; our `claudeCode` driver already fills this niche if ever wanted.
-
-## B. Core `ai` package — v6→v7 deltas — `packages/ai/src/`
-
-| Area | Final v7 API | Was (v6) | Cherry |
+| Area | First relevant release | Current capability and limits | Cherry implication |
 |---|---|---|---|
-| ⭐ **Loop control** | `experimental_streamLanguageModelCall()` exported (`generate-text/stream-language-model-call.ts`) — see note below | internal only | build custom loops without forking SDK internals — but our loop already works |
-| ⭐ **Tool approval (`G`)** | `toolApproval`: fn or `{[tool]: status}`; returns `ToolApprovalStatus` = `'approved'\|'denied'\|'user-approval'\|'not-applicable'` (+ `{type,reason}`); async OK; fn gets `{toolCall,tools,toolsContext,runtimeContext,messages}`. Resume mid-run via `continueGenerate`/`continueStream({toolApprovalContinuations})` | `needsApproval` on tool def | **native home for our lifted `G`** |
-| ⭐ **Context (3 layers)** | `runtimeContext` (ambient, mutable per-step) **+** `toolsContext` (per-tool, isolated, validated by each tool's `contextSchema`, computed via `InferToolSetContext`). `ToolExecutionOptions = {toolCallId, messages, abortSignal, context /*per-tool*/, experimental_sandbox}` | single `experimental_context` blob | `runtimeContext`=our `C` carrier; `toolsContext` isolation = safe for untrusted MCP. Full design in [`architecture.md`](./architecture.md) §4 |
-| ⭐ **Call options / templating** | `CALL_OPTIONS` generic + `callOptionsSchema` (zod-validated per-call args) + `prepareCall` (expands them → prompt/settings). Prompt templating / parameterized presets. **Already in v6.** | — | the "Agent = preset `C`" mechanism (translate, named assistants); chat keeps `CALL_OPTIONS=never` |
-| **Lifecycle callbacks** | `onStart` / `onStepStart` / `onStepEnd` / `onEnd` / `onToolExecutionStart` / `onToolExecutionEnd` (+ embed/rerank `onEmbedEnd`/`onRerankEnd`); **`onAbort({steps})`** fires on abort (mutually exclusive with `onEnd`; also a `{type:'abort'}` stream part) — **already in v6** | `experimental_on*` / `onStepFinish` / `onFinish` / `experimental_onToolCallStart`/`Finish` | `composeHooks`+`AgentLoopHooks` already mirror these (the v6 `wrapToolsWithExecutionHooks` shim deletes at v7); **`onAbort`/`{type:'abort'}` part = v6 do-now abort-terminal cleanup** (migration-plan "Independent v6-now cleanups") |
-| **`prepareStep`** | richer args: `initialInstructions`/`initialMessages`/`responseMessages`/`toolsContext`/`runtimeContext`/`experimental_sandbox`; may override model/messages/activeTools/toolChoice/runtimeContext/toolsContext | `experimental_prepareStep`, fewer fields | our `C`-maintenance + safety-tool-removal hook (red line: **no** `toolChoice`/orchestration) |
-| **Tool input/exec control** | `experimental_refineToolInput`, `experimental_repairToolCall`, `toolOrder`, `activeTools` | `experimental_repairToolCall` only | repair already used in `AiService`; `toolOrder`/`refineToolInput` new |
-| **Deferred tool execution** | a tool may omit `execute` → emitted as a tool-call for the client/approval flow to fulfill, result fed back | — | Cherry already has `runtime/aiSdk/prompts/deferredTools.ts` |
-| ⭐ **End-to-end tool typing** | `InferAgentUIMessage<typeof agent>` → `useChat<…>()`; `InferUITools`/`InferUITool`; `UIMessage<META,DATA,TOOLS>` — tool input/output types flow compile-time to the UI. **Mostly v6.** | — | static for built-ins, dynamic-untyped for MCP; see [`architecture.md`](./architecture.md) §4.5 |
-| **Reasoning (unified)** | top-level `reasoning?: 'provider-default'\|'none'\|'minimal'\|'low'\|'medium'\|'high'\|'xhigh'` (V4 spec) → each first-party provider maps to native thinking/effort; output `reasoning` + `reasoning-file` parts | provider-specific via `providerOptions` | retire effort-setting in `qwenThinking`/`noThink`/`openrouterReasoning` (first-party); keep `reasoningExtraction` (output) |
-| **Timeouts** | `timeout: number \| {totalMs,stepMs,chunkMs,toolMs, tools:{<name>Ms}}` | single value | per-tool MCP timeouts |
-| **Stop conditions** | `isStepCount(n)`, `isLoopFinished()`, `hasToolCall(...)`. Defaults: `streamText` = `isStepCount(1)` (**no loop!**), `ToolLoopAgent` = `isStepCount(20)` | `stepCountIs` | watchdog only (per our contract) |
-| ⚠️ **Result shape** | `result.stream` (was `fullStream`); `result.usage` = **all-steps total**; `result.finalStep.usage` = last step; top-level `request`/`response`/`providerMetadata` → `finalStep.*`; `result.responseMessages` stable; `step.response.messages` no longer accumulates | `fullStream`; `usage`=final, `totalUsage`=all | **usage meaning inverted — silent break** |
-| **Include** | `include:{requestBody,requestMessages,responseBody,rawChunks}` all default `false` | bodies on by default | less memory |
-| **Prompt** | `instructions` (was `system`); `allowSystemInMessages:false` default rejects system role in messages (anti-injection) | `system` | rename + audit message arrays |
-| **Media parts** | unified `{type:'file', mediaType, data}`; `{type:'media'}` removed | `image-*`/`media`/`file-*` | audit attachment rendering |
-| **File upload (remote)** | `uploadFile({api: provider.files()})` → `ProviderReference` (`{[provider]: fileId}`); attach `{type:'file', data: ref}` instead of base64; multi-provider merge. **v7-only**, `.files()` = anthropic/google/openai/xai | base64 inline / provider-specific | unifies Cherry's existing `src/main/services/remotefile/`; the **large-file fix is just wiring** (`resolveFileUIPart` still base64s) — v6, not blocked. See [`large-file-upload-port.md`](./large-file-upload-port.md) |
-| **Speech/transcribe** | `generateSpeech`, `transcribe` graduated 🟢; `generateAudio` first-class on video | `experimental_*` | n/a yet |
-| ❗ **Compaction** | **NOT in core.** No `compact()`/`compactWhen` on streamText/ToolLoopAgent. Only `HarnessAgent session.compact()` exists. | — | **Cherry must build its own compaction** (as our `C` layer planned) — SDK won't hand it to us on the ToolLoopAgent path |
+| Code Mode | `7.0.43`; stream/Agent support in `7.0.45` | `@ai-sdk/code-mode` executes JS / type-stripped TS in QuickJS; `experimental_toolCallers` controls routing. Experimental, Node ≥22, not browser/edge | Evaluate tool composition, parallel execution, and result filtering independently of runtime replacement |
+| Conversation tool catalogs | `7.0.103` | `toolDiscovery: 'conversation'` updates tool catalogs through messages while keeping the code tool definition stable; actual prompt-cache reuse depends on the provider | Compare with current deferred-tool prompt/catalog changes |
+| Native tool search | `7.0.104` | `toolSearch()` + `deferLoading`; discovers up to five matches for the next model step, respecting active tools and caller routing. Direct calling is also supported; Code Mode remains experimental | Potential overlap with `tool_search` and defer exposition; verify search, permissions, and rediscovery behavior |
+| Streaming errors / recovery | `7.0.80` / `7.0.91` | `StreamProviderError` preserves provider metadata; opt-in `streamRetries` retries a failed model step after streaming has begun | Align with existing retry/fallback policy; not equivalent to reconnect or cross-model fallback |
+| Approval continuation | `7.0.82`, `7.0.84–86`, later fixes | Request reasons, Agent approval-secret configuration, WorkflowAgent signed approvals, and schema-transform-safe resumed inputs | Audit persistence, displayed reasons, and revalidation; do not treat signed approval as application authorization |
+| Structured output | `7.0.93`, `7.0.106` | Array `minItems` / `maxItems`; fixes for structured output from the final tool-loop step | Recheck validation and final-result extraction |
 
-**Loop-control primitive — detail (the #13570 "external loop control" plan only half-landed):** v7
-decomposes `streamText` internally into two composable primitives but exports **only one**.
-`experimental_streamLanguageModelCall` (public) runs **one** model call → a
-`ReadableStream<LanguageModelStreamPart>` (text/reasoning deltas, tool-call, tool-result,
-tool-approval-request/response, file parts, plus `model-call-start`/`model-call-end`/
-`model-call-response-metadata`) — it deliberately emits **no** step/finish/abort framing, so the loop and
-step bookkeeping are the caller's job. The matching tool-execution half, `executeToolsFromStream`, stays
-**internal** (not exported). So "own the whole loop" = take the model-call primitive and re-implement tool
-execution (approval/timeout/sandbox) yourself — net downside for Cherry vs. `stopWhen`+`prepareStep`.
+Sources: [Code Mode](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
+[Tool Search](https://ai-sdk.dev/docs/ai-sdk-core/tool-search),
+[error handling](https://ai-sdk.dev/docs/ai-sdk-core/error-handling),
+[fixed release history](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md).
 
-## C. Security / execution — NEW packages
+### Execution boundaries
 
-- ⭐ **`@ai-sdk/policy-opa`** 🟢 — policy-as-code tool gating via **OPA/Rego**, plugs into `toolApproval`. `opaPolicy({client, path, toInput?})` returns a `ToolApprovalConfiguration`. WASM (in-process) or HTTP (OPA server) backends. Verdicts: allow→approved, deny→denied, requires-approval→user-approval, else not-applicable. **Fails closed.** Has `shadow()` (audit-without-enforce) + transitive-enforcement guidance (gate `bash "git push"`). → A real, declarative `G` we could adopt instead of hand-rolling permission rules; in-process WASM fits Electron.
-- **`@ai-sdk/sandbox-vercel`** 🧪 — `HarnessV1SandboxProvider` over Vercel Sandbox (ports, network policy). Cloud.
-- **`@ai-sdk/sandbox-just-bash`** 🧪 — in-process virtual-FS bash sandbox, no ports. Works with the `pi` in-process harness; usable locally/Electron for a contained shell.
-- Shared `SandboxSession` interface (`provider-utils/src/types/sandbox.ts`): `readTextFile/writeTextFile/spawn/run/...`. User tools receive a `restricted()` view as `experimental_sandbox`.
+**Code Mode does not support pausing nested tool calls for human approval.** A nested call requiring
+approval is rejected. Keep such tools directly callable; do not route them through Code Mode expecting
+Cherry's approval UI to resume the nested invocation.
 
-## D. Workflow / durable — `packages/workflow*`
+**Stream retries isolate failed tool attempts, not already-visible output.** Earlier completed steps are
+not replayed. Failed-attempt client-side tool calls and approval requests are withheld until a successful
+model-call finish. Text/reasoning/files already emitted cannot be retracted, so users may see duplicated
+or divergent partial output. Provider-executed effects cannot be undone. These semantics affect both UI
+projection and retry safety. Recovery is disabled unless `streamRetries` is explicitly configured.
 
-- **`@ai-sdk/workflow` (WorkflowAgent)** 🟢 — superset-ish of ToolLoopAgent for durable contexts. **Runs standalone, no server** → usable in Electron, but input/output differ (`messages`+`writable` in, `WorkflowAgentStreamResult` out). Not needed unless we want durable resumable turns.
-- **`@ai-sdk/workflow-harness`** 🟢 — slices long HarnessAgent turns to survive serverless recycling via JSON-serializable `HarnessWorkflowState`. **Requires Vercel Workflow DevKit (`'use workflow'`/`'use step'`) → NOT applicable to Electron.**
+## Files, media, and evaluation
 
-## E. Observability & tooling
+| Area | First relevant release | Additions | Status / boundary |
+|---|---|---|---|
+| FilesV4 lifecycle | `7.0.89` | Optional metadata, streaming download, delete, stream upload, cancellation/headers, size/creation/expiry metadata | Provider-dependent; replaces the old upload-only assessment |
+| Batch | `7.0.55` | Later adds webhook (`.79`), tools (`.88`), per-request models (`.94`), cancel/list (`.96–97`), images (`.98`) | Experimental `startBatch/getBatchStatus/getBatchResults/cancelBatch/listBatches`; provider capabilities differ |
+| Evaluation | `7.0.103`; telemetry `.111` | `experimental_evaluate` with typed Choice/Score/Boolean questions over shared state | Experimental; not a replacement for an application evaluation dataset or test harness |
+| Streaming transcription / translation | `7.0.14` / `7.0.38` | Streaming speech input and speech-to-speech translation APIs | Experimental; provider/model-specific |
+| Asynchronous video | `7.0.50`; explicit start/status `.75` | Poll/webhook completion, fire-and-forget start/status; image and video references | Experimental; cancellation, task persistence, and provider capabilities need application handling |
+| Realtime Live | `7.0.102` | Client-delegated Live sessions, WebSocket relay and browser-direct WebRTC paths, bounded queues and connection lifecycle | Experimental; application owns agent/tool execution and context submission |
+| Image capabilities | `7.0.119` | File/mask input support declarations on image models | Unknown models can report unknown support; do not convert unknown to supported |
 
-- ⭐ **`@ai-sdk/otel`** 🟢 — telemetry **extracted from core into its own package**. Register via `registerTelemetry(new OpenTelemetry({tracer?, enrichSpan?}))`; per-call `telemetry:{functionId,isEnabled,recordInputs,recordOutputs}`. **Opt-out (on by default once registered).** GenAI semantic-convention spans (`gen_ai.*`); `LegacyOpenTelemetry` emits old `ai.*`. → Wire into Cherry's `src/main/ai/observability/` (where `buildTelemetry.ts` + the `aiSdkSpanAdapter` already live; not `packages/mcp-trace`); note default-on once registered.
-- **`@ai-sdk/devtools`** 🧪 — local inspector. `registerTelemetry(DevToolsTelemetry())` → `npx @ai-sdk/devtools` (localhost:4983). Dev-only.
-- **`@ai-sdk/tui`** 🟢 — `runAgentTUI({agent, ...})` full-screen terminal agent runner with tool cards/approvals. Reference UX for agent rendering, not a dep.
-- **`@ai-sdk/mcp`** 🟢 — MCP client **now standalone**. `createMCPClient({transport})`; http/sse/stdio transports; tools + resources + prompts(🧪) + elicitation(🧪) + OAuth. → Cherry's MCP layer can lean on this instead of custom client glue.
-- **`@ai-sdk/codemod`** 🟢 — **31 v7 codemods** (`npx @ai-sdk/codemod v7`): the renames in §B (`rename-full-stream-to-stream`, `rename-system-to-instructions`, `rename-on-step-finish-to-on-step-end`, `rename-experimental-telemetry-to-telemetry`, `rename-step-count-is`, `replace-image-message-part-with-file`, `replace-cached-input-tokens`, `replace-reasoning-tokens`, …). Covers the mechanical part of our upgrade.
+Sources: [file lifecycle release](https://github.com/vercel/ai/releases/tag/ai%407.0.89),
+[Batch](https://ai-sdk.dev/docs/ai-sdk-core/batch),
+[Evaluation](https://ai-sdk.dev/docs/reference/ai-sdk-core/evaluate),
+[Realtime](https://ai-sdk.dev/docs/ai-sdk-core/realtime),
+[provider changes](https://github.com/vercel/ai/blob/ai%407.0.123/packages/provider/CHANGELOG.md).
 
-## F. New providers (v7)
-alibaba (Qwen + thinking), bytedance (Seedance video), baseten, klingai (video), moonshotai (kimi-k2 thinking), quiverai (SVG-gen), open-responses (generic Open-Responses endpoint), anthropic-aws (Claude on AWS, SigV4). Plus standalone `@ai-sdk/anthropic-aws`, `@ai-sdk/open-responses`.
+## Harness evolution
 
-## G. Structural refactors (not features — shape changes v6→v7)
+Harness packages remain experimental. Versions below refer to `@ai-sdk/harness`, not `ai`.
 
-These are architectural reshapes of the SDK itself, independent of any single API:
+| Change | Version | Boundary |
+|---|---|---|
+| Caller-owned sandbox sessions | `1.0.76` | Pass an existing `sandboxSession`; session stop/destroy does not destroy the caller-owned sandbox |
+| Mid-turn steering | `1.0.78` | Experimental, adapter-dependent; not a universal abort+restart contract |
+| Per-turn model and settings | `1.0.93–94` | Shared model selection and `prepareCall` reduce adapter-specific configuration |
+| Questions and callbacks | `1.0.101–102` | Normalized `askUserQuestions`, lifecycle callback parity, headers |
+| Adapter-native authentication | `1.0.108` | Native subscriptions where supported; credential handling remains adapter-dependent |
+| Sandbox API separation | `1.0.126` | Separates sandbox lifecycle/template/snapshot concerns from Harness configuration |
+| Normalized history contract | `1.0.133` | `readHistory({ since })` contract exists; the fixed release capability table marks history access unsupported for all built-in adapters |
 
-- **`streamText`/`generateText` decomposed into composable primitives** — internally split into
-  `streamLanguageModelCall` (model call → parsed parts) + `executeToolsFromStream` (parts → tool exec).
-  Only the first is public (`experimental_`). This is the engine behind "external loop control" (§B note).
-- **Agent abstraction layered** — `Agent` interface (`generate`/`stream`, `version:'agent-v1'`) → concrete
-  `ToolLoopAgent` / `WorkflowAgent` / `HarnessAgent`. v6 had `ToolLoopAgent`; v7 generalizes the interface
-  so harness/workflow agents are swappable behind the same shape.
-- **`CallSettings` split** → `LanguageModelCallOptions` + `RequestOptions` (timeout/transport separated from
-  model-call params). Affects any code typed against `CallSettings` (Cherry: `runtime/aiSdk/loop` AgentOptions,
-  `packages/aiCore/.../runtime/types.ts`). Codemod `rename-call-settings-type`.
-- **Result object restructured** — final-step-only data moves under `result.finalStep` (`request`/`response`/
-  `providerMetadata`/last-step `usage`); top-level `usage` now means all-steps total; `fullStream`→`stream`;
-  `step.response.messages` stops accumulating. (The ⚠️ usage flip in §B is part of this.)
-- **Telemetry extracted from core** → `@ai-sdk/otel` (was built-in OTel). Opt-out once registered. (§E)
-- **MCP client extracted** → `@ai-sdk/mcp` (was embedded in `ai`). (§E)
-- **Provider spec V4** — `@ai-sdk/provider` 3→4, every provider package a major bump; the per-provider
-  request/response contract changed (this is what invalidates Cherry's 6 patches — see [`aisdk-v7-research.md`](./aisdk-v7-research.md)).
-- **ESM-only** — CJS exports removed; Node ≥22 required.
-- **Tool-result/message media unified** — `image-*`/`media`/`file-*` parts collapse to one `{type:'file'}`
-  discriminated shape.
+The adapter catalog now includes Claude Code, Codex, Pi, OpenCode, Cline, Cursor, Deep Agents, fx,
+GitHub Copilot, and Grok Build, plus an ACP integration surface. Pi/Cline run in the host process;
+bridge and ACP adapters have different execution and sandbox requirements. Built-in approval, filtering,
+structured output, and history are not interchangeable across adapters.
 
-## Bottom line for Cherry
-1. ⭐ The pieces that matter to our `(C,G)` runtime are **stable and mostly already in v6** on the ToolLoopAgent path we use: approval/`G` (v6 via `needsApproval` + the message-based request/response flow), `runtimeContext` (C carrier), `prepareStep`, `CALL_OPTIONS`/`prepareCall` (preset templating), end-to-end tool typing (`InferAgentUIMessage`), the lifecycle-callback family. **Strictly v7:** the centralized `toolApproval` setting, `toolsContext`/`contextSchema`, and the unified `reasoning` effort union.
-2. **`policy-opa` is a legit declarative `G`** (in-process WASM works in Electron) — evaluate vs hand-rolling permission rules.
-3. **Compaction is on us** — core SDK does not provide it on the ToolLoopAgent path; only HarnessAgent sessions get `compact()`. Matches our plan to build `C`-layer compaction.
-4. **HarnessAgent / sandboxes / workflow-harness = not for us** (experimental wrapper of black-box CLIs, sandbox/server-bound).
-5. Upgrade mechanics are largely codemod-able (31 codemods); real cost stays the 6 provider patches (v3→v4) + the ⚠️ silent `usage` semantics flip. See [`aisdk-v7-research.md`](./aisdk-v7-research.md).
+Sources: [Harness changelog](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness/CHANGELOG.md),
+[HarnessAgent](https://ai-sdk.dev/docs/ai-sdk-harnesses/harness-agent),
+[fixed adapter capability table](https://github.com/vercel/ai/blob/ai%407.0.123/content/docs/03-ai-sdk-harnesses/05-harness-adapters.mdx).
+
+## Reliability and structural changes
+
+- `7.0.65`: avoid repeatedly deep-copying accumulated text in `readUIMessageStream`, while retaining
+  independent snapshots of mutable nested values. Compare with both Cherry snapshot patches.
+- `7.0.120–121`: preserve active UI parts, partial static-tool inputs, and metadata across stream resumptions.
+- `7.0.123`: optional SSE heartbeats and fixes around obsolete pending approvals and reasoning tags.
+- `7.0.116` / `7.0.123`: package build target becomes ES2022; build tooling moves from tsup to tsdown.
+  These do not themselves prove compatibility with an Electron bundle.
+
+Source: [published core changelog](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md).
+
+## Existing v7 baseline, not new since June
+
+`runtimeContext`, `toolsContext`, centralized `toolApproval`, unified reasoning, the `usage` / `finalStep`
+change, stateless UI-stream helpers, separate OTel integration, basic HarnessAgent, and file upload were
+already part of the v7 baseline. They remain migration work, not newly discovered benefits.
+
+The SDK still exposes `experimental_streamLanguageModelCall`, while `executeToolsFromStream` is internal.
+Owning a custom loop therefore still means owning tool-execution semantics. Top-level ToolLoopAgent
+compaction remains an [open proposal](https://github.com/vercel/ai/issues/14017); Cherry already has its
+own compaction implementation. Neither issue examples nor provider-native compaction establish a
+published generic compaction API.
+
+See the [upgrade assessment](./aisdk-v7-research.md) and [revised migration plan](./migration-plan.md)
+for the implications and validation order.

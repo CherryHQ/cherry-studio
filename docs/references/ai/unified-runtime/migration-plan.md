@@ -1,19 +1,81 @@
 ---
-description: June 2026 unified-runtime migration proposal, decision log, and AI SDK v6-to-v7 upgrade checklist
+description: Reassessed SDK upgrade and runtime decisions for AI SDK 7.0.123, with the June migration proposal retained as history
 sources:
   - src/main/ai
+  - packages/aiCore/src/core/context/compaction.ts
   - package.json
+  - pnpm-workspace.yaml
 ---
 
-# Unified Runtime Migration — Plan & Decision Log
+# AI SDK Upgrade & Unified Runtime — Migration Assessment
 
-> **Research snapshot (June 2026).** Preserved from PR #16462 when rebasing onto the current docs layout.
-> Version claims, code paths, and implementation status below describe that snapshot and need revalidation
-> before implementation. See the [current AI reference](../README.md) for the supported architecture.
+> Updated 2026-10-01. SDK baseline: `ai@7.0.123`; Cherry baseline: `e51a3ad0643`, `ai@6.0.185`.
+> This is a proposed work breakdown. No dependency, runtime, schema, or permission behavior is changed by this document.
 
-> **Status: living draft (co-authored).** Seeded 2026-06-26. This is the forward-looking plan for
-> collapsing Cherry's two AI runtimes into one model-agnostic runtime, with AI SDK version treated
-> as a *constraint*, not the goal. Append decisions as we go; don't delete the rationale.
+## Current baseline
+
+The chat runtime already uses `ToolLoopAgent`. Agent sessions have a host/driver boundary with Claude
+Code, Pi, and DSH drivers; they are not a Claude-Code-only stack. Cherry also has
+`compactModelMessages` and `src/main/ai/runtime/aiSdk/params/features/contextCompaction.ts`.
+Use the [current runtime reference](../agent-session-runtime.md) for ownership and lifecycle details.
+
+The original June plan and its measurements are preserved below. Its "locked" statuses do not apply to
+the revised assessment; old paths and code counts must be rechecked before implementation.
+
+## Reassessed decisions
+
+| Original decision | Current assessment | Next verification |
+|---|---|---|
+| D1: stay on v6 | Reopen SDK version selection independently of runtime unification | Compare native tool search, stream recovery, patch removal opportunities, and migration costs |
+| D2: reject Harness | Reopen per adapter; experimental status remains a constraint, while execution environment and sandbox ownership vary | Test local filesystem/process needs, approval, steering, resume, history, and packaged dependencies |
+| D3–D4: context/safety model and prepareStep limits | Retain as design principles for the proposed shared loop, not a description of every driver | Identify concrete product requirements before changing orchestration |
+| D5: collapse drivers, stores, and permission logic | Not a prerequisite for the SDK upgrade | Audit current data/lifecycle owners; propose each change separately if needed |
+| D6: steer always aborts/restarts | Do not impose globally; runtime-native steering is adapter-dependent | Verify acceptance, ordering, cancellation, and user-visible behavior per runtime |
+| D7: borrow session lifecycle contracts | Compare with the existing host/driver contract before adding another one | Separate session resume, approval continuation, sandbox ownership, and history availability |
+
+## Proposed work packages
+
+1. **Dependency and patch audit.** Record resolved package versions and each relevant patch from
+   `pnpm-workspace.yaml`. Classify each hunk as remove, retain, or reimplement with a reproduction.
+   Verify older-provider adapters where useful; V2/V3 acceptance is not V4 feature parity.
+2. **SDK API migration prototype.** Cover context, callbacks, prompt fields, UI helpers, usage/finalStep,
+   provider metadata, and OTel integration. Verify typechecking plus real usage accounting, approval
+   continuation, cancellation, and Electron packaging. Keep runtime and storage ownership unchanged.
+3. **Tool discovery comparison.** Compare `toolSearch` / `deferLoading` with current meta-tools and defer
+   exposition. Verify active-tool restrictions, MCP tools, approval-required tools, and catalog updates.
+   Remove existing logic only when the upstream contract covers its actual behavior.
+4. **Streaming recovery comparison.** Distinguish same-step provider recovery from transport reconnect
+   and model fallback. Verify partial-text projection, tool-execution timing, duplicate side effects,
+   and usage attribution under retry. Default-off SDK recovery is not automatically a product default.
+5. **Optional Code Mode experiment.** Restrict nested tools to those that do not require human approval.
+   Verify cancellation, execution limits, result size, and Electron main-process compatibility.
+6. **Optional Harness adapter experiment.** Evaluate one adapter against current session requirements.
+   Caller-owned sandbox cleanup stays with the caller; `readHistory` is a contract without built-in
+   adapter support in the checked capability table. Do not equate package availability with parity.
+
+Each work package needs its own scope and evidence. Passing the SDK migration does not imply adopting
+Code Mode or Harness, merging message stores, or deleting a driver.
+
+## Compaction and file handling
+
+Reuse existing compaction rather than adding the June proposal's new compaction directory. The upstream
+[generic compaction proposal](https://github.com/vercel/ai/issues/14017) remains open. A v7 prototype
+must verify that context maintenance preserves tool call/result pairing and persisted summaries.
+
+The current attachment boundary is `attachmentRouting.ts` → `materializeNativeFilePart`; the June
+`services/remotefile` port recipe is obsolete. See the [updated file assessment](./large-file-upload-port.md).
+
+## Sources
+
+- [Upgrade assessment](./aisdk-v7-research.md) — versions, patches, packaging, and semantic migration boundaries.
+- [Feature inventory](./aisdk-v7-feature-inventory.md) — released features and experimental constraints.
+- [Fixed migration guide](https://github.com/vercel/ai/blob/ai%407.0.123/content/docs/08-migration-guides/23-migration-guide-7-0.mdx).
+
+<details>
+<summary>June 2026 proposal — historical rationale, not a current implementation checklist</summary>
+
+The following text preserves the original proposal, including its then-current paths, measurements,
+and decision statuses. The dated assessment above supersedes its version and adoption conclusions.
 
 ## Goal
 
@@ -492,3 +554,5 @@ These use APIs already in `ai@6`; they don't need v7 and aren't blocked by the p
   [`tool-approval-state-consolidation.md`](https://github.com/CherryHQ/cherry-studio/blob/13252a526ce01e9406c90b3492f1150706374eb5/v2-refactor-temp/docs/ai/tool-approval-state-consolidation.md),
   [`steer-state-machine-consolidation.md`](https://github.com/CherryHQ/cherry-studio/blob/13252a526ce01e9406c90b3492f1150706374eb5/v2-refactor-temp/docs/ai/steer-state-machine-consolidation.md),
   [`agent-session-workspace.md`](https://github.com/CherryHQ/cherry-studio/blob/13252a526ce01e9406c90b3492f1150706374eb5/v2-refactor-temp/docs/ai/agent-session-workspace.md).
+
+</details>
