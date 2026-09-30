@@ -12,6 +12,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
+import { lowerOllamaNumCtxCap } from '@main/ai/utils/ollamaRequestNumCtx'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
@@ -328,5 +329,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.task.run': async ({ agentId, taskId }) => {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
     if (!fired) throw agentTaskNotFound(taskId)
+  },
+
+  // ── Ollama session caps — the domain write lives in main (single owner). ──
+  'ai.ollama.set_num_ctx_cap': async ({ uniqueModelId, numCtxCap }) => {
+    lowerOllamaNumCtxCap(uniqueModelId, numCtxCap)
   }
 }

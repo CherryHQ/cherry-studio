@@ -48,8 +48,9 @@ function enrichOllamaAllocationError(
   enrichOllamaContextAllocationSerializedError(
     serialized,
     {
-      trainedContextWindow: context?.ollamaNumCtx?.trainedContextWindow,
-      effectiveNumCtx: context?.ollamaNumCtx?.numCtx
+      uniqueModelId: context.ollamaNumCtx.uniqueModelId,
+      trainedContextWindow: context.ollamaNumCtx.trainedContextWindow,
+      effectiveNumCtx: context.ollamaNumCtx.numCtx
     },
     providerText
   )

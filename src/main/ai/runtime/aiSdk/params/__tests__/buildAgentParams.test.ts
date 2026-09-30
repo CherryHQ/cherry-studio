@@ -1349,6 +1349,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
     expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
+      uniqueModelId: 'ollama::qwen3',
       trainedContextWindow: 131072,
       numCtx: expectedNumCtx
     })

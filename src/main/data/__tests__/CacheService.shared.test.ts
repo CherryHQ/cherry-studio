@@ -18,7 +18,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *  - boundaries: the renderer-origin relay path and onStop stay outside the
  *    unified eviction outlet (no double broadcast, no teardown broadcast).
  */
-import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY } from '@shared/ai/ollamaNumCtx'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -315,57 +314,6 @@ describe('CacheService shared-tier TTL sync', () => {
       await service.onStop()
 
       expect(send).not.toHaveBeenCalled()
-    })
-
-    it('merges concurrent Ollama num_ctx cap patches from renderer windows', async () => {
-      const { BrowserWindow } = (await import('electron')) as any
-      const otherSend = vi.fn()
-      BrowserWindow.getAllWindows.mockReturnValue([
-        { isDestroyed: () => false, id: 1, webContents: { send: vi.fn() } },
-        { isDestroyed: () => false, id: 2, webContents: { send: otherSend } }
-      ])
-      BrowserWindow.fromWebContents.mockReturnValue({ id: 1 })
-
-      service.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { 'ollama::a': 32_768 })
-      otherSend.mockClear()
-
-      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
-      listener(trustedEvent, {
-        type: 'shared',
-        key: OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
-        value: { 'ollama::b': 16_384 }
-      })
-
-      expect(service.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)).toEqual({
-        'ollama::a': 32_768,
-        'ollama::b': 16_384
-      })
-      expect(otherSend).toHaveBeenCalledWith(
-        IpcChannel.Cache_Sync,
-        expect.objectContaining({
-          value: { 'ollama::a': 32_768, 'ollama::b': 16_384 }
-        })
-      )
-    })
-
-    it('never raises a lowered cap from a stale retry patch', async () => {
-      const { BrowserWindow } = (await import('electron')) as any
-      BrowserWindow.getAllWindows.mockReturnValue([
-        { isDestroyed: () => false, id: 1, webContents: { send: vi.fn() } },
-        { isDestroyed: () => false, id: 2, webContents: { send: vi.fn() } }
-      ])
-      BrowserWindow.fromWebContents.mockReturnValue({ id: 1 })
-
-      service.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { 'ollama::a': 16_384 })
-
-      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
-      listener(trustedEvent, {
-        type: 'shared',
-        key: OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
-        value: { 'ollama::a': 32_768 }
-      })
-
-      expect(service.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)).toEqual({ 'ollama::a': 16_384 })
     })
   })
 })
