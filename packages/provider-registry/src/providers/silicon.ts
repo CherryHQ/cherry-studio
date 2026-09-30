@@ -1,34 +1,18 @@
 import { openaiCompatible } from './types'
 
 const siliconReasoningWire = {
-  off: {
-    operations: [
-      {
-        target: 'enable_thinking' as const,
-        value: { source: 'literal' as const, value: false },
-        delivery: 'provider-option' as const
-      }
-    ]
-  },
+  off: { operations: [{ target: 'enable_thinking' as const, value: { source: 'literal' as const, value: false } }] },
   auto: {
     operations: [
-      {
-        target: 'enable_thinking' as const,
-        value: { source: 'literal' as const, value: true },
-        delivery: 'provider-option' as const
-      },
-      { target: 'thinking_budget' as const, value: { source: 'budget' as const }, delivery: 'provider-option' as const }
+      { target: 'enable_thinking' as const, value: { source: 'literal' as const, value: true } },
+      { target: 'thinking_budget' as const, value: { source: 'budget' as const } }
     ],
     budget: { min: 32_768, missing: { type: 'omit-value' as const } }
   },
   effort: {
     operations: [
-      {
-        target: 'enable_thinking' as const,
-        value: { source: 'literal' as const, value: true },
-        delivery: 'provider-option' as const
-      },
-      { target: 'thinking_budget' as const, value: { source: 'budget' as const }, delivery: 'provider-option' as const }
+      { target: 'enable_thinking' as const, value: { source: 'literal' as const, value: true } },
+      { target: 'thinking_budget' as const, value: { source: 'budget' as const } }
     ],
     budget: { min: 32_768, missing: { type: 'omit-value' as const } }
   }

@@ -15,15 +15,11 @@ const effortSupport = (values: ReasoningEffort[], defaultEffort?: ReasoningEffor
 const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'adaptive' })
 
 const qwenBudgetWire: ReasoningWireProfile = {
-  off: {
-    operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' as const }
-    ]
-  },
+  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' as const },
-      { target: 'thinking.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'thinking.budgetTokens', value: { source: 'budget' } }
     ],
     budget: { min: 1024, clampToMaxTokens: true, missing: { type: 'omit-mode' } }
   }

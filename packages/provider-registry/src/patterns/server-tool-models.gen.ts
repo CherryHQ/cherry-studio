@@ -296,7 +296,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo'
       ]
@@ -799,7 +798,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo',
         'kimi-k2',
@@ -1013,7 +1011,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo',
         'gpt-4-1',

@@ -62,22 +62,16 @@ const effortWithOffWire: ReasoningWireProfile = modeWire('reasoning_effort', { o
 
 const nemotronOmniWire: ReasoningWireProfile = {
   effort: {
-    operations: [{ target: 'reasoning_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }],
+    operations: [{ target: 'reasoning_budget', value: { source: 'budget' } }],
     budget: { min: 1, clampToMaxTokens: true, missing: { type: 'omit-mode' } }
   }
 }
 
 const seedOssWire: ReasoningWireProfile = {
-  off: {
-    operations: [
-      { target: 'thinking_budget', value: { source: 'literal', value: 0 }, delivery: 'provider-option' as const }
-    ]
-  },
-  auto: {
-    operations: [{ target: 'thinking_budget', value: { source: 'literal', value: -1 }, delivery: 'provider-option' }]
-  },
+  off: { operations: [{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }] },
+  auto: { operations: [{ target: 'thinking_budget', value: { source: 'literal', value: -1 } }] },
   effort: {
-    operations: [{ target: 'thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }],
+    operations: [{ target: 'thinking_budget', value: { source: 'budget' } }],
     budget: { min: 1, clampToMaxTokens: true, missing: { type: 'omit-mode' } }
   }
 }
