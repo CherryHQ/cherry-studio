@@ -471,7 +471,11 @@ describe('CodeViewer', () => {
       expect(remeasureOffscreenResize?.[1]).toBeGreaterThanOrEqual(cachedOffscreenSize)
     } finally {
       mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
-      restoreDescriptor('clientWidth', originalClientWidthDescriptor)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
     }
   })
 
