@@ -4,6 +4,7 @@ sources:
   - src/renderer/pages/settings/DeviceConnectionsSettings
   - src/main/features/apiGateway
   - src/main/services/remoteAccess
+  - src/main/services/deviceConnectionSetup
   - src/main/ai/mcp/servers/cherryCliTools.ts
   - packages/remote-protocol
   - packages/remote-transport
@@ -23,6 +24,7 @@ sources:
   验证失败不回退 LAN，不改原配对；成功后事务内追加、去重并保护并发配对变更与地址容量。
 - 桌面可检查 Tailscale / ZeroTier 本机状态。网络名称、VPN IP / DNS 供详情查看；协议自动交接使用系统 IPv4 / IPv6 接口（排除需要接口作用域的 IPv6 link-local 地址），域名仍可手动配置。
 - 内置设置技能通过已有 Cherry Assistant Skill 入口启动，与页面共享检查和安装操作。模型不可用时页面仍可使用。
+  检查、安装及任务收尾由 `services/deviceConnectionSetup` 管理；远程连接服务只负责设备身份、配对和会话，不依赖 VPN 检测。
 - Apple Silicon macOS 尝试固定版本 mise 的 `brew-cask:tailscale-app`；提权或安装失败及其他平台提供官方下载指引。
   已验证 dry-run 能解析官方 pkg；没有执行真实系统安装。登录、手机系统权限由用户完成。
   维护者于 2026-09-29 明确决定：暂不提供国内镜像，保留官方源自动安装；现有 npm / Python / GitHub 镜像不代表覆盖此安装包。

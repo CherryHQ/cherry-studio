@@ -32,8 +32,8 @@ export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas>
   'api_gateway.lan.set_enabled': ({ enabled }) => application.get('ApiGatewayService').setLanEnabled(enabled),
   'api_gateway.remote.create_invitation': () => application.get('ApiGatewayService').createRemoteInvitation(),
   'api_gateway.remote.get_endpoints': () => application.get('RemoteAccessService').getConnectionEndpoints(),
-  'api_gateway.remote.check_networks': () => application.get('RemoteAccessService').checkNetworks(),
-  'api_gateway.remote.install_tailscale': () => application.get('RemoteAccessService').installTailscale(),
+  'api_gateway.remote.check_networks': () => application.get('DeviceConnectionSetupService').checkNetworks(),
+  'api_gateway.remote.install_tailscale': () => application.get('DeviceConnectionSetupService').installTailscale(),
   'api_gateway.remote.list_claims': async () => application.get('RemoteAccessService').pendingClaims(),
   'api_gateway.remote.decide_pairing': async ({ claimId, capabilities }) =>
     application.get('RemoteAccessService').decidePairing(claimId, capabilities)

@@ -32,7 +32,7 @@ export class CherryConnectionTools {
   async call(name: string, args: unknown): Promise<CallToolResult> {
     try {
       empty.parse(args ?? {})
-      const service = application.get('RemoteAccessService')
+      const service = application.get('DeviceConnectionSetupService')
       let result: unknown
       if (name === CONNECTION_INSTALL_TOOL_NAME) {
         result = {
