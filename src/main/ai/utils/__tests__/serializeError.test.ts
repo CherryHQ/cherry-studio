@@ -139,10 +139,11 @@ describe('serializeError', () => {
       })
 
       const result = serializeError(providerError, {
-        ollamaNumCtx: { trainedContextWindow: 131_072, numCtx: 65_536 }
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
       })
 
       expect(result.i18nKey).toBe('ollama_context_memory')
+      expect(result.ollamaNumCtxModelId).toBe('ollama::qwen3:32b')
       expect(result.ollamaTrainedNumCtx).toBe(131_072)
       expect(result.ollamaEffectiveNumCtx).toBe(65_536)
     })
@@ -159,10 +160,11 @@ describe('serializeError', () => {
       })
 
       const result = serializeError(providerError, {
-        ollamaNumCtx: { trainedContextWindow: 131_072, numCtx: 65_536 }
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
       })
 
       expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaNumCtxModelId).toBeUndefined()
     })
 
     it('does not tag allocation-like failures without Ollama request context', () => {

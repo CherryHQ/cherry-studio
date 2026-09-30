@@ -5,15 +5,15 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import { OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
+import { suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -27,6 +27,11 @@ function readOllamaRetryNumCtx(error: SerializedError | undefined): number | und
   if (typeof bag?.ollamaEffectiveNumCtx === 'number') return bag.ollamaEffectiveNumCtx
   if (typeof bag?.ollamaTrainedNumCtx === 'number') return bag.ollamaTrainedNumCtx
   return undefined
+}
+
+function readOllamaRetryModelId(error: SerializedError | undefined): string | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  return typeof bag?.ollamaNumCtxModelId === 'string' ? bag.ollamaNumCtxModelId : undefined
 }
 const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
 const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
@@ -224,17 +229,18 @@ const MessageErrorInfo: React.FC<{
   const onRetryOllamaReducedContext = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      const uniqueModelId = resolveUniqueModelId(message.modelId, modelForRetry)
+      // The cap keys to the model that actually failed — a cross-model fallback's
+      // OOM error carries its own model id, not the message's primary model.
+      const uniqueModelId = readOllamaRetryModelId(error) ?? resolveUniqueModelId(message.modelId, modelForRetry)
       const current = readOllamaRetryNumCtx(error)
       if (!uniqueModelId || current == null) return
       const cap = suggestReducedOllamaNumCtx(current)
       if (cap >= current) return
-      const caps = cacheService.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY) ?? {}
-      cacheService.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [uniqueModelId]: cap })
       setTimeoutTimer(
         'retryOllamaReducedContext',
         async () => {
           try {
+            await ipcApi.request('ai.ollama.set_num_ctx_cap', { uniqueModelId, numCtxCap: cap })
             await removeMessageErrorPart?.({ messageId: message.id, partId })
             if (regenerateMessage) {
               await regenerateMessage(message.id)

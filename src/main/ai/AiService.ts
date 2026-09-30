@@ -712,13 +712,8 @@ export class AiService extends BaseService {
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
-          if (fallback.streamErrorOllamaNumCtx !== undefined) {
-            request.streamErrorSerialization ??= {}
-            if (fallback.streamErrorOllamaNumCtx === null) {
-              delete request.streamErrorSerialization.ollamaNumCtx
-            } else {
-              request.streamErrorSerialization.ollamaNumCtx = fallback.streamErrorOllamaNumCtx
-            }
+          if (fallback.streamErrorSerialization !== undefined) {
+            request.streamErrorSerialization = { ...fallback.streamErrorSerialization }
           }
         },
         onPrimaryActivated: () => {

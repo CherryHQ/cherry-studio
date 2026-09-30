@@ -26,6 +26,8 @@ export interface ResolveOllamaNumCtxInput {
 
 /** Per-request trained/effective context sizes for Ollama OOM error handling. */
 export interface OllamaNumCtxRequestSnapshot {
+  /** UniqueModelId of the model this snapshot was resolved for. */
+  uniqueModelId: string
   trainedContextWindow: number
   numCtx: number
 }
@@ -77,7 +79,7 @@ export function isOllamaKvCacheAllocationError(text: string): boolean {
 
 export function enrichOllamaContextAllocationSerializedError(
   serialized: Record<string, unknown>,
-  context?: { trainedContextWindow?: number; effectiveNumCtx?: number },
+  context?: { trainedContextWindow?: number; effectiveNumCtx?: number; uniqueModelId?: string },
   providerText?: string
 ): void {
   const text = [
@@ -88,6 +90,7 @@ export function enrichOllamaContextAllocationSerializedError(
   if (!isOllamaKvCacheAllocationError(text)) return
 
   serialized.i18nKey = 'ollama_context_memory'
+  if (context?.uniqueModelId) serialized.ollamaNumCtxModelId = context.uniqueModelId
   if (context?.trainedContextWindow != null) serialized.ollamaTrainedNumCtx = context.trainedContextWindow
   if (context?.effectiveNumCtx != null) serialized.ollamaEffectiveNumCtx = context.effectiveNumCtx
 }
