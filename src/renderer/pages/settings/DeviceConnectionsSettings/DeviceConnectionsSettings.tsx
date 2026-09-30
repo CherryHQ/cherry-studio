@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, MonitorSmartphone, QrCode, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, MonitorSmartphone, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -67,6 +67,7 @@ const DeviceConnectionsSettings: FC = () => {
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
   const [invitation, setInvitation] = useState<Invitation>()
   const [selectedAddress, setSelectedAddress] = useState('auto')
+  const [invitationExpired, setInvitationExpired] = useState(false)
   const [claims, setClaims] = useState<PairingClaim[]>([])
   const [selectedCapabilities, setSelectedCapabilities] = useState<Record<string, RemoteCapability[]>>({})
   const [decidingClaimId, setDecidingClaimId] = useState<string>()
@@ -104,25 +105,11 @@ const DeviceConnectionsSettings: FC = () => {
   useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
   useIpcOn('api_gateway.remote.pairing_changed', () => void refreshClaims())
 
-  useEffect(() => {
-    clearInvitation()
-    void refreshClaims()
-    return () => {
-      invitationRequestId.current += 1
-      claimRequestId.current += 1
-    }
-  }, [refreshClaims, clearInvitation])
-
-  useEffect(() => {
-    if (!invitation) return
-    const timer = setTimeout(clearInvitation, Math.max(0, Date.parse(invitation.expiresAt) - Date.now()))
-    return () => clearTimeout(timer)
-  }, [invitation, clearInvitation])
-
-  const showPairingQr = async () => {
-    if (!connectionReady || isCreatingInvitation) return
+  const showPairingQr = useCallback(async () => {
+    if (!connectionReady) return
     const requestId = ++invitationRequestId.current
     setIsCreatingInvitation(true)
+    setInvitationExpired(false)
     setInvitation(undefined)
     try {
       const result = await ipcApi.request('api_gateway.remote.create_invitation')
@@ -134,7 +121,29 @@ const DeviceConnectionsSettings: FC = () => {
     } finally {
       if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
     }
-  }
+  }, [connectionReady, t])
+
+  useEffect(() => {
+    clearInvitation()
+    void refreshClaims()
+    void showPairingQr()
+    return () => {
+      invitationRequestId.current += 1
+      claimRequestId.current += 1
+    }
+  }, [refreshClaims, clearInvitation, showPairingQr])
+
+  useEffect(() => {
+    if (!invitation) return
+    const timer = setTimeout(
+      () => {
+        clearInvitation()
+        setInvitationExpired(true)
+      },
+      Math.max(0, Date.parse(invitation.expiresAt) - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [invitation, clearInvitation])
 
   const decideClaim = async (claim: PairingClaim, capabilities: RemoteCapability[] | null) => {
     if (decidingClaimId) return
@@ -396,11 +405,20 @@ const DeviceConnectionsSettings: FC = () => {
                 )}
               </div>
             ) : (
-              <div>
-                <Button loading={isCreatingInvitation} disabled={isUpdatingLan} onClick={showPairingQr}>
-                  {!isCreatingInvitation && <QrCode size={14} />}
-                  {t('deviceConnections.pairing.show')}
-                </Button>
+              <div className="flex flex-col items-start gap-2">
+                {isCreatingInvitation ? (
+                  <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+                ) : (
+                  <>
+                    {invitationExpired && (
+                      <p className="text-muted-foreground text-sm">{t('deviceConnections.pairing.expired')}</p>
+                    )}
+                    <Button disabled={isUpdatingLan} onClick={showPairingQr}>
+                      <RefreshCw size={14} />
+                      {t('common.refresh')}
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </SectionFields>

@@ -39,12 +39,11 @@ vi.mock('qrcode.react', () => ({
     <output role="img" aria-label={title} data-value={value} />
   )
 }))
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: keyof typeof enUS, options?: { address?: string }) =>
-      enUS[key].replace('{{address}}', options?.address ?? '')
-  })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: keyof typeof enUS, options?: { address?: string }) =>
+    enUS[key].replace('{{address}}', options?.address ?? '')
+  return { useTranslation: () => ({ t }) }
+})
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
 
@@ -103,7 +102,7 @@ describe('DeviceConnectionsSettings', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
-    invitationMock.mockReset()
+    invitationMock.mockReset().mockResolvedValue(createInvitation('default'))
     requestMock.mockReset().mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.list_claims') return []
       if (name === 'api_gateway.remote.create_invitation') return invitationMock()
@@ -127,7 +126,7 @@ describe('DeviceConnectionsSettings', () => {
     invitation.addressOptions.push({ address: '100.94.33.58', interfaceName: 'utun6' })
     invitationMock.mockResolvedValue(invitation)
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.show'] }))
+    await screen.findByRole('img', { name: 'Pair a device' })
     const qr = () =>
       JSON.parse(screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!)
     expect(qr().ips).toEqual(invitation.addresses)
@@ -143,22 +142,33 @@ describe('DeviceConnectionsSettings', () => {
     expect(qr().ips).toEqual(invitation.addresses)
   })
 
+  it('lets the user retry a failed automatic invitation without retrying on its own', async () => {
+    invitationMock.mockRejectedValueOnce(new Error('Unavailable'))
+    render(<DeviceConnectionsSettings />)
+    const refresh = await screen.findByRole('button', { name: 'Refresh' })
+    expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
+    expect(invitationMock).toHaveBeenCalledTimes(1)
+    invitationMock.mockResolvedValueOnce(createInvitation('retried'))
+    await userEvent.setup().click(refresh)
+    expect(await screen.findByRole('img', { name: 'Pair a device' })).toBeVisible()
+  })
+
   it('does not restore a stale QR when refreshing addresses fails', async () => {
     const user = userEvent.setup()
     invitationMock.mockResolvedValueOnce(createInvitation('original'))
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.show'] }))
+    await screen.findByRole('img', { name: 'Pair a device' })
     invitationMock.mockRejectedValueOnce(new Error('No connection address is available'))
     await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.refreshAddresses'] }))
     expect(screen.queryByRole('img', { name: enUS['deviceConnections.pairing.title'] })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: enUS['deviceConnections.pairing.show'] })).toBeEnabled()
+    expect(screen.getByRole('button', { name: enUS['common.refresh'] })).toBeEnabled()
   })
 
   it('hides the QR when refresh removes the selected address until the user selects again', async () => {
     const user = userEvent.setup()
     invitationMock.mockResolvedValueOnce(createInvitation('original'))
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.show'] }))
+    await screen.findByRole('img', { name: 'Pair a device' })
     await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
     await user.click(screen.getByRole('option', { name: '192.168.1.8 (en0)' }))
     const refreshed = {
@@ -228,17 +238,14 @@ describe('DeviceConnectionsSettings', () => {
 
     await user.click(screen.getByRole('button', { name: enabled ? 'Allow network access' : 'Disable network access' }))
 
-    expect(requestMock.mock.calls.filter(([name]) => name !== 'api_gateway.remote.list_claims')).toEqual([
+    expect(requestMock.mock.calls.filter(([name]) => name === 'api_gateway.lan.set_enabled')).toEqual([
       ['api_gateway.lan.set_enabled', { enabled }]
     ])
   })
 
-  it('renders the QR from the Main-owned invitation', async () => {
+  it('automatically renders the QR from the Main-owned invitation', async () => {
     invitationMock.mockResolvedValue(createInvitation('live-invitation'))
-    const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
     const qr = await screen.findByRole('img', { name: 'Pair a device' })
     expect(JSON.parse(qr.getAttribute('data-value') ?? '')).toEqual({
@@ -268,20 +275,17 @@ describe('DeviceConnectionsSettings', () => {
           resolveNew = resolve
         })
       )
-    const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
     rerender(<DeviceConnectionsSettings />)
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
     rerender(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
     await act(async () => resolveOld(createInvitation('old-invitation')))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeDisabled()
+    expect(screen.getByText('Loading...')).toBeVisible()
 
     await act(async () => resolveNew(createInvitation('new-invitation')))
 
@@ -298,7 +302,6 @@ describe('DeviceConnectionsSettings', () => {
     })
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
     await screen.findByRole('img', { name: 'Pair a device' })
     pending = true
 
@@ -317,7 +320,7 @@ describe('DeviceConnectionsSettings', () => {
     })
     expect(toast.success).toHaveBeenCalledWith('Device paired')
     expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
   })
 
   it('loads a pending claim on mount and rejects it without granting anything', async () => {
@@ -339,11 +342,12 @@ describe('DeviceConnectionsSettings', () => {
 
   it('does not restore claims from a request started before the LAN listener stopped', async () => {
     let resolve!: (claims: (typeof claim)[]) => void
-    requestMock.mockImplementation(
-      () =>
-        new Promise((done) => {
-          resolve = done
-        })
+    requestMock.mockImplementation((name: string) =>
+      name === 'api_gateway.remote.list_claims'
+        ? new Promise((done) => {
+            resolve = done
+          })
+        : Promise.resolve(createInvitation('live'))
     )
     const { rerender } = render(<DeviceConnectionsSettings />)
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
@@ -426,11 +430,9 @@ describe('DeviceConnectionsSettings', () => {
         resolveInvitation = resolve
       })
     )
-    const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
-    // Keep Testing Library's post-click timer on the real clock; only simulate QR expiry.
+    // Simulate expiry without waiting for the invitation's lifetime.
     vi.useFakeTimers()
     await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
@@ -439,7 +441,12 @@ describe('DeviceConnectionsSettings', () => {
     await act(async () => vi.advanceTimersByTime(60_000))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+    expect(screen.getByText('QR code expired')).toBeVisible()
+    expect(invitationMock).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+    invitationMock.mockResolvedValueOnce(createInvitation('fresh'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByRole('img', { name: 'Pair a device' })).toBeVisible()
   })
 
   it.each([true, false])('revokes the selected device and reports success=%s', async (success) => {
