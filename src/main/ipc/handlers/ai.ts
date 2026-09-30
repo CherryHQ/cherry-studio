@@ -331,6 +331,6 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
 
   // ── Ollama session caps — the domain write is owned by AiService (main, single owner). ──
-  'ai.ollama.set_num_ctx_cap': ({ uniqueModelId, numCtxCap }) =>
+  'ai.ollama.set_num_ctx_cap': async ({ uniqueModelId, numCtxCap }) =>
     application.get('AiService').lowerOllamaNumCtxCap(uniqueModelId, numCtxCap)
 }
