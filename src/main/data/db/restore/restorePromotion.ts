@@ -518,11 +518,12 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
       const live = resolveEntry(ctx, entry.livePath)
       const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
-      const chromiumOverwrite = entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)
+      const chromiumRuntimeDir =
+        entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath) ? entry.livePath : undefined
       const stagingPending = fs.existsSync(staging)
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
-        if (chromiumOverwrite) {
+        if (chromiumRuntimeDir) {
           // Copy, do not rename: clearData runs on the live path while Chromium
           // still holds handles there; renaming aside first would risk clearing
           // the rollback tree through those handles.
@@ -531,15 +532,17 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
           renameDurable(live, aside)
         }
       }
-      // Quiesce only while the staging move is still pending. A crash after the
-      // move but before its step marker must not re-run quiesce on restored data.
-      if (stagingPending && chromiumOverwrite) {
+      // Quiesce only while the staging move is still pending AND the aside
+      // rollback copy exists — clearData destroys live data, so it must never
+      // run unbacked. A crash after the move but before its step marker must
+      // not re-run quiesce on restored data either.
+      if (stagingPending && chromiumRuntimeDir && aside && fs.existsSync(aside)) {
         logger.info('Quiescing Chromium runtime storage before staging move', {
           restoreId: ctx.journal.restoreId,
           livePath: entry.livePath
         })
-        await quiesceChromiumStorageForRestore(entry.livePath)
-        fs.rmSync(live, { recursive: true, force: true })
+        await quiesceChromiumStorageForRestore(chromiumRuntimeDir)
+        retrySyncOnTransientFsLock(() => fs.rmSync(live, { recursive: true, force: true }))
       }
       moveIdempotent(staging, live)
       return
@@ -728,12 +731,20 @@ function renameDurable(source: string, target: string): void {
   }
 }
 
+/**
+ * Atomic-by-rename aside copy: cpSync into a temp sibling, then rename the
+ * finished tree into the aside slot. An interrupted copy must never leave a
+ * partial aside at the final path — rollback treats "aside exists" as "the
+ * original data is complete", so only the rename exposes the copy.
+ */
 function copyAsideDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
+  const pending = `${target}.copying`
+  fs.rmSync(pending, { recursive: true, force: true })
   retrySyncOnTransientFsLock(() => {
-    fs.cpSync(source, target, { recursive: true, force: true })
+    fs.cpSync(source, pending, { recursive: true, force: true })
   })
-  fsyncDir(path.dirname(target))
+  renameDurable(pending, target)
   fsyncDir(path.dirname(source))
 }
 

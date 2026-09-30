@@ -74,6 +74,15 @@ const renameFailure = vi.hoisted(() => ({
   injectPermanentFailureFor: null as string | null
 }))
 
+/**
+ * Aside-copy fault injection: lets the copy run to completion (into its
+ * pending temp slot) and then throws — modelling a crash mid-copy with a
+ * partial tree present, to prove the final aside slot stays empty.
+ */
+const asideCopyFailure = vi.hoisted(() => ({
+  injectAfterPartialCopyFor: null as string | null
+}))
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
@@ -94,7 +103,19 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.renameSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
+  const cpSync = (...args: Parameters<typeof actual.cpSync>) => {
+    const [source, target] = args
+    if (typeof source === 'string' && asideCopyFailure.injectAfterPartialCopyFor === source) {
+      asideCopyFailure.injectAfterPartialCopyFor = null
+      actual.cpSync(...args)
+      if (typeof target === 'string') {
+        actual.rmSync(join(target, 'leveldb-live'))
+      }
+      throw new Error('EIO: injected mid-copy failure with a partial tree in the pending slot')
+    }
+    return actual.cpSync(...args)
+  }
+  return { ...actual, default: { ...actual, openSync, renameSync, cpSync }, openSync, renameSync, cpSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -278,6 +299,7 @@ describe('runRestorePromotion', () => {
     fsyncDirFailure.shouldFail = null
     renameFailure.injectEpermOnceFor = null
     renameFailure.injectPermanentFailureFor = null
+    asideCopyFailure.injectAfterPartialCopyFor = null
   })
 
   afterEach(() => {
@@ -1139,6 +1161,51 @@ describe('runRestorePromotion', () => {
       expect(quiesceSpy).not.toHaveBeenCalled()
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
       expect(journalState()).toBe('completed')
+      quiesceSpy.mockRestore()
+    })
+
+    it('leaves the aside slot empty and live data intact when the aside copy fails mid-copy on Windows', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedLocalStorageFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
+      vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      asideCopyFailure.injectAfterPartialCopyFor = liveLocalStorageDir()
+
+      await runRestorePromotion()
+
+      expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
+      expect(journalState()).toBe('failed')
+      vi.restoreAllMocks()
+    })
+
+    it('never quiesces a Chromium overwrite without an aside backup on Windows', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedLocalStorageFixtures()
+      const unbackedManifest: RestoreJournal['fileResources'] = [
+        {
+          kind: 'overwrite',
+          stagingPath: `restore-staging/${RID}/resources/Local Storage`,
+          livePath: 'Local Storage'
+        }
+      ]
+      writeRestoreJournal(await buildJournal({ fileResources: unbackedManifest }))
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+
+      await runRestorePromotion()
+
+      expect(quiesceSpy).not.toHaveBeenCalled()
+      expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
+      expect(journalState()).toBe('failed')
       quiesceSpy.mockRestore()
     })
   })
