@@ -453,13 +453,19 @@ const CodeViewer = ({
     previousRawLinesRef.current = rawLines
     if (!previous) return
 
+    const scroller = scrollerRef.current
     const maxIndex = Math.max(previous.length, rawLines.length) - 1
     for (let index = 0; index <= maxIndex; index++) {
-      if (previous[index] !== rawLines[index]) {
-        virtualizer.resizeItem(index, estimateSize(index))
+      if (previous[index] === rawLines[index]) continue
+      // Feed the virtualizer the row's real DOM height: writing an estimate would
+      // overwrite its measured size and drift every subsequent row's offset.
+      // Unmounted rows are skipped — they use fresh estimates until measured on mount.
+      const element = scroller?.querySelector<HTMLElement>(`[data-index="${index}"]`)
+      if (element) {
+        virtualizer.resizeItem(index, element.offsetHeight)
       }
     }
-  }, [estimateSize, expanded, rawLines, virtualizer, wrapped])
+  }, [expanded, rawLines, virtualizer, wrapped])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
