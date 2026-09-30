@@ -67,7 +67,6 @@ const BasicDataSettings: React.FC = () => {
   )
   const { notesPath, updateNotesPath } = useNotesSettings()
   const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
-  const [notesPathUsesFallback, setNotesPathUsesFallback] = useState(false)
 
   useEffect(() => {
     if (hasV1MigrationSource) return
@@ -105,16 +104,25 @@ const BasicDataSettings: React.FC = () => {
   }, [refreshCacheSize])
 
   useEffect(() => {
+    let cancelled = false
     void resolveNotesPath(notesPath || '')
       .then((resolved) => {
+        if (cancelled) {
+          return
+        }
         setResolvedNotesPath(resolved.path)
-        setNotesPathUsesFallback(resolved.isFallback)
       })
       .catch((error) => {
+        if (cancelled) {
+          return
+        }
         logger.warn('Failed to resolve notes path', error as Error)
         setResolvedNotesPath(undefined)
-        setNotesPathUsesFallback(false)
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [notesPath])
 
   const handleSelectAppDataPath = async () => {
@@ -365,17 +373,26 @@ const BasicDataSettings: React.FC = () => {
               </Button>
               <Button
                 onClick={() => {
-                  const migrationSourcePath = notesPathUsesFallback && notesPath ? notesPath : resolvedNotesPath
-                  if (!migrationSourcePath) {
-                    return
-                  }
-                  void startNotesDirectoryMigration({
-                    t,
-                    sourcePath: migrationSourcePath,
-                    onSuccess: async (path) => {
-                      await updateNotesPath(path)
+                  void (async () => {
+                    try {
+                      const resolved = await resolveNotesPath(notesPath || '')
+                      const migrationSourcePath =
+                        resolved.isFallback && notesPath ? notesPath : resolved.path
+                      if (!migrationSourcePath) {
+                        return
+                      }
+                      await startNotesDirectoryMigration({
+                        t,
+                        sourcePath: migrationSourcePath,
+                        onSuccess: async (path) => {
+                          await updateNotesPath(path)
+                        }
+                      })
+                    } catch (error) {
+                      logger.warn('Failed to resolve notes path for migration', error as Error)
+                      toast.error(t('settings.data.notes_relocation.error.generic'))
                     }
-                  })
+                  })()
                 }}
                 variant="outline">
                 {t('settings.data.notes_relocation.migrate')}
