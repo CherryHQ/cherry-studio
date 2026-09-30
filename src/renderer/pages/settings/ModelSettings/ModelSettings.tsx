@@ -1,4 +1,4 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Play, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +46,7 @@ interface ModelSettingsProps {
   showDescription?: boolean
   showDividers?: boolean
   showPaintingModel?: boolean
+  showPlanExecutionModel?: boolean
   modelFilter?: (model: Model) => boolean
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
@@ -126,6 +127,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   showDescription = true,
   showDividers = true,
   showPaintingModel = true,
+  showPlanExecutionModel = true,
   modelFilter,
   autoFillEmptyModels = false,
   onDefaultModelSelected,
@@ -138,10 +140,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     quickModel,
     translateModel,
     paintingModel,
+    planExecutionModel,
     setDefaultModel,
     setQuickModel,
     setTranslateModel,
-    setPaintingModel
+    setPaintingModel,
+    setPlanExecutionModel
   } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
@@ -166,6 +170,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
   const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
+  const selectablePlanExecutionModel =
+    planExecutionModel && chatModelFilter(planExecutionModel) ? planExecutionModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -208,6 +214,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       void setPaintingModel(selected)
     },
     [setPaintingModel]
+  )
+
+  const onSelectPlanExecution = useCallback(
+    (selected: Model | undefined) => {
+      void setPlanExecutionModel(selected)
+    },
+    [setPlanExecutionModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -330,6 +343,27 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </>
             )}
           </ModelSettingRow>
+          {showPlanExecutionModel && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow
+                compact={compact}
+                id={compact ? undefined : 'setting-model-plan-execution-model'}
+                icon={<Play size={16} className="lucide-custom shrink-0 text-foreground" />}
+                title={t('settings.models.plan_execution_model.label')}
+                description={showDescription ? t('settings.models.plan_execution_model.description') : undefined}>
+                <DefaultModelSelector
+                  model={selectablePlanExecutionModel}
+                  providers={providers}
+                  filter={chatModelFilter}
+                  compact={compact}
+                  onSelect={onSelectPlanExecution}
+                  noneOptionLabel={t('settings.models.plan_execution_model.none')}
+                  placeholder={t('settings.models.empty')}
+                />
+              </ModelSettingRow>
+            </>
+          )}
           {showPaintingModel && (
             <>
               <SettingDivider />
