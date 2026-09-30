@@ -33,17 +33,3 @@ export function resolveOllamaRequestNumCtx(model: Model): OllamaNumCtxResolution
   }
   return { ...input, numCtx: resolveOllamaNumCtx(input) }
 }
-
-/**
- * Lowers a model's session `num_ctx` cap after a KV-cache OOM retry. The renderer's
- * "retry with smaller context" delegates here so the read-merge-write happens in one
- * owner — synchronous, so concurrent IPC calls cannot interleave — and a stale or
- * concurrent retry can never raise an already-lowered cap.
- */
-export function lowerOllamaNumCtxCap(uniqueModelId: string, cap: number): void {
-  const cache = application.get('CacheService')
-  const caps = cache.getShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY)
-  const current = caps?.[uniqueModelId]
-  if (typeof current === 'number' && current <= cap) return
-  cache.setShared(OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY, { ...caps, [uniqueModelId]: cap })
-}

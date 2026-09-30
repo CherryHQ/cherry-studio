@@ -2740,3 +2740,42 @@ describe('AiService.listModels', () => {
     await expect(service.listModels({ providerId: 'ppio', throwOnError: true })).rejects.toThrow('Unauthorized')
   })
 })
+
+describe('AiService.lowerOllamaNumCtxCap', () => {
+  const cacheGetSharedMock = vi.fn()
+  const cacheSetSharedMock = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'CacheService' ? { getShared: cacheGetSharedMock, setShared: cacheSetSharedMock } : undefined
+    )
+  })
+
+  it('writes the lowered cap for the failed model while preserving other model caps', () => {
+    cacheGetSharedMock.mockReturnValue({ 'ollama::a': 32_768 })
+
+    createService().lowerOllamaNumCtxCap('ollama::b', 16_384)
+
+    expect(cacheSetSharedMock).toHaveBeenCalledWith('ollama.num_ctx_caps', {
+      'ollama::a': 32_768,
+      'ollama::b': 16_384
+    })
+  })
+
+  it('never raises an already-lowered cap from a stale retry', () => {
+    cacheGetSharedMock.mockReturnValue({ 'ollama::a': 16_384 })
+
+    createService().lowerOllamaNumCtxCap('ollama::a', 32_768)
+
+    expect(cacheSetSharedMock).not.toHaveBeenCalled()
+  })
+
+  it('writes the first cap for a model with none', () => {
+    cacheGetSharedMock.mockReturnValue(undefined)
+
+    createService().lowerOllamaNumCtxCap('ollama::a', 32_768)
+
+    expect(cacheSetSharedMock).toHaveBeenCalledWith('ollama.num_ctx_caps', { 'ollama::a': 32_768 })
+  })
+})
