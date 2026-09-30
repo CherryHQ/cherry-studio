@@ -1278,6 +1278,31 @@ describe('runRestorePromotion', () => {
       expect(readMarker(livePath())).toBe('old')
     })
 
+    it('reinstalls a quarantined Chromium aside when the live path is only a cleared shell on the next boot', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      const quarantinedLs = () => join(userData, 'restore-aside-quarantine', RID, 'Local Storage')
+      const liveLs = () => join(userData, 'Local Storage')
+      mkdirSync(quarantinedLs(), { recursive: true })
+      writeFileSync(join(quarantinedLs(), 'leveldb-live'), 'LIVE')
+      mkdirSync(liveLs(), { recursive: true })
+      writeRestoreJournal(
+        await buildJournal({
+          state: 'failed',
+          chain: [{ folderMillis: 1, hash: 'x' }],
+          fileResources: localStorageManifest()
+        })
+      )
+
+      cleanupTerminalRestoreArtifacts()
+
+      expect(readFileSync(join(liveLs(), 'leveldb-live'), 'utf8')).toBe('LIVE')
+      expect(existsSync(quarantineRootForRid())).toBe(false)
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    })
+
     it('keeps the journal and quarantine when the live path exists again, reinstalling once it is gone', async () => {
       makeDb(livePath(), 'old')
       mkdirSync(dirname(quarantinedNote()), { recursive: true })

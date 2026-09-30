@@ -10,9 +10,9 @@ import { loggerService } from '@logger'
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import {
-  entryNeedsChromiumStorageQuiesce,
-  isChromiumRuntimeDir,
-  quiesceChromiumStorageForRestore
+  chromiumRuntimeDirForQuiesce,
+  promoteChromiumRuntimeOverwrite,
+  quarantinedChromiumLiveMayBeReinstalled
 } from './chromiumStorageQuiesce'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
@@ -152,10 +152,11 @@ function isOverwriteEntry(entry: FileResource): entry is FileResource & { asideP
 /**
  * Reinstall quarantined asides whose live path is still missing after the
  * failed restore (e.g. quiesce cleared it and a persistent Windows lock kept
- * the staged move from landing). Live paths that exist again are left
- * untouched — this boot's data must never be clobbered with the quarantined
- * copy — and count as unresolved, keeping the quarantine recoverable.
- * Returns whether every entry is resolved.
+ * the staged move from landing). Live paths that exist again with substantive
+ * content are left untouched — this boot's data must never be clobbered with
+ * the quarantined copy. Chromium runtime dirs that exist only as a cleared
+ * shell after quiesce are reinstalled from the quarantine. Returns whether
+ * every entry is resolved.
  */
 function reinstallQuarantinedAsides(journal: FailedJournal): boolean {
   const quarantineRoot = asideQuarantineRoot(journal.restoreId)
@@ -170,6 +171,22 @@ function reinstallQuarantinedAsides(journal: FailedJournal): boolean {
       continue
     }
     if (fs.existsSync(live)) {
+      if (quarantinedChromiumLiveMayBeReinstalled(live, quarantined, entry.livePath)) {
+        try {
+          fs.rmSync(live, { recursive: true, force: true })
+          renameDurable(quarantined, live)
+          logger.warn('Quarantined Chromium aside reinstalled over a cleared live shell', {
+            restoreId: journal.restoreId,
+            livePath: entry.livePath,
+            quarantined
+          })
+          continue
+        } catch (error) {
+          allResolved = false
+          logger.error(`Failed to reinstall quarantined Chromium aside for '${entry.livePath}'`, error as Error)
+          continue
+        }
+      }
       logger.warn('Quarantined aside kept — the live path exists again and must not be clobbered', {
         restoreId: journal.restoreId,
         livePath: entry.livePath,
@@ -596,31 +613,27 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
       const live = resolveEntry(ctx, entry.livePath)
       const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
-      const chromiumRuntimeDir =
-        entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath) ? entry.livePath : undefined
-      const stagingPending = fs.existsSync(staging)
+      const chromiumLivePath = chromiumRuntimeDirForQuiesce(entry)
+      if (chromiumLivePath) {
+        await promoteChromiumRuntimeOverwrite(
+          ctx.journal.restoreId,
+          chromiumLivePath,
+          live,
+          staging,
+          aside,
+          fs.existsSync(staging),
+          {
+            copyAsideDurable,
+            moveIdempotent,
+            rmLiveWithRetry: (livePath) =>
+              retrySyncOnTransientFsLock(() => fs.rmSync(livePath, { recursive: true, force: true }))
+          }
+        )
+        return
+      }
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
-        if (chromiumRuntimeDir) {
-          // Copy, do not rename: clearData runs on the live path while Chromium
-          // still holds handles there; renaming aside first would risk clearing
-          // the rollback tree through those handles.
-          copyAsideDurable(live, aside)
-        } else {
-          renameDurable(live, aside)
-        }
-      }
-      // Quiesce only while the staging move is still pending AND the aside
-      // rollback copy exists — clearData destroys live data, so it must never
-      // run unbacked. A crash after the move but before its step marker must
-      // not re-run quiesce on restored data either.
-      if (stagingPending && chromiumRuntimeDir && aside && fs.existsSync(aside)) {
-        logger.info('Quiescing Chromium runtime storage before staging move', {
-          restoreId: ctx.journal.restoreId,
-          livePath: entry.livePath
-        })
-        await quiesceChromiumStorageForRestore(chromiumRuntimeDir)
-        retrySyncOnTransientFsLock(() => fs.rmSync(live, { recursive: true, force: true }))
+        renameDurable(live, aside)
       }
       moveIdempotent(staging, live)
       return
