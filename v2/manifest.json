@@ -1,11 +1,11 @@
 {
   "minAppVersion": "2.0.13",
-  "sourceAppVersion": "2.1.3",
-  "revision": 65,
+  "sourceAppVersion": "@cherrystudio/remote-transport@0.1.1",
+  "revision": 66,
   "schemaVersion": 2,
   "files": {
-    "models.json": "9979100043cb5751",
+    "models.json": "463bf245f0915754",
     "providers.json": "dbca1ba38bf86df7",
-    "provider-models.json": "8fb0dde9d8d03bba"
+    "provider-models.json": "bd1ff301f4521d11"
   }
 }
