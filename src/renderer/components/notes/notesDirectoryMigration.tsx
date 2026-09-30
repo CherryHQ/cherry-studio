@@ -1,15 +1,16 @@
 import type { TFunction } from 'i18next'
 
 import { loggerService } from '@logger'
-import {
-  NotesDirectoryMigrationConfirmContent,
-  NotesDirectoryMigrationMergeContent
-} from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
 import { ipcApi } from '@renderer/ipc'
-import { flushAllNotesEdits } from '@renderer/services/notesEditFlush'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
+
+import {
+  NotesDirectoryMigrationConfirmContent,
+  NotesDirectoryMigrationMergeContent
+} from './NotesDirectoryMigrationConfirmContent'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
 
@@ -95,7 +96,7 @@ export async function migrateNotesDirectoryWithUi(options: {
       return
     }
 
-    await flushAllNotesEdits()
+    await notesEditFlushService.flushAll()
 
     await ipcApi.request('app.notes_relocation.migrate', {
       sourcePath,

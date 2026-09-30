@@ -28,7 +28,6 @@ const notesRelocationInspectionSchema = z.discriminatedUnion('valid', [
     valid: z.literal(true),
     source: notesDirectoryStatsSchema,
     target: notesDirectoryStatsSchema,
-    targetHasMarkdown: z.boolean(),
     targetHasFiles: z.boolean()
   }),
   z.object({ valid: z.literal(false), reason: z.enum(NOTES_RELOCATION_VALIDATION_REASONS) })

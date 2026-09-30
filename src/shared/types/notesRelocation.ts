@@ -22,7 +22,6 @@ export type NotesRelocationInspection =
       valid: true
       source: NotesDirectoryStats
       target: NotesDirectoryStats
-      targetHasMarkdown: boolean
       targetHasFiles: boolean
     }
   | { valid: false; reason: NotesRelocationValidationReason }

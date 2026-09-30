@@ -21,7 +21,6 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
       valid: true,
       source,
       target,
-      targetHasMarkdown: target.markdownFileCount > 0,
       targetHasFiles: target.fileCount > 0
     }
   } catch (error) {
