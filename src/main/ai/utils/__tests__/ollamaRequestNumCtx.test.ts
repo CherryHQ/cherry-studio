@@ -77,11 +77,7 @@ describe('resolveOllamaRequestNumCtx', () => {
       }
     } as Provider
 
-    const loopbackRequest = resolveOllamaRequestNumCtx(
-      model as never,
-      provider,
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    )
+    const loopbackRequest = resolveOllamaRequestNumCtx(model as never, provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(loopbackRequest?.freeMemoryBytes).toBe(freeMemoryBytes)
     expect(loopbackRequest?.numCtx).toBeLessThan(131_072)
 

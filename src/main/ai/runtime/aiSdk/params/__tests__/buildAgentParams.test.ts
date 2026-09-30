@@ -1318,6 +1318,11 @@ describe('buildAgentParams assistant-less reasoning', () => {
   }
 
   it('applies the Ollama context-window default without an assistant', async () => {
+    const freeMemoryBytes = 8_000_000_000
+    const totalMemoryBytes = 16_000_000_000
+    vi.spyOn(os, 'freemem').mockReturnValue(freeMemoryBytes)
+    vi.spyOn(os, 'totalmem').mockReturnValue(totalMemoryBytes)
+
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'ollama', providerSettings: {} },
       credentialReceipt: { attribution: 'unknown' }
@@ -1344,8 +1349,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
 
     const expectedNumCtx = resolveOllamaNumCtx({
       trainedContextWindow: 131072,
-      freeMemoryBytes: os.freemem(),
-      totalMemoryBytes: os.totalmem()
+      freeMemoryBytes,
+      totalMemoryBytes
     })
     expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
     expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
