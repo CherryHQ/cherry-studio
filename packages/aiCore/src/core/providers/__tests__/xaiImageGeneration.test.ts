@@ -43,6 +43,25 @@ describe('xAI native image generation', () => {
     expect(request?.tools).toEqual([{ type: 'image_generation' }])
     expect(result.toolCalls[0]).toMatchObject({ toolName: 'imageGeneration', providerExecuted: true, input: {} })
     expect(result.toolResults[0]).toMatchObject({ output: { result: image.result, prompt: image.prompt } })
+    expect(JSON.stringify(result.response.messages)).not.toContain(image.result)
+  })
+
+  // Regression: a terminal call without an image must remain an error rather than a successful empty artifact.
+  it('does not claim an image when the terminal response has no result', async () => {
+    const provider = createXai({
+      apiKey: 'fixture-only',
+      fetch: async () =>
+        new Response(JSON.stringify(response({ ...image, result: undefined } as unknown as typeof image)), {
+          headers: { 'content-type': 'application/json' }
+        })
+    })
+    const result = await generateText({
+      model: provider.responses('grok-4.7'),
+      prompt: 'Draw a square',
+      tools: nativeTools(provider)
+    })
+    expect(result.toolResults).toHaveLength(0)
+    expect(JSON.stringify(result.content)).toContain('Image generation failed')
   })
 
   it('emits one call and one final image after repeated native progress events', async () => {

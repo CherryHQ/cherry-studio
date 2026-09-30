@@ -70,13 +70,19 @@ describe('Agent', () => {
       {
         type: 'tool-output-available',
         toolCallId: 'image-call',
-        output: { result: 'iVBORw0KGgo=', prompt: 'A square' },
+        output: {
+          result: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1e0AAAAASUVORK5CYII=',
+          prompt: 'A square'
+        },
         providerExecuted: true
       },
       {
         type: 'tool-output-available',
         toolCallId: 'image-call',
-        output: { result: 'iVBORw0KGgo=', prompt: 'A square' },
+        output: {
+          result: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1e0AAAAASUVORK5CYII=',
+          prompt: 'A square'
+        },
         providerExecuted: true
       },
       { type: 'finish', finishReason: 'stop' }
@@ -91,8 +97,9 @@ describe('Agent', () => {
     }
     expect(createImageEntry).toHaveBeenCalledTimes(1)
     expect(createImageEntry).toHaveBeenCalledWith({
-      source: 'base64',
-      data: 'data:image/png;base64,iVBORw0KGgo=',
+      source: 'bytes',
+      data: expect.any(Buffer),
+      ext: 'png',
       name: 'Grok image',
       cleanupPolicy: 'delete_when_unreferenced'
     })

@@ -1,3 +1,5 @@
+import { fileTypeFromBuffer } from 'file-type'
+
 import { application } from '@application'
 import type { NativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
@@ -13,10 +15,14 @@ export async function storeNativeImageOutput(output: unknown): Promise<NativeIma
   ) {
     throw new Error('Native image generation returned no image.')
   }
+  const bytes = Buffer.from(output.result, 'base64')
+  const fileType = await fileTypeFromBuffer(bytes)
+  if (!fileType?.mime.startsWith('image/')) throw new Error('Native image generation returned invalid image data.')
   const entry = await application.get('FileManager').createInternalEntry(
     createInternalEntryInputSchema.parse({
-      source: 'base64',
-      data: `data:image/png;base64,${output.result}`,
+      source: 'bytes',
+      data: bytes,
+      ext: fileType.ext,
       name: 'Grok image',
       cleanupPolicy: 'delete_when_unreferenced'
     })

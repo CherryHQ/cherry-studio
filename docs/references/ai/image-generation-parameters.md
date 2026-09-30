@@ -1,6 +1,9 @@
 ---
 description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
 sources:
+  - patches/@ai-sdk__xai@3.0.126.patch
+  - src/main/ai/runtime/aiSdk/nativeImageOutput.ts
+  - src/shared/ai/nativeImageGeneration.ts
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
@@ -302,3 +305,24 @@ descriptor is a pure derivation, not a param.
 | Custom transport contract | `src/main/ai/provider/custom/imageGenerationModel.ts` |
 | Vendor provider + transport | `src/main/ai/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
 | Shared transport helpers | `src/main/ai/provider/custom/transportUtils.ts` |
+
+## Native Grok image generation in chat
+
+For a Grok 4.7 model configured on the xAI Responses adapter, the chat tools popover
+also offers **Generate Image · Grok**. This switch is off by default and belongs to
+the assistant. It uses the selected Grok model's server-side image tool; the
+existing Generate Image switch continues to use the configured painting model.
+Other models and endpoints do not offer or inject this native tool.
+
+The completed image is saved through FileManager before its tool result reaches
+chat persistence or the renderer. Stored messages contain a file identifier and
+the returned prompt, so opening conversation history resolves the same image.
+The chat owns a `tool_output` file reference until the message is deleted. Missing
+terminal image data is an error, not a successful empty image. Base64 is never
+stored in the chat tool result or replayed as text in subsequent model requests.
+
+The SDK 3.0.126 patch backports native image handling from
+[Vercel AI SDK xAI 5.0.13](https://github.com/vercel/ai/tree/e25994e067e773ce7cbc8f6dcd03e10b6ad5e256/packages/xai/src)
+while retaining Cherry's LanguageModelV3 interfaces and Vercel's Apache-2.0 license.
+The wire contract is documented in [xAI image generation](https://docs.x.ai/developers/tools/image-generation).
+This does not add image editing controls or richer code-execution outputs.
