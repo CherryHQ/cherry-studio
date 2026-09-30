@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
   }
   const instances = new WeakMap<object, VirtualizerState>()
   const measure = vi.fn()
+  const resizeItem = vi.fn()
   const stateFor = (key: object): VirtualizerState => {
     let state = instances.get(key)
     if (!state) {
@@ -43,6 +44,7 @@ const mocks = vi.hoisted(() => {
             if (size > 0) measuredSizes.set(Number(rawIndex), size)
           },
           resizeItem: (index: number, size: number) => {
+            resizeItem(index, size)
             measuredSizes.set(index, size)
           },
           measure
@@ -56,6 +58,7 @@ const mocks = vi.hoisted(() => {
     highlightLines: vi.fn(),
     resetHighlight: vi.fn(),
     measure,
+    resizeItem,
     useVirtualizer: vi.fn((options: { count: number; getItemKey: (index: number) => string }) => {
       const state = stateFor(options.getItemKey)
       state.count = options.count
@@ -291,10 +294,12 @@ describe('CodeViewer', () => {
       (Array.from(container.querySelectorAll('[data-index]')) as HTMLElement[]).map((row) => row.style.transform)
 
     mocks.measure.mockClear()
+    mocks.resizeItem.mockClear()
     rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" maxHeight="350px" />)
 
     expect(transforms()).toEqual(['translateY(0px)', 'translateY(55px)'])
     expect(mocks.measure).not.toHaveBeenCalled()
+    expect(mocks.resizeItem).not.toHaveBeenCalled()
   })
 
   it('keeps row counts and measurements independent across sibling viewers', () => {
@@ -419,9 +424,7 @@ describe('CodeViewer', () => {
   it('keeps measured row placement when the scroller is resized in wrapped mode', () => {
     const resizeCallbacks: Array<() => void> = []
     class MockResizeObserver {
-      private readonly callback: () => void
       constructor(callback: () => void) {
-        this.callback = callback
         resizeCallbacks.push(callback)
       }
       observe() {}
