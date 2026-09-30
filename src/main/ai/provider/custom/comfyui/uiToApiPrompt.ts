@@ -192,6 +192,15 @@ function widgetInputNames(
 export const isReference = (value: unknown): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
 
+/**
+ * A node that is its own value: every input it declares is either the `value`
+ * widget or something the graph cannot reference. A text primitive is the
+ * common case; a concat or a generator that takes other nodes as input is not
+ * one, so its `value`-shaped input is never mistaken for the text.
+ */
+const isValueSource = (node: ApiPromptNode): boolean =>
+  Object.entries(node.inputs).every(([name, value]) => name === 'value' || !isReference(value))
+
 /** Required inputs the prompt must still carry when the workflow saved no
  * value for them: the frontend's widgets always hold something (the declared
  * default, a combo's first entry, or null), and ComfyUI rejects the whole
@@ -501,10 +510,20 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         return
       }
     }
-    const linked = new Set((node.inputs ?? []).filter((slot) => slot.link != null).map((slot) => slot.name))
+    // A link that resolves to nothing — a promoted input the instance bound no
+    // value to, a dangling link, an alias that ran out — leaves the input to the
+    // value the node itself saved. The frontend reads it the same way: it
+    // registers a promoted widget with the interior value and only overwrites it
+    // when the instance actually carries one, so an unbound promotion is the
+    // interior's value, not an absent input.
+    const linked = new Set<string>()
     const inputs: Record<string, unknown> = {}
     for (const slot of node.inputs ?? []) {
-      if (slot.link != null) inputs[slot.name] = resolveLink(slot.link, links, remap, bindings)
+      if (slot.link == null) continue
+      const resolved = resolveLink(slot.link, links, remap, bindings)
+      if (resolved === undefined) continue
+      linked.add(slot.name)
+      inputs[slot.name] = resolved
     }
     Object.assign(inputs, widgetValues(node, linked))
     prompt[String(id)] = {
@@ -527,26 +546,44 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const innerLinks = linkMap(definition.links)
     const inputNodeId = definition.inputNode?.id
 
-    // Linked widgets still occupy a saved positional value; non-widget sockets do not.
+    // A promoted input spends a positional widget value when the interior backs
+    // it with a widget; a socket-only promotion spends none, and only a link can
+    // fill it. Linked widgets still spend their position — the frontend writes
+    // one entry per widget-hosting slot whether or not it is linked.
+    const hostsWidget = (def: { linkIds?: number[] }): boolean =>
+      (def.linkIds ?? []).some((linkId) => {
+        const link = innerLinks.get(linkId)
+        if (!link) return false
+        const slot = definition.nodes.find((node) => node.id === link.target_id)?.inputs?.[link.target_slot]
+        return slot !== undefined && 'widget' in slot
+      })
+
+    // The saved positional values are read against the subgraph's own inputs, in
+    // declaration order: `SubgraphNode.configure` rebuilds the instance's input
+    // list from the subgraph's slots before `_applyPromotedWidgetValues` walks
+    // it, and `serializeFromStoreState` writes one entry per slot that hosts a
+    // widget. The `inputs[]` in the file is a different list — it can omit a
+    // promoted widget altogether — so reading the positions off it shifts every
+    // value that follows the omission.
     const innerBindings = new Map<number, Map<number, unknown>>()
     if (inputNodeId !== undefined) {
       const values = instance.widgets_values
+      const saved = new Map((instance.inputs ?? []).map((slot) => [slot.name, slot]))
       const byName = new Map<string, unknown>()
       let widgetIndex = 0
-      for (const slot of instance.inputs ?? []) {
-        if (slot.link != null) {
-          byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
-        } else if ('widget' in slot) {
+      for (const def of definition.inputs ?? []) {
+        const slot = saved.get(def.name)
+        const widget = hostsWidget(def)
+        if (slot?.link != null) {
+          const bound = resolveLink(slot.link, links, remap, bindings)
+          if (bound !== undefined) byName.set(def.name, bound)
+        } else if (widget) {
           // Named values preserve bindings when promoted widgets are reordered.
-          const named = instance.widgets_values_named?.[slot.name]
-          byName.set(
-            slot.name,
-            wrapWidgetValue(
-              named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]
-            )
-          )
+          const named = instance.widgets_values_named?.[def.name]
+          const value = named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[def.name]
+          if (value !== undefined) byName.set(def.name, wrapWidgetValue(value))
         }
-        if ('widget' in slot) widgetIndex += 1
+        if (widget) widgetIndex += 1
       }
       const bySlot = new Map<number, unknown>()
       ;(definition.inputs ?? []).forEach((def, index) => {
@@ -767,6 +804,13 @@ export function findPromptTarget(
         if (isReference(branch.value)) queue.push(branch.value[0])
         continue
       }
+      // A node the graph cannot feed is its own value: a text widget the
+      // workflow hoisted out of the sampler's chain, reached here through the
+      // conditioning the sampler reads. `value` is too generic a name to rank
+      // above the prompt names, so it is only read off such a node.
+      if (isValueSource(target) && typeof target.inputs.value === 'string') {
+        return { nodeId, input: 'value', samplerId }
+      }
       for (const [name, value] of Object.entries(target.inputs)) {
         // Never follow an intermediate node's negative edge (e.g. a
         // ControlNet apply node carries both streams) — only the sampler's own
@@ -816,6 +860,8 @@ export function findPromptTarget(
  * consumes the prompt, so two runs differ; a graph that keeps the seed on a shared node
  * feeding that sampler instead gets it there. Regular samplers read `seed`; advanced
  * variants (KSamplerAdvanced and friends, which schedule their own noise) read `noise_seed`.
+ * A seed the backend nests under a widget group (`model.seed`, `sampling_mode.seed`) is
+ * read and written by its full key, so the per-run value lands where the graph reads it.
  */
 export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined, samplerId?: string): void {
   if (typeof seed !== 'number' || !Number.isFinite(seed)) return
@@ -851,8 +897,17 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
   }
 }
 
-const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | undefined =>
-  'seed' in inputs ? 'seed' : 'noise_seed' in inputs ? 'noise_seed' : undefined
+/**
+ * The key a node keeps its seed under, or undefined when it holds none. The
+ * plain names win over a nested one so a node that carries both keeps writing
+ * the seed it always wrote; a node that only nests its seed — the API
+ * generators and the newer template nodes do — still counts as one that samples.
+ */
+const seedInputKey = (inputs: Record<string, unknown>): string | undefined => {
+  if ('seed' in inputs) return 'seed'
+  if ('noise_seed' in inputs) return 'noise_seed'
+  return Object.keys(inputs).find((key) => key.endsWith('.seed') || key.endsWith('.noise_seed'))
+}
 
 /**
  * Write the seed into `inputs[key]`. A linked seed input is rewritten at its
@@ -863,7 +918,7 @@ const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | 
 function writeSeed(
   graph: Record<string, ApiPromptNode>,
   inputs: Record<string, unknown>,
-  key: 'seed' | 'noise_seed',
+  key: string,
   value: number
 ): void {
   const current = inputs[key]

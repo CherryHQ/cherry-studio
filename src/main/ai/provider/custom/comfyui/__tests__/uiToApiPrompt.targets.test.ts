@@ -122,3 +122,49 @@ describe('ComfyUI If/Else Switch targets', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'prompt', samplerId: '5' })
   })
 })
+
+describe('ComfyUI text held outside the encode node', () => {
+  const graphWithTextSource = (source: Record<string, unknown>): Record<string, ApiPromptNode> => ({
+    '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: source },
+    '2': {
+      class_type: 'CLIPTextEncode',
+      _meta: { title: 'encode' },
+      inputs: { text: ['1', 0], clip: ['4', 0] }
+    },
+    '3': {
+      class_type: 'KSampler',
+      _meta: { title: 'sampler' },
+      inputs: { positive: ['2', 0], latent_image: ['5', 0], seed: 1 }
+    },
+    '4': { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: {} },
+    '5': { class_type: 'EmptyLatentImage', _meta: { title: 'latent' }, inputs: {} }
+  })
+
+  it('takes the text from a value source the conditioning chain reaches', () => {
+    const graph = graphWithTextSource({ value: 'the text saved in the workflow' })
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'value', samplerId: '3' })
+  })
+
+  it('does not read a value off a node the graph feeds', () => {
+    // A concat that also holds a `value` is not a text source: the text it
+    // produces is the join, so writing the run's prompt into `value` would
+    // replace something that is not the prompt.
+    const graph = graphWithTextSource({ string_a: ['6', 0], value: 'not the text' })
+    graph['6'] = { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: { clip_name: 'model.safetensors' } }
+    expect(findPromptTarget(graph)).toBeUndefined()
+  })
+
+  it('samples a generator that nests its seed, and writes the run seed back there', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'ByteDanceSeedreamNodeV3',
+        _meta: { title: 'generator' },
+        inputs: { prompt: 'the text saved in the workflow', model: 'seedream-4-0-250828', 'model.seed': 42 }
+      },
+      '2': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['1', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'prompt', samplerId: '1' })
+    applySeed(graph, 7, '1')
+    expect(graph['1'].inputs['model.seed']).toBe(7)
+  })
+})
