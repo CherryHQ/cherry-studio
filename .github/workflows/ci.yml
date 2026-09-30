@@ -187,16 +187,7 @@ jobs:
           pnpm i18n:unused:check
 
       - name: Read-only Checks
-        run: |
-          # Share one checkout/install while keeping independent checks parallel.
-          # Do not kill sibling checks on failure so every failure is reported.
-          pnpm exec concurrently \
-            --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
-            --prefix-colors "blue,yellow,cyan,green" \
-            "pnpm test:lint" \
-            "pnpm typecheck && pnpm i18n:hardcoded:strict" \
-            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
-            "pnpm docs:check"
+        run: pnpm ci:basic-check
 
       - name: DB Migrations Check
         run: |
