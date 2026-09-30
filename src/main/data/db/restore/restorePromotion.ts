@@ -26,6 +26,7 @@ function assertNever(x: never): never {
 
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
+type FailedJournal = Extract<RestoreJournal, { state: 'failed' }>
 type FileResource = RestoreJournal['fileResources'][number]
 
 /**
@@ -86,6 +87,15 @@ export async function runRestorePromotion(): Promise<void> {
 /**
  * Consume terminal restore artifacts after the gate has proved that no live
  * database is stranded. Active and corrupt journals remain untouched.
+ *
+ * For failed journals this is also the recovery owner of the aside
+ * quarantine (see preserveUnrestoredAsides): a quarantined aside whose live
+ * path went missing during the failed promotion is reinstalled on this fresh
+ * boot — pre-Chromium, so the handles that blocked the original promotion
+ * are gone. The journal and quarantine are consumed only once every
+ * quarantined aside is reinstalled; a live path that exists again counts as
+ * unresolved, keeping the quarantined copy for the next boot or manual
+ * recovery rather than destroying it while unreinstalled.
  */
 export function cleanupTerminalRestoreArtifacts(): void {
   const read = readRestoreJournal()
@@ -98,6 +108,18 @@ export function cleanupTerminalRestoreArtifacts(): void {
   }
 
   try {
+    if (journal.state === 'failed') {
+      if (!reinstallQuarantinedAsides(journal)) {
+        logger.warn(
+          'Quarantined restore asides not fully reinstalled — keeping the journal and quarantine for the next boot',
+          {
+            restoreId: journal.restoreId
+          }
+        )
+        return
+      }
+      fs.rmSync(asideQuarantineRoot(journal.restoreId), { recursive: true, force: true })
+    }
     const stagingRoot = application.getPath('feature.backup.restore.staging')
     fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
     removeRestoreJournal()
@@ -113,6 +135,62 @@ export function cleanupTerminalRestoreArtifacts(): void {
       error
     })
   }
+}
+
+function asideQuarantineRoot(restoreId: string): string {
+  return path.join(application.getPath('feature.backup.restore.aside_quarantine'), restoreId)
+}
+
+/**
+ * Whether an entry's original content is preserved aside for rollback — the
+ * kinds applyEntry moves out of the way before an overwrite lands.
+ */
+function isOverwriteEntry(entry: FileResource): entry is FileResource & { asidePath: string } {
+  return (entry.kind === 'overwrite' || entry.kind === 'note-overwrite') && !!entry.asidePath
+}
+
+/**
+ * Reinstall quarantined asides whose live path is still missing after the
+ * failed restore (e.g. quiesce cleared it and a persistent Windows lock kept
+ * the staged move from landing). Live paths that exist again are left
+ * untouched — this boot's data must never be clobbered with the quarantined
+ * copy — and count as unresolved, keeping the quarantine recoverable.
+ * Returns whether every entry is resolved.
+ */
+function reinstallQuarantinedAsides(journal: FailedJournal): boolean {
+  const quarantineRoot = asideQuarantineRoot(journal.restoreId)
+  let allResolved = true
+  for (const entry of journal.fileResources) {
+    if (!isOverwriteEntry(entry)) {
+      continue
+    }
+    const live = path.resolve(application.getPath('app.userdata'), entry.livePath)
+    const quarantined = path.join(quarantineRoot, entry.livePath)
+    if (!fs.existsSync(quarantined)) {
+      continue
+    }
+    if (fs.existsSync(live)) {
+      logger.warn('Quarantined aside kept — the live path exists again and must not be clobbered', {
+        restoreId: journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+      allResolved = false
+      continue
+    }
+    try {
+      renameDurable(quarantined, live)
+      logger.warn('Quarantined aside reinstalled into the missing live path', {
+        restoreId: journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+    } catch (error) {
+      allResolved = false
+      logger.error(`Failed to reinstall quarantined aside for '${entry.livePath}'`, error as Error)
+    }
+  }
+  return allResolved
 }
 
 /**
@@ -656,37 +734,52 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  *
  * On failure the staging tree still hosts per-entry asides that rollback
  * could not restore (best-effort inverse) — those hold the user's original
- * data, so they are moved out of staging before the tree is deleted.
+ * data, so they are moved out of staging BEFORE the terminal journal is
+ * written: the journal is what authorizes the next boot to delete the
+ * staging tree, so publishing it first would leave a crash window that
+ * destroys the only intact aside. If preservation itself fails, the journal
+ * stays active (promoting) and the staging tree is kept — the next boot
+ * re-runs the rollback with fresh file locks instead of terminating.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
-  writeRestoreJournal({ ...ctx.journal, state, step })
-  if (state === 'failed') {
-    preserveUnrestoredAsides(ctx)
+  if (state === 'failed' && !preserveUnrestoredAsides(ctx)) {
+    logger.error(
+      'Unrestored asides remain in the staging tree — keeping it and the active journal for the next boot to retry',
+      {
+        restoreId: ctx.journal.restoreId
+      }
+    )
+    return
   }
+  writeRestoreJournal({ ...ctx.journal, state, step })
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
 }
 
 /**
  * Move asides that rollback failed to reinstall out of the staging tree
- * (deleted below) into a quarantine dir under userData, where they stay
- * recoverable like the parked aside DB. Restored asides no longer exist and
- * are skipped; the only cost of a missed restore is a stranded-but-intact
- * copy, never deletion.
+ * (deleted below) into the quarantine dir under
+ * `feature.backup.restore.aside_quarantine`, where they stay recoverable and
+ * the preboot shell reinstalls them on the next boot (see
+ * reinstallQuarantinedAsides). Restored asides no longer exist and are
+ * skipped; the only cost of a missed restore is a stranded-but-intact copy,
+ * never deletion. Returns whether every aside is now out of staging —
+ * restored or quarantined; a false return is fail-closed.
  */
-function preserveUnrestoredAsides(ctx: PromotionContext): void {
-  const quarantineRoot = path.join(ctx.userData, `restore-aside-${ctx.journal.restoreId}`)
+function preserveUnrestoredAsides(ctx: PromotionContext): boolean {
+  const quarantineRoot = asideQuarantineRoot(ctx.journal.restoreId)
+  let allPreserved = true
   for (const entry of ctx.journal.fileResources) {
-    if ((entry.kind !== 'overwrite' && entry.kind !== 'note-overwrite') || !entry.asidePath) {
+    if (!isOverwriteEntry(entry)) {
       continue
     }
     const aside = resolveEntry(ctx, entry.asidePath)
     if (!fs.existsSync(aside)) {
       continue
     }
-    const quarantined = path.join(quarantineRoot, path.basename(entry.livePath))
+    // Mirror the live hierarchy — entry basenames can collide across entries.
+    const quarantined = path.join(quarantineRoot, entry.livePath)
     try {
-      fs.mkdirSync(quarantineRoot, { recursive: true })
       renameDurable(aside, quarantined)
       logger.warn('Unrestored aside moved out of staging for recovery', {
         restoreId: ctx.journal.restoreId,
@@ -694,9 +787,11 @@ function preserveUnrestoredAsides(ctx: PromotionContext): void {
         quarantined
       })
     } catch (error) {
+      allPreserved = false
       logger.error(`Failed to preserve unrestored aside for '${entry.livePath}'`, error as Error)
     }
   }
+  return allPreserved
 }
 
 function quarantineCorruptJournal(error: string): void {

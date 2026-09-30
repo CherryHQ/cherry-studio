@@ -146,7 +146,8 @@ vi.mock('@application', () => ({
         'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
         'app.database.migrations': resolveMigrationsPath(),
         'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json'),
-        'feature.backup.restore.staging': join(userData, 'restore-staging')
+        'feature.backup.restore.staging': join(userData, 'restore-staging'),
+        'feature.backup.restore.aside_quarantine': join(userData, 'restore-aside-quarantine')
       }
       const base = bases[key]
       if (!base) throw new Error(`Unexpected path key in restorePromotion test: ${key}`)
@@ -1210,7 +1211,7 @@ describe('runRestorePromotion', () => {
 
       await runRestorePromotion()
 
-      const quarantined = join(userData, `restore-aside-${RID}`, 'Local Storage')
+      const quarantined = join(userData, 'restore-aside-quarantine', RID, 'Local Storage')
       expect(quiesceSpy).toHaveBeenCalledOnce()
       expect(readFileSync(join(quarantined, 'leveldb-live'), 'utf8')).toBe('LIVE')
       expect(readMarker(livePath())).toBe('old')
@@ -1242,6 +1243,109 @@ describe('runRestorePromotion', () => {
       expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'utf8')).toBe('LIVE')
       expect(journalState()).toBe('failed')
       quiesceSpy.mockRestore()
+    })
+  })
+
+  describe('failed-restore aside quarantine (preservation + next-boot reinstall)', () => {
+    const quarantinedNote = () => join(userData, 'restore-aside-quarantine', RID, 'Notes', 'note.md')
+    const quarantineRootForRid = () => join(userData, 'restore-aside-quarantine', RID)
+
+    it('reinstalls a quarantined aside into the missing live path on the next boot', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+      // The staged note move AND the rollback's aside reinstall both fail
+      // (persistent lock): finalize must quarantine the aside instead of
+      // destroying it with the staging tree, leaving the live path missing.
+      renameFailure.injectPermanentFailureInto = liveNote()
+
+      await runRestorePromotion()
+
+      expect(journalState()).toBe('failed')
+      expect(existsSync(liveNote())).toBe(false)
+      expect(readFileSync(quarantinedNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(existsSync(stagingDir())).toBe(false)
+
+      // Next boot (locks gone): the gate shell consumes the terminal journal
+      // and reinstalls the original note data automatically.
+      renameFailure.injectPermanentFailureInto = null
+      cleanupTerminalRestoreArtifacts()
+
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(existsSync(quarantineRootForRid())).toBe(false)
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+      expect(readMarker(livePath())).toBe('old')
+    })
+
+    it('keeps the journal and quarantine when the live path exists again, reinstalling once it is gone', async () => {
+      makeDb(livePath(), 'old')
+      mkdirSync(dirname(quarantinedNote()), { recursive: true })
+      writeFileSync(quarantinedNote(), 'NOTE-OLD')
+      mkdirSync(dirname(liveNote()), { recursive: true })
+      writeFileSync(liveNote(), 'NOTE-NEWER')
+      writeRestoreJournal(
+        await buildJournal({
+          state: 'failed',
+          chain: [{ folderMillis: 1, hash: 'x' }],
+          fileResources: [
+            {
+              kind: 'note-overwrite',
+              stagingPath: `restore-staging/${RID}/notes/note.md`,
+              livePath: 'Notes/note.md',
+              asidePath: `restore-aside/${RID}/note.md`
+            }
+          ]
+        })
+      )
+
+      // The live path exists again — this boot's data must never be clobbered
+      // with the quarantined copy, so nothing is consumed.
+      cleanupTerminalRestoreArtifacts()
+
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEWER')
+      expect(readFileSync(quarantinedNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(journalState()).toBe('failed')
+
+      // Once the live path is gone (e.g. the leftover cleared tree was
+      // removed), the same journal reinstalls the quarantined original.
+      rmSync(liveNote())
+      cleanupTerminalRestoreArtifacts()
+
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(existsSync(quarantineRootForRid())).toBe(false)
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    })
+
+    it('keeps the staging tree and the journal active when preservation fails, then converges on the next boot', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+      // The staged note move fails (rollback cannot reinstall the aside
+      // either — the same live-path injection blocks the inverse's rename),
+      // and the quarantine move fails on its source aside: terminating here
+      // would authorize the next boot to delete the aside still sitting in
+      // staging.
+      renameFailure.injectPermanentFailureInto = liveNote()
+      renameFailure.injectPermanentFailureFor.add(noteAside())
+
+      await runRestorePromotion()
+
+      // Fail-closed: no terminal journal, no staging deletion — the next
+      // boot re-runs the rollback with fresh locks instead.
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(existsSync(noteAside())).toBe(true)
+
+      renameFailure.injectPermanentFailureInto = null
+      renameFailure.injectPermanentFailureFor.clear()
+      await runRestorePromotion()
+      cleanupTerminalRestoreArtifacts()
+
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+      expect(existsSync(stagingDir())).toBe(false)
     })
   })
 
