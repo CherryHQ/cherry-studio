@@ -272,7 +272,9 @@ P1 不新增自动离线结果补发队列。若 HTTP 也失败，记录投递�
 
 复用 ChannelRegistration 的窗口绑定、取消、响应大小限制与主进程凭据保存；遵循服务端轮询间隔，应用侧单次扫码最多等待 5 分钟。
 `WAITING` 和 `CREATING` 均继续轮询，界面保留二维码和等待提示；仅在 `SUCCESS` 且凭据完整后结束等待。
-成功将 Client ID / Secret 写入未启用频道；Robot Code 按官方连接器使用 Client ID，仍可手动修改。原有白名单和卡片模板保留。
+成功将 Client ID / Secret 写入未启用频道；Robot Code 按当前 `DING_DWS_CLAW` 创建应用机器人的官方连接器约定使用 Client ID，仍可手动修改。原有白名单和卡片模板保留。这不是所有钉钉机器人类型的通用恒等关系，手动接入仍独立填写 Robot Code。
+
+2026-09-30 核对官方连接器提交 `5fef12d37377e299e26d18b0145baf646cd17a8b`：[扫码凭据解析](https://github.com/DingTalk-Real-AI/dingtalk-openclaw-connector/blob/5fef12d37377e299e26d18b0145baf646cd17a8b/src/device-auth.ts#L117)仅返回 Client ID / Secret；同一连接器的[媒体 API 调用](https://github.com/DingTalk-Real-AI/dingtalk-openclaw-connector/blob/5fef12d37377e299e26d18b0145baf646cd17a8b/src/services/media.ts#L779)明确发送 `robotCode: String(config.clientId)`。这是当前官方实现依据，注册接口本身没有独立返回 Robot Code；若上游改变该约定，需要同步调整扫码映射。
 关闭弹窗或窗口、超时、停止应用都会取消；配置已变化、频道已删除或启用时不覆盖。成功后仍需绑定 Agent 并启用。
 原 `CHERRY_STUDIO` 来源虽能生成二维码，但手机端实测提示创建来源无效，已改为官方默认来源。
 真实手机授权成功、权限开通与机器人收发仍需验收。

@@ -171,6 +171,8 @@ export class ChannelRegistration {
           credentials = {
             client_id: data.client_id.trim(),
             client_secret: data.client_secret,
+            // DING_DWS_CLAW creates app bots; the official connector uses clientId as robotCode.
+            // Source and registration scope: docs/references/ai/dingtalk-channel-design.md#扫码配置
             robot_code: data.client_id.trim()
           }
         }
