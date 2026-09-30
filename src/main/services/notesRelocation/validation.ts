@@ -139,6 +139,9 @@ export async function assertNotesRelocationPaths(sourcePath: string, targetPath:
   if (!fs.existsSync(sourcePath)) {
     invalid('source_missing', `source does not exist: ${sourcePath}`)
   }
+  if (fs.lstatSync(sourcePath).isSymbolicLink()) {
+    invalid('source_contains_symlinks', `source is a symbolic link: ${sourcePath}`)
+  }
   if (!fs.statSync(sourcePath).isDirectory()) {
     invalid('source_not_directory', `source is not a directory: ${sourcePath}`)
   }
