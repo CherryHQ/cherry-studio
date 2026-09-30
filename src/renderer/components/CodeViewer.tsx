@@ -383,13 +383,13 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller?.clientWidth) {
       // Conservative when the scroller is not laid out yet — underestimates cause overlap.
-      return 32
+      return 16
     }
     const paddingLeft = fontSize
     const gutterWidth = lineNumbers ? gutterDigits * fontSize * 0.55 : 0
     const lineNumberMargin = lineNumbers ? fontSize : 0
     const contentWidth = scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - 8
-    const charWidth = Math.max(1, fontSize * 0.6)
+    const charWidth = Math.max(1, fontSize * 0.55)
     return Math.max(8, Math.floor(contentWidth / charWidth))
   }, [fontSize, gutterDigits, lineNumbers])
   const estimateSize = useCallback(
@@ -398,7 +398,8 @@ const CodeViewer = ({
       const line = rawLinesRef.current[index] ?? ''
       if (line.length === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
-      return lineHeight * Math.max(1, Math.ceil(line.length / wrappedCharsPerRow()))
+      const charsPerRow = Math.min(wrappedCharsPerRow(), 24)
+      return lineHeight * Math.max(1, Math.ceil(line.length / charsPerRow))
     },
     [lineHeight, wrapped, wrappedCharsPerRow]
   )
