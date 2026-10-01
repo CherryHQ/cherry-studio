@@ -148,6 +148,19 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects merge when the same relative path exists with same-sized different content', async () => {
+    const source = path.join(tempRoot, 'source-notes-same-size')
+    const target = path.join(tempRoot, 'target-notes-same-size')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'conflict.md'), 'aaaa')
+    fs.writeFileSync(path.join(target, 'conflict.md'), 'bbbb')
+
+    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_MERGE_CONFLICT'
+    })
+  })
+
   it('rejects migration when the target contains a pre-existing symlinked directory', async () => {
     const source = path.join(tempRoot, 'source-notes-symlink-dest')
     const target = path.join(tempRoot, 'target-notes-symlink-dest')

@@ -26,6 +26,16 @@ function mockWindows(main: Array<{ id: string }>, sub: Array<{ id: string }>) {
   windowManager.getWindowId.mockImplementation((window: { id: string }) => window.id)
 }
 
+function migrationLockBatchId(): string {
+  const call = ipcApiService.send.mock.calls.find((entry) => entry[1] === 'app.notes_relocation.migration_started')
+  return call?.[2]?.batchId as string
+}
+
+function flushBatchId(): string {
+  const call = ipcApiService.send.mock.calls.find((entry) => entry[1] === 'app.notes_relocation.flush_requested')
+  return call?.[2]?.batchId as string
+}
+
 describe('RendererEditFlushCoordinator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -38,74 +48,94 @@ describe('RendererEditFlushCoordinator', () => {
   it('resolves immediately when no notes-capable window is open', async () => {
     mockWindows([], [])
 
-    await expect(rendererEditFlushCoordinator.flush('caller')).resolves.toBe(true)
+    await expect(rendererEditFlushCoordinator.prepareForMigration('caller')).resolves.toBe(true)
     expect(ipcApiService.send).not.toHaveBeenCalled()
   })
 
-  it('asks every other main/sub window to flush and resolves once all acknowledge', async () => {
+  it('locks every window before asking other windows to flush', async () => {
     mockWindows([mainWindow], [subWindow])
 
-    const flushed = rendererEditFlushCoordinator.flush('main')
+    const prepared = rendererEditFlushCoordinator.prepareForMigration('main')
 
-    // the caller window ('main') is excluded from the handshake
-    expect(ipcApiService.send).toHaveBeenCalledTimes(1)
+    expect(ipcApiService.send).toHaveBeenCalledWith('main', 'app.notes_relocation.migration_started', {
+      batchId: expect.any(String)
+    })
+    expect(ipcApiService.send).toHaveBeenCalledWith('sub-1', 'app.notes_relocation.migration_started', {
+      batchId: expect.any(String)
+    })
+
+    const lockBatchId = migrationLockBatchId()
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'main', true)
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'sub-1', true)
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
     expect(ipcApiService.send).toHaveBeenCalledWith('sub-1', 'app.notes_relocation.flush_requested', {
       batchId: expect.any(String)
     })
 
-    const batchId = ipcApiService.send.mock.calls[0][2].batchId
-    rendererEditFlushCoordinator.acknowledge(batchId, 'sub-1', true)
+    const flushId = flushBatchId()
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'sub-1', true)
 
-    await expect(flushed).resolves.toBe(true)
+    await expect(prepared).resolves.toBe(true)
   })
 
-  it('does not resolve before every targeted window acknowledges', async () => {
+  it('does not flush before every window acknowledges the migration lock', async () => {
     mockWindows([], [subWindow])
 
     let resolved = false
-    const flushed = rendererEditFlushCoordinator.flush(null).then((result) => {
+    const prepared = rendererEditFlushCoordinator.prepareForMigration(null).then((result) => {
       resolved = true
       return result
     })
-    expect(ipcApiService.send).toHaveBeenCalledTimes(1)
 
-    // an acknowledgement for a different batch must not complete this one
-    rendererEditFlushCoordinator.acknowledge('other-batch', 'sub-1', true)
+    const lockBatchId = migrationLockBatchId()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(resolved).toBe(false)
+    expect(ipcApiService.send).not.toHaveBeenCalledWith(
+      'sub-1',
+      'app.notes_relocation.flush_requested',
+      expect.anything()
+    )
 
-    const batchId = ipcApiService.send.mock.calls[0][2].batchId
-    rendererEditFlushCoordinator.acknowledge(batchId, 'sub-1', true)
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'sub-1', true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
-    await expect(flushed).resolves.toBe(true)
+    const flushId = flushBatchId()
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'sub-1', true)
+
+    await expect(prepared).resolves.toBe(true)
     expect(resolved).toBe(true)
   })
 
   it('resolves false when a window reports a failed flush', async () => {
     mockWindows([mainWindow], [])
 
-    const flushed = rendererEditFlushCoordinator.flush(null)
-    expect(ipcApiService.send).toHaveBeenCalledTimes(1)
+    const prepared = rendererEditFlushCoordinator.prepareForMigration(null)
+    const lockBatchId = migrationLockBatchId()
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'main', true)
 
-    const batchId = ipcApiService.send.mock.calls[0][2].batchId
-    rendererEditFlushCoordinator.acknowledge(batchId, 'main', false)
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
-    await expect(flushed).resolves.toBe(false)
+    const flushId = flushBatchId()
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'main', false)
+
+    await expect(prepared).resolves.toBe(false)
   })
 
-  it('resolves after the timeout when a window never acknowledges', async () => {
+  it('resolves after the timeout when a window never acknowledges the lock', async () => {
     vi.useFakeTimers()
     mockWindows([], [subWindow])
 
-    const flushed = rendererEditFlushCoordinator.flush('main')
-    expect(ipcApiService.send).toHaveBeenCalledTimes(1)
+    const prepared = rendererEditFlushCoordinator.prepareForMigration('main')
 
     await vi.advanceTimersByTimeAsync(5_000)
 
-    await expect(flushed).resolves.toBe(false)
+    await expect(prepared).resolves.toBe(false)
   })
 
   it('ignores acknowledgements for unknown batches', () => {
-    expect(() => rendererEditFlushCoordinator.acknowledge('unknown-batch', 'main', true)).not.toThrow()
+    expect(() => rendererEditFlushCoordinator.acknowledgeMigrationLock('unknown-batch', 'main', true)).not.toThrow()
+    expect(() => rendererEditFlushCoordinator.acknowledgeFlush('unknown-batch', 'main', true)).not.toThrow()
   })
 })

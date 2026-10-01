@@ -7,7 +7,7 @@ import type { WindowId } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('NotesRelocation:RendererEditFlush')
 
-const FLUSH_TIMEOUT_MS = 5_000
+const HANDSHAKE_TIMEOUT_MS = 5_000
 
 interface PendingBatch {
   remaining: Set<WindowId>
@@ -17,54 +17,70 @@ interface PendingBatch {
 }
 
 /**
- * Coordinates the "flush unsaved note drafts" handshake between the main
- * process and renderer windows before a notes directory migration: drafts live
- * in renderer memory, so every notes-capable window except the caller (which
- * flushes itself) is asked to flush and must acknowledge. The wait is bounded
- * by a timeout so a gone or unresponsive window cannot block migration.
+ * Coordinates renderer handshakes before a notes directory migration: every
+ * notes-capable window must lock edits, then persist in-memory drafts (except
+ * the caller, which flushes itself) before main copies files on disk.
  */
 class RendererEditFlushCoordinator {
-  private pending = new Map<string, PendingBatch>()
+  private flushPending = new Map<string, PendingBatch>()
+  private lockPending = new Map<string, PendingBatch>()
 
-  async flush(excludeWindowId: WindowId | null): Promise<boolean> {
+  private listNotesWindowIds(): WindowId[] {
     const windowManager = application.get('WindowManager')
-    const targetIds = [WindowType.Main, WindowType.SubWindow]
+    return [WindowType.Main, WindowType.SubWindow]
       .flatMap((type) => windowManager.getWindowsByType(type))
       .map((window) => windowManager.getWindowId(window))
-      .filter((id): id is WindowId => id !== undefined && id !== excludeWindowId)
+      .filter((id): id is WindowId => id !== undefined)
+  }
 
-    if (targetIds.length === 0) {
-      return true
+  private waitForAcks(store: Map<string, PendingBatch>, windowIds: WindowId[], label: string): Promise<boolean> {
+    if (windowIds.length === 0) {
+      return Promise.resolve(true)
     }
 
     return new Promise<boolean>((resolve) => {
       const batchId = randomUUID()
       const pending: PendingBatch = {
-        remaining: new Set(targetIds),
+        remaining: new Set(windowIds),
         failed: false,
         timer: undefined as unknown as NodeJS.Timeout,
         resolve: (success) => {
           clearTimeout(pending.timer)
-          this.pending.delete(batchId)
+          store.delete(batchId)
           resolve(success)
         }
       }
       pending.timer = setTimeout(() => {
-        logger.warn('Notes edit flush timed out for some windows', { windowIds: [...pending.remaining] })
+        logger.warn(`Notes migration ${label} timed out for some windows`, {
+          windowIds: [...pending.remaining]
+        })
         pending.resolve(false)
-      }, FLUSH_TIMEOUT_MS)
+      }, HANDSHAKE_TIMEOUT_MS)
       pending.timer.unref?.()
-      this.pending.set(batchId, pending)
+      store.set(batchId, pending)
 
       const ipcApiService = application.get('IpcApiService')
-      for (const id of targetIds) {
-        ipcApiService.send(id, 'app.notes_relocation.flush_requested', { batchId })
+      for (const id of windowIds) {
+        ipcApiService.send(id, 'app.notes_relocation.migration_started', { batchId })
       }
     })
   }
 
-  acknowledge(batchId: string, senderId: WindowId | null, ok: boolean): void {
-    const pending = this.pending.get(batchId)
+  acknowledgeMigrationLock(batchId: string, senderId: WindowId | null, ok: boolean): void {
+    this.resolveBatch(this.lockPending, batchId, senderId, ok)
+  }
+
+  acknowledgeFlush(batchId: string, senderId: WindowId | null, ok: boolean): void {
+    this.resolveBatch(this.flushPending, batchId, senderId, ok)
+  }
+
+  private resolveBatch(
+    store: Map<string, PendingBatch>,
+    batchId: string,
+    senderId: WindowId | null,
+    ok: boolean
+  ): void {
+    const pending = store.get(batchId)
     if (!pending) {
       return
     }
@@ -77,6 +93,44 @@ class RendererEditFlushCoordinator {
     if (pending.remaining.size === 0) {
       pending.resolve(!pending.failed)
     }
+  }
+
+  async prepareForMigration(callerWindowId: WindowId | null): Promise<boolean> {
+    const allWindowIds = this.listNotesWindowIds()
+    const locked = await this.waitForAcks(this.lockPending, allWindowIds, 'edit lock')
+    if (!locked) {
+      return false
+    }
+
+    const flushTargets = allWindowIds.filter((id) => id !== callerWindowId)
+    if (flushTargets.length === 0) {
+      return true
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const batchId = randomUUID()
+      const pending: PendingBatch = {
+        remaining: new Set(flushTargets),
+        failed: false,
+        timer: undefined as unknown as NodeJS.Timeout,
+        resolve: (success) => {
+          clearTimeout(pending.timer)
+          this.flushPending.delete(batchId)
+          resolve(success)
+        }
+      }
+      pending.timer = setTimeout(() => {
+        logger.warn('Notes edit flush timed out for some windows', { windowIds: [...pending.remaining] })
+        pending.resolve(false)
+      }, HANDSHAKE_TIMEOUT_MS)
+      pending.timer.unref?.()
+      this.flushPending.set(batchId, pending)
+
+      const ipcApiService = application.get('IpcApiService')
+      for (const id of flushTargets) {
+        ipcApiService.send(id, 'app.notes_relocation.flush_requested', { batchId })
+      }
+    })
   }
 }
 

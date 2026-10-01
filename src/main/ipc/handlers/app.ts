@@ -21,6 +21,8 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
+let notesDirectoryMigrationInFlight = false
+
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.mobile.get_android_download_url': async () => getAndroidDownloadUrl(await regionService.getCountry()),
   'app.get_info': async () => ({
@@ -50,25 +52,33 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
   'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, ctx) => {
-    // Drafts live in renderer memory: other windows must persist theirs before
-    // the directory moves, or the edits are stranded in the old location.
-    const flushed = await rendererEditFlushCoordinator.flush(ctx.senderId)
-    if (!flushed) {
+    if (notesDirectoryMigrationInFlight) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
-        'a renderer window failed to flush unsaved note edits'
+        'another notes directory migration is already in progress'
       )
     }
+    notesDirectoryMigrationInFlight = true
     const ipcApiService = application.get('IpcApiService')
-    ipcApiService.broadcast('app.notes_relocation.migration_started', undefined)
     try {
+      const prepared = await rendererEditFlushCoordinator.prepareForMigration(ctx.senderId)
+      if (!prepared) {
+        throw new IpcError(
+          notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+          'a renderer window failed to prepare for notes directory migration'
+        )
+      }
       return await migrateNotesDirectory(sourcePath, targetPath, { merge })
     } finally {
+      notesDirectoryMigrationInFlight = false
       ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
     }
   },
+  'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(batchId, ctx.senderId, ok)
+  },
   'app.notes_relocation.flush_ack': async ({ batchId, ok }, ctx) => {
-    rendererEditFlushCoordinator.acknowledge(batchId, ctx.senderId, ok)
+    rendererEditFlushCoordinator.acknowledgeFlush(batchId, ctx.senderId, ok)
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
