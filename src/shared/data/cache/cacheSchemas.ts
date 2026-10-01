@@ -147,8 +147,6 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
-  /** Set after a successful directory migration so selection can follow the new root. */
-  'notes.directory_root_transition': { from: string; to: string } | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -246,7 +244,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.right_pane_open_override': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
-  'notes.directory_root_transition': undefined,
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],
@@ -368,6 +365,8 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
+  /** Set after a successful directory migration so selection can follow the new root. */
+  'notes.directory_root_transition': { from: string; to: string } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -407,7 +406,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'channel.status.${channelId}': null,
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
-  'knowledge.item.directory_copy_progress.${itemId}': null
+  'knowledge.item.directory_copy_progress.${itemId}': null,
+  'notes.directory_root_transition': undefined
 }
 
 /**

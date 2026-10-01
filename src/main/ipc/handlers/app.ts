@@ -60,6 +60,8 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     try {
       const prepared = await rendererEditFlushCoordinator.prepareForMigration(ctx.senderId)
       if (!prepared) {
+        notesDirectoryMigrationInFlight = false
+        ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
         throw new IpcError(
           notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
           'a renderer window failed to prepare for notes directory migration'
@@ -67,13 +69,13 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       }
       return await migrateNotesDirectory(sourcePath, targetPath, { merge })
     } catch (error) {
+      notesDirectoryMigrationInFlight = false
       ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
       throw error
-    } finally {
-      notesDirectoryMigrationInFlight = false
     }
   },
   'app.notes_relocation.commit': async () => {
+    notesDirectoryMigrationInFlight = false
     application.get('IpcApiService').broadcast('app.notes_relocation.migration_finished', undefined)
   },
   'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
