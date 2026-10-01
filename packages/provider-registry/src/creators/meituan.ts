@@ -7,7 +7,10 @@ export default defineCreator({
   fetchModels: openaiCompatible('longcat', 'LONGCAT_API_KEY'),
   families: ['longcat'],
   idPrefixes: ['longcat'],
-  reasoningFamilies: [{ pattern: '^longcat-2[.-]0$', toggle: true }],
+  reasoningFamilies: [
+    { pattern: '^longcat-2[.-]0$', toggle: true },
+    { pattern: '^longcat-2[.-]5', toggle: true }
+  ],
   models: [
     {
       id: 'longcat-2-0',
