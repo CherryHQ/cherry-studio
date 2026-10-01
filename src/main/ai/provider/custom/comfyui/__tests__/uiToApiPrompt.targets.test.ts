@@ -189,6 +189,22 @@ describe('ComfyUI text held outside the encode node', () => {
     })
   })
 
+  it('writes the run text into an empty literal a StringConcatenate keeps beside a link', () => {
+    // A blank literal is the slot the workflow left for a run to fill.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'muted sketch' } },
+      '2': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: ['1', 0], string_b: '', delimiter: ', ' }
+      },
+      '3': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['2', 0] } },
+      '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 1 } },
+      '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'string_b', samplerId: '4' })
+  })
+
   it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
     // `string_a` and `string_b` rank nothing: one is the workflow's style or
     // prefix, the other is the run's text, and object order cannot tell them
@@ -357,6 +373,23 @@ describe('ComfyUI seed placement', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'value', samplerId: '3' })
   })
 
+  it('does not hand the run seed to a sampler that only reaches the text negatively', () => {
+    // Node 2 samples and its `negative` edge reaches the target, but it does
+    // not sample this text: the run's seed would change a graph the run never
+    // reads. No sampler owns the text, so the target names itself.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } },
+      '2': { class_type: 'KSampler', _meta: { title: 'unrelated' }, inputs: { negative: ['1', 0], seed: 1 } },
+      '3': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: ['1', 0] } },
+      '4': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['3', 0] } }
+    }
+    expect(findPromptTarget(graph, { objectInfo: { SaveImage: { input: {}, output_node: true } } })).toEqual({
+      nodeId: '1',
+      input: 'value',
+      samplerId: '1'
+    })
+  })
+
   it('names the target itself when no sampling node reaches it', () => {
     // Nothing that samples feeds this text, so the run's seed has nowhere to go
     // and writing it to the first node that happens to hold one is not a guess
@@ -388,6 +421,28 @@ describe('ComfyUI output anchors', () => {
       nodeId: '2',
       input: 'prompt',
       samplerId: '2'
+    })
+  })
+
+  it('ignores a prompt on a branch no output reaches', () => {
+    // Node 2 samples and node 1 carries text, but nothing leads to them: the
+    // run never executes that branch, so its text is not the run's prompt.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'CLIPTextEncode', _meta: { title: 'disconnected' }, inputs: { text: 'disconnected text' } },
+      '2': {
+        class_type: 'KSampler',
+        _meta: { title: 'disconnected sampler' },
+        inputs: { positive: ['1', 0], seed: 1 }
+      },
+      '3': { class_type: 'CLIPTextEncode', _meta: { title: 'positive' }, inputs: { text: ['6', 0] } },
+      '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 2 } },
+      '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } },
+      '6': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } }
+    }
+    expect(findPromptTarget(graph, { objectInfo: outputInfo })).toEqual({
+      nodeId: '6',
+      input: 'value',
+      samplerId: '4'
     })
   })
 

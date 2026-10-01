@@ -857,7 +857,65 @@ export function findPromptTarget(
   })
   const isSampler = ([, node]): boolean =>
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
-  const ordered = [...withPositive.filter(isSampler), ...withPositive.filter((entry) => !isSampler(entry))]
+  /**
+   * The node ids reachable from `from` in the graph a run evaluates: a negative
+   * branch is part of it — both encoders run — but a switch evaluates only its
+   * selected side, so the discarded branch is not. With `positive`, the walk
+   * also stays off every `negative` edge, which is what a *seed* needs: a
+   * sampler that only a negative branch reaches does not sample the run.
+   */
+  const reachedFrom = (from: string, options: { positive?: boolean } = {}): Set<string> => {
+    const reached = new Set<string>()
+    const queue = [from]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      if (reached.has(id)) continue
+      reached.add(id)
+      const node = prompt[id]
+      if (!node) continue
+      const branch = selectedSwitchBranch(node)
+      if (branch) {
+        if (isReference(branch.value)) queue.push(branch.value[0])
+        continue
+      }
+      for (const [name, value] of Object.entries(node.inputs)) {
+        if (!isReference(value)) continue
+        if (options.positive && name === 'negative') continue
+        queue.push(value[0])
+      }
+    }
+    return reached
+  }
+  const reaches = (from: string, target: string, options: { positive?: boolean } = {}): boolean =>
+    reachedFrom(from, options).has(target)
+
+  const byNodeId = (a: string, b: string): number => {
+    // A node id is a string to the API but a number to ComfyUI: ordering the
+    // tie-break lexicographically would read "10" as lower than "9".
+    const left = Number(a)
+    const right = Number(b)
+    if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
+    return a < b ? -1 : a > b ? 1 : 0
+  }
+  const orderedIds = Object.keys(prompt).sort(byNodeId)
+  const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
+
+  const referenced = new Set<string>()
+  for (const node of Object.values(prompt)) {
+    for (const value of Object.values(node.inputs)) {
+      if (isReference(value)) referenced.add(value[0])
+    }
+  }
+  const outputIds = orderedIds.filter((id) => objectInfo?.[prompt[id].class_type]?.output_node === true)
+  const rootIds = outputIds.length > 0 ? outputIds : orderedIds.filter((id) => !referenced.has(id))
+
+  // Only the samplers a run reaches matter: a node nothing the server executes
+  // leads to still holds a prompt and a seed, and writing either into it would
+  // change a graph the run never reads.
+  const executed = new Set<string>()
+  for (const root of rootIds) for (const id of reachedFrom(root)) executed.add(id)
+  const runs = withPositive.filter(([id]) => executed.has(id))
+  const ordered = [...runs.filter(isSampler), ...runs.filter((entry) => !isSampler(entry))]
 
   /** All nodes reachable through reference inputs from a starting id. */
   const reachableFrom = (start: Reference): Set<string> => {
@@ -874,24 +932,6 @@ export function findPromptTarget(
       }
     }
     return reached
-  }
-
-  /** Whether `target` is reachable from `from` through reference inputs. */
-  const reaches = (from: string, target: string): boolean => {
-    const seen = new Set<string>()
-    const queue = [from]
-    while (queue.length > 0) {
-      const id = queue.shift()!
-      if (id === target) return true
-      if (seen.has(id)) continue
-      seen.add(id)
-      const node = prompt[id]
-      if (!node) continue
-      for (const value of Object.values(node.inputs)) {
-        if (isReference(value)) queue.push(value[0])
-      }
-    }
-    return false
   }
 
   /**
@@ -925,7 +965,7 @@ export function findPromptTarget(
         // names the text, and the literal here is a style string.
         const promotedBelow = promotedText.some((entry) => reaches(nodeId, entry.nodeId))
         const literal = Object.entries(target.inputs).find(
-          ([name, value]) => name !== 'delimiter' && typeof value === 'string' && value.length > 0
+          ([name, value]) => name !== 'delimiter' && typeof value === 'string'
         )
         if (literal && !promotedBelow) return { nodeId, input: literal[0] }
         if (promotedBelow) continue
@@ -1006,17 +1046,6 @@ export function findPromptTarget(
   // sample, lowest node id first, and take the first text source reached from
   // one: the node's own prompt input, or the text node it links to — a Gemini
   // or Seedream generator keeps its prompt in a Primitive it references.
-  const byNodeId = (a: string, b: string): number => {
-    // A node id is a string to the API but a number to ComfyUI: ordering the
-    // tie-break lexicographically would read "10" as lower than "9".
-    const left = Number(a)
-    const right = Number(b)
-    if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
-    return a < b ? -1 : a > b ? 1 : 0
-  }
-  const orderedIds = Object.keys(prompt).sort(byNodeId)
-  const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
-
   /**
    * The node a per-run seed belongs to: the root when it samples, otherwise the
    * sampling node the target is reachable from. A target no sampling node
@@ -1026,22 +1055,9 @@ export function findPromptTarget(
    */
   const seedNodeFor = (target: string, root: string): string => {
     if (seedInputKey(prompt[root]?.inputs ?? {}) !== undefined) return root
-    return samplingIds.find((id) => reaches(id, target)) ?? target
+    return samplingIds.find((id) => reaches(id, target, { positive: true })) ?? target
   }
 
-  // A graph with no seed at all still generates — the hosted image nodes
-  // (`RunwayTextToImageNode` and friends) keep no seed — so the second pass
-  // drops that requirement and walks back from where a run ends: the classes
-  // the server executes for their side effect, or, when it does not know them,
-  // the nodes nothing else reads.
-  const referenced = new Set<string>()
-  for (const node of Object.values(prompt)) {
-    for (const value of Object.values(node.inputs)) {
-      if (isReference(value)) referenced.add(value[0])
-    }
-  }
-  const outputIds = orderedIds.filter((id) => objectInfo?.[prompt[id].class_type]?.output_node === true)
-  const rootIds = outputIds.length > 0 ? outputIds : orderedIds.filter((id) => !referenced.has(id))
   for (const roots of [samplingIds, rootIds]) {
     for (const root of roots) {
       const found = walk([root])
