@@ -155,6 +155,7 @@ function browserEnvironment(
       const empty =
         (transcription === 'apple_empty' && input!.modelId === 'local-voice::apple-system-asr') ||
         (transcription === 'funasr_empty' && input!.modelId === 'local-voice::funasr-nano')
+      lease = undefined
       return {
         text: empty ? '' : 'Private transcript must not appear in evidence',
         segments: empty ? [] : [{ text: 'Private transcript segment', startSecond: 0, endSecond: 0.001 }],
@@ -253,7 +254,7 @@ describe('voice smoke renderer contract', () => {
     expect(fixture.created.size).toBe(0)
   })
 
-  it('requires ready Apple and FunASR results, discarding every session without leaking content', async () => {
+  it('completes both admitted recording sessions without preempting its speech output or leaking content', async () => {
     const fixture = browserEnvironment('success')
     const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
     expect(result).toMatchObject({
@@ -332,6 +333,25 @@ describe('voice smoke renderer contract', () => {
     expect(result.apple).toBeUndefined()
     expect(result.funasr).toBeUndefined()
   })
+
+  it.each(['VOICE_NO_SPEECH', 'VOICE_MODEL_LOAD_FAILED', 'VOICE_WORKER_CRASHED', 'VOICE_DOWNLOAD_FAILED'])(
+    'preserves the stable FunASR failure %s without exposing native details',
+    async (code) => {
+      const fixture = browserEnvironment('success')
+      const ipc = fixture.globals.window.api.ipcApi
+      const originalRequest = ipc.request
+      ipc.request = async (route, input) =>
+        route === 'ai.transcription.generate' && input?.modelId === 'local-voice::funasr-nano'
+          ? { ok: false, error: { code, message: '/private/audio transcript' } }
+          : originalRequest(route, input)
+
+      const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+      expect(result).toMatchObject({ passed: false, stage: 'funasr_transcribe', code, cleanupSucceeded: true })
+      expect(fixture.resourcesClosed()).toBe(true)
+      expect(JSON.stringify(result)).not.toContain('/private/audio transcript')
+    }
+  )
 
   it('rejects unapproved test languages before any IPC session is created', async () => {
     const fixture = browserEnvironment('success')
