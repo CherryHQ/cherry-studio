@@ -135,6 +135,7 @@ import {
 // Must import after mocks are set up
 const {
   createCustomModel,
+  mergeEndpointReasoningFormat,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -1120,6 +1121,60 @@ describe('ProviderRegistryService', () => {
       ])
     })
 
+    it('keeps preset endpoint wire when the user row persisted only the reasoning format selector', async () => {
+      const catalogWire = {
+        off: {
+          operations: [
+            {
+              target: 'reasoning.effort',
+              value: { source: 'literal', value: 'none' },
+              delivery: 'request-body' as const
+            }
+          ]
+        }
+      }
+      setupRegistryData()
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openrouter',
+            name: 'OpenRouter',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                baseUrl: 'https://openrouter.ai/api/v1',
+                reasoningFormat: { type: 'openai-chat', wire: catalogWire }
+              }
+            },
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: {}
+          }
+        ]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openrouter', modelId: 'gpt-4o', apiModelId: 'gpt-4o' }]
+      })
+
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openrouter-user',
+        presetProviderId: 'openrouter',
+        name: 'OpenRouter User',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://proxy.example/v1',
+            reasoningFormat: { type: 'openai-chat' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('openrouter-user', 'gpt-4o')
+
+      expect(result.reasoningProfile.wire.off).toEqual(catalogWire.off)
+    })
+
     it('keeps the default openai-chat format when a custom provider has no reasoningFormat', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
@@ -1138,6 +1193,37 @@ describe('ProviderRegistryService', () => {
       const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
+  })
+})
+
+describe('mergeEndpointReasoningFormat', () => {
+  it('reuses catalog wire when the user override only selects the format type', () => {
+    const catalogWire = {
+      off: {
+        operations: [
+          { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' }
+        ]
+      }
+    }
+
+    expect(mergeEndpointReasoningFormat({ type: 'openai-chat' }, { type: 'openai-chat', wire: catalogWire })).toEqual({
+      type: 'openai-chat',
+      wire: catalogWire
+    })
+  })
+
+  it('does not borrow catalog wire when the user selected a different format type', () => {
+    const catalogWire = {
+      off: {
+        operations: [
+          { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' }
+        ]
+      }
+    }
+
+    expect(mergeEndpointReasoningFormat({ type: 'self-hosted' }, { type: 'openai-chat', wire: catalogWire })).toEqual({
+      type: 'self-hosted'
     })
   })
 })
