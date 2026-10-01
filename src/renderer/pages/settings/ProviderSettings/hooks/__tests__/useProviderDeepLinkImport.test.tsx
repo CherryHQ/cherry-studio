@@ -14,7 +14,18 @@ const popupShowMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({
-    createProvider: createProviderMock
+    createProvider: createProviderMock,
+    providers: [
+      {
+        id: 'anthropic',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://old.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      }
+    ]
   }),
   useProviderActions: () => ({
     updateProviderById: updateProviderByIdMock
@@ -141,7 +152,8 @@ describe('useProviderDeepLinkImport', () => {
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-          baseUrl: 'https://api.anthropic.com'
+          baseUrl: 'https://api.anthropic.com',
+          reasoningFormat: { type: 'self-hosted' }
         }
       }
     })
