@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Nach",
   "settings.data.notes_relocation.error.flush_failed": "Offene Notizen konnten vor der Migration nicht gespeichert werden. Schließen oder speichern Sie Ihre Notizen und versuchen Sie es erneut.",
   "settings.data.notes_relocation.error.generic": "Migration des Notizverzeichnisses fehlgeschlagen",
+  "settings.data.notes_relocation.error.in_progress": "Eine andere Notizenordner-Migration läuft bereits. Warten Sie, bis sie abgeschlossen ist, und versuchen Sie es erneut.",
   "settings.data.notes_relocation.error.invalid_target": "Das ausgewählte Verzeichnis ist ungültig oder der Zugriff wurde verweigert",
   "settings.data.notes_relocation.error.preference_update_failed": "Notizen wurden in den neuen Ordner kopiert, aber der neue Notizpfad konnte nicht gespeichert werden. Legen Sie ihn manuell in den Einstellungen fest.",
   "settings.data.notes_relocation.error.same_path": "Das neue Verzeichnis ist identisch mit dem aktuellen Notizverzeichnis",

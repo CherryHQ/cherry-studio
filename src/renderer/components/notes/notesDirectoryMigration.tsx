@@ -5,6 +5,7 @@ import {
   NotesDirectoryMigrationConfirmContent,
   NotesDirectoryMigrationMergeContent
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
+import { lockNotesEditsForRelocation, unlockNotesEditsForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -96,25 +97,34 @@ export async function migrateNotesDirectoryWithUi(options: {
       return
     }
 
-    await ipcApi.request('app.notes_relocation.migrate', {
-      sourcePath,
-      targetPath,
-      merge
-    })
-
+    lockNotesEditsForRelocation()
     try {
-      await onSuccess(targetPath)
-    } catch (error) {
-      logger.error('Notes migrated but notes path preference update failed', error as Error)
-      toast.error(t('settings.data.notes_relocation.error.preference_update_failed'))
-      return
-    }
+      await ipcApi.request('app.notes_relocation.migrate', {
+        sourcePath,
+        targetPath,
+        merge
+      })
 
-    toast.success(t('settings.data.notes_relocation.success'))
+      try {
+        await onSuccess(targetPath)
+      } catch (error) {
+        logger.error('Notes migrated but notes path preference update failed', error as Error)
+        toast.error(t('settings.data.notes_relocation.error.preference_update_failed'))
+        return
+      }
+
+      toast.success(t('settings.data.notes_relocation.success'))
+    } finally {
+      unlockNotesEditsForRelocation()
+    }
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)
     if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED) {
       toast.error(t('settings.data.notes_relocation.error.flush_failed'))
+      return
+    }
+    if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS) {
+      toast.error(t('settings.data.notes_relocation.error.in_progress'))
       return
     }
     toast.error(t('settings.data.notes_relocation.error.generic'))

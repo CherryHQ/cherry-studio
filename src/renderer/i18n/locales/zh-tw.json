@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "新目錄",
   "settings.data.notes_relocation.error.flush_failed": "遷移前無法儲存已開啟的筆記。請關閉或儲存筆記後再試一次。",
   "settings.data.notes_relocation.error.generic": "筆記目錄移轉失敗",
+  "settings.data.notes_relocation.error.in_progress": "已有其他筆記目錄遷移正在進行。請等待其完成後再試。",
   "settings.data.notes_relocation.error.invalid_target": "所選目錄無效或沒有存取權限",
   "settings.data.notes_relocation.error.preference_update_failed": "筆記已複製到新資料夾，但無法儲存新的筆記路徑。請在設定中手動指定。",
   "settings.data.notes_relocation.error.same_path": "新目錄與目前筆記目錄相同",

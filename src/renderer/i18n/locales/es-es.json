@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Hacia",
   "settings.data.notes_relocation.error.flush_failed": "No se pudieron guardar las notas abiertas antes de la migración. Cierra o guarda tus notas e inténtalo de nuevo.",
   "settings.data.notes_relocation.error.generic": "Error al migrar el directorio de notas",
+  "settings.data.notes_relocation.error.in_progress": "Ya hay otra migración del directorio de notas en curso. Espere a que termine e inténtelo de nuevo.",
   "settings.data.notes_relocation.error.invalid_target": "El directorio seleccionado no es válido o se denegó el acceso",
   "settings.data.notes_relocation.error.preference_update_failed": "Las notas se copiaron a la nueva carpeta, pero no se pudo guardar la nueva ruta. Configúrela manualmente en los ajustes.",
   "settings.data.notes_relocation.error.same_path": "El nuevo directorio es el mismo que el directorio de notas actual",

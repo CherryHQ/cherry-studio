@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Para",
   "settings.data.notes_relocation.error.flush_failed": "Não foi possível guardar as notas abertas antes da migração. Feche ou guarde as suas notas e tente novamente.",
   "settings.data.notes_relocation.error.generic": "Falha ao migrar o diretório de notas",
+  "settings.data.notes_relocation.error.in_progress": "Já existe outra migração da pasta de notas em curso. Aguarde que termine e tente novamente.",
   "settings.data.notes_relocation.error.invalid_target": "O diretório selecionado é inválido ou o acesso foi negado",
   "settings.data.notes_relocation.error.preference_update_failed": "As notas foram copiadas para a nova pasta, mas não foi possível guardar o novo caminho. Defina-o manualmente nas definições.",
   "settings.data.notes_relocation.error.same_path": "O novo diretório é igual ao diretório de notas atual",

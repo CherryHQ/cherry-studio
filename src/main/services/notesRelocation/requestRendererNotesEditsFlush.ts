@@ -32,13 +32,14 @@ export function unregisterRendererNotesEditsFlushWindow(windowId: string): void 
     if (!pending.expected.has(windowId)) {
       continue
     }
-    pending.expected.delete(windowId)
-    if (pending.expected.size > 0) {
-      continue
-    }
     clearTimeout(pending.timer)
     pendingByRequestId.delete(requestId)
-    pending.resolve()
+    pending.reject(
+      new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
+        'renderer unregistered before notes edit flush completed'
+      )
+    )
   }
 }
 

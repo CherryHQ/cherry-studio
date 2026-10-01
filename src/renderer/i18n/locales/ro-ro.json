@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Către",
   "settings.data.notes_relocation.error.flush_failed": "Nu s-au putut salva notițele deschise înainte de migrare. Închideți sau salvați notițele și încercați din nou.",
   "settings.data.notes_relocation.error.generic": "Migrarea directorului de notițe a eșuat",
+  "settings.data.notes_relocation.error.in_progress": "O altă migrare a folderului de notițe este deja în curs. Așteptați să se termine și încercați din nou.",
   "settings.data.notes_relocation.error.invalid_target": "Directorul selectat este invalid sau accesul a fost refuzat",
   "settings.data.notes_relocation.error.preference_update_failed": "Notițele au fost copiate în folderul nou, dar noua cale nu a putut fi salvată. Setați-o manual în setări.",
   "settings.data.notes_relocation.error.same_path": "Noul director este același cu directorul actual de notițe",
