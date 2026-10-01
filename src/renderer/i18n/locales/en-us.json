@@ -167,6 +167,7 @@
   "agent.preview_pane.tree_error.load_error.description": "Make sure the work directory still exists and is accessible, then try again.",
   "agent.preview_pane.tree_error.load_error.title": "Couldn't load workspace files",
   "agent.right_pane.flow.child_subtasks": "Child subtasks",
+  "agent.right_pane.flow.history_load_failed": "Older history could not be loaded, so this flow could not be opened. Try again.",
   "agent.right_pane.flow.main_task": "Main task",
   "agent.right_pane.flow.no_messages.description": "This tool call has no captured child message flow.",
   "agent.right_pane.flow.no_messages.title": "No messages",

@@ -48,6 +48,7 @@ const {
   useDirectoryTreeMock,
   ipcRequestMock,
   toastErrorMock,
+  toastWarningMock,
   webviewBrowserMock,
   uiMockState,
   useAgentMessageListProviderValueMock
@@ -82,6 +83,7 @@ const {
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  toastWarningMock: vi.fn(),
   webviewBrowserMock: vi.fn(),
   uiMockState: { useRealHoverCard: false },
   useAgentMessageListProviderValueMock: vi.fn()
@@ -242,7 +244,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: toastErrorMock }
+  toast: { error: toastErrorMock, warning: toastWarningMock }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -2100,6 +2102,44 @@ describe('AgentRightPane', () => {
     // Once the launch row is in the window the flow opens on its own, at the launch identity.
     view.rerender(pane({ m1: [receipt], m2: [launch] }))
     await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
+  })
+
+  // A page fetch that failed leaves the window unchanged, so the chase would wait forever: it must
+  // report the failure and let the next click start a fresh attempt.
+  it('reports a failed page fetch and retries on the next click', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>, loadOlderError?: Error) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder
+        loadOlderError={loadOlderError}>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane({ m1: [receipt] }, new Error('history fetch failed')))
+    await waitFor(() => expect(toastWarningMock).toHaveBeenCalledWith('agent.right_pane.flow.history_load_failed'))
+
+    // The intent is gone, so the next click arms a fresh attempt instead of being deduped away.
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(2))
   })
 
   // The chase belongs to the session that asked for it: switching sessions must not page or open a

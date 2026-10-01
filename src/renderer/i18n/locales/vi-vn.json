@@ -167,6 +167,7 @@
   "agent.preview_pane.tree_error.load_error.description": "Hãy đảm bảo thư mục làm việc vẫn tồn tại và có thể truy cập được, sau đó thử lại.",
   "agent.preview_pane.tree_error.load_error.title": "Không thể tải các tệp không gian làm việc",
   "agent.right_pane.flow.child_subtasks": "Tác vụ con cấp dưới",
+  "agent.right_pane.flow.history_load_failed": "Không thể tải lịch sử cũ hơn nên không thể mở luồng này. Hãy thử lại.",
   "agent.right_pane.flow.main_task": "Tác vụ chính",
   "agent.right_pane.flow.no_messages.description": "Cuộc gọi công cụ này không có luồng thông báo con nào được ghi lại.",
   "agent.right_pane.flow.no_messages.title": "Không có tin nhắn",

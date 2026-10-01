@@ -637,11 +637,50 @@ describe('agent right pane flow rounds', () => {
   })
 
   // Oversized receipts arrive as deferred envelopes; the resolved output must still carry the
-  // agent id so the continuation splits the timeline.
+  // agent id so the continuation splits the timeline — with the request that send carried.
   it('splits resume rounds for a deferred launch receipt via the resolved output', () => {
     const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call_launch' } }
     const parts = [
       toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, deferred),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please finalize' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+    const resolvedOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', resolvedOutput)
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please finalize'])
+  })
+
+  // A receipt that carried no request at all cannot head a round: an empty break would read as a
+  // blank turn, so the content it produced stays with the round it followed.
+  it('does not open a round for a receipt that carried no request', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention.)'
+      ),
       textPart('First round findings', 'call_launch'),
       toolPart(
         'call_resume',
@@ -654,18 +693,62 @@ describe('agent right pane flow rounds', () => {
       textPart('Second round findings', 'call_launch')
     ]
     const messages = [message('m1', parts)]
-    const resolvedOutput =
-      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
 
-    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', resolvedOutput)
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
 
-    // The receipt splits the rounds even though this particular send carried no prompt text
-    // (no resume user message is rendered for it).
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings', 'Second round findings'])
+  })
+
+  // A deferred receipt hides its target from the result, so the call's own `to` is what ties it to
+  // the launch — without it the resumed round would lose the request the agent was sent.
+  it('splits a deferred receipt round from the target its call carried', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { description: 'Run the capability test', prompt: 'First round' },
+        'The capability test passed on the first round.'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'a84dcee637f9fac0c',
+          toolUseId: 'call_launch',
+          status: 'in_progress',
+          taskType: 'subagent'
+        }
+      } as unknown as CherryMessagePart,
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'a84dcee637f9fac0c', summary: 'Second round', message: 'Second round of the capability test.' },
+        { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call_resume' } }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
     expect(projection.messages.map((item) => item.id)).toEqual([
       'call_launch:agent-flow-prompt',
       'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
       'call_launch:agent-flow-assistant-1'
     ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Second round of the capability test.'])
   })
 })
 

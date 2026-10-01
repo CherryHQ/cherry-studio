@@ -486,21 +486,41 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
   if (launchedAgentId) return launchedAgentId
   // A cold-resumed child streams under its own resume receipt, so that receipt — not a launch —
   // is the flow's root and names the agent the flow belongs to.
-  if (part && getCanonicalToolName(part) === AgentToolsType.SendMessage) return getResumedAgentId(output)
+  if (part && getCanonicalToolName(part) === AgentToolsType.SendMessage) return getReceiptTarget(part, output)
+  return undefined
+}
+
+/**
+ * The child a SendMessage receipt targets. The result names it when it was delivered inline; an
+ * oversized (deferred) result hides it, and then the call's own `to` — or dsh's `agent_id` — is the
+ * only correlation, which is also what lets a deferred round still show the request it carried.
+ */
+function getReceiptTarget(part: CherryMessagePart, output: unknown): string | undefined {
+  const resumedAgentId = getResumedAgentId(output)
+  if (resumedAgentId) return resumedAgentId
+  const input = (part as { input?: { to?: unknown; agent_id?: unknown; subagent_id?: unknown } }).input
+  for (const candidate of [input?.to, input?.agent_id, input?.subagent_id]) {
+    if (typeof candidate === 'string' && candidate) return candidate
+  }
   return undefined
 }
 
 /** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
 function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
-  const record = part as { output?: unknown; input?: unknown }
   // A persisted static part carries the name in its type (`tool-SendMessage`), so the canonical
   // reader decides; the wire name alone would miss every settled history row.
   if (getCanonicalToolName(part) !== AgentToolsType.SendMessage) return false
-  // The result names the woken child; dsh's send_message input carries it as agent_id.
-  const input = record.input as { agent_id?: unknown; subagent_id?: unknown } | undefined
-  const inputTarget = typeof input?.agent_id === 'string' ? input.agent_id : input?.subagent_id
-  const target = getResumedAgentId(record.output) ?? (typeof inputTarget === 'string' ? inputTarget : undefined)
-  return target === launchedAgentId
+  return getReceiptTarget(part, (part as { output?: unknown }).output) === launchedAgentId
+}
+
+/** Whether a task event describes an agent run — the only kind of task a resume receipt can target. */
+function isAgentTaskEvent(data: AgentTaskEventPartData): boolean {
+  return (
+    data.taskType === 'subagent' ||
+    data.taskType === 'local_agent' ||
+    data.taskType === 'local_workflow' ||
+    data.subagentType !== undefined
+  )
 }
 
 /** The request to show between rounds — the sent message, falling back to its summary. */
@@ -598,8 +618,11 @@ export function buildAgentToolFlowProjection(
     for (const { parts } of messageEntries) {
       for (const part of parts) {
         if (part.type !== 'data-agent-task-event' || !part.data.toolUseId) continue
-        if (part.data.toolUseId === selectedToolCallId) rootTaskId ??= part.data.taskId
-        else if (selectedToolCallIds.has(part.data.toolUseId)) taskIds.add(part.data.taskId)
+        if (part.data.toolUseId === selectedToolCallId) {
+          // Only an agent task names a child a receipt can resume; a shell or monitor task id is
+          // never a SendMessage target, so it must not become this flow's identity.
+          if (isAgentTaskEvent(part.data)) rootTaskId ??= part.data.taskId
+        } else if (selectedToolCallIds.has(part.data.toolUseId)) taskIds.add(part.data.taskId)
       }
     }
 
@@ -715,31 +738,38 @@ export function buildAgentToolFlowProjection(
           isResumeReceiptFor(part, launchedAgentId) &&
           !(toolCallId && consumedMarkers.has(toolCallId))
 
+        // A marker only opens a round when its receipt was matched and carried a request: a break
+        // whose prompt is unknown reads as an empty round, so that content stays in this one.
         const markerOwnsThisFlow =
           marker !== undefined &&
+          receiptPrompts.has(marker) &&
           marker !== selectedToolCallId &&
           !consumedMarkers.has(marker) &&
           (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
 
         if (markerOwnsThisFlow || isResumeReceipt) {
-          for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
-          resumeCount += 1
-          if (marker) consumedMarkers.add(marker)
-          // A position-based split must also consume the receipt's call id, or a same-message
-          // tagged part would split a second time and duplicate the prompt message.
-          else if (isResumeReceipt && toolCallId) consumedMarkers.add(toolCallId)
-          segmentIndex += 1
-          segments.push({ parts: [] })
-          const promptText = marker !== undefined ? receiptPrompts.get(marker) : getResumeReceiptPromptText(part)
-          const resumeMessage = createFlowTextMessage(
-            `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
-            'user',
-            promptText,
-            selectedCreatedAt
-          )
-          if (resumeMessage) {
-            flowMessages.push(resumeMessage)
-            flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts
+          // The receipt's own request wins when it is the part being walked; a marker-split reads
+          // the request of the receipt that opened the round.
+          const promptText = isResumeReceipt ? getResumeReceiptPromptText(part) : receiptPrompts.get(marker ?? '')
+          if (promptText) {
+            for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
+            resumeCount += 1
+            if (marker) consumedMarkers.add(marker)
+            // A part that is both consumes both ids: the receipt's call id must not split again, or
+            // a same-message tagged part would duplicate the prompt message.
+            if (isResumeReceipt && toolCallId) consumedMarkers.add(toolCallId)
+            segmentIndex += 1
+            segments.push({ parts: [] })
+            const resumeMessage = createFlowTextMessage(
+              `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
+              'user',
+              promptText,
+              selectedCreatedAt
+            )
+            if (resumeMessage) {
+              flowMessages.push(resumeMessage)
+              flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts
+            }
           }
           if (isResumeReceipt) continue
           // A tagged part belongs to the new round — fall through to descendant inclusion.

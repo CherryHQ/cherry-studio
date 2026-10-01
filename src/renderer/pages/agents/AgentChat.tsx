@@ -134,6 +134,7 @@ interface AgentChatLayoutProps {
   /** Pages older history in, and reports whether any is left, for flows rooted outside the window. */
   loadOlder?: () => void
   hasOlder?: boolean
+  loadOlderError?: Error
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
@@ -263,6 +264,7 @@ const AgentChat = ({
     hasOlder: runtimeHasOlder,
     isLoading: runtimeIsLoading,
     loadOlder: runtimeLoadOlder,
+    loadOlderError: runtimeLoadOlderError,
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
@@ -524,6 +526,7 @@ const AgentChat = ({
     isMessageHistoryLoading: runtimeIsLoading,
     loadOlder: runtimeLoadOlder,
     hasOlder: runtimeHasOlder,
+    loadOlderError: runtimeLoadOlderError,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
     onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
@@ -710,6 +713,7 @@ function AgentChatLayout({
   isMessageHistoryLoading,
   loadOlder,
   hasOlder,
+  loadOlderError,
   messages,
   onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
@@ -737,6 +741,7 @@ function AgentChatLayout({
       isMessageHistoryLoading={isMessageHistoryLoading}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
+      loadOlderError={loadOlderError}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
       workspaceType={sessionSnapshot?.workspace?.type}

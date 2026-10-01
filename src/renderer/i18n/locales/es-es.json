@@ -167,6 +167,7 @@
   "agent.preview_pane.tree_error.load_error.description": "Asegúrate de que la carpeta de trabajo todavía existe y es accesible, e inténtalo de nuevo.",
   "agent.preview_pane.tree_error.load_error.title": "No se pudieron cargar los archivos del espacio de trabajo",
   "agent.right_pane.flow.child_subtasks": "Subtareas de nivel inferior",
+  "agent.right_pane.flow.history_load_failed": "No se pudo cargar el historial anterior, por lo que este flujo no pudo abrirse. Inténtalo de nuevo.",
   "agent.right_pane.flow.main_task": "Tarea principal",
   "agent.right_pane.flow.no_messages.description": "Esta llamada de herramienta no tiene flujo de mensajes secundarios capturado.",
   "agent.right_pane.flow.no_messages.title": "Sin mensajes",

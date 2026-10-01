@@ -226,6 +226,8 @@ interface AgentRightPaneRuntime {
   loadOlder?: () => void
   /** Whether older history remains; false means a missing root cannot be paged in. */
   hasOlder?: boolean
+  /** The failure of the last older-history fetch, so a chase that cannot finish can report it. */
+  loadOlderError?: Error
   browserUrl: string | null
   browserProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
@@ -305,6 +307,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   /** Pages older history in, and reports whether any is left, for flows rooted outside the window. */
   loadOlder?: () => void
   hasOlder?: boolean
+  loadOlderError?: Error
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
@@ -432,6 +435,9 @@ function AgentRightPaneActionsProvider({
     nested: boolean
   } | null>(null)
   const pagedForRef = useRef<string | null>(null)
+  // The paging failure already seen when the current page was requested: only a new one is the
+  // failure of this request, since a stale error survives until a fetch succeeds.
+  const pagedErrorRef = useRef<unknown>(null)
   const showFlowTab = useCallback(
     (input: AgentToolFlowOpenInput, nested: boolean) => {
       // Any flow opening supersedes a chase that is still paging — the user has moved on to it.
@@ -483,8 +489,19 @@ function AgentRightPaneActionsProvider({
     }
     // One page per arrival: the parts map changes with each load, so a repeat cannot spin.
     const requestKey = `${input.toolCallId}:${Object.keys(partsByMessageId ?? {}).length}`
-    if (pagedForRef.current === requestKey) return
+    if (pagedForRef.current === requestKey) {
+      // A page that failed leaves the window unchanged, so the chase would wait forever: report it
+      // and drop the intent — the next click arms a fresh attempt.
+      if (runtime.loadOlderError && runtime.loadOlderError !== pagedErrorRef.current) {
+        setPendingFlowOpen(null)
+        pagedForRef.current = null
+        pagedErrorRef.current = null
+        toast.warning(t('agent.right_pane.flow.history_load_failed'))
+      }
+      return
+    }
     pagedForRef.current = requestKey
+    pagedErrorRef.current = runtime.loadOlderError ?? null
     runtime.loadOlder?.()
   }, [pendingFlowOpen, runtime, sessionId, showFlowTab, t])
   const openArtifactFile = useCallback(
@@ -595,7 +612,8 @@ function AgentRightPaneStateProvider({
   streamingLayers,
   isMessageHistoryLoading = false,
   loadOlder,
-  hasOlder
+  hasOlder,
+  loadOlderError
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -741,6 +759,7 @@ function AgentRightPaneStateProvider({
       partsByMessageId,
       loadOlder,
       hasOlder,
+      loadOlderError,
       browserUrl,
       browserProfile,
       openBrowserUrl,
@@ -754,7 +773,8 @@ function AgentRightPaneStateProvider({
       messages,
       partsByMessageId,
       loadOlder,
-      hasOlder
+      hasOlder,
+      loadOlderError
     ]
   )
   // The pane renders the same resume receipts as the chat list, so it needs the same index: without

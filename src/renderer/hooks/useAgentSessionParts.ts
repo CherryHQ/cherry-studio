@@ -363,6 +363,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
+    loadOlderError: error,
     selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,
