@@ -2,9 +2,11 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
@@ -42,6 +44,7 @@ const capabilities = {
 }
 
 beforeEach(async () => {
+  mockMainLoggerService.warn.mockClear()
   directory = await mkdtemp(join(tmpdir(), 'apple-adapter-'))
   vi.stubGlobal(
     'process',
@@ -87,6 +90,34 @@ afterEach(async () => {
 })
 
 describe('local Apple adapters', () => {
+  it.each(['transcription_failed', 'native_helper_failed', 'timeout'] as const)(
+    'preserves native failure category %s without recording private error details',
+    async (code) => {
+      const failure = new SystemSpeechError(code)
+      failure.message = '/private/recording.wav private transcript canary'
+      mocks.nativeRequest.mockImplementation(async (request) => {
+        if (request.operation === 'capabilities') return capabilities
+        throw failure
+      })
+      await expect(
+        createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+          audio: new Uint8Array([1]),
+          mediaType: 'audio/webm'
+        })
+      ).rejects.toMatchObject({ reason: code === 'timeout' ? 'timeout' : 'operation_failed' })
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        ['Apple voice operation failed', { stage: 'native', code }]
+      ])
+      expect(await readdir(directory)).toEqual([])
+    }
+  )
+
+  it('does not report user cancellation as a native failure', async () => {
+    mocks.nativeRequest.mockRejectedValue(new SystemSpeechError('cancelled'))
+    await expect(listAppleAsrLocales()).rejects.toMatchObject({ reason: 'aborted' })
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
   it('uses the installed offline Apple recognizer on macOS 15', async () => {
     vi.stubGlobal(
       'process',
@@ -111,6 +142,7 @@ describe('local Apple adapters', () => {
       result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
     })
     await expect(listAppleAsrLocales()).resolves.toEqual({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+    expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'list_asr_locales' }, { signal: undefined })
   })
 
   it('does not install an Apple recognition asset on macOS 15', async () => {
@@ -170,6 +202,9 @@ describe('local Apple adapters', () => {
         mediaType: 'audio/webm'
       })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mockMainLoggerService.warn.mock.calls).toEqual([
+      ['Apple voice operation failed', { stage: 'decode', code: 'VOICE_AUDIO_INVALID' }]
+    ])
     expect(await readdir(directory)).toEqual([])
   })
 

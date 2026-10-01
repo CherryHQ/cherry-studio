@@ -4,6 +4,7 @@ export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
 export const WINDOWS_TTS_MODEL_ID = 'local-voice::windows-system-tts' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
+export const DEFAULT_APPLE_ASR_LOCALE = 'en-US'
 
 export const MIN_SPEECH_SPEED = 0.5
 export const MAX_SPEECH_SPEED = 2
