@@ -46,7 +46,6 @@ const mocks = vi.hoisted(() => ({
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
-  getConversationById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -85,7 +84,6 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    getConversationById: mocks.getConversationById,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -480,7 +478,7 @@ describe('AgentSessionRuntimeService', () => {
       id: message.id ?? 'generated-message-id',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.getConversationById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
+    mocks.getSessionById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
