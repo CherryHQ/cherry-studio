@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。",
   "selection.settings.filter_modal.user_tips.windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, CherryStudio.exe, など。",
   "selection.settings.linux.compositor_incompatible": "お使いのデスクトップ環境は選択機能をサポートしていません。完全な機能を利用するにはX11セッションに切り替えてください。",
-  "selection.settings.linux.filter_warning_text": "Waylandセッションでは利用できません",
   "selection.settings.linux.input_group_fail": "許可されていません。`sudo usermod -aG input $USER`を実行して、再度ログインしてください。",
   "selection.settings.linux.input_group_label": "入力グループ権限:",
   "selection.settings.linux.input_group_pass": "承認されました",

@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等",
   "selection.settings.filter_modal.user_tips.windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、CherryStudio.exe等",
   "selection.settings.linux.compositor_incompatible": "当前桌面环境不支持划词功能，请切换到 X11 模式以获得完整体验。",
-  "selection.settings.linux.filter_warning_text": "Wayland 模式下不生效",
   "selection.settings.linux.input_group_fail": "未获取，请执行 `sudo usermod -aG input $USER` 并重新登录生效",
   "selection.settings.linux.input_group_label": "input 组权限：",
   "selection.settings.linux.input_group_pass": "已获取",
