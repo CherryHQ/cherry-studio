@@ -741,6 +741,19 @@ const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 
 const promptInputRank = (name: string): number => PROMPT_INPUT_PREFERENCE.indexOf(name.slice(name.lastIndexOf('.') + 1))
 
 /**
+ * Whether an input is where a prompt is asked for: `text` and its named
+ * streams, or anything ending in `prompt`. Wider than the preference list on
+ * purpose — the *negative* prompt is not a place to write the run's prompt, but
+ * a graph that names one was built around a prompt, and a run that cannot find
+ * the positive one has to refuse rather than submit the workflow with the
+ * user's text dropped.
+ */
+const isPromptShaped = (name: string): boolean => {
+  const leaf = name.slice(name.lastIndexOf('.') + 1)
+  return leaf === 'text' || leaf.endsWith('prompt') || PROMPT_INPUT_PREFERENCE.includes(leaf)
+}
+
+/**
  * The conditioning a node names as its positive stream: a plain sampler says
  * `positive`, and `DualCFGGuider` — the Omnigen2 shape — numbers its streams
  * `cond1`, `cond2`, where the first carries the text and the second the
@@ -769,7 +782,7 @@ export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
     (node) =>
       (isValueSource(node) && typeof node.inputs.value === 'string') ||
       Object.entries(node.inputs).some(
-        ([name, value]) => promptInputRank(name) !== -1 && (typeof value === 'string' || isReference(value))
+        ([name, value]) => isPromptShaped(name) && (typeof value === 'string' || isReference(value))
       )
   )
 }
@@ -884,13 +897,27 @@ export function findPromptTarget(
       if (isValueSource(target) && typeof target.inputs.value === 'string') {
         return { nodeId, input: 'value' }
       }
-      for (const [name, value] of Object.entries(target.inputs)) {
-        // Never follow an intermediate node's negative edge (e.g. a
-        // ControlNet apply node carries both streams) — only the sampler's own
-        // negative branch is out of bounds, not a conditioning input anywhere.
-        if (name === 'negative' && isReference(value)) continue
-        if (isReference(value)) queue.push(value[0])
+      const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
+      // Follow the prompt edge before the node's other references when it lands
+      // on a plain text node: a generator keeps its prompt, its style and its
+      // reference image as separate sockets, and object order alone would let a
+      // style source win. A prompt socket fed by *another* generator is not a
+      // text edge — that node writes the prompt from its own input, and which
+      // socket carries the workflow's text is the workflow's own choice.
+      const later: [string, Reference][] = []
+      for (const entry of refs) {
+        const [name, value] = entry
+        // Never follow an intermediate node's negative edge (e.g. a ControlNet
+        // apply node carries both streams) — only the sampler's own negative
+        // branch is out of bounds, not a conditioning input anywhere.
+        if (name === 'negative') continue
+        const producer = prompt[value[0]]
+        const plainText =
+          producer !== undefined && seedInputKey(producer.inputs) === undefined && !('latent_image' in producer.inputs)
+        if (isPromptShaped(name) && plainText) queue.push(value[0])
+        else later.push(entry)
       }
+      for (const [, value] of later) queue.push(value[0])
     }
     return undefined
   }

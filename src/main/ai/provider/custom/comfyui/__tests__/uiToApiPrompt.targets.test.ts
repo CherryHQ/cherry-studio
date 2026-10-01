@@ -167,6 +167,22 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(hasPromptText(graph)).toBe(true)
   })
 
+  it('follows a generator prompt socket fed by a plain text node before its others', () => {
+    // The style source sits first in the object and has the lower node id, but
+    // the prompt socket is the run's text when a plain text node feeds it.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'style text' } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'prompt text' } },
+      '3': {
+        class_type: 'GeminiImage2Node',
+        _meta: { title: 'generator' },
+        inputs: { style: ['1', 0], prompt: ['2', 0], seed: 1 }
+      },
+      '4': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['3', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'value', samplerId: '3' })
+  })
+
   it('does not read a value off a node the graph feeds', () => {
     // A concat that also holds a `value` is not a text source: the text it
     // produces is the join, so writing the run's prompt into `value` would
@@ -345,6 +361,19 @@ describe('ComfyUI workflows that hold no text', () => {
     graph['4'] = { class_type: 'CLIPTextEncode', _meta: { title: 'negative' }, inputs: { text: 'blurry' } }
     graph['5'] = { class_type: 'CLIPTextEncode', _meta: { title: 'positive' }, inputs: { text: ['6', 0] } }
     graph['6'] = { class_type: 'CLIPLoader', _meta: { title: 'clip' }, inputs: { clip_name: 'x' } }
+    expect(hasPromptText(graph)).toBe(true)
+    expect(findPromptTarget(graph)).toBeUndefined()
+  })
+
+  it('reports text when the graph only names a negative prompt', () => {
+    // The negative prompt is not a place to write the run's prompt, but the
+    // graph was built around a prompt: submitting it would drop the user's.
+    const graph = upscaler()
+    graph['3'] = {
+      class_type: 'IdeogramPImage',
+      _meta: { title: 'generator' },
+      inputs: { 'model.negative_prompt': 'blurry', seed: 1 }
+    }
     expect(hasPromptText(graph)).toBe(true)
     expect(findPromptTarget(graph)).toBeUndefined()
   })
