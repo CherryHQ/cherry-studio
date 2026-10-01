@@ -48,14 +48,14 @@ describe('RendererEditFlushCoordinator', () => {
   it('resolves immediately when no notes-capable window is open', async () => {
     mockWindows([], [])
 
-    await expect(rendererEditFlushCoordinator.prepareForMigration('caller')).resolves.toBe(true)
+    await expect(rendererEditFlushCoordinator.prepareForMigration()).resolves.toBe(true)
     expect(ipcApiService.send).not.toHaveBeenCalled()
   })
 
   it('locks every window before asking other windows to flush', async () => {
     mockWindows([mainWindow], [subWindow])
 
-    const prepared = rendererEditFlushCoordinator.prepareForMigration('main')
+    const prepared = rendererEditFlushCoordinator.prepareForMigration()
 
     expect(ipcApiService.send).toHaveBeenCalledWith('main', 'app.notes_relocation.migration_started', {
       batchId: expect.any(String)
@@ -88,7 +88,7 @@ describe('RendererEditFlushCoordinator', () => {
     mockWindows([], [subWindow])
 
     let resolved = false
-    const prepared = rendererEditFlushCoordinator.prepareForMigration(null).then((result) => {
+    const prepared = rendererEditFlushCoordinator.prepareForMigration().then((result) => {
       resolved = true
       return result
     })
@@ -115,7 +115,7 @@ describe('RendererEditFlushCoordinator', () => {
   it('resolves false when a window reports a failed flush', async () => {
     mockWindows([mainWindow], [])
 
-    const prepared = rendererEditFlushCoordinator.prepareForMigration(null)
+    const prepared = rendererEditFlushCoordinator.prepareForMigration()
     const lockBatchId = migrationLockBatchId()
     rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'main', true)
 
@@ -131,7 +131,7 @@ describe('RendererEditFlushCoordinator', () => {
     vi.useFakeTimers()
     mockWindows([], [subWindow])
 
-    const prepared = rendererEditFlushCoordinator.prepareForMigration('main')
+    const prepared = rendererEditFlushCoordinator.prepareForMigration()
 
     await vi.advanceTimersByTimeAsync(5_000)
 

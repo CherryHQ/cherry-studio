@@ -29,6 +29,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
+import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -284,6 +285,7 @@ class FileStorage {
 
       const nativePath = normalizeTrashPath(filePath)
       await assertOutsideManagedStorageMutation(nativePath)
+      assertNotesPathNotMutatingDuringMigration(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -302,6 +304,7 @@ class FileStorage {
 
       const nativePath = normalizeTrashPath(dirPath)
       await assertOutsideManagedStorageMutation(nativePath)
+      assertNotesPathNotMutatingDuringMigration(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -317,6 +320,8 @@ class FileStorage {
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
       await assertOutsideManagedStorageMutation(filePath, newPath)
+      assertNotesPathNotMutatingDuringMigration(filePath)
+      assertNotesPathNotMutatingDuringMigration(newPath)
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
@@ -339,6 +344,8 @@ class FileStorage {
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
       await assertOutsideManagedStorageMutation(dirPath, newDirPath)
+      assertNotesPathNotMutatingDuringMigration(dirPath)
+      assertNotesPathNotMutatingDuringMigration(newDirPath)
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
@@ -367,6 +374,8 @@ class FileStorage {
       const dirPath = path.dirname(filePath)
       const newFilePath = path.join(dirPath, newName + '.md')
       await assertOutsideManagedStorageMutation(filePath, newFilePath)
+      assertNotesPathNotMutatingDuringMigration(filePath)
+      assertNotesPathNotMutatingDuringMigration(newFilePath)
 
       // 如果目标文件已存在，抛出错误
       if (fs.existsSync(newFilePath)) {
@@ -391,6 +400,8 @@ class FileStorage {
       const parentDir = path.dirname(dirPath)
       const newDirPath = path.join(parentDir, newName)
       await assertOutsideManagedStorageMutation(dirPath, newDirPath)
+      assertNotesPathNotMutatingDuringMigration(dirPath)
+      assertNotesPathNotMutatingDuringMigration(newDirPath)
 
       // 如果目标目录已存在，抛出错误
       if (fs.existsSync(newDirPath)) {
@@ -535,6 +546,7 @@ class FileStorage {
     data: Uint8Array | string
   ): Promise<void> => {
     await assertOutsideManagedStorageMutation(filePath)
+    assertNotesPathNotMutatingDuringMigration(filePath)
     await fs.promises.writeFile(filePath, data)
   }
 
@@ -556,6 +568,7 @@ class FileStorage {
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
       await assertOutsideManagedStorageMutation(dirPath)
+      assertNotesPathNotMutatingDuringMigration(dirPath)
       logger.debug(`Attempting to create directory: ${dirPath}`)
       await fs.promises.mkdir(dirPath, { recursive: true })
       return dirPath
@@ -997,6 +1010,7 @@ class FileStorage {
 
       const basePath = path.resolve(targetPath)
       await assertOutsideManagedStorageMutation(basePath)
+      assertNotesPathNotMutatingDuringMigration(basePath)
       const MARKDOWN_EXTS = ['.md', '.markdown']
 
       // Filter markdown files

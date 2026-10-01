@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -66,6 +67,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
         async (path) => {
           await assertOutsideManagedStorageMutation(path)
+          assertNotesPathNotMutatingDuringMigration(path)
           return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
         }
       )
@@ -177,6 +179,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     if (owner) application.get('DirectoryTreeManager').dispose(treeId, owner.id)
   },
   'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) => {
+    assertNotesPathNotMutatingDuringMigration(oldPath)
     const owner = senderWebContents(senderId)
     return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
   }
