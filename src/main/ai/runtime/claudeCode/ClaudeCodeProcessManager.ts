@@ -9,7 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import { prepareClaudeCodeSpawnCapacity, type ClaudeCodeSpawnPriority } from './claudeCodeSpawnCapacity'
+import { prepareClaudeCodeSpawnCapacity, type ClaudeCodeSpawnPriority, MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES } from './claudeCodeSpawnCapacity'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
@@ -174,13 +174,15 @@ export class ClaudeCodeProcessManager extends BaseService {
   /** Evicted warm children stay here until exit so shutdown still signals them. */
   private readonly evictingProcesses = new Set<TrackedSpawnedProcess>()
   private readonly processesByDiagnostics = new Map<string, TrackedSpawnedProcess>()
+  /** In-flight spawn attempts reserve a cap slot until the child is tracked or admission fails. */
+  private reservedSpawnSlots = 0
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
 
   /** Every CLI child still running, including evicted warm ones finishing their SIGTERM. */
   getActiveProcessCount(): number {
-    return this.processes.size + this.evictingProcesses.size
+    return this.processes.size + this.evictingProcesses.size + this.reservedSpawnSlots
   }
 
   /**
@@ -239,29 +241,39 @@ export class ClaudeCodeProcessManager extends BaseService {
       recordClaudeCodeSpawnError(diagnostics, error)
       throw error
     }
-    resetClaudeCodeProcessDiagnostics(diagnostics)
-    const rawChild = this.spawnProcess(options.command, options.args, {
-      cwd: options.cwd,
-      env: options.env,
-      signal: options.signal,
-      // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
-    })
-    diagnostics.exited = new Promise<void>((resolve) => {
-      rawChild.once('exit', () => resolve())
-      rawChild.once('error', () => {
-        if (rawChild.pid === undefined) resolve()
+    this.reservedSpawnSlots++
+    try {
+      if (this.getActiveProcessCount() > MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) {
+        const error = new Error('Claude Code CLI process cap reached')
+        recordClaudeCodeSpawnError(diagnostics, error)
+        throw error
+      }
+      resetClaudeCodeProcessDiagnostics(diagnostics)
+      const rawChild = this.spawnProcess(options.command, options.args, {
+        cwd: options.cwd,
+        env: options.env,
+        signal: options.signal,
+        // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true
       })
-    })
-    const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
-    this.trackProcess(child, diagnostics.reference)
-    // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
-    rawChild.once('exit', () => this.forgetProcess(child, diagnostics.reference))
-    child.once('error', () => {
-      if (child.pid === undefined) this.forgetProcess(child, diagnostics.reference)
-    })
-    return child
+      diagnostics.exited = new Promise<void>((resolve) => {
+        rawChild.once('exit', () => resolve())
+        rawChild.once('error', () => {
+          if (rawChild.pid === undefined) resolve()
+        })
+      })
+      const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
+      this.trackProcess(child, diagnostics.reference)
+      // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
+      rawChild.once('exit', () => this.forgetProcess(child, diagnostics.reference))
+      child.once('error', () => {
+        if (child.pid === undefined) this.forgetProcess(child, diagnostics.reference)
+      })
+      return child
+    } finally {
+      this.reservedSpawnSlots--
+    }
   }
 
   /**

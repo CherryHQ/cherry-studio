@@ -471,6 +471,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
   /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
   private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
+  /** Agent type last seen while a window held a warm lease; idle close can outlive the runtime entry. */
+  private readonly warmLeaseSessionAgentTypes = new Map<string, string>()
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -1151,6 +1153,7 @@ export class AgentSessionRuntimeService extends BaseService {
       clearTimeout(pendingTeardown)
       this.pendingWarmTeardowns.delete(sessionId)
     }
+    this.rememberWarmLeaseAgentType(sessionId)
     if (sender && !sender.isDestroyed()) {
       let holders = this.warmLeaseHolders.get(sessionId)
       if (!holders) {
@@ -1224,9 +1227,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleWarmTeardown(sessionId: string): void {
     const existing = this.pendingWarmTeardowns.get(sessionId)
     if (existing) clearTimeout(existing)
-    const agentType = this.entries.get(sessionId)?.agentType ?? this.closingSessions.get(sessionId)?.agentType
+    const agentType =
+      this.entries.get(sessionId)?.agentType ??
+      this.closingSessions.get(sessionId)?.agentType ??
+      this.warmLeaseSessionAgentTypes.get(sessionId)
     const timer = setTimeout(() => {
       this.pendingWarmTeardowns.delete(sessionId)
+      this.warmLeaseSessionAgentTypes.delete(sessionId)
       // Prewarm opens a real runtime connection, so releasing runtime-specific warm state alone would
       // leak the primed subprocess until the idle TTL.
       this.notifySessionIdleWithoutWarmLease(sessionId, agentType)
@@ -1244,6 +1251,7 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const record of this.warmLeaseSenders.values()) record.dispose()
     this.warmLeaseSenders.clear()
     this.warmLeaseHolders.clear()
+    this.warmLeaseSessionAgentTypes.clear()
   }
 
   /**
@@ -3323,11 +3331,22 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private rememberWarmLeaseAgentType(sessionId: string): void {
+    const agentType =
+      this.entries.get(sessionId)?.agentType ??
+      this.closingSessions.get(sessionId)?.agentType ??
+      this.warmLeaseSessionAgentTypes.get(sessionId) ??
+      this.resolveSessionAgentType(sessionId)
+    if (agentType) this.warmLeaseSessionAgentTypes.set(sessionId, agentType)
+  }
+
   private resolveSessionAgentType(sessionId: string): string | undefined {
     const fromEntry = this.entries.get(sessionId)?.agentType
     if (fromEntry) return fromEntry
     const fromClosing = this.closingSessions.get(sessionId)?.agentType
     if (fromClosing) return fromClosing
+    const fromWarmLease = this.warmLeaseSessionAgentTypes.get(sessionId)
+    if (fromWarmLease) return fromWarmLease
     let session: ReturnType<typeof agentSessionService.getById> | undefined
     try {
       session = agentSessionService.getById(sessionId)

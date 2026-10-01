@@ -6303,6 +6303,27 @@ describe('AgentSessionRuntimeService', () => {
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 
+    it('still notifies the runtime driver when the session row is gone before the warm lease grace elapses', () => {
+      const windowA = createWebContents()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+      service.acquireWarmLease('session-1', asSender(windowA))
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+      expect(service.inspect('session-1')).toBeUndefined()
+
+      mocks.getSessionById.mockImplementation(() => {
+        throw new Error('Session not found')
+      })
+      mocks.getAgent.mockReturnValue(undefined)
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.runAllTimers()
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
     it('a re-acquire within the grace period cancels the teardown and skips the redundant prime', () => {
       const windowA = createWebContents()
       service.acquireWarmLease('session-1', asSender(windowA))
