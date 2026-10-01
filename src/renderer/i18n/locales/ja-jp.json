@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "移行先",
   "settings.data.notes_relocation.error.generic": "ノートディレクトリの移行に失敗しました",
   "settings.data.notes_relocation.error.invalid_target": "選択したディレクトリが無効か、アクセスが拒否されました",
+  "settings.data.notes_relocation.error.migration_in_progress": "ノートディレクトリの移行中です。完了してから再度お試しください。",
   "settings.data.notes_relocation.error.same_path": "新しいディレクトリは現在のノートディレクトリと同じです",
   "settings.data.notes_relocation.error.source_missing": "現在のノートディレクトリを読み取れませんでした",
   "settings.data.notes_relocation.error.source_not_directory": "現在のノートパスはディレクトリではありません",

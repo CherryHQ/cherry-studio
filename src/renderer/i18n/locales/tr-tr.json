@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "Hedef",
   "settings.data.notes_relocation.error.generic": "Notlar dizini taşınamadı",
   "settings.data.notes_relocation.error.invalid_target": "Seçilen dizin geçersiz veya erişim reddedildi",
+  "settings.data.notes_relocation.error.migration_in_progress": "Notlar dizini taşınması devam ediyor. Tamamlandığında tekrar deneyin.",
   "settings.data.notes_relocation.error.same_path": "Yeni dizin mevcut notlar diziniyle aynı",
   "settings.data.notes_relocation.error.source_missing": "Mevcut notlar dizini okunamadı",
   "settings.data.notes_relocation.error.source_not_directory": "Mevcut not yolu bir dizin değil",

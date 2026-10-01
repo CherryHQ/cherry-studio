@@ -66,10 +66,15 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
         )
       }
       return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+    } catch (error) {
+      ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
+      throw error
     } finally {
       notesDirectoryMigrationInFlight = false
-      ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
     }
+  },
+  'app.notes_relocation.commit': async () => {
+    application.get('IpcApiService').broadcast('app.notes_relocation.migration_finished', undefined)
   },
   'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
     rendererEditFlushCoordinator.acknowledgeMigrationLock(batchId, ctx.senderId, ok)
