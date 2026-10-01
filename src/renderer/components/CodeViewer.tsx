@@ -14,8 +14,10 @@ import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
 
-// Matches `.markdown pre { tab-size: 2 }` for wrapped-row height estimates.
+// Kept in sync with scroller `tabSize` — wrapped-row estimates expand tabs using this width.
 const WRAPPED_LINE_TAB_SIZE = 2
+// Pessimistic width deduction so `ch` gutters and sub-pixel layout do not overstate chars/row.
+const WRAPPED_ESTIMATE_WIDTH_MARGIN_PX = 4
 
 function isEastAsianWideCodePoint(codePoint: number): boolean {
   return (
@@ -143,6 +145,7 @@ const CodeViewer = ({
   const measuredRowHeightsRef = useRef(new Map<number, number>())
   const remeasureLayoutKeyRef = useRef('')
   const scrollerWidthRef = useRef(0)
+  const prevRawLinesRef = useRef<string[]>([])
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -424,7 +427,13 @@ const CodeViewer = ({
     const gutterWidth = lineNumbers ? gutterDigits * fontSize : 0
     const lineNumberMargin = lineNumbers ? 16 : 0
     const lineContentPaddingRight = fontSize
-    const contentWidth = scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - lineContentPaddingRight
+    const contentWidth =
+      scroller.clientWidth -
+      paddingLeft -
+      gutterWidth -
+      lineNumberMargin -
+      lineContentPaddingRight -
+      WRAPPED_ESTIMATE_WIDTH_MARGIN_PX
     // Monospace code is ~1em wide; a smaller factor over-counts chars per row and under-estimates height.
     const charWidth = Math.max(1, fontSize)
     return Math.max(1, Math.floor(contentWidth / charWidth))
@@ -612,6 +621,43 @@ const CodeViewer = ({
   }, [expanded, wrapped, fontSize, gutterDigits, lineNumbers, remeasureRows])
 
   useLayoutEffect(() => {
+    if (!wrapped) {
+      prevRawLinesRef.current = rawLines
+      return
+    }
+
+    const prev = prevRawLinesRef.current
+    if (prev.length > 0) {
+      const scroller = scrollerRef.current
+      const maxIndex = Math.max(prev.length, rawLines.length) - 1
+      for (let index = 0; index <= maxIndex; index++) {
+        if (prev[index] === rawLines[index]) continue
+        // Newly appended lines get their initial size from estimateSize; remeasure only in-place edits.
+        if (prev[index] === undefined) continue
+
+        if (scroller) {
+          const row = scroller.querySelector(`[data-index="${index}"]`)
+          if (row instanceof HTMLElement) {
+            virtualizer.measureElement(row)
+            const measured = row.getBoundingClientRect().height
+            if (measured > 0) {
+              measuredRowHeightsRef.current.set(index, measured)
+              continue
+            }
+          }
+        }
+
+        const estimated = estimateWrappedRowHeight(rawLines[index] ?? '')
+        const cached = measuredRowHeightsRef.current.get(index)
+        const nextSize = Math.max(estimated, cached ?? 0)
+        virtualizer.resizeItem(index, nextSize)
+        measuredRowHeightsRef.current.set(index, nextSize)
+      }
+    }
+    prevRawLinesRef.current = rawLines
+  }, [rawLines, wrapped, estimateWrappedRowHeight, virtualizer])
+
+  useLayoutEffect(() => {
     if (!wrapped) return
     const scroller = scrollerRef.current
     if (!scroller || typeof ResizeObserver === 'undefined') return
@@ -652,7 +698,9 @@ const CodeViewer = ({
           {
             '--gutter-width': `${gutterDigits}ch`,
             '--line-height': `${lineHeight}px`,
+            fontFamily: 'var(--code-font-family)',
             fontSize,
+            tabSize: WRAPPED_LINE_TAB_SIZE,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'

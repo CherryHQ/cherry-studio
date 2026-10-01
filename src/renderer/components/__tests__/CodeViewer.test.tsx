@@ -424,6 +424,62 @@ describe('CodeViewer', () => {
     expect(mocks.measure).not.toHaveBeenCalled()
   })
 
+  it('positions a later row using offscreen wrapped row estimates in the virtualizer', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const longLine = 'x'.repeat(100)
+    mockRowHeights(new Map([[0, 21]]))
+    const lineHeight = 21
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      render(<CodeViewer value={`line 1\n${longLine}\nline 3`} language="text" wrapped maxHeight="350px" />)
+
+      const row1Resize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(row1Resize).toBeDefined()
+      const middleRowHeight = row1Resize![1] as number
+      expect(middleRowHeight).toBeGreaterThan(lineHeight)
+
+      const options = mocks.useVirtualizer.mock.calls.at(-1)![0] as {
+        getItemKey: (index: number) => string
+      }
+      const virtualItems = mocks.stateFor(options.getItemKey).instance.getVirtualItems() as Array<{
+        index: number
+        start: number
+      }>
+      expect(virtualItems[2]?.start).toBe(21 + middleRowHeight)
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
+  it('applies tab-size on the scroller so tab width matches wrapped row estimates', () => {
+    const { container } = render(<CodeViewer value="line 1" language="text" wrapped />)
+    const scroller = container.querySelector('.shiki-scroller') as HTMLElement
+    expect(scroller.style.tabSize).toBe('2')
+  })
+
   it('estimates enough height for offscreen wrapped rows with tab-expanded width', () => {
     mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
       const state = mocks.stateFor(options.getItemKey)
@@ -653,6 +709,50 @@ describe('CodeViewer', () => {
       expect(mocks.measure).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
+    }
+  })
+
+  it('updates offscreen row height when an existing line grows without a layout change', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const shortLine = 'x'.repeat(20)
+    const longLine = 'x'.repeat(120)
+    mockRowHeights(new Map([[0, 21]]))
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      const { rerender } = render(<CodeViewer value={`line 1\n${shortLine}`} language="text" wrapped maxHeight="350px" />)
+
+      mocks.resizeItem.mockClear()
+
+      rerender(<CodeViewer value={`line 1\n${longLine}`} language="text" wrapped maxHeight="350px" />)
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      expect(offscreenResize![1] as number).toBeGreaterThan(21)
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
     }
   })
 
