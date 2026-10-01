@@ -1,4 +1,5 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
+import '@cherrystudio/ui/styles/paragraph-layout.css'
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'

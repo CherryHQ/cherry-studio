@@ -1,10 +1,10 @@
-import '@cherrystudio/ui/components/composites/paragraph-layout.css'
+import '@cherrystudio/ui/styles/paragraph-layout.css'
 import { Extension } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
-import { composeParagraph, createParagraphMeasure, type ParagraphRun } from '@cherrystudio/ui/lib/paragraph-layout'
+import { composeParagraph, createParagraphMeasure, type ParagraphRun } from '@cherrystudio/ui/utils/paragraph-layout'
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('ParagraphLayout')
@@ -121,8 +121,9 @@ export const ParagraphLayout = Extension.create<{ enabled: boolean }>({
           decorations: (state) => (editor.isEditable ? DecorationSet.empty : key.getState(state)),
           handleDOMEvents: {
             copy(view, event) {
-              // Keep ProseMirror's document serializer authoritative over the global DOM-based copy-tex handler.
-              if (!editor.isEditable && key.getState(view.state)?.find().length) event.stopPropagation()
+              // ProseMirror skips empty selections; DOM-only formula selections still need copy-tex.
+              if (!editor.isEditable && !view.state.selection.empty && key.getState(view.state)?.find().length)
+                event.stopPropagation()
               return false
             }
           }

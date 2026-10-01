@@ -47,6 +47,16 @@
       "require": "./dist/components/index.js",
       "default": "./dist/components/index.js"
     },
+    "./components/composites/justified-paragraph": {
+      "import": {
+        "types": "./dist/components/composites/justified-paragraph.d.mts",
+        "default": "./dist/components/composites/justified-paragraph.mjs"
+      },
+      "require": {
+        "types": "./dist/components/composites/justified-paragraph.d.cts",
+        "default": "./dist/components/composites/justified-paragraph.cjs"
+      }
+    },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
       "react-native": "./dist/hooks/index.js",
@@ -60,6 +70,16 @@
       "import": "./dist/utils/index.mjs",
       "require": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"
+    },
+    "./utils/paragraph-layout": {
+      "import": {
+        "types": "./dist/utils/paragraph-layout.d.mts",
+        "default": "./dist/utils/paragraph-layout.mjs"
+      },
+      "require": {
+        "types": "./dist/utils/paragraph-layout.d.cts",
+        "default": "./dist/utils/paragraph-layout.cjs"
+      }
     },
     "./icons": {
       "types": "./dist/icons/index.d.ts",
@@ -75,6 +95,7 @@
       "require": "./dist/icons/providers/index.js",
       "default": "./dist/icons/providers/index.js"
     },
+    "./styles/paragraph-layout.css": "./dist/styles/paragraph-layout.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
     "./styles/theme.css": "./dist/styles/theme.css"
   },

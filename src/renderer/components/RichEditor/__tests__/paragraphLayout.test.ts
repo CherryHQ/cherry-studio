@@ -39,6 +39,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  window.getSelection()?.removeAllRanges()
   editor?.destroy()
   editor = undefined
   document.body.replaceChildren()
@@ -72,10 +73,35 @@ function make(content: string, onUpdate = () => {}) {
 }
 
 describe('read-only paragraph composition', () => {
+  it.each([
+    ['$x^2$', '$x^2$'],
+    ['$$\nx^2\n$$', '$x^2$']
+  ])('copies a DOM-only formula selection after another paragraph is composed: %s', async (math, expected) => {
+    const instance = make(`A separate paragraph with enough words to wrap onto several lines.\n\n${math}`)
+    await composed()
+    const formula = instance.view.dom.querySelector('.katex')!
+    const range = document.createRange()
+    range.selectNodeContents(formula)
+    window.getSelection()!.addRange(range)
+    expect(instance.state.selection.empty).toBe(true)
+
+    const values = new Map<string, string>()
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        clearData: () => values.clear(),
+        setData: (type: string, value: string) => values.set(type, value)
+      }
+    })
+    formula.dispatchEvent(event)
+    expect(values.get('text/plain')).toBe(expected)
+    expect(values.get('text/html')).toContain('<math')
+  })
+
   it('keeps visual breaks out of saved content, cross-paragraph copies and undo history', async () => {
     let saves = 0
     const instance = make(
-      'Internationalization with **bold words** and [a link](https://example.com).\n\nSecond paragraph with more words.',
+      'Internationalization with **bold words**, [a link](https://example.com) and $x^2$.\n\nSecond paragraph with more words.',
       () => {
         saves++
       }
@@ -89,6 +115,9 @@ describe('read-only paragraph composition', () => {
     expect(instance.can().undo()).toBe(false)
 
     instance.commands.selectAll()
+    const range = document.createRange()
+    range.selectNodeContents(instance.view.dom)
+    window.getSelection()!.addRange(range)
     const values = new Map<string, string>()
     const event = new Event('copy', { bubbles: true, cancelable: true })
     Object.defineProperty(event, 'clipboardData', {
@@ -99,7 +128,7 @@ describe('read-only paragraph composition', () => {
     })
     instance.view.dom.dispatchEvent(event)
     expect(values.get('text/plain')).toBe(
-      'Internationalization with bold words and a link.\n\nSecond paragraph with more words.'
+      'Internationalization with bold words, a link and $x^2$.\n\nSecond paragraph with more words.'
     )
     expect(values.get('text/html')).toContain('<strong>bold words</strong>')
     expect(values.get('text/html')).toContain('href="https://example.com"')

@@ -1,4 +1,3 @@
-import './paragraph-layout.css'
 import {
   createContext,
   use,
@@ -18,7 +17,7 @@ import {
   type ParagraphLayout,
   type ParagraphPiece,
   type ParagraphRun
-} from '../../lib/paragraph-layout'
+} from '../../utils/paragraph-layout'
 
 type Layout = Map<string, ParagraphPiece[]>
 const ParagraphContext = createContext<Layout | null>(null)
