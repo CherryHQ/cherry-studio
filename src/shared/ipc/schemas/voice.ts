@@ -26,6 +26,7 @@ const languageTag = z
   .regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/)
   .refine((value) => value.toLowerCase() !== 'auto')
 const language = languageTag.optional()
+const localeTag = languageTag
 const session = z.strictObject({ sessionId: z.uuid() })
 const request = session.extend({
   requestId: z.uuid(),
@@ -179,7 +180,7 @@ export const voiceRequestSchemas = {
   }),
   'ai.transcription.locales.list': defineRoute({
     input: z.void(),
-    output: z.strictObject({ supported: z.array(languageTag), installed: z.array(languageTag) })
+    output: z.strictObject({ supported: z.array(localeTag), installed: z.array(localeTag) })
   }),
   'ai.voice.model.status': defineRoute({
     input: z.strictObject({ modelId, language, voice: z.string().min(1).max(256).optional() }),

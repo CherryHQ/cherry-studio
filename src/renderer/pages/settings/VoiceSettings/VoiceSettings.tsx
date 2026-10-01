@@ -53,6 +53,8 @@ interface StatusState {
   reason?: VoiceErrorReason
 }
 
+type FunAsrAction = 'download' | 'cancel' | 'remove'
+
 interface QueriedRecognitionStatus {
   modelId: LocalTranscriptionModelId
   language: string
@@ -71,8 +73,6 @@ interface VoiceSelectOption {
   label: string
   disabled?: boolean
 }
-
-type FunAsrAction = 'download' | 'cancel' | 'remove'
 
 const EMPTY_VALUE = '__unconfigured__'
 const RECOGNITION_PREFERENCE_KEYS = {
@@ -299,17 +299,17 @@ function VoiceSettings() {
       ...options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
   }, [asrLocales, defaultLanguage, effectiveRecognitionLanguage, i18n.language, t])
-  const recognitionStatus =
+  const recognitionStatus: StatusState =
     hasConfiguredRecognitionModel && !configuredRecognitionModel
-      ? ({ status: 'unsupported', reason: 'unsupported' } satisfies StatusState)
+      ? { status: 'unsupported', reason: 'unsupported' }
       : !effectiveRecognitionModel
-        ? ({ status: 'unconfigured' } satisfies StatusState)
+        ? { status: 'unconfigured' }
         : funAsrSelected
           ? funAsrStatusState(funAsrModel)
           : queriedRecognitionStatus?.modelId === effectiveRecognitionModel &&
               queriedRecognitionStatus.language === effectiveRecognitionLanguage
             ? queriedRecognitionStatus.result
-            : ({ status: 'unconfigured' } satisfies StatusState)
+            : { status: 'unconfigured' }
   const funAsrAction: FunAsrAction | undefined =
     !funAsrSelected || !funAsrModel.isStatusResolved
       ? undefined
