@@ -212,6 +212,20 @@ export const isReference = (value: unknown): value is Reference =>
 const isValueSource = (node: ApiPromptNode): boolean =>
   Object.entries(node.inputs).every(([name, value]) => name === 'value' || !isReference(value))
 
+/**
+ * A node that holds text and does not sample: a text primitive, or a text
+ * encode whose prompt is still a workflow constant. It is the kind of node the
+ * walk may stop at, and the kind an edgeless text source is not — a generator
+ * with its own seed writes its prompt from its input rather than holding it.
+ */
+const holdsText = (node: ApiPromptNode): boolean =>
+  typeof node.inputs.value === 'string' ||
+  Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && isPromptShaped(name))
+
+/** Whether a node samples on its own, rather than only carrying text. */
+const isPlainTextNode = (node: ApiPromptNode): boolean =>
+  seedInputKey(node.inputs) === undefined && !('latent_image' in node.inputs)
+
 /** Required inputs the prompt must still carry when the workflow saved no
  * value for them: the frontend's widgets always hold something (the declared
  * default, a combo's first entry, or null), and ComfyUI rejects the whole
@@ -898,23 +912,33 @@ export function findPromptTarget(
         return { nodeId, input: 'value' }
       }
       const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
+      // Never follow an intermediate node's negative edge (e.g. a ControlNet
+      // apply node carries both streams) — only the sampler's own negative
+      // branch is out of bounds, not a conditioning input anywhere.
+      const following = refs.filter(([name]) => name !== 'negative')
       // Follow the prompt edge before the node's other references when it lands
       // on a plain text node: a generator keeps its prompt, its style and its
       // reference image as separate sockets, and object order alone would let a
       // style source win. A prompt socket fed by *another* generator is not a
       // text edge — that node writes the prompt from its own input, and which
       // socket carries the workflow's text is the workflow's own choice.
-      const later: [string, Reference][] = []
-      for (const entry of refs) {
-        const [name, value] = entry
-        // Never follow an intermediate node's negative edge (e.g. a ControlNet
-        // apply node carries both streams) — only the sampler's own negative
-        // branch is out of bounds, not a conditioning input anywhere.
-        if (name === 'negative') continue
+      const textEdges = following.filter(([, value]) => {
         const producer = prompt[value[0]]
-        const plainText =
-          producer !== undefined && seedInputKey(producer.inputs) === undefined && !('latent_image' in producer.inputs)
-        if (isPromptShaped(name) && plainText) queue.push(value[0])
+        return producer !== undefined && holdsText(producer) && isPlainTextNode(producer)
+      })
+      const shaped = textEdges.filter(([name]) => isPromptShaped(name))
+      // A `StringConcatenate` with text on both operands — a style string on
+      // one and the prompt on the other — says nothing about which one the run
+      // supplies, and `string_a`/`string_b` rank nothing. Stop rather than pick
+      // by object order: the run refuses a graph whose text it cannot place,
+      // which beats overwriting the workflow's own style. A node that names its
+      // inputs keeps object order, which is where the primary input sits.
+      const joins = target.class_type === 'StringConcatenate'
+      if (joins && shaped.length === 0 && textEdges.length > 1) continue
+      const later: [string, Reference][] = []
+      for (const entry of following) {
+        const [name, value] = entry
+        if (isPromptShaped(name) && textEdges.includes(entry)) queue.push(value[0])
         else later.push(entry)
       }
       for (const [, value] of later) queue.push(value[0])

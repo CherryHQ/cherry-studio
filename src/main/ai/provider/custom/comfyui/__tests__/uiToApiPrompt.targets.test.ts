@@ -145,6 +145,26 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'value', samplerId: '3' })
   })
 
+  it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
+    // `string_a` and `string_b` rank nothing: one is the workflow's style or
+    // prefix, the other is the run's text, and object order cannot tell them
+    // apart. Picking one would overwrite a workflow constant.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'prefix' }, inputs: { value: 'a 360 image, ' } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } },
+      '3': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: ['1', 0], string_b: ['2', 0], delimiter: '' }
+      },
+      '4': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['3', 0] } },
+      '5': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['4', 0], seed: 1 } },
+      '6': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['5', 0] } }
+    }
+    expect(findPromptTarget(graph)).toBeUndefined()
+    expect(hasPromptText(graph)).toBe(true)
+  })
+
   it('skips a promoted text the graph only reads as a negative prompt', () => {
     // The promotion names the widget, but the run reads it through the negative
     // branch: writing the prompt there would replace the negative prompt.
