@@ -326,7 +326,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     void value?.actions.openPath?.('dist/report.md')
-    expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'agent-session-topic',
+      path: 'dist/report.md'
+    })
 
     ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
     await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
@@ -384,7 +387,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
-  it('rejects unresolved relative paths when no workspace root is available', () => {
+  it('sends the raw path to main when the renderer has no workspace root of its own', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -410,7 +413,11 @@ describe('useAgentMessageListProviderValue', () => {
     }
     render(<Probe />)
 
-    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    void value?.actions.openPath?.('dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'session-1',
+      path: 'dist/report.md'
+    })
     expect(window.api.file.openPath).not.toHaveBeenCalled()
   })
 

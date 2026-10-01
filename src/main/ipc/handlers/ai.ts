@@ -4,6 +4,7 @@ import { isToolUIPart } from 'ai'
 
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
@@ -13,6 +14,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { openRequestPath } from '@main/services/file'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -20,6 +22,7 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -244,6 +247,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.session.open_path': async ({ sessionId, path }) => {
+    const workspacePath = agentSessionService.getById(sessionId).workspace.path
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+  },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>
