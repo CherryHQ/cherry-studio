@@ -130,6 +130,8 @@ vi.mock('@application', () => ({
 
 const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
 const { AgentSessionForkOperations } = await import('../fork')
+import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
+
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
@@ -1604,14 +1606,19 @@ describe('AgentSessionRuntimeService', () => {
     vi.useFakeTimers()
     try {
       const onSessionIdleWithoutWarmLease = vi.fn()
-      runtimeDriverRegistry.register({
+      const driver: AgentSessionRuntimeDriver = {
         type: 'test-runtime',
         capabilities: ['agent-session'],
-        connect: vi.fn(),
+        connect: vi.fn().mockResolvedValue({
+          events: [],
+          send: vi.fn(),
+          close: vi.fn()
+        }),
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([]),
         onSessionIdleWithoutWarmLease
-      })
+      }
+      runtimeDriverRegistry.register(driver)
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn(baseTurnInput)
       getEntry(service).lastResumeToken = 'resume-1'
@@ -6205,19 +6212,24 @@ describe('AgentSessionRuntimeService', () => {
     let service: InstanceType<typeof AgentSessionRuntimeService>
     let prime: MockInstance<(sessionId: string) => Promise<void>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
-    let onSessionIdleWithoutWarmLease: ReturnType<typeof vi.fn>
+    let onSessionIdleWithoutWarmLease: NonNullable<AgentSessionRuntimeDriver['onSessionIdleWithoutWarmLease']>
 
     beforeEach(() => {
       vi.useFakeTimers()
       onSessionIdleWithoutWarmLease = vi.fn()
-      runtimeDriverRegistry.register({
+      const driver: AgentSessionRuntimeDriver = {
         type: 'test-runtime',
         capabilities: ['agent-session'],
-        connect: vi.fn(),
+        connect: vi.fn().mockResolvedValue({
+          events: [],
+          send: vi.fn(),
+          close: vi.fn()
+        }),
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([]),
         onSessionIdleWithoutWarmLease
-      })
+      }
+      runtimeDriverRegistry.register(driver)
       mocks.getSessionById.mockReturnValue({ agentId: 'agent-1' })
       service = new AgentSessionRuntimeService()
       prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
@@ -6257,6 +6269,21 @@ describe('AgentSessionRuntimeService', () => {
       vi.advanceTimersByTime(1)
       expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
       expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('does not throw when the session row is gone before the warm-lease grace elapses', () => {
+      const windowA = createWebContents()
+      service.beginTurn(baseTurnInput)
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.releaseWarmLease('session-1', asSender(windowA))
+      void service.closeSession('session-1')
+      mocks.getSessionById.mockImplementation(() => {
+        throw new Error('Session not found')
+      })
+
+      expect(() => vi.runAllTimers()).not.toThrow()
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 

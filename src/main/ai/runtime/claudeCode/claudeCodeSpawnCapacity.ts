@@ -15,9 +15,9 @@ export function isClaudeCodeSpawnMemoryPressured(): boolean {
 }
 
 /**
- * Live turns admit only while the active CLI count is under the cap; evicted warm children still
- * count until exit, so a new warm park must not start beside them or the physical process cap
- * would be exceeded.
+ * A live turn may reuse the cap slot an eviction just freed — its child was signaled and is
+ * draining — while a new warm park must not: evicted children still count until they exit, so a
+ * park admitted beside them would overshoot the physical process cap.
  */
 export type ClaudeCodeSpawnPriority = 'live' | 'warm'
 
@@ -33,14 +33,8 @@ export function prepareClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority
   if (priority === 'warm') {
     return processManager.getActiveProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
   }
-  while (
-    processManager.getCapSlotProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES ||
-    processManager.getActiveProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
-  ) {
+  while (processManager.getCapSlotProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) {
     if (!warmManager.evictOldestWarmQuery()) return false
   }
-  return (
-    processManager.getCapSlotProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES &&
-    processManager.getActiveProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
-  )
+  return processManager.getCapSlotProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
 }

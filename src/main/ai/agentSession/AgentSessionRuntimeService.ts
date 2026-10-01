@@ -1215,11 +1215,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleWarmTeardown(sessionId: string): void {
     const existing = this.pendingWarmTeardowns.get(sessionId)
     if (existing) clearTimeout(existing)
+    const agentType = this.entries.get(sessionId)?.agentType
     const timer = setTimeout(() => {
       this.pendingWarmTeardowns.delete(sessionId)
       // Prewarm opens a real runtime connection, so releasing runtime-specific warm state alone would
       // leak the primed subprocess until the idle TTL.
-      this.notifySessionIdleWithoutWarmLease(sessionId)
+      this.notifySessionIdleWithoutWarmLease(sessionId, agentType)
       this.releaseIdleConnection(sessionId)
     }, WARM_LEASE_RELEASE_DELAY_MS)
     timer.unref()
@@ -3316,8 +3317,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private resolveSessionAgentType(sessionId: string): string | undefined {
     const fromEntry = this.entries.get(sessionId)?.agentType
     if (fromEntry) return fromEntry
-    const session = agentSessionService.getById(sessionId)
-    if (!session?.agentId) return undefined
+    let session: ReturnType<typeof agentSessionService.getById> | undefined
+    try {
+      session = agentSessionService.getById(sessionId)
+    } catch {
+      return undefined
+    }
+    if (!session.agentId) return undefined
     return agentService.getAgent(session.agentId)?.type
   }
 
