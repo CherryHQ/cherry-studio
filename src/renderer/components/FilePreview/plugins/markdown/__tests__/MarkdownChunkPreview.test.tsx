@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MarkdownChunkPreview } from '../MarkdownChunkPreview'
+import type { MarkdownChunk } from '../markdownChunks'
 
 // jsdom has no real layout, so — matching the convention in
 // src/renderer/components/FilePreview/plugins/spreadsheet/__tests__/grid.render.test.tsx — the
@@ -19,9 +20,13 @@ const virtualizerImpl = (options: { count: number }) => ({
   measureElement: () => {}
 })
 
-// Six blocks of ~9 KB split into two chunks at the 24 KB budget, so each chunk is a third of the
-// document and mounting only the reported range is observable.
-const content = Array.from({ length: 6 }, (_, i) => `block-${i + 1} ${'x'.repeat(9_000)}`).join('\n\n')
+// Two chunks of three blocks each, so mounting only the reported range is observable. The split
+// itself is `markdownChunks`' contract; this component windows whatever it is handed.
+const chunkOf = (labels: string[]): MarkdownChunk => ({
+  text: labels.map((label) => `${label} ${'x'.repeat(9_000)}`).join('\n\n'),
+  lines: labels.length * 2 - 1
+})
+const chunks = [chunkOf(['block-1', 'block-2', 'block-3']), chunkOf(['block-4', 'block-5', 'block-6'])]
 
 describe('MarkdownChunkPreview', () => {
   beforeEach(() => {
@@ -32,7 +37,7 @@ describe('MarkdownChunkPreview', () => {
   it('mounts only the chunks the virtualizer reports', async () => {
     mocks.range = [0]
 
-    render(<MarkdownChunkPreview content={content} id="doc" />)
+    render(<MarkdownChunkPreview chunks={chunks} id="doc" />)
 
     expect(await screen.findByText(/block-1/)).toBeInTheDocument()
     expect(screen.queryByText(/block-4/)).not.toBeInTheDocument()
@@ -41,7 +46,7 @@ describe('MarkdownChunkPreview', () => {
   it('mounts the newly reported chunks and drops the ones scrolled away', async () => {
     mocks.range = [1]
 
-    render(<MarkdownChunkPreview content={content} id="doc" />)
+    render(<MarkdownChunkPreview chunks={chunks} id="doc" />)
 
     expect(await screen.findByText(/block-4/)).toBeInTheDocument()
     expect(screen.queryByText(/block-1/)).not.toBeInTheDocument()
