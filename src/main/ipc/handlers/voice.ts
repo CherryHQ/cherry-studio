@@ -45,6 +45,8 @@ export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
   'ai.voice.session.discard': ({ sessionId }, { senderId }) =>
     callVoice(senderId, (service, owner) => service.discard(owner, sessionId)),
   'ai.voice.models.list': (_input, { senderId }) => callVoice(senderId, (service) => service.listModels()),
+  'ai.transcription.locales.list': (_input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.listTranscriptionLocales(owner)),
   'ai.voice.model.status': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.status(owner, input)),
   'ai.speech.voices.list': (_input, { senderId }) => callVoice(senderId, (service, owner) => service.voices(owner)),

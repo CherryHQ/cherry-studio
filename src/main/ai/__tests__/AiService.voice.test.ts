@@ -16,6 +16,7 @@ vi.mock('../voice/localAdapters', () => ({
 }))
 
 import { AiService } from '../AiService'
+import { VoiceRuntimeError, voiceIpcError } from '../voice/VoiceRuntimeError'
 
 const wav = Uint8Array.from(
   Buffer.from('524946462600000057415645666d74201000000001000100803e0000007d00000200100064617461020000000000', 'hex')
@@ -27,6 +28,75 @@ beforeEach(() => {
 })
 
 describe('AiService voice operations through real aiCore', () => {
+  it.each(['', ' \n\t '])('reports no speech for an empty or blank transcript (%j)', async (text) => {
+    models.transcription = {
+      specificationVersion: 'v3',
+      provider: 'test-local',
+      modelId: APPLE_ASR_MODEL_ID,
+      doGenerate: async () => ({
+        text,
+        segments: [],
+        language: undefined,
+        durationInSeconds: undefined,
+        warnings: [],
+        response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID, body: '/private/recording.webm' }
+      })
+    }
+
+    const error = await new AiService()
+      .transcribe(APPLE_ASR_MODEL_ID, wav, {}, new AbortController().signal)
+      .catch((error: unknown) => error)
+
+    expect(error).toBeInstanceOf(VoiceRuntimeError)
+    expect(error).toMatchObject({ reason: 'no_speech', message: 'no_speech' })
+    expect(error).not.toHaveProperty('responses')
+    expect(error).not.toHaveProperty('cause')
+    expect(voiceIpcError(error).toJSON()).toEqual({
+      code: 'VOICE_NO_SPEECH',
+      message: 'no_speech',
+      data: { reason: 'no_speech' }
+    })
+  })
+
+  it('preserves other transcription errors', async () => {
+    const failure = new Error('recognizer failed')
+    models.transcription = {
+      specificationVersion: 'v3',
+      provider: 'test-local',
+      modelId: APPLE_ASR_MODEL_ID,
+      doGenerate: async () => {
+        throw failure
+      }
+    }
+
+    await expect(new AiService().transcribe(APPLE_ASR_MODEL_ID, wav, {}, new AbortController().signal)).rejects.toBe(
+      failure
+    )
+  })
+
+  it('preserves cancellation when the recognizer returns no transcript', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Transcription cancelled', 'AbortError')
+    models.transcription = {
+      specificationVersion: 'v3',
+      provider: 'test-local',
+      modelId: APPLE_ASR_MODEL_ID,
+      doGenerate: async () => {
+        controller.abort(reason)
+        return {
+          text: '',
+          segments: [],
+          language: undefined,
+          durationInSeconds: undefined,
+          warnings: [],
+          response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID }
+        }
+      }
+    }
+
+    await expect(new AiService().transcribe(APPLE_ASR_MODEL_ID, wav, {}, controller.signal)).rejects.toBe(reason)
+  })
+
   it('returns the selected local model output without provider-response metadata', async () => {
     models.speech = {
       specificationVersion: 'v3',

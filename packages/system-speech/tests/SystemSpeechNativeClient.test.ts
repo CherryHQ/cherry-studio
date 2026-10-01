@@ -47,6 +47,16 @@ describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POS
     expect(JSON.parse(await readFile(capture, 'utf8'))).toEqual(request)
   })
 
+  it('rejects an empty Apple ASR locale identifier', async () => {
+    const setup = await helper(
+      response({ ok: true, value: { operation: 'list_asr_locales', result: { supported: [''], installed: [] } } })
+    )
+
+    await expect(new SystemSpeechNativeClient(setup).request({ operation: 'list_asr_locales' })).rejects.toMatchObject({
+      code: 'native_helper_failed'
+    })
+  })
+
   it('returns installed and supported recognition locales through the protocol', async () => {
     const setup = await helper(
       response({
