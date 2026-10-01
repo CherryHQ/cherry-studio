@@ -14,6 +14,38 @@ import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
 
+// Matches `.markdown pre { tab-size: 2 }` for wrapped-row height estimates.
+const WRAPPED_LINE_TAB_SIZE = 2
+
+function isEastAsianWideCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+    (codePoint >= 0x20000 && codePoint <= 0x2fffd) ||
+    (codePoint >= 0x30000 && codePoint <= 0x3fffd)
+  )
+}
+
+function wrappedLineVisualColumns(line: string): number {
+  let columns = 0
+  for (let index = 0; index < line.length;) {
+    const codePoint = line.codePointAt(index)!
+    if (codePoint === 0x09) {
+      columns += WRAPPED_LINE_TAB_SIZE - (columns % WRAPPED_LINE_TAB_SIZE)
+    } else {
+      columns += isEastAsianWideCodePoint(codePoint) ? 2 : 1
+    }
+    index += codePoint > 0xffff ? 2 : 1
+  }
+  return columns
+}
+
 interface SavedSelection {
   startLine: number
   startOffset: number
@@ -392,18 +424,18 @@ const CodeViewer = ({
     const gutterWidth = lineNumbers ? gutterDigits * fontSize : 0
     const lineNumberMargin = lineNumbers ? 16 : 0
     const lineContentPaddingRight = fontSize
-    const contentWidth =
-      scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - lineContentPaddingRight
+    const contentWidth = scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - lineContentPaddingRight
     // Monospace code is ~1em wide; a smaller factor over-counts chars per row and under-estimates height.
     const charWidth = Math.max(1, fontSize)
     return Math.max(1, Math.floor(contentWidth / charWidth))
   }, [fontSize, gutterDigits, lineNumbers])
   const estimateWrappedRowHeight = useCallback(
     (line: string) => {
-      if (line.length === 0) return lineHeight
+      const visualColumns = wrappedLineVisualColumns(line)
+      if (visualColumns === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
       const charsPerRow = wrappedCharsPerRow()
-      return lineHeight * Math.max(1, Math.ceil(line.length / charsPerRow))
+      return lineHeight * Math.max(1, Math.ceil(visualColumns / charsPerRow))
     },
     [lineHeight, wrappedCharsPerRow]
   )

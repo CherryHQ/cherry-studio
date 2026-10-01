@@ -424,6 +424,94 @@ describe('CodeViewer', () => {
     expect(mocks.measure).not.toHaveBeenCalled()
   })
 
+  it('estimates enough height for offscreen wrapped rows with tab-expanded width', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const tabLine = '\t'.repeat(10) + 'x'.repeat(90)
+    mockRowHeights(new Map([[0, 21]]))
+    const lineHeight = 21
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      render(<CodeViewer value={`line 1\n${tabLine}`} language="text" wrapped maxHeight="350px" />)
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      const estimatedHeight = offscreenResize![1] as number
+      const narrowCharsPerRow = 4
+      const visualColumns = 20 + 90
+      expect(estimatedHeight).toBeGreaterThanOrEqual(lineHeight * Math.ceil(visualColumns / narrowCharsPerRow))
+      expect(estimatedHeight).toBeGreaterThan(lineHeight * Math.ceil(tabLine.length / narrowCharsPerRow))
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
+  it('estimates enough height for offscreen wrapped rows with wide glyphs', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const wideLine = '你'.repeat(50)
+    mockRowHeights(new Map([[0, 21]]))
+    const lineHeight = 21
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      render(<CodeViewer value={`line 1\n${wideLine}`} language="text" wrapped maxHeight="350px" />)
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      const estimatedHeight = offscreenResize![1] as number
+      const narrowCharsPerRow = 4
+      const visualColumns = wideLine.length * 2
+      expect(estimatedHeight).toBeGreaterThanOrEqual(lineHeight * Math.ceil(visualColumns / narrowCharsPerRow))
+      expect(estimatedHeight).toBeGreaterThan(lineHeight * Math.ceil(wideLine.length / narrowCharsPerRow))
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
   it('estimates enough height for offscreen wrapped rows in narrow scrollers', () => {
     mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
       const state = mocks.stateFor(options.getItemKey)
