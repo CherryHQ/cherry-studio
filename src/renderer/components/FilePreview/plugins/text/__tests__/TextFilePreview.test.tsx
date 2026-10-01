@@ -79,15 +79,13 @@ describe('TextFilePreview', () => {
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ expanded: false, height: '100%' }))
   })
 
-  // Shiki tokenization runs over the whole document on the renderer main thread, so a big
-  // text preview drops highlighting instead of blocking the UI until it finishes.
-  it('drops syntax highlighting for a file over the rich render budget', async () => {
-    mocks.readText.mockResolvedValueOnce('const answer = 42')
-
-    renderPreview(0, 1024 * 1024 + 1)
+  // Shiki tokenizes in a worker and only up to the last visible row, so a large document is free
+  // up front — only lines too long to window can still block the layout engine.
+  it('keeps syntax highlighting for a large file whose lines are ordinary', async () => {
+    renderPreview(0, 2 * 1024 * 1024 - 1)
 
     await screen.findByTestId('code-viewer')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
   })
 
   it('drops syntax highlighting for a file dominated by very long lines', async () => {
@@ -97,13 +95,6 @@ describe('TextFilePreview', () => {
 
     await screen.findByTestId('code-viewer')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
-  })
-
-  it('keeps syntax highlighting for a file that fits the render budget', async () => {
-    renderPreview(0, 1024 * 1024)
-
-    await screen.findByTestId('code-viewer')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: true } }))
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
