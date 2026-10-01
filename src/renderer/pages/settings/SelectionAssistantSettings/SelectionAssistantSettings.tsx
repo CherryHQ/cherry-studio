@@ -59,6 +59,10 @@ const SelectionAssistantSettings: FC = () => {
   const isLinuxWaylandDisplay = isLinux && !!linuxEnvInfo?.isLinuxWaylandDisplay
   // The selection hook cannot run on this compositor, so every setting below would be dead.
   const isCompositorIncompatible = isLinuxWaylandDisplay && !linuxEnvInfo?.isLinuxCompositorCompatible
+  // Only show the Wayland block when something is still wrong; a fully satisfied checklist is noise.
+  const showWaylandHint =
+    isLinuxWaylandDisplay &&
+    (isCompositorIncompatible || !linuxEnvInfo?.isLinuxXWaylandMode || !linuxEnvInfo?.hasLinuxInputDeviceAccess)
 
   // force disable selection assistant on non-windows systems
   useEffect(() => {
@@ -136,7 +140,7 @@ const SelectionAssistantSettings: FC = () => {
           </DemoContainer>
         )}
 
-        {selectionEnabled && isLinuxWaylandDisplay && linuxEnvInfo && (
+        {selectionEnabled && showWaylandHint && linuxEnvInfo && (
           <>
             <SettingDivider />
             <SettingLabel>
