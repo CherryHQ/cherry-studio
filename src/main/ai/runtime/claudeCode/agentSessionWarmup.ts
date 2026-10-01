@@ -11,6 +11,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { resolveEffectivePreferredKeyId } from '@data/services/providerApiKeySelection'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
@@ -702,6 +703,8 @@ function deriveRouteFacts(
     }
   }
 
+  const providerApiKeys = providerService.getApiKeys(primaryProvider.id)
+  const primaryEffectiveKeyId = resolveEffectivePreferredKeyId(providerApiKeys, primaryModel.apiKeyId)
   const shouldUseGateway = modelRefs.some(
     (ref) =>
       requiresAgentGateway(ref.providerId) ||
@@ -709,7 +712,7 @@ function deriveRouteFacts(
       !usesAnthropicMessagesEndpoint(ref) ||
       // The direct spawn exports one ANTHROPIC_API_KEY for every alias, so a
       // sub-model with its own key binding needs the gateway to serve it.
-      (ref.model?.apiKeyId ?? '') !== (primaryModel.apiKeyId ?? '')
+      resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) !== primaryEffectiveKeyId
   )
 
   if (shouldUseGateway) {
@@ -752,7 +755,10 @@ function deriveRouteFacts(
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
   const modelKeyBindings = [primaryRef, opusRef, sonnetRef, haikuRef]
-    .map((ref) => `${ref.providerId}/${ref.modelId}:${ref.model?.apiKeyId ?? ''}`)
+    .map(
+      (ref) =>
+        `${ref.providerId}/${ref.modelId}:${resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) ?? ''}`
+    )
     .join(';')
   return {
     branch: 'direct',

@@ -66,6 +66,16 @@ function unknownCredential(value: string): ResolvedProviderApiKey {
   }
 }
 
+/** Preferred key id when it maps to an enabled stored key; otherwise auto-rotation applies. */
+export function resolveEffectivePreferredKeyId(
+  entries: readonly ApiKeyEntry[],
+  preferredKeyId: string | undefined | null
+): string | null {
+  if (!preferredKeyId) return null
+  const preferred = entries.find((entry) => entry.id === preferredKeyId)
+  return preferred?.isEnabled ? preferredKeyId : null
+}
+
 /**
  * Stored-key selection policy shared by production and tests: an explicit
  * override wins (matched back to a stored key when possible), then the
@@ -82,11 +92,10 @@ export function selectProviderApiKey(
     return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
   }
 
-  if (preferredKeyId) {
-    const preferred = entries.find((entry) => entry.id === preferredKeyId)
-    if (preferred?.isEnabled) {
-      return toResolvedProviderApiKey(preferred.key, 'explicit', preferred)
-    }
+  const effectivePreferredKeyId = resolveEffectivePreferredKeyId(entries, preferredKeyId)
+  if (effectivePreferredKeyId) {
+    const preferred = entries.find((entry) => entry.id === effectivePreferredKeyId)!
+    return toResolvedProviderApiKey(preferred.key, 'explicit', preferred)
   }
 
   const enabledKeys = entries.filter((k) => k.isEnabled)

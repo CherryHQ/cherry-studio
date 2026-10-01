@@ -167,7 +167,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       value: 'api-key',
       apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
     })
-    mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
+    mocks.getApiKeys.mockReturnValue([{ id: 'key-a', key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
@@ -882,6 +882,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-sub' }
         : { id: modelId, apiModelId: `${modelId}-api` }
     )
+    mocks.getApiKeys.mockReturnValue([
+      { id: 'key-a', key: 'api-key', isEnabled: true },
+      { id: 'key-sub', key: 'sub-key', isEnabled: true }
+    ])
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -890,6 +894,26 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // distinct sub-model binding must fall back to the per-model gateway route.
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('stays on direct routing when a sub-model binding points at a disabled or removed key', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'model-2'
+        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-stale' }
+        : { id: modelId, apiModelId: `${modelId}-api` }
+    )
+    mocks.getApiKeys.mockReturnValue([{ id: 'key-a', key: 'api-key', isEnabled: true }])
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'https://anthropic.example.com' })
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
