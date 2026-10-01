@@ -180,9 +180,20 @@ describe('doubao (Ark) endpoint matrix', () => {
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
 describe('aionly New API multiplexing', () => {
+  const multiplexingEndpoints = [
+    'anthropic-messages',
+    'openai-chat-completions',
+    'openai-responses',
+    'google-generate-content'
+  ] as const
+
+  it('declares every New API multiplexing endpoint', () => {
+    expect(Object.keys(provider('aionly').endpointConfigs ?? {})).toEqual([...multiplexingEndpoints])
+  })
+
   it('routes every declared endpoint through the newapi adapter family', () => {
-    for (const [endpointType, config] of Object.entries(provider('aionly').endpointConfigs ?? {})) {
-      expect(config?.adapterFamily, endpointType).toBe('newapi')
+    for (const endpointType of multiplexingEndpoints) {
+      expect(provider('aionly').endpointConfigs?.[endpointType]?.adapterFamily, endpointType).toBe('newapi')
     }
   })
 
