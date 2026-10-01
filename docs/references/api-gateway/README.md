@@ -310,8 +310,7 @@ configured gateway port; a fresh QR is only needed if the endpoint changes.
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. It also publishes
-`feature.api_gateway.lan_running` for remote-access availability and
-`feature.api_gateway.endpoint` for the actual `{ hosts, port }` (or `null` when not listening). **Main is authoritative**;
+`feature.api_gateway.lan_running` for remote-access availability. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
