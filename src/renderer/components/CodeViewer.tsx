@@ -42,8 +42,15 @@ function firstChangedRawLineIndex(prev: string[], next: string[]): number {
   const maxIndex = Math.max(prev.length, next.length) - 1
   if (maxIndex < 0) return 0
 
-  if (next.length === prev.length + 1 && prev.length > 0 && prev[prev.length - 1] === next[prev.length - 1]) {
-    return next.length - 1
+  if (next.length === prev.length + 1 && prev.length > 0) {
+    let onlyAppendedLastLine = true
+    for (let index = 0; index < prev.length; index++) {
+      if (prev[index] !== next[index]) {
+        onlyAppendedLastLine = false
+        break
+      }
+    }
+    if (onlyAppendedLastLine) return next.length - 1
   }
 
   if (next.length === prev.length && next.length > 0 && prev[next.length - 1] !== next[next.length - 1]) {

@@ -894,6 +894,54 @@ describe('CodeViewer', () => {
     }
   })
 
+  it('remeasures an earlier changed line when a new line is appended', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const shortLine = 'x'.repeat(20)
+    const longLine = 'x'.repeat(120)
+    mockRowHeights(new Map([[0, 21]]))
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      const { rerender } = render(
+        <CodeViewer value={`line 1\n${shortLine}\ntail`} language="text" wrapped maxHeight="350px" />
+      )
+
+      mocks.resizeItem.mockClear()
+
+      rerender(
+        <CodeViewer value={`line 1\n${longLine}\ntail\nnew line`} language="text" wrapped maxHeight="350px" />
+      )
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      expect(offscreenResize![1] as number).toBeGreaterThan(21)
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
   it('clears offscreen wrapped row cache when line-number gutter digit width changes', () => {
     const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
     mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
