@@ -1,10 +1,9 @@
 import { Copy, Download, Mic, Play, Square } from 'lucide-react'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Input,
   InputNumber,
   Select,
   SelectContent,
@@ -14,7 +13,7 @@ import {
   Switch,
   Textarea
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
   SettingDescription,
   SettingDivider,
@@ -29,6 +28,7 @@ import { popup } from '@renderer/services/popup'
 import {
   dictationService,
   type DictationPhase,
+  getDefaultVoiceLanguage,
   speechPlaybackService,
   voiceService,
   voiceTargetManager
@@ -38,6 +38,7 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
+  type LocalSpeechModelId,
   type LocalVoiceModelFacts,
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
@@ -51,7 +52,30 @@ interface StatusState {
   reason?: VoiceErrorReason
 }
 
+interface QueriedRecognitionStatus {
+  modelId: LocalTranscriptionModelId
+  language: string
+  result: StatusState
+}
+
+interface QueriedSpeechStatus {
+  modelId: LocalSpeechModelId
+  language?: string
+  voice?: string
+  result: StatusState
+}
+
+interface VoiceSelectOption {
+  value: string
+  label: string
+  disabled?: boolean
+}
+
 const EMPTY_VALUE = '__unconfigured__'
+const SPEECH_PREFERENCE_KEYS = {
+  voiceId: 'feature.voice.speech.voice_id',
+  language: 'feature.voice.speech.language'
+} as const
 const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
@@ -75,6 +99,10 @@ function statusKey(status: StatusState): string {
   return `settings.voice.status.${status.status}`
 }
 
+function errorKey(error: boolean | string): string {
+  return error === 'no_speech' ? 'settings.voice.status.no_speech' : 'settings.voice.status.operation_failed'
+}
+
 function optionalValue(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim() ?? ''
   return trimmed || undefined
@@ -85,8 +113,14 @@ function languageValue(value: string | null | undefined): string | undefined {
   return language?.toLowerCase() === 'auto' ? undefined : language
 }
 
-function storedLanguage(value: string): string {
-  return value.trim().toLowerCase() === 'auto' ? '' : value
+function languageLabel(language: string, displayNames: Intl.DisplayNames, worldLabel: string): string {
+  try {
+    const label = displayNames.of(language) ?? language
+    // Electron may leave the world-region code untranslated.
+    return new Intl.Locale(language).region === '001' ? label.replace('001', worldLabel) : label
+  } catch {
+    return language
+  }
 }
 
 function transcriptionModelId(value: string | null | undefined): LocalTranscriptionModelId | undefined {
@@ -94,13 +128,13 @@ function transcriptionModelId(value: string | null | undefined): LocalTranscript
 }
 
 function VoiceSettings() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const [recognitionModel, setRecognitionModel] = usePreference('feature.voice.recognition.model_id')
   const [recognitionLanguage, setRecognitionLanguage] = usePreference('feature.voice.recognition.language')
   const [speechModel, setSpeechModel] = usePreference('feature.voice.speech.model_id')
-  const [speechVoice, setSpeechVoice] = usePreference('feature.voice.speech.voice_id')
-  const [speechLanguage, setSpeechLanguage] = usePreference('feature.voice.speech.language')
+  const [speechPreferences, setSpeechPreferences] = useMultiplePreferences(SPEECH_PREFERENCE_KEYS)
+  const { voiceId: speechVoice, language: speechLanguage } = speechPreferences
   const [speechSpeed, setSpeechSpeed] = usePreference('feature.voice.speech.speed')
   const [autoRead, setAutoRead] = usePreference('feature.voice.auto_read.enabled')
   const [disclosureConfirmed, setDisclosureConfirmed] = usePreference('feature.voice.auto_read.disclosure_confirmed')
@@ -115,10 +149,11 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot
   )
   const [models, setModels] = useState<readonly LocalVoiceModelFacts[]>([])
+  const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
-  const [recognitionStatus, setRecognitionStatus] = useState<StatusState>({ status: 'unconfigured' })
-  const [speechStatus, setSpeechStatus] = useState<StatusState>({ status: 'unconfigured' })
+  const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
+  const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>('unknown')
   const [installing, setInstalling] = useState(false)
@@ -129,6 +164,7 @@ function VoiceSettings() {
   const transcriptValueRef = useRef('')
   const autoReadRef = useRef<HTMLButtonElement>(null)
   const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
+  const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
 
   transcriptValueRef.current = transcript
 
@@ -137,8 +173,9 @@ function VoiceSettings() {
     void voiceService
       .initialize()
       .then(async () => {
-        const [modelResult, voiceResult, microphoneResult] = await Promise.allSettled([
+        const [modelResult, localeResult, voiceResult, microphoneResult] = await Promise.allSettled([
           voiceService.listModels(),
+          voiceService.listTranscriptionLocales(),
           voiceService.listVoices(),
           voiceService.getMicrophoneStatus()
         ])
@@ -147,6 +184,7 @@ function VoiceSettings() {
           setModels(modelResult.value.models)
           setDefaultAsrModel(modelResult.value.defaultAsrModelId)
         }
+        if (localeResult.status === 'fulfilled') setAsrLocales(localeResult.value)
         if (voiceResult.status === 'fulfilled') setVoices(voiceResult.value)
         if (microphoneResult.status === 'fulfilled') setMicrophoneStatus(microphoneResult.value)
       })
@@ -161,61 +199,134 @@ function VoiceSettings() {
   const configuredRecognitionModel = transcriptionModelId(recognitionModel)
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
   const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
+  const funAsrSelected = effectiveRecognitionModel === FUNASR_MODEL_ID
+  const defaultLanguage = getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
+  const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
+  const selectedVoice = voices.find((voice) => voice.id === speechVoice)
+  const effectiveSpeechLanguage = selectedVoice?.language ?? languageValue(speechLanguage) ?? defaultLanguage
+  const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
+    const worldLabel = t('settings.voice.language.world')
+    const languages = new Set(voices.map((voice) => voice.language))
+    if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
+    return [
+      {
+        value: EMPTY_VALUE,
+        label: t('settings.voice.language.follow_interface', {
+          language: languageLabel(defaultLanguage, displayNames, worldLabel)
+        })
+      },
+      ...Array.from(languages)
+        .map((language) => ({
+          value: language,
+          label: languageLabel(language, displayNames, worldLabel),
+          disabled: !voices.some((voice) => voice.language === language)
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+    ]
+  }, [defaultLanguage, effectiveSpeechLanguage, i18n.language, t, voices])
+  const speechVoiceOptions: VoiceSelectOption[] = [
+    { value: EMPTY_VALUE, label: t('settings.voice.unconfigured') },
+    ...voices
+      .filter((voice) => voice.language === effectiveSpeechLanguage)
+      .map((voice) => ({ value: voice.id, label: voice.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+  ]
+  if (speechVoice && !selectedVoice) {
+    speechVoiceOptions.push({
+      value: speechVoice,
+      label: t('settings.voice.status.voice_unavailable'),
+      disabled: true
+    })
+  }
+  const recognitionLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
+    if (!asrLocales) return []
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
+    const worldLabel = t('settings.voice.language.world')
+    const label = (tag: string) => languageLabel(tag, displayNames, worldLabel)
+    const options: VoiceSelectOption[] = asrLocales.supported.map((tag) => ({ value: tag, label: label(tag) }))
+    if (!asrLocales.supported.includes(effectiveRecognitionLanguage)) {
+      options.push({
+        value: effectiveRecognitionLanguage,
+        label: label(effectiveRecognitionLanguage),
+        disabled: true
+      })
+    }
+    return [
+      {
+        value: EMPTY_VALUE,
+        label: t('settings.voice.language.follow_interface', { language: label(defaultLanguage) })
+      },
+      ...options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
+    ]
+  }, [asrLocales, defaultLanguage, effectiveRecognitionLanguage, i18n.language, t])
+  const recognitionStatus: StatusState =
+    hasConfiguredRecognitionModel && !configuredRecognitionModel
+      ? { status: 'unsupported', reason: 'unsupported' }
+      : !effectiveRecognitionModel
+        ? { status: 'unconfigured' }
+        : queriedRecognitionStatus?.modelId === effectiveRecognitionModel &&
+            queriedRecognitionStatus.language === effectiveRecognitionLanguage
+          ? queriedRecognitionStatus.result
+          : { status: 'unconfigured' }
   const configuredSpeechModel =
     speechModel === APPLE_TTS_MODEL_ID || speechModel === WINDOWS_TTS_MODEL_ID ? speechModel : undefined
+  const configuredSpeechLanguage = languageValue(speechLanguage)
+  const configuredSpeechVoice = optionalValue(speechVoice)
+  const speechStatus: StatusState =
+    speechModel && !configuredSpeechModel
+      ? { status: 'unsupported', reason: 'unsupported' }
+      : configuredSpeechModel &&
+          queriedSpeechStatus?.modelId === configuredSpeechModel &&
+          queriedSpeechStatus.language === configuredSpeechLanguage &&
+          queriedSpeechStatus.voice === configuredSpeechVoice
+        ? queriedSpeechStatus.result
+        : { status: 'unconfigured' }
 
   useEffect(() => {
-    if (hasConfiguredRecognitionModel && !configuredRecognitionModel) {
-      setRecognitionStatus({ status: 'unsupported', reason: 'unsupported' })
-      return
-    }
-    if (!effectiveRecognitionModel) {
-      setRecognitionStatus({ status: 'unconfigured' })
-      return
-    }
+    if ((hasConfiguredRecognitionModel && !configuredRecognitionModel) || !effectiveRecognitionModel) return
     let current = true
+    const query = { modelId: effectiveRecognitionModel, language: effectiveRecognitionLanguage }
     void voiceService
-      .getModelStatus({
-        modelId: effectiveRecognitionModel,
-        ...(languageValue(recognitionLanguage) && { language: languageValue(recognitionLanguage) })
-      })
+      .getModelStatus(query)
       .then((status) => {
-        if (current) setRecognitionStatus(status)
+        if (current) setQueriedRecognitionStatus({ ...query, result: status })
       })
       .catch(() => {
-        if (current) setRecognitionStatus({ status: 'failed', reason: 'operation_failed' })
+        if (current) setQueriedRecognitionStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
       })
     return () => {
       current = false
     }
-  }, [configuredRecognitionModel, effectiveRecognitionModel, hasConfiguredRecognitionModel, recognitionLanguage])
+  }, [
+    configuredRecognitionModel,
+    effectiveRecognitionLanguage,
+    effectiveRecognitionModel,
+    hasConfiguredRecognitionModel
+  ])
 
   useEffect(() => {
-    if (!speechModel) {
-      setSpeechStatus({ status: 'unconfigured' })
-      return
-    }
-    if (!configuredSpeechModel) {
-      setSpeechStatus({ status: 'unsupported', reason: 'unsupported' })
-      return
-    }
+    setQueriedSpeechStatus(undefined)
+    if (!configuredSpeechModel) return
     let current = true
-    void voiceService
-      .getModelStatus({
-        modelId: configuredSpeechModel,
-        ...(languageValue(speechLanguage) && { language: languageValue(speechLanguage) }),
-        ...(optionalValue(speechVoice) && { voice: optionalValue(speechVoice) })
-      })
-      .then((status) => {
-        if (current) setSpeechStatus(status)
-      })
-      .catch(() => {
-        if (current) setSpeechStatus({ status: 'failed', reason: 'operation_failed' })
-      })
+    const query = {
+      modelId: configuredSpeechModel,
+      ...(configuredSpeechLanguage && { language: configuredSpeechLanguage }),
+      ...(configuredSpeechVoice && { voice: configuredSpeechVoice })
+    }
+    speechStatusCheckRef.current = speechStatusCheckRef.current.then(async () => {
+      if (!current) return
+      try {
+        const status = await voiceService.getModelStatus(query)
+        if (current) setQueriedSpeechStatus({ ...query, result: status })
+      } catch {
+        if (current) setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+      }
+    })
     return () => {
       current = false
     }
-  }, [configuredSpeechModel, speechLanguage, speechModel, speechVoice])
+  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice])
 
   useEffect(() => {
     if (dictation.error !== 'microphone_permission') return
@@ -257,14 +368,9 @@ function VoiceSettings() {
         targetId: 'voice-settings-transcription-test',
         owner: window,
         sourceEntityId: 'voice-settings',
-        captureReplaceRange: () => {
-          const field = transcriptRef.current
-          return field ? { from: field.selectionStart, to: field.selectionEnd } : null
-        },
-        replaceRange: ({ from, to }, text) => {
-          const current = transcriptValueRef.current
-          if (from > current.length || to > current.length) return false
-          setTranscript(`${current.slice(0, from)}${text}${current.slice(to)}`)
+        captureReplaceRange: () => (transcriptRef.current ? { from: 0, to: transcriptValueRef.current.length } : null),
+        replaceRange: (_range, text) => {
+          setTranscript(text)
           return true
         }
       }),
@@ -274,8 +380,7 @@ function VoiceSettings() {
   const transcriptionModels = models.filter((model) => model.id === APPLE_ASR_MODEL_ID || model.id === FUNASR_MODEL_ID)
   const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID || model.id === WINDOWS_TTS_MODEL_ID)
   const canInstallApple =
-    recognitionModel === APPLE_ASR_MODEL_ID &&
-    Boolean(languageValue(recognitionLanguage)) &&
+    effectiveRecognitionModel === APPLE_ASR_MODEL_ID &&
     recognitionStatus.status === 'not_installed' &&
     recognitionStatus.reason === 'asset_required'
   const dictationRecording = dictation.phase === 'starting' || dictation.phase === 'recording'
@@ -300,17 +405,20 @@ function VoiceSettings() {
   }
 
   const installAppleAsset = async () => {
-    const language = languageValue(recognitionLanguage)
-    if (!language || !canInstallApple) return
+    if (!canInstallApple) return
     const previousStatus = recognitionStatus
+    const query = { modelId: APPLE_ASR_MODEL_ID, language: effectiveRecognitionLanguage }
     setInstalling(true)
-    setRecognitionStatus({ status: 'installing', reason: 'asset_required' })
+    setQueriedRecognitionStatus({ ...query, result: { status: 'installing', reason: 'asset_required' } })
     setActionFailed(false)
     try {
-      await voiceService.installTranscriptionAsset({ language, source: 'settings' }).result
-      setRecognitionStatus(await voiceService.getModelStatus({ modelId: APPLE_ASR_MODEL_ID, language }))
+      await voiceService.installTranscriptionAsset({ language: effectiveRecognitionLanguage, source: 'settings' })
+        .result
+      setQueriedRecognitionStatus({ ...query, result: await voiceService.getModelStatus(query) })
+      const locales = await voiceService.listTranscriptionLocales().catch(() => undefined)
+      if (locales) setAsrLocales(locales)
     } catch {
-      setRecognitionStatus(previousStatus)
+      setQueriedRecognitionStatus({ ...query, result: previousStatus })
       setActionFailed(true)
     } finally {
       setInstalling(false)
@@ -323,6 +431,7 @@ function VoiceSettings() {
       void dictationService.stop().catch(() => setActionFailed(true))
       return
     }
+    setTranscript('')
     voiceTargetManager.markCurrent('voice-settings-transcription-test')
     const run = dictationService.startScoped()
     dictationRunRef.current = run
@@ -372,8 +481,6 @@ function VoiceSettings() {
     }
   }
 
-  const error = actionFailed || dictation.error || speech.error
-
   return (
     <SettingsContentColumn theme={theme}>
       <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
@@ -403,13 +510,25 @@ function VoiceSettings() {
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-language" className="scroll-mt-6">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Input
-            className="w-64"
-            aria-label={t('settings.voice.recognition.language')}
-            placeholder={t('settings.voice.language.placeholder')}
-            value={languageValue(recognitionLanguage) ?? ''}
-            onChange={(event) => savePreference(() => setRecognitionLanguage(storedLanguage(event.target.value)))}
-          />
+          <Select
+            value={funAsrSelected ? 'auto' : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)}
+            disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
+            onValueChange={(value) => savePreference(() => setRecognitionLanguage(value === EMPTY_VALUE ? '' : value))}>
+            <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
+              <SelectValue placeholder={t('common.select')} />
+            </SelectTrigger>
+            <SelectContent>
+              {funAsrSelected ? (
+                <SelectItem value="auto">{t('settings.voice.language.auto_detect')}</SelectItem>
+              ) : (
+                recognitionLanguageOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                    {option.label}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-status" className="scroll-mt-6">
@@ -445,6 +564,7 @@ function VoiceSettings() {
           <Textarea.Input
             ref={transcriptRef}
             aria-label={t('settings.voice.recognition.transcript')}
+            aria-describedby={dictation.error ? 'voice-recognition-error' : undefined}
             value={transcript}
             onValueChange={setTranscript}
             onFocus={() => voiceTargetManager.markCurrent('voice-settings-transcription-test')}
@@ -489,7 +609,7 @@ function VoiceSettings() {
               </Button>
             ) : null}
           </div>
-          {dictation.phase !== 'idle' ? (
+          {dictation.phase !== 'idle' && !dictation.error ? (
             <p
               role="status"
               aria-label={t('settings.voice.dictation.status_label')}
@@ -498,6 +618,11 @@ function VoiceSettings() {
               {dictation.elapsedMs > 0
                 ? ` · ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(dictation.elapsedMs / 1000) })}`
                 : ''}
+            </p>
+          ) : null}
+          {dictation.error ? (
+            <p id="voice-recognition-error" role="alert" className="text-sm text-error">
+              {t(errorKey(dictation.error))}
             </p>
           ) : null}
         </div>
@@ -525,35 +650,60 @@ function VoiceSettings() {
           </Select>
         </SettingRow>
         <SettingDivider />
-        <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
+        <SettingRow id="setting-voice-speech-language" className="scroll-mt-6">
+          <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
-            value={speechVoice || EMPTY_VALUE}
-            onValueChange={(value) => savePreference(() => setSpeechVoice(value === EMPTY_VALUE ? '' : value))}>
-            <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.voice')}>
-              <SelectValue placeholder={t('settings.voice.unconfigured')} />
+            value={selectedVoice?.language ?? languageValue(speechLanguage) ?? EMPTY_VALUE}
+            onValueChange={(value) => {
+              const language = value === EMPTY_VALUE ? '' : value
+              savePreference(() =>
+                setSpeechPreferences({
+                  language,
+                  voiceId: selectedVoice?.language === language ? selectedVoice.id : ''
+                })
+              )
+            }}>
+            <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.language')}>
+              <SelectValue placeholder={t('common.select')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={EMPTY_VALUE}>{t('settings.voice.unconfigured')}</SelectItem>
-              {voices.map((voice) => (
-                <SelectItem key={voice.id} value={voice.id}>
-                  {voice.name} ({voice.language})
+              {speechLanguageOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-voice-speech-language" className="scroll-mt-6">
-          <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Input
-            className="w-64"
-            aria-label={t('settings.voice.speech.language')}
-            placeholder={t('settings.voice.language.placeholder')}
-            value={languageValue(speechLanguage) ?? ''}
-            onChange={(event) => savePreference(() => setSpeechLanguage(storedLanguage(event.target.value)))}
-          />
-        </SettingRow>
+        {effectiveSpeechLanguage ? (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-voice-speech-voice" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.voice.speech.voice')}</SettingRowTitle>
+              <Select
+                value={speechVoice || EMPTY_VALUE}
+                onValueChange={(value) => {
+                  savePreference(() =>
+                    setSpeechPreferences({
+                      voiceId: value === EMPTY_VALUE ? '' : value,
+                      language: effectiveSpeechLanguage
+                    })
+                  )
+                }}>
+                <SelectTrigger className="w-64" aria-label={t('settings.voice.speech.voice')}>
+                  <SelectValue placeholder={t('common.select')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {speechVoiceOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+          </>
+        ) : null}
         <SettingDivider />
         <SettingRow id="setting-voice-speech-speed" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.voice.speech.speed')}</SettingRowTitle>
@@ -580,6 +730,7 @@ function VoiceSettings() {
         <div id="setting-voice-speech-test" className="scroll-mt-6 space-y-3">
           <Textarea.Input
             aria-label={t('settings.voice.speech.preview_text')}
+            aria-describedby={speech.error ? 'voice-speech-error' : undefined}
             value={previewText}
             maxLength={5000}
             onValueChange={setPreviewText}
@@ -594,6 +745,11 @@ function VoiceSettings() {
             {speechBusy ? <Square className="size-4" /> : <Play className="size-4" />}
             {t(speechBusy ? 'common.stop' : 'settings.voice.action.play_preview')}
           </Button>
+          {speech.error ? (
+            <p id="voice-speech-error" role="alert" className="text-sm text-error">
+              {t(errorKey(speech.error))}
+            </p>
+          ) : null}
         </div>
       </SettingGroup>
 
@@ -614,9 +770,9 @@ function VoiceSettings() {
         </SettingRow>
       </SettingGroup>
 
-      {error ? (
+      {actionFailed ? (
         <p role="alert" className="mt-4 text-destructive text-sm">
-          {t('settings.voice.status.operation_failed')}
+          {t(errorKey(actionFailed))}
         </p>
       ) : null}
     </SettingsContentColumn>

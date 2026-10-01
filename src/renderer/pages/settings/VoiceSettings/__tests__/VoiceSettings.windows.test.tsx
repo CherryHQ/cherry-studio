@@ -18,7 +18,8 @@ const voice = vi.hoisted(() => ({
   speech: { phase: 'idle', progress: { completed: 0, total: 0 } }
 }))
 
-vi.mock('@renderer/services/voice', () => ({
+vi.mock('@renderer/services/voice', async () => ({
+  getDefaultVoiceLanguage: (await import('@renderer/services/voice/voiceLanguage')).getDefaultVoiceLanguage,
   voiceService: {
     initialize: async () => undefined,
     listModels: voice.listModels,
@@ -72,12 +73,18 @@ describe('Windows system speech settings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBe(WINDOWS_TTS_MODEL_ID)
     )
     rerender(<VoiceSettings />)
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
+    await user.click(screen.getByRole('combobox', { name: /speech language/i }))
+    await user.click(await screen.findByRole('option', { name: 'Chinese (China)' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+    )
+    rerender(<VoiceSettings />)
     await user.click(screen.getByRole('combobox', { name: /speech voice/i }))
-    await user.click(await screen.findByRole('option', { name: 'Microsoft Huihui (zh-CN)' }))
+    await user.click(await screen.findByRole('option', { name: 'Microsoft Huihui' }))
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('windows.huihui')
     )
-    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.language', 'zh-CN')
     rerender(<VoiceSettings />)
 
     await waitFor(() =>
@@ -105,6 +112,7 @@ describe('Windows system speech settings', () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.voice.speech.model_id': WINDOWS_TTS_MODEL_ID,
+      'feature.voice.speech.language': 'zh-CN',
       'feature.voice.speech.voice_id': ''
     })
     render(<VoiceSettings />)

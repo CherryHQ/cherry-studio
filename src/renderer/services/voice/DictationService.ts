@@ -386,14 +386,16 @@ export class DictationService {
   private async transcribe(active: ActiveDictation, retry: boolean): Promise<void> {
     if (!active.fileEntryId || !this.isCurrent(active)) return
     this.publish('transcribing', this.snapshot.elapsedMs)
-    const input: TranscriptionInput = {
-      sessionId: active.sessionId,
-      fileEntryId: active.fileEntryId,
-      ...active.preferences
-    }
-    const transcription = retry ? this.voice.retryTranscription(input) : this.voice.transcribe(input)
-    active.transcription = transcription
     try {
+      const preferences = retry ? await this.voice.resolveTranscriptionPreferences() : active.preferences
+      if (!this.isCurrent(active)) return
+      const input: TranscriptionInput = {
+        sessionId: active.sessionId,
+        fileEntryId: active.fileEntryId,
+        ...preferences
+      }
+      const transcription = retry ? this.voice.retryTranscription(input) : this.voice.transcribe(input)
+      active.transcription = transcription
       const result = await transcription.result
       if (!this.isCurrent(active)) return
       active.transcription = undefined
@@ -402,7 +404,15 @@ export class DictationService {
     } catch (error) {
       if (!this.isCurrent(active)) return
       active.transcription = undefined
-      this.publish('failed', this.snapshot.elapsedMs, false, errorCategory(error, 'transcription_failed'), true)
+      const category = errorCategory(error, 'transcription_failed')
+      if (category === 'no_speech') {
+        const cleanupError = await this.cleanupSession(active)
+        if (!cleanupError && this.isRunCurrent(active.runToken, active.generation)) {
+          this.publish('failed', 0, false, category)
+        }
+        return
+      }
+      this.publish('failed', this.snapshot.elapsedMs, false, category, true)
     }
   }
 
