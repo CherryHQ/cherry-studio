@@ -879,7 +879,7 @@ class ProviderRegistryService {
           userFormat && registryFormat?.wire && userFormat.type === registryFormat.type
             ? registryFormat
             : (userFormat ?? registryFormat)
-        if (reasoningFormat !== undefined) config.reasoningFormat = reasoningFormat
+        if (reasoningFormat !== undefined) config.reasoningFormat = { type: reasoningFormat.type }
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null
