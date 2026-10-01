@@ -25,7 +25,7 @@ export default defineProvider({
   metadata: {
     website: {
       apiKey: 'https://tokenlab.sh/dashboard',
-      docs: 'https://docs.tokenlab.sh/guides/api-formats',
+      docs: 'https://tokenlab.sh/docs/en/guides/api-formats',
       models: 'https://api.tokenlab.sh/v1/models',
       official: 'https://tokenlab.sh/'
     }
