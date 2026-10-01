@@ -807,6 +807,7 @@ class FileStorage {
       }
 
       await assertOutsideManagedStorageMutation(result.filePath)
+      assertNotesPathNotMutatingDuringMigration(result.filePath)
       writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
@@ -825,6 +826,7 @@ class FileStorage {
 
       if (!result.canceled && result.filePath) {
         await assertOutsideManagedStorageMutation(result.filePath)
+        assertNotesPathNotMutatingDuringMigration(result.filePath)
         const parseResult = parseDataUrl(data)
         await fs.promises.writeFile(result.filePath, parseResult?.data ?? data, 'base64')
         return true
@@ -942,6 +944,8 @@ class FileStorage {
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)
+      await assertOutsideManagedStorageMutation(destPath)
+      assertNotesPathNotMutatingDuringMigration(destPath)
 
       // 确保目标目录存在
       const destDir = path.dirname(destPath)

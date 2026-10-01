@@ -146,6 +146,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
     await assertOutsideManagedStorageMutation(destPath)
+    assertNotesPathNotMutatingDuringMigration(destPath)
     await copyNew(sourcePath, destPath)
   },
   'file.open': async (handle) => {
