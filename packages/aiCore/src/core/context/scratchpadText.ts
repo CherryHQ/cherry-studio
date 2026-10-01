@@ -5,14 +5,19 @@ const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
 const SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9]*)\b/i
 const CODE_FENCE_PATTERN = /```[\s\S]*?```/g
-const CODE_FENCE_PLACEHOLDER = /\u0000CODE_FENCE_(\d+)\u0000/g
+const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
+const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
+const CODE_FENCE_PLACEHOLDER = new RegExp(
+  `${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`,
+  'g'
+)
 
 function maskCodeFences(text: string): { text: string; fences: string[] } {
   const fences: string[] = []
   const masked = text.replace(CODE_FENCE_PATTERN, (fence) => {
     const index = fences.length
     fences.push(fence)
-    return `\u0000CODE_FENCE_${index}\u0000`
+    return `${CODE_FENCE_PLACEHOLDER_PREFIX}${index}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
   })
   return { text: masked, fences }
 }
@@ -44,10 +49,7 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
   return out
 }
 
-/**
- * Removes model scratchpad scaffolding from compaction output. Tag names are not fixed —
- * models may emit `<thinking>`, `<analysis>`, `<assessment>`, or other simple wrappers.
- */
+/** Removes model scratchpad scaffolding from compaction output (see {@link MODEL_SCRATCHPAD_TAG_NAMES}). */
 function unwrapWholeSummaryWrapper(text: string): string | null {
   const trimmed = text.trim()
   const opening = /^<summary\b[^>]*>/i.exec(trimmed)
@@ -56,11 +58,11 @@ function unwrapWholeSummaryWrapper(text: string): string | null {
   }
 
   const closing = /<\/summary\s*>$/i.exec(trimmed)
-  if (!closing) {
+  if (!closing || closing.index === undefined) {
     return null
   }
 
-  return trimmed.slice(opening[0].length, closing.index!)
+  return trimmed.slice(opening[0].length, closing.index)
 }
 
 export function stripModelScratchpadBlocks(raw: string): string {
