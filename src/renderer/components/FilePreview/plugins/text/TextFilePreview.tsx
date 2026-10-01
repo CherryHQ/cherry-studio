@@ -10,7 +10,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { shouldRenderRichTextPreview } from '../../textPreviewBudget'
+import { hasPathologicalLongLines } from '../../textPreviewGuard'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
@@ -111,10 +111,9 @@ function TextPreviewContent({ filePath, highlight, loadState }: TextPreviewConte
 export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
   const readyContent = loadState.status === 'ready' ? loadState.content : null
-  const highlight = useMemo(
-    () => readyContent !== null && shouldRenderRichTextPreview(metadata.size, readyContent),
-    [readyContent, metadata.size]
-  )
+  // Shiki tokenizes in a worker, incrementally up to the last visible row, so document size costs
+  // nothing up front — only lines too long to window can still block the layout engine.
+  const highlight = useMemo(() => readyContent !== null && !hasPathologicalLongLines(readyContent), [readyContent])
 
   useEffect(() => {
     let cancelled = false

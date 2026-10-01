@@ -69,8 +69,8 @@ access policy. Without this capability, previews retain Streamdown's default saf
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
 stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
-so generated applications can run scripts. Markdown keeps one exception: a document over the rich-render budget drops
-to the plain-text source even on an artifact, since the budget exists to keep the renderer responsive. This does not
+so generated applications can run scripts. Markdown keeps one exception: a document that cannot be windowed drops to
+the plain-text source even on an artifact, since the fallback exists to keep the renderer responsive. This does not
 hide format-specific controls such as PDF zoom or image
 transforms.
 
@@ -276,10 +276,14 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
   an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
 - Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
-- Markdown and text previews drop their expensive pass — the Markdown pipeline, and shiki highlighting — for documents over
-  1 MiB or with very long lines, and show the virtualized plain-text source instead. Those passes run over the whole
-  document on the renderer main thread, and past that budget they block the UI until they finish. Markdown then locks its
-  preview/source switch and says so through `file_preview.markdown.plain_fallback.description`.
+- Markdown and text previews window their expensive passes instead of dropping them: Markdown renders chunk by chunk and
+  shiki highlights up to the last visible row in a worker, so a large document costs nothing up front. Only input that
+  cannot be windowed — very long lines, or one Markdown block too large to split — falls back to the virtualized
+  plain-text source. Markdown then locks its preview/source switch and says so through
+  `file_preview.markdown.plain_fallback.description`.
+- A Markdown chunk is its own document, so `splitMarkdownChunks` may only break on a blank line where no construct spans
+  it (fenced code, display math, raw HTML) and no indented continuation follows. Reference definitions are carried into
+  every chunk, because a link or footnote used in one chunk may be defined in another.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
