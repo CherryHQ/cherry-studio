@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -12,6 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
+import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
