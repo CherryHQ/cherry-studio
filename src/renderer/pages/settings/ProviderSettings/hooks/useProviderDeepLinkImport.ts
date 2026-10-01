@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMutation } from '@data/hooks/useDataApi'
@@ -11,6 +11,7 @@ import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
+import { withEndpointConfigWriteLock } from './providerSetting/useProviderEndpointActions'
 
 const logger = loggerService.withContext('useProviderDeepLinkImport')
 
@@ -48,6 +49,7 @@ export function useProviderDeepLinkImport(
   const navigate = useNavigate()
   const { createProvider, providers } = useProviders()
   const { updateProviderById } = useProviderActions()
+  const importPayloadRef = useRef<string | null>(null)
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
       '/providers',
@@ -58,8 +60,14 @@ export function useProviderDeepLinkImport(
 
   useEffect(() => {
     if (!searchAddProviderData) {
+      importPayloadRef.current = null
       return
     }
+
+    if (importPayloadRef.current === searchAddProviderData) {
+      return
+    }
+    importPayloadRef.current = searchAddProviderData
 
     const importProvider = async (providerData: ImportedProviderSearchData) => {
       try {
@@ -88,7 +96,9 @@ export function useProviderDeepLinkImport(
                 baseUrl: updatedProvider.apiHost
               }
             }
-          : undefined
+          : isNew
+            ? undefined
+            : existingProvider?.endpointConfigs
 
         if (isNew) {
           await createProvider({
@@ -98,11 +108,13 @@ export function useProviderDeepLinkImport(
             endpointConfigs
           })
         } else {
-          await updateProviderById(providerId, {
-            name: updatedProvider.name,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
+          await withEndpointConfigWriteLock(providerId, () =>
+            updateProviderById(providerId, {
+              name: updatedProvider.name,
+              defaultChatEndpoint,
+              endpointConfigs
+            })
+          )
         }
 
         if (updatedProvider.apiKey.trim()) {
