@@ -132,6 +132,9 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const resumeHeader =
     resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse, t) : undefined
   const resumeTarget = resumeState?.kind === 'navigable' ? resumeState : undefined
+  // A receipt that owns its flow is an entry too, but it opens on its own call id, so it carries
+  // no explicit target — the card defaults to the call it renders.
+  const resumeEntry = resumeTarget !== undefined || resumeState?.kind === 'self'
   return (
     <>
       <AgentToolCallCard
@@ -143,13 +146,13 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         status={effectiveStatus}
         hasError={effectiveStatus === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
-        openFlowOnClick={isSubagentTool || resumeTarget !== undefined}
+        openFlowOnClick={isSubagentTool || resumeEntry}
         flowTargetToolCallId={receiptRootsItsFlow ? undefined : resumeTarget?.toolCallId}
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
         flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
         labelOverride={resumeHeader?.header}
-        leadingLabel={resumeTarget ? t('message.tools.activity.continueHandle') : undefined}
+        leadingLabel={resumeEntry ? t('message.tools.activity.continueHandle') : undefined}
         showInlineDetails={!isSubagentTool}
       />
       <ToolApprovalOutcome approval={toolResponse.approval} />

@@ -445,6 +445,12 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
 export type ResumeReceiptState =
   | { kind: 'none' }
   | { kind: 'labelled' }
+  /**
+   * A receipt that owns its own flow: nothing in the loaded window says where it resumed from — no
+   * identity in the output, no adapter stamp — so its own call is the root and its own result (a
+   * foreground answer, or a deferred one once hydrated) is the flow's content.
+   */
+  | { kind: 'self' }
   | { kind: 'navigable'; toolCallId: string; description?: string }
 
 export function resolveResumeReceiptState(
@@ -465,6 +471,9 @@ export function resolveResumeReceiptState(
     // id with another's description.
     return { kind: 'navigable', toolCallId, description: launchIndex?.descriptionsByToolCallId.get(toolCallId) }
   }
+  // Nothing names where this receipt resumed from, so it is the flow: redirecting it to a launch
+  // root would show that launch's flow, which may hold none of this receipt's content.
+  if (!resumedAgentId && !launchToolCallId) return canNavigate ? { kind: 'self' } : { kind: 'labelled' }
   if (!resumedAgentId) return { kind: 'none' }
   // Unresolved: a host that cannot navigate keeps the truthful label, while one that can would
   // otherwise show an affordance it cannot honour.

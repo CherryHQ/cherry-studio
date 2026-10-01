@@ -1385,20 +1385,27 @@ describe('AgentToolRenderer', () => {
       })
     })
 
-    it('keeps a SendMessage without a resolvable launch root locally clickable only', () => {
+    // Nothing says where this receipt resumed from — no identity, no stamp — so the receipt itself
+    // is the flow: it opens its own call, where its result (a foreground answer, or a deferred one
+    // once hydrated) is the content. Redirecting it would show a launch flow holding none of it.
+    it('opens its own flow for a SendMessage that names no resume anywhere', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
       const toolResponse = createToolResponse({
         tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
         status: 'done',
         arguments: { to: 'agent-77', message: 'please continue' },
-        response: { success: true, message: 'queued for delivery at its next tool round.' }
+        response: 'The child finished the audit and reported three stale locks.'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('SendMessage').closest('[role="button"]')).toBeNull()
-      expect(openAgentToolFlow).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'SendMessage',
+        title: 'please continue'
+      })
     })
 
     // The continue-handling label must not gate on resolution (B-label enhacement), but the click

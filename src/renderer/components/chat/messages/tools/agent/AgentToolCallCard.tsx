@@ -35,7 +35,8 @@ export function getAgentToolFlowTitle(
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
   const inputEntries = Object.entries(input)
-  for (const key of ['description', 'subject', 'title', 'name', 'summary']) {
+  // `message` is the sent request itself — the only title a receipt-owned flow has to offer.
+  for (const key of ['description', 'subject', 'title', 'name', 'summary', 'message']) {
     const value = inputEntries.find(([field]) => field === key)?.[1]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
