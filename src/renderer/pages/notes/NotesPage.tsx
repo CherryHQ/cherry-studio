@@ -11,6 +11,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
+import { areNotesEditsLockedForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
@@ -496,6 +497,14 @@ const NotesPage: FC = () => {
     await window.api.file.move(fromPath, toPath)
   }, [])
 
+  const isNotesFilesystemWriteBlocked = useCallback(() => {
+    if (!areNotesEditsLockedForRelocation()) {
+      return false
+    }
+    toast.warning(t('settings.data.notes_relocation.error.in_progress'))
+    return true
+  }, [t])
+
   const syncMetadataAfterFileOperation = useCallback(
     async (operation: () => Promise<void>, rollback?: () => Promise<void>) => {
       try {
@@ -534,6 +543,9 @@ const NotesPage: FC = () => {
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (isNotesFilesystemWriteBlocked()) {
+        return
+      }
       try {
         const targetPath = getTargetFolderPath(targetFolderId)
         if (!targetPath) {
@@ -547,11 +559,14 @@ const NotesPage: FC = () => {
         toast.error(t('notes.create_folder_failed'))
       }
     },
-    [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
+    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setFolderExpandedByPath, t]
   )
 
   const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (isNotesFilesystemWriteBlocked()) {
+        return
+      }
       try {
         isCreatingNoteRef.current = true
 
@@ -575,7 +590,7 @@ const NotesPage: FC = () => {
         toast.error(t('notes.create_note_failed'))
       }
     },
-    [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
+    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
   )
 
   // 创建笔记会离开当前编辑会话；用户取消时不创建空文件。
@@ -639,6 +654,9 @@ const NotesPage: FC = () => {
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
+      if (isNotesFilesystemWriteBlocked()) {
+        return
+      }
       try {
         const nodeToDelete = findNode(notesTree, nodeId)
         if (!nodeToDelete) return
@@ -682,6 +700,7 @@ const NotesPage: FC = () => {
       activeFilePath,
       flushFileDraft,
       getMetadataSnapshot,
+      isNotesFilesystemWriteBlocked,
       notesTree,
       refreshTree,
       removePath,
@@ -694,6 +713,9 @@ const NotesPage: FC = () => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
+      if (isNotesFilesystemWriteBlocked()) {
+        return
+      }
       try {
         isRenamingRef.current = true
 
@@ -766,6 +788,7 @@ const NotesPage: FC = () => {
     [
       activeFilePath,
       flushFileDraft,
+      isNotesFilesystemWriteBlocked,
       notesTree,
       refreshTree,
       rewritePath,
@@ -780,6 +803,9 @@ const NotesPage: FC = () => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
+      if (isNotesFilesystemWriteBlocked()) {
+        return
+      }
       try {
         if (!files || files.length === 0) {
           toast.warning(t('notes.no_file_selected'))
@@ -838,13 +864,16 @@ const NotesPage: FC = () => {
         toast.error(t('notes.upload_failed'))
       }
     },
-    [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
+    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setFolderExpandedByPath, t]
   )
 
   // 处理节点移动
   const handleMoveNode = useCallback(
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       if (!notesPath) {
+        return
+      }
+      if (isNotesFilesystemWriteBlocked()) {
         return
       }
 
@@ -939,6 +968,7 @@ const NotesPage: FC = () => {
     [
       activeFilePath,
       flushFileDraft,
+      isNotesFilesystemWriteBlocked,
       notesPath,
       notesTree,
       refreshTree,
