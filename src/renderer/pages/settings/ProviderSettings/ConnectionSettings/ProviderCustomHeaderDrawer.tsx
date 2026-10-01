@@ -272,12 +272,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
-      const reasoningFormat = provider?.endpointConfigs?.[type]?.reasoningFormat
       drafts[type] = {
-        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? ''),
-        ...(REASONING_FORMAT_ENDPOINT_TYPES.has(type) && reasoningFormat?.type === 'self-hosted'
-          ? { reasoningFormat: { type: 'self-hosted' as const } }
-          : {})
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
       }
     }
     setEndpointDrafts(drafts)

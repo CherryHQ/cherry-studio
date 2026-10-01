@@ -215,6 +215,20 @@ export function matchesModelPricingBaseline(value: unknown, baseline: unknown): 
 }
 
 /** Resolve profile data without consulting model/provider ids or regexes. */
+/** User rows persist only the format selector; keep catalog endpoint wire when types match. */
+export function mergeEndpointReasoningFormat(
+  userFormat: ProviderReasoningFormat | undefined,
+  catalogFormat: ProviderReasoningFormat | undefined
+): ProviderReasoningFormat | undefined {
+  if (!userFormat && !catalogFormat) return undefined
+  const type = userFormat?.type ?? catalogFormat!.type
+  if (userFormat?.wire) return userFormat
+  if (catalogFormat?.type === type && catalogFormat.wire) {
+    return { type, wire: catalogFormat.wire }
+  }
+  return userFormat ?? catalogFormat
+}
+
 export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
   format?: ProviderReasoningFormat
@@ -960,8 +974,10 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType
-        ? (context.endpointConfigs?.[endpointType]?.reasoningFormat ??
-          profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat)
+        ? mergeEndpointReasoningFormat(
+            context.endpointConfigs?.[endpointType]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat
+          )
         : undefined,
       contract,
       wireDialect: reasoning?.wireDialect,
@@ -1034,8 +1050,10 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint
-        ? (provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat ??
-          profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat)
+        ? mergeEndpointReasoningFormat(
+            provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat
+          )
         : undefined,
       contract,
       wireDialect,

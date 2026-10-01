@@ -241,6 +241,45 @@ describe('ProviderCustomHeaderDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not overwrite a newer reasoning format when saving without changing the selector', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const mutateMock = vi.fn().mockResolvedValue({
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openai.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://openai.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      },
+      updateProvider: updateProviderMock,
+      mutate: mutateMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledTimes(1))
+    expect(updateProviderMock.mock.calls[0][0].endpointConfigs[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toMatchObject({
+      reasoningFormat: { type: 'self-hosted' }
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('persists JSON-mode clearing of all headers as explicit null merge-patch keys', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
