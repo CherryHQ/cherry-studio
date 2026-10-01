@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -12,6 +13,7 @@ const logger = loggerService.withContext('NotesRelocation:Session')
 const COMMIT_TIMEOUT_MS = 60_000
 
 let migrationInFlight = false
+let activeSessionId: string | null = null
 let blockedRoots: { source: string; target: string } | null = null
 let commitWatchTimer: NodeJS.Timeout | undefined
 let commitWatchCleanup: (() => void) | undefined
@@ -51,7 +53,12 @@ export function tryBeginNotesDirectoryMigration(): boolean {
     return false
   }
   migrationInFlight = true
+  activeSessionId = crypto.randomUUID()
   return true
+}
+
+export function getNotesMigrationSessionId(): string | null {
+  return activeSessionId
 }
 
 export function setNotesMigrationBlockedRoots(sourcePath: string, targetPath: string): void {
@@ -70,13 +77,14 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
 
 export function releaseNotesMigrationSession(): void {
   migrationInFlight = false
+  activeSessionId = null
   blockedRoots = null
   clearCommitWatch()
   application.get('IpcApiService').broadcast('app.notes_relocation.migration_finished', undefined)
 }
 
-export function completeNotesMigrationCommit(): void {
-  if (!migrationInFlight) {
+export function completeNotesMigrationCommit(sessionId: string): void {
+  if (!migrationInFlight || activeSessionId !== sessionId) {
     return
   }
   releaseNotesMigrationSession()

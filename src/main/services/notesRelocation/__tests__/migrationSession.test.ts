@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -6,8 +7,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   assertNotesPathNotMutatingDuringMigration,
+  completeNotesMigrationCommit,
+  getNotesMigrationSessionId,
+  isNotesDirectoryMigrationInFlight,
   releaseNotesMigrationSession,
-  setNotesMigrationBlockedRoots
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration
 } from '../migrationSession'
 
 describe('notes migration session', () => {
@@ -28,5 +33,17 @@ describe('notes migration session', () => {
       /migration is in progress/
     )
     expect(() => assertNotesPathNotMutatingDuringMigration(path.join(os.tmpdir(), 'other.md'))).not.toThrow()
+  })
+
+  it('releases the session only when commit matches the active migration id', () => {
+    expect(tryBeginNotesDirectoryMigration()).toBe(true)
+    const sessionId = getNotesMigrationSessionId()
+    expect(sessionId).toBeTruthy()
+
+    completeNotesMigrationCommit(crypto.randomUUID())
+    expect(isNotesDirectoryMigrationInFlight()).toBe(true)
+
+    completeNotesMigrationCommit(sessionId!)
+    expect(isNotesDirectoryMigrationInFlight()).toBe(false)
   })
 })

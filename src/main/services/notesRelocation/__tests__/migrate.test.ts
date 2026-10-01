@@ -227,4 +227,14 @@ describe('notesRelocation', () => {
 
     expect(() => assertNotesRelocationPaths(source, filesRoot)).toThrow()
   })
+
+  it('rejects a target nested inside the application data directory', () => {
+    const source = path.join(tempRoot, 'source-notes-appdata')
+    const nestedTarget = path.join(tempRoot, 'appdata', 'nested-notes')
+    fs.mkdirSync(source)
+    fs.mkdirSync(nestedTarget, { recursive: true })
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    expect(() => assertNotesRelocationPaths(source, nestedTarget)).toThrow()
+  })
 })

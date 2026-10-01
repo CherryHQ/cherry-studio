@@ -1080,6 +1080,7 @@ class FileStorage {
       const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
       for (const folder of sortedFolders) {
         try {
+          assertNotesPathNotMutatingDuringMigration(folder)
           if (!fs.existsSync(folder)) {
             await fs.promises.mkdir(folder, { recursive: true })
           }
@@ -1097,6 +1098,7 @@ class FileStorage {
 
         const results = await Promise.allSettled(
           batch.map(async (op) => {
+            assertNotesPathNotMutatingDuringMigration(op.targetPath)
             // Read from source and write to target in Main process
             const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
             await fs.promises.writeFile(op.targetPath, content, 'utf-8')
