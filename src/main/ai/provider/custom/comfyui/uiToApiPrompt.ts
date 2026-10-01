@@ -898,7 +898,6 @@ export function findPromptTarget(
     return a < b ? -1 : a > b ? 1 : 0
   }
   const orderedIds = Object.keys(prompt).sort(byNodeId)
-  const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
 
   const referenced = new Set<string>()
   for (const node of Object.values(prompt)) {
@@ -916,6 +915,9 @@ export function findPromptTarget(
   for (const root of rootIds) for (const id of reachedFrom(root)) executed.add(id)
   const runs = withPositive.filter(([id]) => executed.has(id))
   const ordered = [...runs.filter(isSampler), ...runs.filter((entry) => !isSampler(entry))]
+  // A seed only counts on a node a run reaches: one nothing leads to samples
+  // a graph no output reads, and the run's seed must not land there.
+  const samplingIds = orderedIds.filter((id) => executed.has(id) && seedInputKey(prompt[id].inputs) !== undefined)
 
   /** All nodes reachable through reference inputs from a starting id. */
   const reachableFrom = (start: Reference): Set<string> => {
@@ -955,21 +957,6 @@ export function findPromptTarget(
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
       if (best) return { nodeId, input: best.name }
-      // A `StringConcatenate` can keep the run's text as one of its own
-      // literals — the style string linked in, the prompt typed into the node.
-      // That literal is where the run writes; following the linked operand would
-      // reach another node's constant and replace the workflow's style instead.
-      if (target.class_type === 'StringConcatenate') {
-        // Unless the workflow promotes the text of a node this one feeds: then
-        // the promotion — the workflow's own statement of what a run supplies —
-        // names the text, and the literal here is a style string.
-        const promotedBelow = promotedText.some((entry) => reaches(nodeId, entry.nodeId))
-        const literal = Object.entries(target.inputs).find(
-          ([name, value]) => name !== 'delimiter' && typeof value === 'string'
-        )
-        if (literal && !promotedBelow) return { nodeId, input: literal[0] }
-        if (promotedBelow) continue
-      }
       // A switch puts one branch on the wire and leaves the other unevaluated,
       // so only the selected branch is part of the graph the sampler reads.
       // When that branch carries the text as a literal — the workflow's own
@@ -981,7 +968,14 @@ export function findPromptTarget(
         if (isReference(branch.value)) queue.push(branch.value[0])
         continue
       }
-      if (isValueSource(target) && typeof target.inputs.value === 'string') {
+      // A node the graph cannot feed is its own value — but an output class is
+      // where a run ends, not a text it supplies: an ordinary string input on
+      // one (`filename_prefix`, a path) is not a prompt.
+      if (
+        objectInfo?.[target.class_type]?.output_node !== true &&
+        isValueSource(target) &&
+        typeof target.inputs.value === 'string'
+      ) {
         return { nodeId, input: 'value' }
       }
       const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
@@ -999,15 +993,25 @@ export function findPromptTarget(
         const producer = prompt[value[0]]
         return producer !== undefined && holdsText(producer) && isPlainTextNode(producer)
       })
-      const shaped = textEdges.filter(([name]) => isPromptShaped(name))
-      // A `StringConcatenate` with text on both operands — a style string on
-      // one and the prompt on the other — says nothing about which one the run
-      // supplies, and `string_a`/`string_b` rank nothing. Stop rather than pick
-      // by object order: the run refuses a graph whose text it cannot place,
-      // which beats overwriting the workflow's own style. A node that names its
-      // inputs keeps object order, which is where the primary input sits.
-      const joins = target.class_type === 'StringConcatenate'
-      if (joins && shaped.length === 0 && textEdges.length > 1) continue
+      // A `StringConcatenate` joins text sources, and both operands have the
+      // same STRING contract: `string_a` and `string_b` rank nothing, so a
+      // concat that takes text from more than one of them — a style literal
+      // beside a linked prompt, or two links — names no single text a run
+      // supplies. Stop: the run refuses a graph whose text it cannot place,
+      // which beats overwriting whichever operand the workflow used for its own
+      // style. A promotion below it still names the text, and the caller finds
+      // that after the walk.
+      if (target.class_type === 'StringConcatenate') {
+        // Unless the workflow promotes the text of a node this one feeds: then
+        // the promotion — the workflow's own statement of what a run supplies —
+        // names the text, and no operand here does.
+        if (promotedText.some((entry) => reaches(nodeId, entry.nodeId))) continue
+        const literals = Object.entries(target.inputs).filter(
+          ([name, value]) => name !== 'delimiter' && typeof value === 'string'
+        )
+        if (literals.length + textEdges.length > 1) continue
+        if (literals.length === 1) return { nodeId, input: literals[0][0] }
+      }
       const later: [string, Reference][] = []
       for (const entry of following) {
         const [name, value] = entry

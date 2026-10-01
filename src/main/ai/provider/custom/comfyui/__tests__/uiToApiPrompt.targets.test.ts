@@ -145,9 +145,10 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'value', samplerId: '3' })
   })
 
-  it('writes the run text into the literal a StringConcatenate keeps beside a link', () => {
-    // The style string is linked in, the text is typed into the node itself:
-    // the literal is the operand a run supplies.
+  it('refuses a StringConcatenate that keeps a literal beside a linked text', () => {
+    // Both operands are STRING and neither ranks the other: the style string is
+    // linked in and the text is typed into the node, or the other way round.
+    // Picking either would overwrite a workflow constant.
     const graph: Record<string, ApiPromptNode> = {
       '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'muted sketch' } },
       '2': {
@@ -159,7 +160,8 @@ describe('ComfyUI text held outside the encode node', () => {
       '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 1 } },
       '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } }
     }
-    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'string_b', samplerId: '4' })
+    expect(findPromptTarget(graph)).toBeUndefined()
+    expect(hasPromptText(graph)).toBe(true)
   })
 
   it('prefers the text the workflow promotes over a literal further down the concat', () => {
@@ -189,8 +191,10 @@ describe('ComfyUI text held outside the encode node', () => {
     })
   })
 
-  it('writes the run text into an empty literal a StringConcatenate keeps beside a link', () => {
-    // A blank literal is the slot the workflow left for a run to fill.
+  it('refuses a StringConcatenate that keeps an empty literal beside a linked text', () => {
+    // A blank literal is the slot the workflow left for a run to fill, but a
+    // linked operand beside it is just as likely to be the text, and the walk
+    // cannot tell. It stops rather than replace either one.
     const graph: Record<string, ApiPromptNode> = {
       '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'muted sketch' } },
       '2': {
@@ -202,7 +206,8 @@ describe('ComfyUI text held outside the encode node', () => {
       '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 1 } },
       '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } }
     }
-    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'string_b', samplerId: '4' })
+    expect(findPromptTarget(graph)).toBeUndefined()
+    expect(hasPromptText(graph)).toBe(true)
   })
 
   it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
@@ -444,6 +449,35 @@ describe('ComfyUI output anchors', () => {
       input: 'value',
       samplerId: '4'
     })
+  })
+
+  it('does not read a value off the output node a run ends at', () => {
+    // An ordinary string input on an output class — a filename prefix, a path —
+    // is not a prompt, even though the node is otherwise its own value.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'SaveImage',
+        _meta: { title: 'save' },
+        inputs: { value: 'ComfyUI', filename_prefix: 'ComfyUI' }
+      }
+    }
+    expect(findPromptTarget(graph, { objectInfo: outputInfo })).toBeUndefined()
+  })
+
+  it('does not walk back from a sampler no output reaches', () => {
+    // Node 1 samples and holds its own prompt, but nothing leads to it: a run
+    // never executes it, so its text is not what the run supplies.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': {
+        class_type: 'GeminiImage2Node',
+        _meta: { title: 'disconnected' },
+        inputs: { prompt: 'disconnected text', seed: 1 }
+      },
+      '2': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: ['4', 0] } },
+      '3': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['2', 0] } },
+      '4': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } }
+    }
+    expect(findPromptTarget(graph, { objectInfo: outputInfo })).toEqual({ nodeId: '4', input: 'value', samplerId: '4' })
   })
 
   it('falls back to the nodes nothing reads when the classes are unknown', () => {
