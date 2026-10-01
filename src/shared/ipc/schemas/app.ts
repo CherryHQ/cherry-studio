@@ -102,6 +102,13 @@ export const appRequestSchemas = {
     }),
     output: z.void()
   }),
+  'app.notes_relocation.migration_lock_ack': defineRoute({
+    input: z.object({
+      batchId: z.string().min(1),
+      ok: z.boolean()
+    }),
+    output: z.void()
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
@@ -149,6 +156,6 @@ export type AppEventSchemas = {
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
   'app.notes_relocation.flush_requested': { batchId: string }
-  'app.notes_relocation.migration_started': void
+  'app.notes_relocation.migration_started': { batchId: string }
   'app.notes_relocation.migration_finished': void
 }
