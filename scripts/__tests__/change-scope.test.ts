@@ -17,6 +17,7 @@ const makeRepo = (): string => {
   git(root, 'init', '--quiet')
   git(root, 'config', 'user.email', 'scope@example.test')
   git(root, 'config', 'user.name', 'Scope Test')
+  git(root, 'config', 'commit.gpgsign', 'false')
   fs.writeFileSync(path.join(root, 'base.txt'), 'base\n')
   git(root, 'add', 'base.txt')
   git(root, 'commit', '--quiet', '-m', 'base')

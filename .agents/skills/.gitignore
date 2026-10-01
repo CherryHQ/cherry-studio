@@ -24,6 +24,8 @@
 !gh-create-pr/**
 !gh-pr-review/
 !gh-pr-review/**
+!gh-stack/
+!gh-stack/**
 !prepare-release/
 !prepare-release/**
 !translate-docs/

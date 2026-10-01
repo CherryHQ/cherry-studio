@@ -13,6 +13,7 @@
 !gh-create-issue
 !gh-create-pr
 !gh-pr-review
+!gh-stack
 !prepare-release
 !translate-docs
 !vercel-react-best-practices

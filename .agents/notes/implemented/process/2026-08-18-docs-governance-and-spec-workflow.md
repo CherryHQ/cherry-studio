@@ -1,6 +1,6 @@
 # Agent Note: Docs governance and spec-driven workflow
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-08-18-docs-governance-and-spec-workflow.zh.md)
 
@@ -16,9 +16,9 @@ The repository's developer documentation has four connected defects, and no mech
 
 **Docs are a product with a missing half.** A large share of Cherry Studio's users and contributors read Chinese, yet the corpus is ~110 English markdown files with one Chinese pair (`.agents/skills/README.zh.md`).
 
-## Proposal
+## Decision
 
-Adopt the deepseek-harness (dsh) documentation and decision-record process, adapted where explicitly stated. Six parts, then a rollout plan.
+Cherry Studio uses the deepseek-harness (dsh) documentation and decision-record process, adapted where explicitly stated. The implementation has six parts.
 
 ### P1 — Target tree
 
@@ -38,7 +38,7 @@ Rules:
 
 - The `references/` top level is a **closed set** of domain directories — no loose files (gate-enforced, mirroring the closed-set rule the code tree already has in naming-conventions §4.8).
 - Every domain directory has a `README.md` that owns the domain: full detail about its own subject, children summarized with links. One fact, one home.
-- Files inside a domain directory do not repeat the domain prefix (`window-manager-usage.md` → `usage.md`); existing prefixed files are renamed during their domain's Phase 0b move, when inbound links are being rewritten anyway. **Superseded for Phase 0b:** the [implemented audit outcomes](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.md) preserve existing basenames unless a move or ambiguity requires a rename.
+- Files inside a domain directory do not repeat the domain prefix (`window-manager-usage.md` → `usage.md`); existing prefixed files are renamed during their domain's Phase 0b move, when inbound links are being rewritten anyway. **Superseded for Phase 0b:** the [implemented audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md) preserve existing basenames unless a move or ambiguity requires a rename.
 - Division of labor with code-adjacent READMEs (`src/main/core/paths/README.md`, `tests/__mocks__/README.md`, …): cross-cutting or multi-module material lives in `docs/`; module-private facts live next to the module.
 - `docs/README.md` becomes a generated thin index; the hand-maintained table is retired.
 
@@ -57,7 +57,7 @@ Disposition of current files (decided here; executed in Phase 0b):
 | `guides/{logging,i18n}.md` | Move → their subject domains under `references/`. |
 | `guides/diagnostics.md` | Placement (contrib vs reference) decided during its Phase 0b audit. |
 | `docs/sponsor.md` | **Stays at the `docs/` root** — a user-facing page linked from the root README, not a developer doc; outside the reference tree, the gates, and bilingual pairing. |
-| `references/chat/{adapters,conventions}.md` | **Keep in place** — explicitly marked target-architecture design docs; their home is re-decided when the adapters code lands. Out of Phase 0b scope. **Superseded by the [implemented audit outcomes](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.md).** |
+| `references/chat/{adapters,conventions}.md` | **Keep in place** — explicitly marked target-architecture design docs; their home is re-decided when the adapters code lands. Out of Phase 0b scope. **Superseded by the [implemented audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md).** |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **Keep both** — deliberately layered with mutual SoT-scope declarations, not rot. |
 
 ### P2 — Frontmatter
@@ -98,11 +98,11 @@ Decision records live in `.agents/notes/{lifecycle}/{class}/yyyy-mm-dd-topic.md`
 - **Class**: `feature`, `bug-fix`, `simplification`, `architecture`, `process`, `testing`. There is deliberately no `refactor` class — `simplification` covers it, discriminated by "does observable behavior change?".
 - **Format**: header block, `Problem`, lifecycle-specific decision sections, mandatory `Alternatives considered`, and actual `Verification` for implemented notes. Proposed acceptance criteria use contiguous `AC` IDs and observable results rather than implementation tasks.
 - A decision is never edited into a different decision: supersede with a new note and cross-link.
-- **Threshold**: every PR declares an Agent Note or explicit `N/A`, but a note is required only for a decision a maintainer may reasonably revisit. A simple bug fix that restores an existing contract uses `N/A`; a repair with durable failure, compatibility, concurrency, ownership, or alternative-selection rationale writes an implemented `bug-fix` note in the same PR.
-- **Spec-first stack**: substantial feature, architecture, process, and simplification work begins with a bottom Spec PR. Its current head needs explicit human Approval before implementation branches stack above it; a material Spec edit requires re-approval. The final implementation layer rewrites the note as implemented and maps every AC to real evidence.
+- **Threshold**: every human-authored PR declares an Agent Note or explicit `N/A`; automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement, not from normal validation. A note is required only for a decision a maintainer may reasonably revisit. A simple bug fix that restores an existing contract uses `N/A`; a repair with durable failure, compatibility, concurrency, ownership, or alternative-selection rationale writes an implemented `bug-fix` note in the same PR.
+- **Spec-first stack**: substantial feature, architecture, process, and simplification work begins with a bottom Spec PR. Its current head needs explicit human Approval before implementation branches stack above it; a material Spec edit requires re-approval. Agents inspect stack topology and actual downstack evidence; intermediate layers keep the note proposed, while only the final layer with cumulative coverage of every AC rewrites it as implemented.
 - **Rejection**: discussion and `CHANGES_REQUESTED` do not trigger rejection. Only an explicit human decision may move a Spec to `rejected/`; a low-value abandoned exploration is closed without merging repository noise.
 
-The full rules live in `.agents/notes/README.md`; subtree `AGENTS.md` files load lifecycle instructions automatically, while `verify-agent-note-format` gates the machine-checkable skeleton.
+The full rules live in `.agents/notes/README.md`; subtree `AGENTS.md` files load lifecycle instructions automatically, while `verify-agent-note-format` gates the machine-checkable skeleton and `agent-notes:check-transition` validates triplet moves and complete AC mapping against an explicit Spec ref.
 
 ### P5 — Bilingual pairing
 
@@ -114,19 +114,19 @@ The routine gate checks hashes, switchers, Markdown structure, and Cherry frontm
 
 ### P6 — Skills
 
-Four public skills make the policy operational: `agent-notes`, `docs-governance`, `translate-docs`, and `find-simplifications`. Root and subtree instructions route ordinary work into them without relying on memory.
+Five public skills make the policy operational: `agent-notes`, `docs-governance`, `translate-docs`, `find-simplifications`, and `gh-stack`. The repository-owned stack skill makes extension installation and non-interactive stack operation available on a fresh checkout, while `gh-create-pr` retains ownership of Cherry's PR template and lifecycle checks. Root and subtree instructions route ordinary work into these skills without relying on memory or developer-global setup.
 
-One zero-dependency `change:scope` report owns base/head resolution and committed/staged/unstaged/untracked paths. `docs:affected`, PR creation, PR review, and post-stack validation consume it. The generated `docs/sources-index.json` maps source prefixes to candidate docs; `gh-pr-review` treats matches as mandatory semantic inspection, never as an automatic CI failure.
+One zero-dependency `change:scope` report owns base/head resolution and committed/staged/unstaged/untracked paths. `docs:affected`, PR creation, PR review, lifecycle transition checks, and post-stack validation consume it. The generated `docs/sources-index.json` maps source prefixes to candidate docs; `gh-pr-review` treats matches as mandatory semantic inspection, never as an automatic CI failure.
 
-### Rollout
+### Delivery state
 
 | Phase | Work | Verification |
 |---|---|---|
-| 0a (this PR) | This proposal; `.agents/notes/` skeleton with stub README | Review of this note is the decision |
-| 0b | Per-domain move + audit PRs: relocate, rename, fact-check every claim against code, rewrite or delete. **The gates land last, after the final move**, together with the frontmatter for the whole corpus — `verify-doc-structure` reads the entire `references/` root and `verify-doc-frontmatter` every reference doc, so neither can be green while the tree is half-migrated, and a staged-enforcement allowlist would be more machinery than the short migration is worth | `docs:check-links` green per move PR; full `pnpm docs:check` green once the gates land; moved docs' claims verified against `src/` |
-| 1 | Full Agent Note rules, lifecycle instructions, AC/Verification format, and format gate | Format gate green on all notes |
-| 2 | Pairing + staged guard, documentation governance, change scope, sources review, PR template, and four public process skills | `pnpm docs:check`, focused script tests, and `pnpm skills:check` green |
-| 3 | Final translation backfill of audited-current docs; expand pairing roots and localized generated navigation | Corpus-wide pairing green |
+| 0a | The approved proposal and `.agents/notes/` skeleton | Completed by Spec PR #18843 |
+| 0b | Per-domain relocation and factual audit | Completed; outcomes are recorded in the implemented audit note |
+| 1 | Full Agent Note rules, lifecycle instructions, AC/Verification format, and format gate | Implemented |
+| 2 | Pairing and staged guard, documentation governance, change scope, source-impact review, PR/review integration, and lifecycle automation | Implemented by this final layer |
+| 3 | Final translation backfill of audited-current docs; expanded pairing roots and localized generated navigation | Deliberately deferred |
 
 Quality precedes translation throughout: a doc is audited current before it is paired, because translating rot bakes it into two languages at double the correction cost.
 
@@ -140,19 +140,22 @@ Quality precedes translation throughout: a doc is audited current before it is p
 - **dsh's per-PR note mandate.** Amended to the decision threshold in P4; the fix volume here would turn the mandate into ritual.
 - **Building the website projection now.** Deferred: docs.cherry-ai.com lives in a separate repository; projection is a separate decision after the corpus is governed.
 
-## Acceptance criteria
-
-- AC1 — `references/` is a closed domain tree whose surviving claims were audited against current code. (verification: docs gate)
-- AC2 — Reference and contrib frontmatter drives generated human and source-prefix indexes without hand-maintained drift. (verification: script tests + docs gate)
-- AC3 — Agent Notes enforce lifecycle-specific format, observable AC IDs, actual verification, explicit rejection, and supersession rules. (verification: script tests + docs gate)
-- AC4 — Active notes, `CONTRIBUTING`, and documentation-governance prose pass complete bilingual pairing in both worktree and staged-index modes. (verification: pairing tests + docs gate + pre-commit hook)
-- AC5 — One explicit change-scope report feeds affected-doc review, PR creation/review, and stack revalidation without guessing a base. (verification: script tests + skill review)
-- AC6 — PR templates and review workflows carry Agent Note/N/A, Spec approval, covered AC IDs, actual Verification, and implemented-note reality. (verification: skill and template review)
-- AC7 — Phase 3 can expand discovery roots and translate the audited corpus without replacing Phase 2's pairing, terminology, or workflow architecture. (verification: docs gate)
-
-## Risks
+## Consequences
 
 - **Inbound-link churn.** `docs:check-links` only resolves Markdown links, so it sees none of the other consumers: `CLAUDE.md` prose, lint rule messages in `eslint.config.mjs`, TypeScript comments, and code that *reads a doc by path* — `scripts/uiContract/__tests__/maintainedAnchors.test.ts` opens `ui-semantic-contract.md`, and a missed rename there breaks a test, not a link. Every Phase 0b move therefore greps the **whole repository** for the old path (`src/`, `scripts/`, `packages/`, `tests/`, `.github/`, root config), never just `src/`. Mitigation: moves are atomic per domain (relocate + fix every inbound reference in one PR).
 - **Collision with in-flight PRs.** Tree moves conflict with open work touching the same docs. Mitigation: Phase 0b proceeds domain by domain in small windows, not as one big-bang move.
 - **Bilingual maintenance cost.** Every paired-doc edit obligates the counterpart and a re-record; churn-heavy docs pay the most. Accepted deliberately — docs are a product here — and bounded by pairing only audited-current material.
 - **Translation review burden.** The pairing gate checks structure, not faithfulness; zh quality still needs reviewer attention, and terminology starts thin.
+- **Agent-owned PR metadata.** Human-authored PRs carry Note/Spec/AC/Verification through the template and repository skills. Automation-authored PRs (repository workflows and Dependabot) are exempt, and there is no generic PR-description Action; review remains responsible for malformed human metadata.
+- **Lifecycle automation is intentionally bounded.** The transition checker proves that a declared triplet move and AC mapping are internally complete. Human Approval and whether the current layer is truly final remain decisions made from live GitHub review and stack evidence.
+- **Phase 3 remains separate.** The audited corpus is not yet fully translated; expanding discovery roots remains a later change on the same pairing and terminology architecture.
+
+## Verification
+
+- AC1 — [Phase 0b audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md) plus `pnpm docs:check`: preserves the domain audit record and rejects structural or link regressions.
+- AC2 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-doc-frontmatter.test.ts scripts/__tests__/gen-doc-index.test.ts scripts/__tests__/find-affected-docs.test.ts` plus `pnpm docs:check`: catches missing source ownership and stale generated indexes.
+- AC3 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-agent-note-format.test.ts scripts/__tests__/verify-agent-note-transitions.test.ts` plus `pnpm docs:check`: catches invalid lifecycle structure, fenced-code impostors, illegal moves, and incomplete AC evidence.
+- AC4 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: catches incomplete triplets, mismatched paired structure, stale hashes, and index/worktree inconsistencies used by the staged hook.
+- AC5 — `pnpm exec vitest run --project scripts scripts/__tests__/change-scope.test.ts scripts/__tests__/find-affected-docs.test.ts` plus `pnpm skills:check`: catches scope-plane mistakes and keeps PR/review/stack consumers on an explicit base.
+- AC6 — `pnpm skills:check` plus `pnpm docs:check`: validates the agent entry points and paired workflow contract carrying Note, Spec, AC, actual verification, automation exemption, and final-note reality.
+- AC7 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: keeps discovery roots manifest-driven so Phase 3 expands the corpus without replacing the architecture.

@@ -2,22 +2,25 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 const ROOT = path.resolve(__dirname, '..')
 const CLASSES = new Set(['feature', 'bug-fix', 'simplification', 'architecture', 'process', 'testing'])
 const LIFECYCLES = new Set(['proposed', 'implemented', 'rejected'])
 const NOTE_NAME = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/
 
-const headingsOutsideFences = (lines: string[]): string[] => {
-  let fenced = false
-  const headings: string[] = []
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      fenced = !fenced
-      continue
-    }
-    if (!fenced && line.startsWith('## ')) headings.push(line.trimEnd())
-  }
-  return headings
+export const linesOutsideCode = (content: string): string[] => {
+  const lines = content.split('\n')
+  const tree = unified().use(remarkParse).parse(content)
+  visit(tree, 'code', (node) => {
+    const start = node.position?.start.line
+    const end = node.position?.end.line
+    if (start === undefined || end === undefined) return
+    for (let line = start - 1; line < end; line += 1) lines[line] = ''
+  })
+  return lines
 }
 
 export const checkAgentNote = (relative: string, content: string): string[] => {
@@ -30,6 +33,7 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
   if (!filename || !NOTE_NAME.test(filename)) errors.push('filename must be yyyy-mm-dd-kebab-topic.md')
 
   const lines = content.split('\n')
+  const structuralLines = linesOutsideCode(content)
   if (!/^# Agent Note: \S/u.test(lines[0] ?? '')) errors.push('line 1 must be `# Agent Note: <title>`')
   if (lines[1] !== '') errors.push('line 2 must be blank')
   const expectedStatus =
@@ -37,7 +41,7 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
   if (!expectedStatus.test(lines[2] ?? '')) errors.push(`line 3 must match the ${lifecycle} status`)
   if (lines[3] !== '') errors.push('line 4 must be blank')
 
-  const headings = headingsOutsideFences(lines)
+  const headings = structuralLines.filter((line) => line.startsWith('## ')).map((line) => line.trimEnd())
   if (headings[0] !== '## Problem') errors.push('the first section must be `## Problem`')
   const required: Record<string, string[]> = {
     proposed: ['## Proposal', '## Alternatives considered', '## Acceptance criteria', '## Risks'],
@@ -53,9 +57,9 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
     }
   }
   if (lifecycle === 'proposed') {
-    const acceptanceStart = lines.indexOf('## Acceptance criteria')
-    const nextHeading = lines.findIndex((line, index) => index > acceptanceStart && line.startsWith('## '))
-    const acceptanceLines = lines.slice(acceptanceStart + 1, nextHeading === -1 ? undefined : nextHeading)
+    const acceptanceStart = structuralLines.indexOf('## Acceptance criteria')
+    const nextHeading = structuralLines.findIndex((line, index) => index > acceptanceStart && line.startsWith('## '))
+    const acceptanceLines = structuralLines.slice(acceptanceStart + 1, nextHeading === -1 ? undefined : nextHeading)
     const criteria = acceptanceLines.filter((line) => /^- AC\d+ — \S.*\(verification: [^)]+\)$/u.test(line))
     if (criteria.length === 0) errors.push('Acceptance criteria must contain `- AC1 — <observable outcome>` entries')
     const numbers = criteria.map((line) => Number(/^- AC(\d+)/u.exec(line)?.[1]))
@@ -63,8 +67,8 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
       errors.push('Acceptance criteria IDs must be contiguous from AC1')
   }
   if (lifecycle === 'implemented') {
-    const verificationStart = lines.indexOf('## Verification')
-    const verificationLines = lines.slice(verificationStart + 1)
+    const verificationStart = structuralLines.indexOf('## Verification')
+    const verificationLines = structuralLines.slice(verificationStart + 1)
     if (!verificationLines.some((line) => /^- (?:AC\d+|Regression) — \S/u.test(line))) {
       errors.push('Verification must map AC IDs or a direct bug regression to actual evidence')
     }

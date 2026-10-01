@@ -90,8 +90,16 @@ export const renderRecord = (paths: PairPaths, record: PairRecord): string =>
     ''
   ].join('\n')
 
-const validRepoPath = (value: string): boolean =>
-  value.length > 0 && !value.startsWith('/') && !value.split('/').includes('..') && value === normalizeRepoPath(value)
+const validRepoPath = (value: string): boolean => {
+  const segments = value.split('/')
+  return (
+    value.length > 0 &&
+    !value.startsWith('/') &&
+    !/^[A-Za-z]:\//u.test(value) &&
+    !segments.some((segment) => segment === '.' || segment === '..') &&
+    value === normalizeRepoPath(value)
+  )
+}
 
 export const parseManifest = (content: string): PairingManifest => {
   const parsed: unknown = JSON.parse(content)
@@ -128,6 +136,9 @@ export const isExcluded = (source: string, manifest: PairingManifest): boolean =
 export const parsePairingArgs = (args: string[]): PairingRequest => {
   const flags = args.filter((arg) => arg.startsWith('--'))
   const anchors = [...new Set(args.filter((arg) => !arg.startsWith('--')).map(pairAnchor))].sort()
+  const invalidAnchors = anchors.filter((anchor) => !validRepoPath(anchor))
+  if (invalidAnchors.length)
+    throw new Error(`pair paths must be normalized repo-relative paths: ${invalidAnchors.join(', ')}`)
   const unknown = flags.filter((flag) => !['--list', '--write', '--all', '--cached'].includes(flag))
   if (unknown.length) throw new Error(`unknown flag(s): ${unknown.join(', ')}`)
   const list = flags.includes('--list')

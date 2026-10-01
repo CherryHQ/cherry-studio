@@ -7,7 +7,10 @@ import { parseArgs } from 'node:util'
 import { collectChangeScope } from './change-scope.mjs'
 
 function normalize(value) {
-  return value.replaceAll('\\', '/').replace(/\/$/u, '')
+  return value
+    .replaceAll('\\', '/')
+    .replace(/^(?:\.\/)+/u, '')
+    .replace(/\/$/u, '')
 }
 
 export function findAffectedDocs(index, changedPaths) {

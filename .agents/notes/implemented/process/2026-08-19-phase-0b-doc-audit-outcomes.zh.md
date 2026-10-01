@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-Phase 0b 审计发现有两处实现需要偏离[原始文档治理提案](../../proposed/process/2026-08-18-docs-governance-and-spec-workflow.md)。
+Phase 0b 审计发现有两处实现需要偏离[文档治理决策](./2026-08-18-docs-governance-and-spec-workflow.md)。
 提议中的 Chat adapter 与 UI 约定描述了从未落地的 API 和所有权边界。提案
 还要求把所有带域前缀的存量文件名改名,但完成后的树中仍有 24 个此类文件。
 
@@ -21,7 +21,7 @@ Phase 0b 不批量改名现有的域前缀文件。除非搬家或歧义要求�
 basename 保持稳定。新增或被改名的文档采用域内最短且无歧义的名称,避免
 重复域前缀。
 
-本 note 只取代上述两项 Phase 0b 决策。原治理提案仍定义目标树、frontmatter、
+本 note 只取代上述两项 Phase 0b 决策。其余治理决策仍定义目标树、frontmatter、
 门禁、Agent Notes 与后续推进阶段。
 
 ## Alternatives considered

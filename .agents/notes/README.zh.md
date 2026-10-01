@@ -27,9 +27,51 @@ Note 位于 `{lifecycle}/{class}/yyyy-mm-dd-topic.md`。
 
 不存在 `refactor` 类别。包含持久删除决策的 refactor 属于 simplification；机械 refactor 不需要 note。
 
+### 初始生命周期选择
+
+Class 描述决策的主题；它不要求每条 note 都从 proposed 开始。根据是否需要前置批准以及交付状态选择初始结果：
+
+| 变更形态 | 初始结果 |
+|---|---|
+| 恢复已有契约的局部或机械修改 | 不写 note；在 PR 中声明 `N/A — <reason>`。 |
+| 在同一 PR 中交付并验证的持久 bugfix | 直接创建 implemented `bug-fix` note。 |
+| 无需在实现前批准目标的小型已完成 testing 或其他持久决策 | 直接在归属 class 中创建 implemented note。 |
+| 重大 feature、architecture、process 或 simplification | 实现前创建 proposed Spec。 |
+| 任何需要人类在实现前对目标行为、ownership、AC、替代方案或风险达成一致的决策 | 无论 class 为何，都创建 proposed Spec。 |
+
+`N/A` 是 PR 分类，不是 note 生命周期。`rejected` 绝不是初始状态；它记录人类对已有 proposal 的明确裁决。
+
+### 状态转换
+
+```mermaid
+stateDiagram-v2
+    [*] --> Classify
+    Classify --> NoNote: mechanical or existing contract
+    Classify --> Proposed: prior target approval required
+    Classify --> Implemented: durable decision already delivered
+
+    NoNote --> [*]: PR records N/A reason
+    Proposed --> Proposed: material edit requires re-approval
+    Proposed --> Implemented: final layer covers every AC
+    Proposed --> Rejected: explicit human rejection
+    Proposed --> [*]: unmerged exploration has no durable value
+
+    Implemented --> Implemented: keep shipped facts current
+    Implemented --> Successor: decision is reversed or fully superseded
+    Rejected --> Successor: new evidence reopens the question
+    Successor --> Proposed: successor requires prior approval
+    Successor --> Implemented: successor is already delivered
+
+    Implemented --> Archived: future only; no longer an active owner
+    Rejected --> Archived: future only; rationale absorbed by successor
+    Archived --> [*]: historical search only
+```
+
+图中的 `Successor` 表示创建一条新的、双向链接的 note；旧的 implemented 或 rejected 记录不会退回 proposed 或 implemented。
+
 ## 何时需要 note
 
-每个 PR 都在模板中声明 Agent Note 或明确的 `N/A` 原因。架构选择、跨模块契约、磁盘/配置/wire format、流程政策、重大 feature 和可能被再次讨论的替代方案都必须写 note。
+每个人工创建的 PR 都在模板中声明 Agent Note 或明确的 `N/A` 原因。自动化创建的 PR（仓库 workflow 与 Dependabot）免除此元数据要求，但不免除常规验证。架构选择、跨模块契约、磁盘/配置/wire format、流程政策、重大 feature 和可能被再次讨论的替代方案都必须写 note。
 
 简单 bugfix 在恢复已有文档契约、且没有引入失败语义、所有权、兼容策略或持久取舍时使用 `N/A`。当修复需要在可信方案间选择、改变持久契约、保护安全/并发/原子性/生命周期，或未来维护者缺少根因时可能合理改回去，就直接写 implemented `bug-fix` note。
 
@@ -48,6 +90,8 @@ Note 位于 `{lifecycle}/{class}/yyyy-mm-dd-topic.md`。
 7. 满足全部 AC 的最终层把 note 移动并重写为 implemented。
 
 Approval 绑定一个精确 Spec head。沉默、`CHANGES_REQUESTED` 和讨论都不表示 rejection。
+
+Agent 根据整个 stack 而不是单个 PR 判断生命周期。运行 `gh stack view --json`；退出码 2 表示当前 branch 是 standalone。对于 stack，检查当前层及每个 downstack implementation PR，只汇总有实际 verification 支撑的 AC；只有最终层的累计证据覆盖已批准 Spec 的全部 AC 时，才转换 note。Stack 同步不代表完成验证：`gh stack sync` 后，对每个存活层重新运行 change scope 和被改写范围影响的检查。
 
 ## 文件格式
 
@@ -117,6 +161,27 @@ Status: rejected — <one-line decisive reason>
 
 不要把 note 改写成不同决策，也不要让 Git history 成为唯一残留理由。
 
+## Archived note（延后）
+
+Cherry Studio 当前没有 `archived/` 生命周期、目录或合法状态。Note 不会因为时间久、PR 已合并、代码已移动或文字已过时而自动归档。仍归属当前决策的 implemented note 保持 active，并就地更新。
+
+只有在以下仓库级条件全部成立时，才引入 archive：
+
+1. 完全被取代或归属领域已删除的 note 累积到可测量地削弱 active tree 搜索。
+2. 已为 agent 定义优先搜索 active、再回退搜索历史的行为。
+3. Archive 索引或等价的 owner 映射能保持 successor 可发现。
+4. Pairing、格式、supersession 和入链门禁理解新生命周期。
+5. 该变更作为仓库 process 决策获得批准，而不是根据 note 年龄自行推断。
+
+该生命周期实现后，只有 implemented 或 rejected note 才有资格，并且必须同时满足：
+
+- note 已被完全取代，或其归属系统已整体删除；
+- 当前 owner 已吸收每个独有理由、替代方案、后果和验证事实；
+- successor 和入链链接指向 active owner；并且
+- 人类明确确认 supersession 与 archive 移动。
+
+Proposed note 永远不进入 archived。被明确否决的 proposal 在其理由有持久价值时转为 rejected；没有持久价值的未合并探索直接关闭，不增加仓库记录。Archive 支持实现前，完全被取代的 note 仍保持 active 并互相链接；删除旧 note 仍需要明确人类批准。
+
 ## 生命周期转换
 
 `proposed → implemented` 会重写为已发布的现在时事实：`Proposal` 变为 `Decision`；计划与 checklist 变为实际 `Consequences` 和 `Verification`。英文、中文和 sidecar 一起移动。
@@ -125,6 +190,8 @@ Status: rejected — <one-line decisive reason>
 
 Implemented note 持续同步路径、名称、默认值、所有权、失败和验证。实现与 note 不一致时，应判断代码错误还是事实实现发生变化；不要为了满足过时 prose 而保留更差的实现。
 
+发布生命周期移动前，运行 `pnpm agent-notes:check-transition --base <verified-spec-ref> [--head <ref>]`。检查器要求英文、中文和 sidecar 完整移动，只允许 `proposed → implemented|rejected`，在 implemented 转换中逐一映射全部已批准 AC，并要求明确的 rejection reason。它只校验声明的转换；绝不自行决定 proposal 已被拒绝或 stack 已完成。
+
 ## Pairing 与门禁
 
 每条 note 和本 README 都遵循[双语 pairing 契约](../../docs/i18n/README.md)。Agent instruction 文件保持仅英文。
@@ -132,7 +199,8 @@ Implemented note 持续同步路径、名称、默认值、所有权、失败和
 运行：
 
 - `pnpm docs:check-notes` 检查格式与生命周期结构。
+- 生命周期移动时运行 `pnpm agent-notes:check-transition --base <verified-spec-ref>`。
 - 编辑 pair 时运行 `pnpm docs:check-pairing <pair>`。
 - 发布文档变更前运行 `pnpm docs:check`。
 
-[文档治理 Spec](proposed/process/2026-08-18-docs-governance-and-spec-workflow.md)拥有 rollout 决策。
+[已实现的文档治理决策](implemented/process/2026-08-18-docs-governance-and-spec-workflow.md)归属此工作流。

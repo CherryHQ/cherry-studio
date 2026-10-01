@@ -41,6 +41,10 @@ describe('translation pairing helpers', () => {
       anchors: ['docs/foo.md']
     })
     expect(() => parsePairingArgs(['--write'])).toThrow('requires confirmed pair paths')
+    expect(() => parsePairingArgs(['--write', 'docs/../../outside.md'])).toThrow('repo-relative paths')
+    expect(() => parsePairingArgs(['--cached', 'docs/../outside.md'])).toThrow('repo-relative paths')
+    expect(() => parsePairingArgs(['--write', '/tmp/outside.md'])).toThrow('repo-relative paths')
+    expect(() => parsePairingArgs(['--write', 'C:\\outside.md'])).toThrow('repo-relative paths')
   })
 
   it('accepts translated descriptions with identical sources and structure', () => {
