@@ -3353,7 +3353,7 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch {
       return undefined
     }
-    if (!session.agentId) return undefined
+    if (!session?.agentId) return undefined
     return agentService.getAgent(session.agentId)?.type
   }
 

@@ -9,7 +9,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import { prepareClaudeCodeSpawnCapacity, type ClaudeCodeSpawnPriority, MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES } from './claudeCodeSpawnCapacity'
+import {
+  prepareClaudeCodeSpawnCapacity,
+  type ClaudeCodeSpawnPriority,
+  MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
+} from './claudeCodeSpawnCapacity'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
