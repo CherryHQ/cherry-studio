@@ -109,8 +109,6 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
-  /** Cache-read subset reported by the projection's `inputTokenDetails`. */
-  private cachedTokens?: number
   /** Reasoning subset reported by the projection's `outputTokenDetails`. */
   private reasoningTokens?: number
 
@@ -162,7 +160,9 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
       total_tokens: this.state.inputTokens + this.state.outputTokens,
-      ...(this.cachedTokens !== undefined ? { input_tokens_details: { cached_tokens: this.cachedTokens } } : {}),
+      ...(this.state.cacheReadTokens !== undefined
+        ? { input_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
       ...(this.reasoningTokens !== undefined
         ? { output_tokens_details: { reasoning_tokens: this.reasoningTokens } }
         : {})
@@ -309,7 +309,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
-      this.cachedTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
     if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
       this.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
