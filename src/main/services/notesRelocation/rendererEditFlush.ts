@@ -95,7 +95,7 @@ class RendererEditFlushCoordinator {
     }
   }
 
-  async prepareForMigration(_callerWindowId: WindowId | null): Promise<boolean> {
+  async prepareForMigration(): Promise<boolean> {
     const allWindowIds = this.listNotesWindowIds()
     const locked = await this.waitForAcks(this.lockPending, allWindowIds, 'edit lock')
     if (!locked) {

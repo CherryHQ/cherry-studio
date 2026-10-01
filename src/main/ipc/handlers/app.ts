@@ -8,9 +8,14 @@ import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import {
+  completeNotesMigrationCommit,
   inspectNotesRelocation,
   migrateNotesDirectory,
-  rendererEditFlushCoordinator
+  releaseNotesMigrationSession,
+  rendererEditFlushCoordinator,
+  scheduleAwaitingMigrationCommit,
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration
 } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -18,8 +23,6 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-
-let notesDirectoryMigrationInFlight = false
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
@@ -49,34 +52,32 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
   'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, ctx) => {
-    if (notesDirectoryMigrationInFlight) {
+    if (!tryBeginNotesDirectoryMigration()) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
         'another notes directory migration is already in progress'
       )
     }
-    notesDirectoryMigrationInFlight = true
-    const ipcApiService = application.get('IpcApiService')
     try {
-      const prepared = await rendererEditFlushCoordinator.prepareForMigration(ctx.senderId)
+      const prepared = await rendererEditFlushCoordinator.prepareForMigration()
       if (!prepared) {
-        notesDirectoryMigrationInFlight = false
-        ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
+        releaseNotesMigrationSession()
         throw new IpcError(
           notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
           'a renderer window failed to prepare for notes directory migration'
         )
       }
-      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      setNotesMigrationBlockedRoots(sourcePath, targetPath)
+      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      scheduleAwaitingMigrationCommit(ctx.senderId)
+      return result
     } catch (error) {
-      notesDirectoryMigrationInFlight = false
-      ipcApiService.broadcast('app.notes_relocation.migration_finished', undefined)
+      releaseNotesMigrationSession()
       throw error
     }
   },
   'app.notes_relocation.commit': async () => {
-    notesDirectoryMigrationInFlight = false
-    application.get('IpcApiService').broadcast('app.notes_relocation.migration_finished', undefined)
+    completeNotesMigrationCommit()
   },
   'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
     rendererEditFlushCoordinator.acknowledgeMigrationLock(batchId, ctx.senderId, ok)
