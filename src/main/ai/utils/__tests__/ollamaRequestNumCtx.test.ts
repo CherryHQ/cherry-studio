@@ -17,6 +17,7 @@ describe('isLocalOllamaApiHost', () => {
   it('treats remote hosts as non-local', () => {
     expect(isLocalOllamaApiHost('http://ollama.lan:11434')).toBe(false)
     expect(isLocalOllamaApiHost('https://192.168.1.10:11434')).toBe(false)
+    expect(isLocalOllamaApiHost('http://127.evil.example:11434')).toBe(false)
   })
 })
 
