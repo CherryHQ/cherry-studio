@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-30T17:00:00Z",
+  "generated_at": "2026-10-01T00:00:00Z",
   "v2_branch_status": {
     "open_prs_base_v2": 0,
     "note": "No open PRs targeting the v2 branch. All active development merged into main. V2 feature work tracked via labels and internal-team issues."

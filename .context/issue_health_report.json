@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-30T17:00:00Z",
-  "total_open_issues": 1109,
+  "generated_at": "2026-10-01T00:00:00Z",
+  "total_open_issues": 1115,
   "p1_critical_count": 104,
   "p1_delta_30d": 71,
   "p1_breakdown": {
@@ -71,8 +71,8 @@
     "recommendation": "Urgent triage sprint needed — 28% of issues have zero labels and cannot be routed to any team member."
   },
   "key_alerts": [
-    "P1 count stable at 104 — no new P1 labels applied to today's 4 new issues yet",
-    "101 net new open issues in 30 days: close rate lagging open rate significantly (+4 today alone)",
+    "P1 count stable at 104 — no new P1 labels applied to today's 6 new issues yet",
+    "107 net new open issues in 30 days: close rate lagging open rate significantly (+6 today alone)",
     "7 oldest open issues (zombie P1) are from 2025 — data integrity risk",
     "V2-labeled P1 bugs cluster around Agent/DSH runtime: #19753, #20937, #20940, #20941, #21085",
     "New crash today: #21226 deterministic SIGTRAP on Linux AppImage on local file link click — likely P1 candidate"
@@ -81,10 +81,12 @@
     "2026-08-30": 1008,
     "2026-09-29": 1105,
     "2026-09-30": 1109,
-    "delta_30d": 101,
-    "delta_1d": 4,
+    "2026-10-01": 1115,
+    "delta_30d": 107,
+    "delta_1d": 6,
     "p1_2026-08-30": 33,
     "p1_2026-09-30": 104,
+    "p1_2026-10-01": 104,
     "p1_delta_30d": 71
   }
 }
