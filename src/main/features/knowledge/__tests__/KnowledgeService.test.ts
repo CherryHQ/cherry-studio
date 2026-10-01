@@ -13,6 +13,7 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
+import type * as ExternalKnowledgeRuntimeModule from '../external/ExternalKnowledgeRuntime'
 import type * as PathStorage from '../pathStorage'
 
 const {
@@ -214,14 +215,18 @@ vi.mock('../pathStorage', async () => {
   }
 })
 
-vi.mock('../external/ExternalKnowledgeRuntime', () => ({
-  ExternalKnowledgeRuntime: class {
-    start = externalKnowledgeRuntimeStartMock
-    stop = externalKnowledgeRuntimeStopMock
-    resolveFeishuScope = externalKnowledgeRuntimeResolveScopeMock
-    previewFeishuScope = externalKnowledgeRuntimePreviewScopeMock
+vi.mock('../external/ExternalKnowledgeRuntime', async (importOriginal) => {
+  const actual = await importOriginal<typeof ExternalKnowledgeRuntimeModule>()
+  return {
+    ...actual,
+    ExternalKnowledgeRuntime: class {
+      start = externalKnowledgeRuntimeStartMock
+      stop = externalKnowledgeRuntimeStopMock
+      resolveFeishuScope = externalKnowledgeRuntimeResolveScopeMock
+      previewFeishuScope = externalKnowledgeRuntimePreviewScopeMock
+    }
   }
-}))
+})
 
 const { KnowledgeService } = await import('../KnowledgeService')
 const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
@@ -376,6 +381,8 @@ describe('KnowledgeService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    cancelMock.mockReset()
+    listMock.mockReset()
     createdItemBaseIds.clear()
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
@@ -435,6 +442,7 @@ describe('KnowledgeService', () => {
     fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
+    cancelMock.mockResolvedValue({ outcome: 'cancelled' })
     getIndexStoreMock.mockReturnValue({
       search: storeSearchMock,
       listMaterialUnits: listMaterialUnitsMock,
@@ -474,29 +482,146 @@ describe('KnowledgeService', () => {
       'knowledge.index-documents',
       'knowledge.check-file-processing-result',
       'knowledge.delete-subtree',
-      'knowledge.reindex-subtree'
+      'knowledge.reindex-subtree',
+      'knowledge.sync-external-source'
     ])
   })
 
-  it('does not cancel knowledge jobs during service shutdown', async () => {
+  it('cancels pending, delayed, and running external sync jobs before stopping the runtime', async () => {
     const service = new KnowledgeService()
-    const stop = (service as unknown as { onStop?: () => Promise<void> }).onStop
+    const order: string[] = []
+    listMock.mockResolvedValueOnce([
+      { id: 'pending-job', status: 'pending' },
+      { id: 'delayed-job', status: 'delayed' },
+      { id: 'running-job', status: 'running' }
+    ])
+    cancelMock.mockImplementation(async (id: string) => {
+      order.push(`cancel:${id}`)
+      return { outcome: 'cancelled' }
+    })
+    externalKnowledgeRuntimeStopMock.mockImplementation(async () => {
+      order.push('runtime-stop')
+    })
 
-    if (stop) {
-      await stop.call(service)
-    }
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
 
+    expect(listMock).toHaveBeenCalledWith({
+      status: ['pending', 'delayed', 'running'],
+      type: 'knowledge.sync-external-source'
+    })
+    expect(cancelMock).toHaveBeenCalledWith('pending-job', 'knowledge-service-stop')
+    expect(cancelMock).toHaveBeenCalledWith('delayed-job', 'knowledge-service-stop')
+    expect(cancelMock).toHaveBeenCalledWith('running-job', 'knowledge-service-stop')
     expect(cancelManyMock).not.toHaveBeenCalled()
+    expect(order.at(-1)).toBe('runtime-stop')
   })
 
-  it('owns the External Knowledge runtime for its full service lifetime', async () => {
+  it('opens admission only after runtime start succeeds and closes it before shutdown waits', async () => {
     const service = new KnowledgeService()
+    const createInput = {
+      baseId: 'kb-1',
+      connectionId: 'connection-1',
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    }
+    const resolutionFailure = new Error('scope resolution reached')
+
+    await expect(service.createExternalKnowledgeSource(createInput)).rejects.toMatchObject({ code: 'stopped' })
+    expect(externalKnowledgeRuntimeResolveScopeMock).not.toHaveBeenCalled()
 
     await (service as unknown as { onReady: () => Promise<void> }).onReady()
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    externalKnowledgeRuntimeResolveScopeMock.mockRejectedValueOnce(resolutionFailure)
+    await expect(service.createExternalKnowledgeSource(createInput)).rejects.toBe(resolutionFailure)
+
+    let finishList!: () => void
+    listMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishList = () => resolve([])
+      })
+    )
+    const stopping = (service as unknown as { onStop: () => Promise<void> }).onStop()
+    await vi.waitFor(() => expect(listMock).toHaveBeenCalled())
+    await expect(service.createExternalKnowledgeSource(createInput)).rejects.toMatchObject({ code: 'stopped' })
+    finishList()
+    await stopping
 
     expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
     expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+  })
+
+  it('keeps admission closed when runtime start fails', async () => {
+    const service = new KnowledgeService()
+    const startFailure = new Error('runtime start failed')
+    externalKnowledgeRuntimeStartMock.mockRejectedValueOnce(startFailure)
+
+    await expect((service as unknown as { onReady: () => Promise<void> }).onReady()).rejects.toBe(startFailure)
+    await expect(
+      service.createExternalKnowledgeSource({
+        baseId: 'kb-1',
+        connectionId: 'connection-1',
+        url: 'https://acme.feishu.cn/wiki/root',
+        name: 'Engineering Wiki'
+      })
+    ).rejects.toMatchObject({ code: 'stopped' })
+  })
+
+  it('keeps the runtime alive after a cancellation failure and rethrows it directly', async () => {
+    const service = new KnowledgeService()
+    const cancelFailure = new Error('cancel failed')
+    listMock.mockResolvedValueOnce([{ id: 'running-job', status: 'running' }])
+    cancelMock.mockRejectedValueOnce(cancelFailure)
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(cancelFailure)
+
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the runtime alive after active-job listing fails and rethrows the listing failure', async () => {
+    const service = new KnowledgeService()
+    const listFailure = new Error('list failed')
+    listMock.mockRejectedValueOnce(listFailure)
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(listFailure)
+
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a timed-out cancellation without stopping the runtime', async () => {
+    const service = new KnowledgeService()
+    listMock.mockResolvedValueOnce([{ id: 'running-job', status: 'running' }])
+    cancelMock.mockResolvedValueOnce({ outcome: 'timed-out' })
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toThrow(
+      'External sync job cancellation timed out: running-job'
+    )
+
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('aggregates multiple cancellation failures without stopping the runtime', async () => {
+    const service = new KnowledgeService()
+    const firstFailure = new Error('first cancel failed')
+    const secondFailure = new Error('second cancel failed')
+    listMock.mockResolvedValueOnce([
+      { id: 'running-job-1', status: 'running' },
+      { id: 'running-job-2', status: 'running' }
+    ])
+    cancelMock.mockRejectedValueOnce(firstFailure).mockRejectedValueOnce(secondFailure)
+
+    const error = await (service as unknown as { onStop: () => Promise<void> }).onStop().catch((cause) => cause)
+
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toEqual([firstFailure, secondFailure])
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a runtime stop failure after every listed job is settled', async () => {
+    const service = new KnowledgeService()
+    const stopFailure = new Error('runtime stop failed')
+    externalKnowledgeRuntimeStopMock.mockRejectedValueOnce(stopFailure)
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(stopFailure)
   })
 
   it('delegates ephemeral Feishu scope resolution and preview to its owned runtime', async () => {
@@ -519,7 +644,8 @@ describe('KnowledgeService', () => {
 
     await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
 
-    expect(enqueueMock).toHaveBeenCalledWith(
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
       'knowledge.delete-subtree',
       { baseId: 'kb-1', rootItemIds: ['note-1'] },
       expect.objectContaining({
@@ -527,13 +653,36 @@ describe('KnowledgeService', () => {
         queue: 'base.kb-1'
       })
     )
-    expect(enqueueMock).toHaveBeenCalledWith(
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
       'knowledge.delete-subtree',
       { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-2:dir-1,note-2:delete',
         queue: 'base.kb-2'
       })
+    )
+  })
+
+  it('routes all-ready deletion recovery through the external sync active-staging exclusions', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetDeletingRootGroupsMock.mockReturnValueOnce([
+      { baseId: 'kb-1', rootItemIds: ['live-staging', 'orphaned-root'] }
+    ])
+    ;(
+      service as unknown as {
+        externalKnowledgeSyncService: { activeStagingItemIds: Set<string> }
+      }
+    ).externalKnowledgeSyncService.activeStagingItemIds.add('live-staging')
+
+    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+
+    expect(enqueueTxMock).toHaveBeenCalledOnce()
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['orphaned-root'] },
+      expect.anything()
     )
   })
 
@@ -544,9 +693,10 @@ describe('KnowledgeService', () => {
 
     await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
 
-    expect(enqueueMock).toHaveBeenCalledTimes(2)
-    expect(enqueueMock).toHaveBeenNthCalledWith(
+    expect(enqueueTxMock).toHaveBeenCalledTimes(2)
+    expect(enqueueTxMock).toHaveBeenNthCalledWith(
       1,
+      expect.anything(),
       'knowledge.delete-subtree',
       { baseId: 'kb-1', rootItemIds: rootItemIds.slice(0, 500) },
       expect.objectContaining({
@@ -554,8 +704,9 @@ describe('KnowledgeService', () => {
         queue: 'base.kb-1'
       })
     )
-    expect(enqueueMock).toHaveBeenNthCalledWith(
+    expect(enqueueTxMock).toHaveBeenNthCalledWith(
       2,
+      expect.anything(),
       'knowledge.delete-subtree',
       { baseId: 'kb-1', rootItemIds: ['note-501'] },
       expect.objectContaining({
@@ -571,7 +722,7 @@ describe('KnowledgeService', () => {
       { baseId: 'kb-1', rootItemIds: ['note-1'] },
       { baseId: 'kb-2', rootItemIds: ['note-2'] }
     ])
-    enqueueMock
+    enqueueTxMock
       .mockImplementationOnce(() => {
         throw new Error('enqueue failed')
       })
@@ -583,7 +734,7 @@ describe('KnowledgeService', () => {
 
     await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
 
-    expect(enqueueMock).toHaveBeenCalledTimes(2)
+    expect(enqueueTxMock).toHaveBeenCalledTimes(2)
   })
 
   it('logs and stops startup deleting recovery when the initial scan fails', async () => {
@@ -594,7 +745,7 @@ describe('KnowledgeService', () => {
 
     await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
 
-    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
   it('parks items interrupted mid-indexing at failed after all services are ready', async () => {
@@ -700,7 +851,8 @@ describe('KnowledgeService', () => {
         'knowledge.index-documents',
         'knowledge.check-file-processing-result',
         'knowledge.delete-subtree',
-        'knowledge.reindex-subtree'
+        'knowledge.reindex-subtree',
+        'knowledge.sync-external-source'
       ],
       limit: 5000
     })

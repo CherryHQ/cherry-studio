@@ -513,6 +513,18 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
+    it('reads the knowledge base through the caller transaction', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.getByIdTx(dbh.db, KNOWLEDGE_BASE_ID)).toMatchObject({
+        id: KNOWLEDGE_BASE_ID,
+        name: 'Knowledge Base'
+      })
+      expect(() => service.getByIdTx(dbh.db, 'missing')).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+    })
+
     it('should throw NotFound when the knowledge base does not exist', () => {
       let err: unknown
       try {

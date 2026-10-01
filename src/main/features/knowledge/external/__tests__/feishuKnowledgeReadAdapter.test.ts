@@ -8,6 +8,7 @@ import {
   previewFeishuKnowledgeScope,
   readFeishuDocx,
   resolveFeishuKnowledgeScope,
+  scanFeishuKnowledgeSource,
   type FeishuKnowledgeReadOperations,
   type FeishuWikiNode
 } from '../feishuKnowledgeReadAdapter'
@@ -403,6 +404,214 @@ describe('previewFeishuKnowledgeScope', () => {
         { ...operations(root), listChildNodes }
       )
     ).rejects.toMatchObject({ code: 'invalid-provider-response' })
+  })
+})
+
+describe('scanFeishuKnowledgeSource', () => {
+  it('enumerates every paginated space root before traversing their descendants', async () => {
+    const firstRoot = node({ nodeToken: 'root-a', objToken: 'doc-a', parentNodeToken: null, hasChild: true })
+    const secondRoot = node({ nodeToken: 'root-b', objToken: 'doc-b', parentNodeToken: null })
+    const child = node({ nodeToken: 'child-a', objToken: 'doc-child', parentNodeToken: 'root-a' })
+    const listChildNodes = vi.fn(async (_spaceId: string, parentNodeToken?: string, pageToken?: string) => {
+      if (parentNodeToken === undefined && pageToken === undefined) {
+        return { nodes: [firstRoot], nextPageToken: 'roots-2' }
+      }
+      if (parentNodeToken === undefined && pageToken === 'roots-2') return { nodes: [secondRoot] }
+      if (parentNodeToken === 'root-a' && pageToken === undefined) return { nodes: [child] }
+      throw new Error(`Unexpected traversal: ${parentNodeToken ?? 'root'}:${pageToken ?? 'first'}`)
+    })
+
+    const result = await scanFeishuKnowledgeSource(
+      { spaceId: 'space-1', scope: { kind: 'space' } },
+      { ...operations(), listChildNodes }
+    )
+
+    expect(result).toMatchObject({ visibleNodeCount: 3, unsupportedOrSkippedCount: 0 })
+    expect(result.canonicalReferences.map(({ descriptor }) => descriptor.nodeId)).toEqual([
+      'root-a',
+      'root-b',
+      'child-a'
+    ])
+    expect(listChildNodes.mock.calls.slice(0, 2).map((call) => call.slice(1, 3))).toEqual([
+      [undefined, undefined],
+      [undefined, 'roots-2']
+    ])
+  })
+
+  it('re-resolves a stored node identity and emits only a stable canonical Feishu URL', async () => {
+    const storedNode = node({ nodeToken: 'stored-node', objToken: 'doc-stored', parentNodeToken: 'parent' })
+    const provider = operations(storedNode)
+
+    const result = await scanFeishuKnowledgeSource(
+      { spaceId: 'space-1', scope: { kind: 'node', nodeId: 'stored-node' } },
+      provider
+    )
+
+    expect(result.canonicalReferences).toEqual([
+      expect.objectContaining({
+        descriptor: expect.objectContaining({
+          nodeId: 'stored-node',
+          remoteObjectId: 'doc-stored',
+          originalUrl: 'https://feishu.cn/wiki/stored-node'
+        })
+      })
+    ])
+    expect(provider.getNode).toHaveBeenCalledWith('stored-node', 'wiki', undefined)
+  })
+
+  it('encodes provider node tokens when constructing canonical Feishu URLs', async () => {
+    const malformedToken = '../docx/other?#fragment'
+    const provider = operations()
+    vi.mocked(provider.listChildNodes).mockResolvedValue({
+      nodes: [node({ nodeToken: malformedToken, parentNodeToken: null })]
+    })
+
+    const result = await scanFeishuKnowledgeSource({ spaceId: 'space-1', scope: { kind: 'space' } }, provider)
+
+    expect(result.canonicalReferences[0].descriptor.originalUrl).toBe(
+      `https://feishu.cn/wiki/${encodeURIComponent(malformedToken)}`
+    )
+  })
+
+  it.each([
+    {
+      name: 'node token',
+      input: { spaceId: 'space-1', scope: { kind: 'node' as const, nodeId: 'stored-node' } },
+      resolved: node({ nodeToken: 'different-node' })
+    },
+    {
+      name: 'space',
+      input: { spaceId: 'space-1', scope: { kind: 'node' as const, nodeId: 'stored-node' } },
+      resolved: node({ nodeToken: 'stored-node', spaceId: 'other-space' })
+    },
+    {
+      name: 'document object',
+      input: {
+        spaceId: 'space-1',
+        scope: { kind: 'document' as const, nodeId: 'stored-node', remoteObjectId: 'stored-doc' }
+      },
+      resolved: node({ nodeToken: 'stored-node', objToken: 'different-doc' })
+    },
+    {
+      name: 'document type',
+      input: {
+        spaceId: 'space-1',
+        scope: { kind: 'document' as const, nodeId: 'stored-node', remoteObjectId: 'stored-doc' }
+      },
+      resolved: node({ nodeToken: 'stored-node', objToken: 'stored-doc', objType: 'sheet' })
+    }
+  ])('rejects a stored scope whose $name identity contradicts the provider', async ({ input, resolved }) => {
+    await expect(scanFeishuKnowledgeSource(input, operations(resolved))).rejects.toMatchObject({
+      code: 'invalid-provider-response'
+    })
+  })
+
+  it('prefers an in-scope origin over an earlier shortcut for the same Docx object', async () => {
+    const root = node({
+      nodeToken: 'root',
+      objToken: 'sheet-root',
+      objType: 'sheet',
+      parentNodeToken: null,
+      hasChild: true
+    })
+    const shortcut = node({
+      nodeToken: 'shortcut-doc',
+      objToken: 'shared-doc',
+      parentNodeToken: 'root',
+      nodeType: 'shortcut',
+      originNodeToken: 'origin-doc',
+      originSpaceId: 'space-1',
+      title: 'A Shortcut'
+    })
+    const origin = node({
+      nodeToken: 'origin-doc',
+      objToken: 'shared-doc',
+      parentNodeToken: 'root',
+      title: 'Z Origin'
+    })
+    const provider = operations()
+    vi.mocked(provider.listChildNodes).mockImplementation(async (_spaceId, parentNodeToken) =>
+      parentNodeToken === undefined ? { nodes: [root] } : { nodes: [shortcut, origin] }
+    )
+
+    const result = await scanFeishuKnowledgeSource({ spaceId: 'space-1', scope: { kind: 'space' } }, provider)
+
+    expect(result).toMatchObject({ visibleNodeCount: 3, unsupportedOrSkippedCount: 1 })
+    expect(result.canonicalReferences).toHaveLength(1)
+    expect(result.canonicalReferences[0].descriptor.nodeId).toBe('origin-doc')
+  })
+
+  it('chooses shortcut canonicals by trimmed NFC breadcrumbs and then node id in code-unit order', async () => {
+    const root = node({
+      nodeToken: 'root',
+      objToken: 'sheet-root',
+      objType: 'sheet',
+      parentNodeToken: null,
+      hasChild: true
+    })
+    const shortcut = (nodeToken: string, objToken: string, originNodeToken: string, title: string) =>
+      node({
+        nodeToken,
+        objToken,
+        parentNodeToken: 'root',
+        nodeType: 'shortcut',
+        originNodeToken,
+        originSpaceId: 'space-1',
+        title
+      })
+    const children = [
+      shortcut('codeunit-apple', 'codeunit-doc', 'codeunit-origin', 'apple'),
+      shortcut('codeunit-zebra', 'codeunit-doc', 'codeunit-origin', 'Zebra'),
+      shortcut('trim-z', 'trim-doc', 'trim-origin', '  Beta'),
+      shortcut('trim-a', 'trim-doc', 'trim-origin', 'Alpha  '),
+      shortcut('nfc-z', 'nfc-doc', 'nfc-origin', 'Cafe\u0301'),
+      shortcut('nfc-a', 'nfc-doc', 'nfc-origin', 'Café')
+    ]
+    const provider = operations()
+    vi.mocked(provider.listChildNodes).mockImplementation(async (_spaceId, parentNodeToken) =>
+      parentNodeToken === undefined ? { nodes: [root] } : { nodes: children }
+    )
+    vi.mocked(provider.getNode).mockImplementation(async (nodeToken) => {
+      if (nodeToken === 'codeunit-origin') {
+        return node({ nodeToken, objToken: 'codeunit-doc', title: 'Hidden code-unit origin' })
+      }
+      if (nodeToken === 'trim-origin') return node({ nodeToken, objToken: 'trim-doc', title: 'Hidden trim origin' })
+      if (nodeToken === 'nfc-origin') return node({ nodeToken, objToken: 'nfc-doc', title: 'Hidden NFC origin' })
+      throw new Error(`Unexpected node lookup: ${nodeToken}`)
+    })
+
+    const result = await scanFeishuKnowledgeSource({ spaceId: 'space-1', scope: { kind: 'space' } }, provider)
+
+    expect(result.canonicalReferences.map(({ descriptor }) => descriptor.nodeId)).toEqual([
+      'codeunit-zebra',
+      'trim-a',
+      'nfc-a'
+    ])
+  })
+
+  it('fails the whole scan when a later space-root page fails', async () => {
+    const failure = new Error('root pagination failed')
+    const provider = operations()
+    vi.mocked(provider.listChildNodes)
+      .mockResolvedValueOnce({ nodes: [], nextPageToken: 'roots-2' })
+      .mockRejectedValueOnce(failure)
+
+    await expect(scanFeishuKnowledgeSource({ spaceId: 'space-1', scope: { kind: 'space' } }, provider)).rejects.toBe(
+      failure
+    )
+  })
+
+  it('fails the whole scan when traversal under any space root fails', async () => {
+    const failure = new Error('root traversal failed')
+    const root = node({ nodeToken: 'root', parentNodeToken: null, hasChild: true })
+    const provider = operations()
+    vi.mocked(provider.listChildNodes)
+      .mockResolvedValueOnce({ nodes: [root] })
+      .mockRejectedValueOnce(failure)
+
+    await expect(scanFeishuKnowledgeSource({ spaceId: 'space-1', scope: { kind: 'space' } }, provider)).rejects.toBe(
+      failure
+    )
   })
 })
 

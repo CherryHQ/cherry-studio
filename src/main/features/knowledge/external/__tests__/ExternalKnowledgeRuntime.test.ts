@@ -306,6 +306,273 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(listAttempts).toBe(2)
   })
 
+  it('does not start a retry attempt after caller cancellation during its backoff wait', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const retryWaitStarted = deferred<void>()
+    const releaseRetryWait = deferred<void>()
+    const requestedSpaces: string[] = []
+    const provider = createProvider({
+      listWikiChildNodes: vi.fn(async (_accessToken: string, spaceId: string) => {
+        requestedSpaces.push(spaceId)
+        if (requestedSpaces.length === 1) throw new FeishuProviderError('transient', false, 10)
+        return { nodes: [] }
+      })
+    })
+    let now = 1_000
+    let waitCount = 0
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        waitCount++
+        if (waitCount === 1) {
+          retryWaitStarted.resolve()
+          await releaseRetryWait.promise
+        }
+        now += milliseconds
+      }
+    })
+    await runtime.start()
+    const caller = new AbortController()
+    const cancelledScan = runtime.scanFeishuSource(
+      value.id,
+      { spaceId: 'space-retry', scope: { kind: 'space' } },
+      caller.signal
+    )
+    const cancelledScanRejected = expect(cancelledScan).rejects.toBeInstanceOf(DOMException)
+    await retryWaitStarted.promise
+    const cancellation = new DOMException('cancel during retry backoff', 'AbortError')
+
+    caller.abort(cancellation)
+    const followingScan = runtime.scanFeishuSource(value.id, {
+      spaceId: 'space-following',
+      scope: { kind: 'space' }
+    })
+    releaseRetryWait.resolve()
+
+    await cancelledScanRejected
+    await expect(cancelledScan).rejects.toBe(cancellation)
+    await expect(followingScan).resolves.toMatchObject({ canonicalReferences: [] })
+    expect(requestedSpaces).toEqual(['space-retry', 'space-following'])
+  })
+
+  it('scans a persisted Feishu source identity through the credential-scoped read lane', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider({
+      listWikiChildNodes: vi.fn(async () => ({
+        nodes: [
+          {
+            spaceId: 'space-1',
+            nodeToken: 'root',
+            objToken: 'doc-root',
+            objType: 'docx',
+            parentNodeToken: null,
+            nodeType: 'origin',
+            originNodeToken: null,
+            originSpaceId: null,
+            title: 'Root',
+            hasChild: false,
+            objEditTime: '42'
+          }
+        ]
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(
+      runtime.scanFeishuSource(value.id, { spaceId: 'space-1', scope: { kind: 'space' } })
+    ).resolves.toMatchObject({
+      visibleNodeCount: 1,
+      unsupportedOrSkippedCount: 0,
+      canonicalReferences: [{ descriptor: { nodeId: 'root', remoteObjectId: 'doc-root' } }]
+    })
+  })
+
+  it('propagates the caller cancellation unchanged while scanning a persisted source', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const page = deferred<{ nodes: [] }>()
+    let observedSignal: AbortSignal | undefined
+    const provider = createProvider({
+      listWikiChildNodes: vi.fn(
+        async (
+          _accessToken: string,
+          _spaceId: string,
+          _parentNodeToken?: string,
+          _pageToken?: string,
+          signal?: AbortSignal
+        ) => {
+          observedSignal = signal
+          return await new Promise<{ nodes: [] }>((resolve, reject) => {
+            page.promise.then(resolve, reject)
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        }
+      )
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    const caller = new AbortController()
+    const scan = runtime.scanFeishuSource(value.id, { spaceId: 'space-1', scope: { kind: 'space' } }, caller.signal)
+    await vi.waitFor(() => expect(provider.listWikiChildNodes).toHaveBeenCalledOnce())
+    const cancellation = new DOMException('job cancelled scan', 'AbortError')
+
+    caller.abort(cancellation)
+    if (!observedSignal?.aborted) page.reject(new Error('caller signal was not forwarded to scan'))
+
+    await expect(scan).rejects.toBe(cancellation)
+  })
+
+  it('propagates the caller cancellation unchanged while reading a document', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const body = deferred<string>()
+    let observedSignal: AbortSignal | undefined
+    const provider = createProvider({
+      getDocxMarkdown: vi.fn(async (_accessToken: string, _documentToken: string, signal?: AbortSignal) => {
+        observedSignal = signal
+        return await new Promise<string>((resolve, reject) => {
+          body.promise.then(resolve, reject)
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    const caller = new AbortController()
+    const read = runtime.readFeishuDocument(
+      value.id,
+      {
+        descriptor: {
+          remoteObjectId: 'doc-1',
+          nodeId: 'node-1',
+          parentNodeId: null,
+          relativeBreadcrumb: ['Document'],
+          title: 'Document',
+          originalUrl: 'https://feishu.cn/wiki/node-1',
+          remoteRevision: '42',
+          documentKind: 'document',
+          supportState: 'supported'
+        },
+        providerData: {
+          spaceId: 'space-1',
+          nodeToken: 'node-1',
+          objToken: 'doc-1',
+          objType: 'docx',
+          nodeType: 'origin',
+          originNodeToken: null,
+          originSpaceId: null
+        }
+      },
+      caller.signal
+    )
+    await vi.waitFor(() => expect(provider.getDocxMarkdown).toHaveBeenCalledOnce())
+    const cancellation = new DOMException('job cancelled read', 'AbortError')
+
+    caller.abort(cancellation)
+    if (!observedSignal?.aborted) body.reject(new Error('caller signal was not forwarded to read'))
+
+    await expect(read).rejects.toBe(cancellation)
+  })
+
+  it('rejects a queued caller cancellation immediately without letting later reads bypass the lane', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const firstBody = deferred<string>()
+    const started: string[] = []
+    let active = 0
+    let maxActive = 0
+    const provider = createProvider({
+      getDocxMarkdown: vi.fn(async (_accessToken: string, documentToken: string) => {
+        started.push(documentToken)
+        active++
+        maxActive = Math.max(maxActive, active)
+        try {
+          if (documentToken === 'doc-a') return await firstBody.promise
+          return `# ${documentToken}`
+        } finally {
+          active--
+        }
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => 1_000,
+      sleep: async () => {}
+    })
+    await runtime.start()
+    const reference = (documentToken: string) => ({
+      descriptor: {
+        remoteObjectId: documentToken,
+        nodeId: `node-${documentToken}`,
+        parentNodeId: null,
+        relativeBreadcrumb: [documentToken],
+        title: documentToken,
+        originalUrl: `https://feishu.cn/wiki/node-${documentToken}`,
+        remoteRevision: '42',
+        documentKind: 'document' as const,
+        supportState: 'supported' as const
+      },
+      providerData: {
+        spaceId: 'space-1',
+        nodeToken: `node-${documentToken}`,
+        objToken: documentToken,
+        objType: 'docx',
+        nodeType: 'origin' as const,
+        originNodeToken: null,
+        originSpaceId: null
+      }
+    })
+
+    const first = runtime.readFeishuDocument(value.id, reference('doc-a'))
+    await vi.waitFor(() => expect(started).toEqual(['doc-a']))
+    const caller = new AbortController()
+    const second = runtime.readFeishuDocument(value.id, reference('doc-b'), caller.signal)
+    let secondSettled = false
+    const secondRejection = second.catch((error) => {
+      secondSettled = true
+      return error
+    })
+    const cancellation = new DOMException('queued job cancelled', 'AbortError')
+    caller.abort(cancellation)
+    const third = runtime.readFeishuDocument(value.id, reference('doc-c'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const secondSettledBeforeFirstReleased = secondSettled
+    const thirdStartedBeforeFirstReleased = started.includes('doc-c')
+
+    firstBody.resolve('# doc-a')
+    await expect(first).resolves.toMatchObject({ content: '# doc-a' })
+    await expect(secondRejection).resolves.toBe(cancellation)
+    await expect(third).resolves.toMatchObject({ content: '# doc-c' })
+
+    expect(secondSettledBeforeFirstReleased).toBe(true)
+    expect(thirdStartedBeforeFirstReleased).toBe(false)
+    expect(started).toEqual(['doc-a', 'doc-c'])
+    expect(maxActive).toBe(1)
+  })
+
   it('keeps resource ACL failures local while terminal authentication still requires reauthorization', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
