@@ -3,14 +3,11 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
-const SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9]*)\b/i
+const SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})(?:(?=\\s[^/]*>)|(?=>))`, 'i')
 const CODE_FENCE_PATTERN = /```[\s\S]*?```/g
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
-const CODE_FENCE_PLACEHOLDER = new RegExp(
-  `${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`,
-  'g'
-)
+const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
 
 function maskCodeFences(text: string): { text: string; fences: string[] } {
   const fences: string[] = []
