@@ -545,7 +545,7 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller) return
 
-    const layoutKey = `${fontSize}|${lineNumbers}|${wrapped}|${scroller.clientWidth}`
+    const layoutKey = `${fontSize}|${lineNumbers}|${wrapped}|${scroller.clientWidth}|${gutterDigits}`
     if (layoutKey !== remeasureLayoutKeyRef.current) {
       remeasureLayoutKeyRef.current = layoutKey
       measuredRowHeightsRef.current.clear()
@@ -570,7 +570,7 @@ const CodeViewer = ({
         measuredRowHeightsRef.current.set(index, nextSize)
       }
     }
-  }, [estimateWrappedRowHeight, fontSize, lineNumbers, virtualizer, wrapped])
+  }, [estimateWrappedRowHeight, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
 
   useLayoutEffect(() => {
     remeasureRows()
