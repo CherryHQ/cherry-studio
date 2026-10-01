@@ -4,7 +4,10 @@ import {
   type CommitExternalKnowledgeReauthorizationInput,
   externalKnowledgeConnectionService
 } from '@data/services/ExternalKnowledgeConnectionService'
-import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
+import {
+  encodeExternalKnowledgeDailySchedule,
+  externalKnowledgeSourceService
+} from '@data/services/ExternalKnowledgeSourceService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { isTerminalStatus } from '@shared/data/api/schemas/jobs'
 import type {
@@ -61,11 +64,6 @@ function scheduleTemplate(source: ExternalKnowledgeSource, sourceRevision = sour
   }
 }
 
-function dailyCron(policy: Extract<ExternalKnowledgeSchedulePolicy, { kind: 'daily' }>) {
-  const [hour, minute] = policy.time.split(':')
-  return { kind: 'cron' as const, expr: `${Number(minute)} ${Number(hour)} * * *`, timezone: policy.timezone }
-}
-
 export class ExternalKnowledgeSourceLifecycle {
   constructor(
     private readonly syncRequester: SyncRequester,
@@ -84,7 +82,7 @@ export class ExternalKnowledgeSourceLifecycle {
       const source = externalKnowledgeSourceService.getByIdTx(tx, input.sourceId)
       if (!source) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', input.sourceId)
       const scheduleInput = {
-        trigger: dailyCron(policy),
+        trigger: encodeExternalKnowledgeDailySchedule(policy),
         jobInputTemplate: scheduleTemplate(source),
         catchUpPolicy: { kind: 'after-startup' as const, minutes: 0 },
         enabled: source.state === 'active'

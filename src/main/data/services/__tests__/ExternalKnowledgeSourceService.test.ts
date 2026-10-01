@@ -106,6 +106,40 @@ describe('ExternalKnowledgeSourceService', () => {
     expect(externalKnowledgeSourceService.getById('0198f3f2-7d1a-7abc-8def-123456789aff')).toBeNull()
   })
 
+  it.each(['5 9 * * 1', '5 9 1 * *', '5 9 * 1 *', '5 9', '5 9 * *', '5 9 * * * *', '60 9 * * *', '5 24 * * *'])(
+    'rejects the unsupported linked cron %s instead of listing it as a daily policy',
+    (expr) => {
+      seedBase(BASE_ID)
+      seedConnection()
+      seedSource(SOURCE_ID, BASE_ID, 300)
+      const scheduleId = '33333333-3333-4333-8333-333333333333'
+      dbh.db
+        .insert(jobScheduleTable)
+        .values({
+          id: scheduleId,
+          type: 'knowledge.sync-external-source',
+          name: `external-source-${SOURCE_ID}`,
+          trigger: { kind: 'cron', expr, timezone: 'Asia/Shanghai' },
+          jobInputTemplate: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'scheduled' },
+          catchUpPolicy: { kind: 'after-startup', minutes: 0 }
+        })
+        .run()
+      dbh.db
+        .update(externalKnowledgeSourceTable)
+        .set({ scheduleId })
+        .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+        .run()
+
+      expect(() => externalKnowledgeSourceService.listByBaseIdWithSchedule(BASE_ID)).toThrowError(
+        expect.objectContaining({
+          code: ErrorCode.DATA_INCONSISTENT,
+          status: 409,
+          details: { resource: 'ExternalKnowledgeSource', description: 'Linked schedule is not daily' }
+        })
+      )
+    }
+  )
+
   it('renames only the Source display name, and rejects a missing Source', () => {
     seedBase(BASE_ID)
     seedConnection()
