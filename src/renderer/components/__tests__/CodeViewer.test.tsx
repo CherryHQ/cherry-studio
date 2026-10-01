@@ -925,9 +925,7 @@ describe('CodeViewer', () => {
 
       mocks.resizeItem.mockClear()
 
-      rerender(
-        <CodeViewer value={`line 1\n${longLine}\ntail\nnew line`} language="text" wrapped maxHeight="350px" />
-      )
+      rerender(<CodeViewer value={`line 1\n${longLine}\ntail\nnew line`} language="text" wrapped maxHeight="350px" />)
 
       const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
       expect(offscreenResize).toBeDefined()
