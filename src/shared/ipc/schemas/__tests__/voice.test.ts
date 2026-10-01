@@ -231,6 +231,16 @@ describe('Voice IPC contract', () => {
 })
 
 describe('voice speech IPC', () => {
+  it('returns only supported and installed transcription locale tags', () => {
+    const locales = voiceRequestSchemas['ai.transcription.locales.list'].output
+    expect(locales.parse({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })).toEqual({
+      supported: ['en-US', 'zh-CN'],
+      installed: ['en-US']
+    })
+    expect(locales.safeParse({ supported: ['en-US'], installed: ['en-US'], transcript: 'private' }).success).toBe(false)
+    expect(locales.safeParse({ supported: ['auto'], installed: [] }).success).toBe(false)
+  })
+
   it('accepts explicit Apple and Windows speech model selection and a platform default', () => {
     for (const modelId of [APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, undefined]) {
       expect(voiceRequestSchemas['ai.speech.generate'].input.safeParse({ ...base, modelId }).success).toBe(true)

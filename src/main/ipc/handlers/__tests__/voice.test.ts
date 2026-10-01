@@ -167,6 +167,19 @@ describe('Voice handlers through real IpcRouter', () => {
     expect(boundary.openMicrophoneSettings).not.toHaveBeenCalled()
   })
 
+  it('lists Apple transcription locales for a managed window', async () => {
+    const webContents = { id: 10, isDestroyed: () => false }
+    const owner = { windowId: 'owner', webContents }
+    boundary.window.mockReturnValue({ webContents })
+    boundary.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+
+    await expect(router.dispatch('ai.transcription.locales.list', undefined, { senderId: 'owner' })).resolves.toEqual({
+      supported: ['en-US', 'zh-CN'],
+      installed: ['en-US']
+    })
+    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner)
+  })
+
   it('dispatches a FileEntry transcription with the managed owner', async () => {
     const webContents = { id: 10, isDestroyed: () => false }
     const owner = { windowId: 'owner', webContents }
