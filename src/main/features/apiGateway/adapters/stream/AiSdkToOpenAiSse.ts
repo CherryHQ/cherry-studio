@@ -105,6 +105,8 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private currentToolCallIndex = 0
   private finishReason: OpenAiFinishReason = null
   private reasoningContent = ''
+  /** Reasoning-token subset reported by the projection's `outputTokenDetails`. */
+  private reasoningTokens?: number
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -198,6 +200,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   private buildUsage(): NonNullable<ChatCompletion['usage']> {
@@ -207,6 +212,11 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       total_tokens: this.state.inputTokens + this.state.outputTokens,
       ...(this.state.cacheReadTokens !== undefined
         ? { prompt_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
+      // `completion_tokens` is the reasoning-inclusive total; the subset goes
+      // on `completion_tokens_details` per the OpenAI usage semantics.
+      ...(this.reasoningTokens !== undefined
+        ? { completion_tokens_details: { reasoning_tokens: this.reasoningTokens } }
         : {})
     }
   }
