@@ -64,8 +64,8 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { ensureClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { ensureClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
 import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'

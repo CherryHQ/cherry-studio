@@ -47,6 +47,7 @@ export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPri
   if (priority === 'warm') return false
 
   const processManager = application.getExisting('ClaudeCodeProcessManager')
+  if (!processManager) return false
   const deadline = Date.now() + LIVE_SPAWN_CAPACITY_WAIT_MS
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now()
