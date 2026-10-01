@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Vui lòng nhập Bundle ID của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: com.google.Chrome, com.apple.mail, v.v.",
   "selection.settings.filter_modal.user_tips.windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, CherryStudio.exe, v.v.",
   "selection.settings.linux.compositor_incompatible": "Môi trường máy tính để bàn của bạn không hỗ trợ tính năng lựa chọn. Vui lòng chuyển sang phiên X11 để có trải nghiệm đầy đủ.",
-  "selection.settings.linux.filter_warning_text": "Không có sẵn trong phiên Wayland",
   "selection.settings.linux.input_group_fail": "Không được cấp, vui lòng chạy `sudo usermod -aG input $USER` và đăng nhập lại",
   "selection.settings.linux.input_group_label": "quyền nhóm đầu vào:",
   "selection.settings.linux.input_group_pass": "Được cấp",

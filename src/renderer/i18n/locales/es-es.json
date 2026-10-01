@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Ingrese el ID de paquete de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: com.google.Chrome, com.apple.mail, etc.",
   "selection.settings.filter_modal.user_tips.windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, CherryStudio.exe, etc.",
   "selection.settings.linux.compositor_incompatible": "Tu entorno de escritorio no admite la función de selección. Cambia a una sesión X11 para disfrutar de la experiencia completa.",
-  "selection.settings.linux.filter_warning_text": "No disponible en la sesión de Wayland",
   "selection.settings.linux.input_group_fail": "No concedido, por favor ejecuta `sudo usermod -aG input $USER` y vuelve a iniciar sesión",
   "selection.settings.linux.input_group_label": "permiso de grupo de entrada:",
   "selection.settings.linux.input_group_pass": "Concedido",

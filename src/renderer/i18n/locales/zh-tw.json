@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
   "selection.settings.filter_modal.user_tips.windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等",
   "selection.settings.linux.compositor_incompatible": "目前桌面環境不支援選取文字功能，請切換到 X11 模式以獲得完整體驗。",
-  "selection.settings.linux.filter_warning_text": "Wayland 模式下不生效",
   "selection.settings.linux.input_group_fail": "未取得，請執行 `sudo usermod -aG input $USER` 並重新登入生效",
   "selection.settings.linux.input_group_label": "input 組權限：",
   "selection.settings.linux.input_group_pass": "已取得",

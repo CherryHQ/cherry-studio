@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Παρακαλώ εισαγάγετε το Bundle ID της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: com.google.Chrome, com.apple.mail κ.λπ.",
   "selection.settings.filter_modal.user_tips.windows": "Παρακαλώ εισαγάγετε το όνομα του εκτελέσιμου αρχείου της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: chrome.exe, weixin.exe, CherryStudio.exe κ.λπ.",
   "selection.settings.linux.compositor_incompatible": "Το περιβάλλον επιφάνειας εργασίας σας δεν υποστηρίζει τη λειτουργία επιλογής. Παρακαλούμε μεταβείτε σε συνεδρία X11 για την πλήρη εμπειρία.",
-  "selection.settings.linux.filter_warning_text": "Μη διαθέσιμο σε συνεδρία Wayland",
   "selection.settings.linux.input_group_fail": "Δεν εγκρίθηκε, παρακαλώ εκτελέστε `sudo usermod -aG input $USER` και συνδεθείτε ξανά",
   "selection.settings.linux.input_group_label": "άδεια ομάδας εισόδου:",
   "selection.settings.linux.input_group_pass": "Χορηγήθηκε",

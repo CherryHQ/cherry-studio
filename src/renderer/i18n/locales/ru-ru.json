@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Введите Bundle ID приложения, один на строку, не учитывая регистр, можно использовать подстановку *",
   "selection.settings.filter_modal.user_tips.windows": "Введите имена исполняемых файлов приложений, по одному в строке, без учёта регистра; поддерживается нечёткое сопоставление. Например: chrome.exe, weixin.exe, CherryStudio.exe и т. д.",
   "selection.settings.linux.compositor_incompatible": "Ваша среда рабочего стола не поддерживает функцию выбора. Пожалуйста, переключитесь на сеанс X11 для полного функционала.",
-  "selection.settings.linux.filter_warning_text": "Недоступно в сеансе Wayland",
   "selection.settings.linux.input_group_fail": "Не предоставлено, выполните `sudo usermod -aG input $USER` и перезайдите в систему",
   "selection.settings.linux.input_group_label": "разрешение группы ввода:",
   "selection.settings.linux.input_group_pass": "Предоставлено",

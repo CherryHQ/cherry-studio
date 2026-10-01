@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Veuillez saisir l'ID de bundle de l'application, un par ligne, sans sensibilité à la casse, correspondance floue possible. Par exemple : com.google.Chrome, com.apple.mail, etc.",
   "selection.settings.filter_modal.user_tips.windows": "Veuillez saisir le nom du fichier exécutable de l'application, un par ligne, sans sensibilité à la casse, correspondance floue possible. Par exemple : chrome.exe, weixin.exe, CherryStudio.exe, etc.",
   "selection.settings.linux.compositor_incompatible": "Votre environnement de bureau ne prend pas en charge la fonction de sélection. Veuillez passer à une session X11 pour profiter de l'expérience complète.",
-  "selection.settings.linux.filter_warning_text": "Non disponible dans la session Wayland",
   "selection.settings.linux.input_group_fail": "Non accordé, veuillez exécuter `sudo usermod -aG input $USER` et vous reconnecter",
   "selection.settings.linux.input_group_label": "permission du groupe d'entrée :",
   "selection.settings.linux.input_group_pass": "Accordé",
