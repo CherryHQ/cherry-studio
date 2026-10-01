@@ -2086,6 +2086,29 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
     })
 
+    it('preserves ordinary markup and avoids orphan text-end while probing scratchpad prefixes', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '<p>hello</p>' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<p>hello</p>')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
     it('suppresses parentless scratchpad wrapper text outside compaction windows', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'

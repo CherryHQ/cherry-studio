@@ -36,7 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import { loggerService } from '@logger'
-import { textStartsWithModelScratchpadTag } from '@cherrystudio/ai-core'
+import { MODEL_SCRATCHPAD_TAG_NAMES, textStartsWithModelScratchpadTag } from '@cherrystudio/ai-core'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
@@ -152,6 +152,7 @@ type StreamContext = {
   scratchpadTextProbe: string
   suppressActiveTextPart: boolean
   textStartDeferred: boolean
+  textPartStarted: boolean
 }
 
 /**
@@ -559,7 +560,8 @@ export class ClaudeCodeStreamAdapter {
       filterParentlessScratchpadText,
       scratchpadTextProbe: '',
       suppressActiveTextPart: false,
-      textStartDeferred: false
+      textStartDeferred: false,
+      textPartStarted: false
     }
   }
 
@@ -893,12 +895,14 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
     ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+    ctx.textPartStarted = false
     if (!ctx.textStartDeferred) {
       ctx.sink.enqueue({
         type: 'text-start',
         id: partId,
         providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
       })
+      ctx.textPartStarted = true
     }
     ctx.textStreamedViaContentBlock = true
   }
@@ -957,7 +961,27 @@ export class ClaudeCodeStreamAdapter {
     const trimmed = probe.trimStart()
     if (!trimmed.startsWith('<')) return 'emit'
     if (!trimmed.includes('>')) return 'pending'
-    return 'emit'
+
+    const tagMatch = trimmed.match(/^<([a-z][a-z0-9]*)\b/i)
+    if (tagMatch && !MODEL_SCRATCHPAD_TAG_NAMES.includes(tagMatch[1].toLowerCase() as (typeof MODEL_SCRATCHPAD_TAG_NAMES)[number])) {
+      return 'emit'
+    }
+    return 'pending'
+  }
+
+  private flushDeferredScratchpadText(ctx: StreamContext): void {
+    if (!ctx.textStartDeferred || !ctx.textPartId) return
+
+    const pending = ctx.scratchpadTextProbe
+    ctx.textStartDeferred = false
+    ctx.scratchpadTextProbe = ''
+    if (!pending) return
+
+    ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
+    ctx.textPartStarted = true
+    ctx.accumulatedText += pending
+    ctx.streamedTextLength += pending.length
   }
 
   private enqueueVisibleTextDelta(
@@ -971,12 +995,14 @@ export class ClaudeCodeStreamAdapter {
       ctx.textPartId = generateId()
       ctx.textStartDeferred = ctx.filterParentlessScratchpadText
       ctx.scratchpadTextProbe = ''
+      ctx.textPartStarted = false
       if (!ctx.textStartDeferred) {
         ctx.sink.enqueue({
           type: 'text-start',
           id: ctx.textPartId,
           ...(providerMetadata ? { providerMetadata } : {})
         })
+        ctx.textPartStarted = true
       }
     }
 
@@ -996,6 +1022,7 @@ export class ClaudeCodeStreamAdapter {
         id: ctx.textPartId,
         ...(providerMetadata ? { providerMetadata } : {})
       })
+      ctx.textPartStarted = true
       text = ctx.scratchpadTextProbe
       ctx.scratchpadTextProbe = ''
     }
@@ -1048,7 +1075,10 @@ export class ClaudeCodeStreamAdapter {
 
     const textId = ctx.textBlocksByIndex.get(blockIndex)
     if (textId) {
-      if (!ctx.suppressActiveTextPart) {
+      if (ctx.textPartId === textId) {
+        this.flushDeferredScratchpadText(ctx)
+      }
+      if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
         ctx.sink.enqueue({ type: 'text-end', id: textId })
       }
       ctx.textBlocksByIndex.delete(blockIndex)
@@ -1057,6 +1087,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadTextProbe = ''
         ctx.suppressActiveTextPart = false
         ctx.textStartDeferred = false
+        ctx.textPartStarted = false
       }
       return
     }
@@ -2009,13 +2040,15 @@ export class ClaudeCodeStreamAdapter {
   private closeActiveTextPart(ctx: StreamContext): void {
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
-    if (!ctx.suppressActiveTextPart) {
+    this.flushDeferredScratchpadText(ctx)
+    if (!ctx.suppressActiveTextPart && ctx.textPartStarted) {
       ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
     }
     ctx.textPartId = undefined
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
     ctx.textStartDeferred = false
+    ctx.textPartStarted = false
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {
       if (blockTextId === closedTextId) {
         ctx.textBlocksByIndex.delete(idx)

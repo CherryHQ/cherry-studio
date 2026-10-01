@@ -7,6 +7,7 @@ describe('scratchpadText', () => {
     expect(textStartsWithModelScratchpadTag('<thinking>plan</thinking>')).toBe(true)
     expect(textStartsWithModelScratchpadTag('  <assessment>x</assessment>')).toBe(true)
     expect(textStartsWithModelScratchpadTag('visible reply')).toBe(false)
+    expect(textStartsWithModelScratchpadTag('<div>markup</div>')).toBe(false)
   })
 
   it('strips arbitrary paired scratchpad blocks and unwraps summary payloads', () => {
@@ -19,5 +20,9 @@ describe('scratchpadText', () => {
 
   it('removes thinking-only compaction output with no summary block', () => {
     expect(stripModelScratchpadBlocks('<thinking>long internal reasoning</thinking>')).toBe('')
+  })
+
+  it('preserves non-scratchpad markup when stripping compaction output', () => {
+    expect(stripModelScratchpadBlocks('<thinking>hidden</thinking><div>visible</div>')).toBe('<div>visible</div>')
   })
 })

@@ -1,11 +1,30 @@
-/** Opening tag of model-authored scratchpad wrappers (`<thinking>`, `<analysis>`, …). */
+/** Model scratchpad wrappers named in compaction prompts and observed in leaked transcripts. */
+export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking'] as const
+
+const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
+
 const SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9]*)\b/i
 
-/** Paired simple-tag blocks the compaction model uses as disposable reasoning scaffolding. */
-const PAIRED_SCRATCHPAD_BLOCK = /<([a-z][a-z0-9]*)\b[^>]*>[\s\S]*?<\/\1\s*>/gi
+function isModelScratchpadTagName(tag: string): boolean {
+  return MODEL_SCRATCHPAD_TAG_SET.has(tag.toLowerCase())
+}
 
 export function textStartsWithModelScratchpadTag(text: string): boolean {
-  return SCRATCHPAD_OPENING_TAG.test(text)
+  const match = text.match(SCRATCHPAD_OPENING_TAG)
+  return match ? isModelScratchpadTagName(match[1]) : false
+}
+
+function stripKnownScratchpadBlocks(raw: string): string {
+  let out = raw
+  let previous: string
+  do {
+    previous = out
+    for (const tag of MODEL_SCRATCHPAD_TAG_NAMES) {
+      const block = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
+      out = out.replace(block, '')
+    }
+  } while (out !== previous)
+  return out
 }
 
 /**
@@ -20,11 +39,7 @@ export function stripModelScratchpadBlocks(raw: string): string {
     out = summaryMatch[1]
   }
 
-  let previous: string
-  do {
-    previous = out
-    out = out.replace(PAIRED_SCRATCHPAD_BLOCK, '')
-  } while (out !== previous)
+  out = stripKnownScratchpadBlocks(out)
 
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
