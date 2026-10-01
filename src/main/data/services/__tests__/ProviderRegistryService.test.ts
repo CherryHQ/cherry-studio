@@ -1145,10 +1145,10 @@ describe('ProviderRegistryService', () => {
                 baseUrl: 'https://openrouter.ai/api/v1',
                 reasoningFormat: { type: 'openai-chat', wire: catalogWire }
               }
-            },
+            } as Record<string, { baseUrl: string; reasoningFormat: { type: 'openai-chat'; wire: typeof catalogWire } }>,
             defaultChatEndpoint: 'openai-chat-completions',
             metadata: { website: {} }
-          }
+          } as never
         ]
       })
       mockReadProviderModels.mockReturnValue({

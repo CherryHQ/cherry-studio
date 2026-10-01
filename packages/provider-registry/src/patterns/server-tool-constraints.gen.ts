@@ -38,27 +38,12 @@ export const SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS: readonly string[] = [
 ]
 
 /** Reasoning efforts the provider-native web-search tool rejects, by model id. */
-export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> =
-  {
-  "gpt-5": [
-    "minimal"
-  ],
-  "gpt-5-codex": [
-    "minimal"
-  ],
-  "gpt-5-image": [
-    "minimal"
-  ],
-  "gpt-5-image-mini": [
-    "minimal"
-  ],
-  "gpt-5-mini": [
-    "minimal"
-  ],
-  "gpt-5-nano": [
-    "minimal"
-  ],
-  "gpt-5-pro": [
-    "minimal"
-  ]
+export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> = {
+  'gpt-5': ['minimal'],
+  'gpt-5-codex': ['minimal'],
+  'gpt-5-image': ['minimal'],
+  'gpt-5-image-mini': ['minimal'],
+  'gpt-5-mini': ['minimal'],
+  'gpt-5-nano': ['minimal'],
+  'gpt-5-pro': ['minimal']
 }

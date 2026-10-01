@@ -6,9 +6,7 @@
  */
 import type { ServerTool } from '../schemas/enums'
 
-export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
-  Record<string, Partial<Record<ServerTool, readonly string[]>>>
-> =
+export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Record<ServerTool, readonly string[]>>>> =
   {
     cherryin: {
       'web-search': [
@@ -1137,4 +1135,3 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
       ]
     }
   }
-}
