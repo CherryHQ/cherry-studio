@@ -966,9 +966,6 @@ export class ClaudeCodeStreamAdapter {
       return { action: 'emit', visible: probe }
     }
     if (!trimmed.includes('>')) {
-      if (atBlockEnd && textStartsWithModelScratchpadTag(probe)) {
-        return { action: 'suppress' }
-      }
       if (atBlockEnd) {
         return { action: 'emit', visible: probe }
       }
