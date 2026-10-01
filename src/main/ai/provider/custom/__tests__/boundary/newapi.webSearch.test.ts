@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
+import type * as OpenAICompatible from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -21,7 +22,7 @@ function createModel(fetch: typeof globalThis.fetch) {
 }
 
 const packageRoot = dirname(createRequire(import.meta.url).resolve('@ai-sdk/openai-compatible/package.json'))
-const { createOpenAICompatible }: typeof import('@ai-sdk/openai-compatible') = await import(
+const { createOpenAICompatible }: typeof OpenAICompatible = await import(
   join(packageRoot, 'src/openai-compatible-provider.ts')
 )
 
