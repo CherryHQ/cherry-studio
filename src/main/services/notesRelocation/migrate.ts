@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -68,6 +69,13 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
 
       const sourceSize = fs.statSync(sourceEntryPath).size
       if (targetEntry.size !== sourceSize) {
+        conflicts.push(relativePath)
+        continue
+      }
+
+      const sourceDigest = crypto.createHash('sha256').update(fs.readFileSync(sourceEntryPath)).digest()
+      const targetDigest = crypto.createHash('sha256').update(fs.readFileSync(targetEntryPath)).digest()
+      if (!crypto.timingSafeEqual(sourceDigest, targetDigest)) {
         conflicts.push(relativePath)
       }
     }
