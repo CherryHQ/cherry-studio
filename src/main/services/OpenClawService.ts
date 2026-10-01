@@ -1240,9 +1240,7 @@ export class OpenClawService extends BaseService {
     // Resolve bindings without `resolveApiKey` so a stale id cannot advance rotation
     // while the serialized model omits the credential and uses the provider key.
     const boundEntry = model.apiKeyId
-      ? providerService
-          .getApiKeys(model.providerId)
-          .find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
+      ? providerService.getApiKeys(model.providerId).find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
       : undefined
     const boundApiKey = boundEntry?.key
     return {
@@ -1329,11 +1327,7 @@ export class OpenClawService extends BaseService {
   private readExistingOpenClawConfig(): OpenClawConfig {
     const primaryPath = openclawConfigPath()
     const legacyPath = openclawLegacyConfigPath()
-    const sourcePath = fs.existsSync(primaryPath)
-      ? primaryPath
-      : fs.existsSync(legacyPath)
-        ? legacyPath
-        : null
+    const sourcePath = fs.existsSync(primaryPath) ? primaryPath : fs.existsSync(legacyPath) ? legacyPath : null
 
     if (!sourcePath) {
       return {}
