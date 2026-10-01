@@ -478,7 +478,7 @@ export const aiRequestSchemas = {
   // ── Ollama session caps (main-owned shared-cache write) ──
   'ai.ollama.set_num_ctx_cap': defineRoute({
     // Lower-only in the handler: a stale retry must not raise an already-lowered cap.
-    input: z.strictObject({ uniqueModelId: z.string().min(1), numCtxCap: z.number().int().positive() }),
+    input: z.strictObject({ uniqueModelId: UniqueModelIdSchema, numCtxCap: z.number().int().positive() }),
     output: z.void()
   })
 }

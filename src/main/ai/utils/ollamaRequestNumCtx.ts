@@ -1,3 +1,4 @@
+import { isIPv4 } from 'node:net'
 import os from 'node:os'
 
 import { application } from '@application'
@@ -24,7 +25,7 @@ export function isLocalOllamaApiHost(apiHost: string): boolean {
     const url = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`)
     const hostname = url.hostname.toLowerCase()
     if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') return true
-    if (hostname.startsWith('127.')) return true
+    if (isIPv4(hostname) && Number(hostname.split('.')[0]) === 127) return true
     return false
   } catch {
     return true
