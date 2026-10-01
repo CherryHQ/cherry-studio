@@ -1282,9 +1282,9 @@ describe('AgentToolRenderer', () => {
 
       // The entry identifies itself by the resumed agent's own description, not "SendMessage",
       // and leads with the launch card's verb in the same row shape the launch uses.
-      const row = screen.getByRole('button', { name: /Continue handling/ })
+      const row = screen.getByRole('button', { name: /Inspect renderer/ })
       expect(screen.queryByText('SendMessage')).toBeNull()
-      expect(within(row).getByText('Continue handling')).toBeInTheDocument()
+      expect(within(row).queryByText('Continue handling')).toBeNull()
       expect(within(row).getByText('Inspect renderer')).toBeInTheDocument()
 
       fireEvent.click(row)
@@ -1330,7 +1330,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
       // The receipt itself, not the launch whose flow would be missing the resumed rounds — the
       // title still names the agent.
       expect(openAgentToolFlow).toHaveBeenCalledWith({
@@ -1376,7 +1376,7 @@ describe('AgentToolRenderer', () => {
 
       // The group header shows the same presentation, so the click targets the row inside it.
       const content = document.querySelector('[data-slot="accordion-content"]') as HTMLElement
-      fireEvent.click(within(content).getByRole('button', { name: /Continue handling/ }))
+      fireEvent.click(within(content).getByRole('button', { name: /Inspect renderer/ }))
 
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
@@ -1400,7 +1400,8 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
+      // The row is titled by the only identity this receipt has: the message it delivered.
+      fireEvent.click(screen.getByRole('button', { name: /please continue/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
         toolName: 'SendMessage',
@@ -1456,7 +1457,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      const row = screen.getByRole('button', { name: /Continue handling/ })
+      const row = screen.getByRole('button', { name: /Inspect renderer/ })
       // The launch description, not the resume request's summary.
       expect(within(row).getByText('Inspect renderer')).toBeInTheDocument()
       expect(screen.queryByText('Continue the review')).toBeNull()
@@ -1613,7 +1614,7 @@ describe('AgentToolRenderer', () => {
 
       expect(screen.queryByText('SendMessage')).toBeNull()
 
-      fireEvent.click(screen.getByRole('button', { name: /Continue handling/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-launch',
         toolName: 'SendMessage',
