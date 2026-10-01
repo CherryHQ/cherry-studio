@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { useMessageParts, useMessagePartsScopeId } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
+import { useAgentLaunchIndex } from '@renderer/components/chat/messages/tools/agent'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 
@@ -18,13 +19,18 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
   const tasks = useAgentSessionBackgroundTasks(sessionId)
   const messageId = useMessagePartsScopeId()
   const parts = useMessageParts(messageId ?? '')
+  const launchIndex = useAgentLaunchIndex()
   const backgroundTasks = tasks.filter(
     (task) =>
       !(
         openAgentToolFlow &&
         (task.type === 'subagent' || task.type === 'local_agent') &&
         task.toolCallId &&
-        parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId)
+        // The task's row may live in an older message than this one, and a resumed child's row is
+        // its receipt: the index covering the whole map is what makes the capsule disappear.
+        (launchIndex?.toolCallIds.has(task.toolCallId) === true ||
+          launchIndex?.childRootCallIds.has(task.toolCallId) === true ||
+          parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId))
       )
   )
 
