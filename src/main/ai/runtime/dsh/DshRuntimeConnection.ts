@@ -8,6 +8,7 @@ import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 import { application } from '@application'
+import type { DshAssistantChunk } from '@cherrystudio/dsh-bridge'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -69,6 +70,7 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
+import { buildDshProxyEnvironment } from './dshProxyEnvironment'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -142,6 +144,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private startPromise?: Promise<this>
   private closePromise?: Promise<void>
   private turnActive = false
+  private backgroundChildrenActive = false
+  private backgroundWorkActive = false
+  private idleBoundary?: SessionEvent['seq']
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
   private turnEpoch = 0
   private modelId = ''
@@ -195,6 +200,20 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push(event)
   }
 
+  private releaseBackgroundWorkIfIdle(): void {
+    if (
+      this.closed ||
+      !this.backgroundWorkActive ||
+      this.backgroundChildrenActive ||
+      this.turnActive ||
+      this.idleBoundary === undefined ||
+      (this.sessionEventSeqs.get(this.runtimeSessionId) ?? -1) < this.idleBoundary
+    )
+      return
+    this.backgroundWorkActive = false
+    this.eventQueue.push({ type: 'background-work-state', active: false })
+  }
+
   /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
   private markTurnActive(): void {
     if (!this.turnActive) this.turnEpoch += 1
@@ -231,7 +250,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (!this.closed) this.eventQueue.push({ type: 'background-tasks', tasks })
       },
       emitWorkState: (active) => {
-        if (!this.closed) this.eventQueue.push({ type: 'background-work-state', active })
+        this.backgroundChildrenActive = active
+        if (active && !this.closed) {
+          this.backgroundWorkActive = true
+          this.eventQueue.push({ type: 'background-work-state', active: true })
+        } else {
+          this.releaseBackgroundWorkIfIdle()
+        }
       },
       recordChildUsage: (info) =>
         this.recordProviderInvocation(
@@ -419,7 +444,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           logger.info('Blocked a write to user data SQLite', { sessionId: this.input.sessionId, toolName })
           return { kind: 'deny', ...decision }
         },
-        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
+        onSessionState: (state) => {
+          this.idleBoundary = state.status === 'idle' ? state.sessionEventSeq : undefined
+          this.releaseBackgroundWorkIfIdle()
+        }
       })
       await this.bridge.listen()
 
@@ -428,7 +457,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const loginPath = getPathFromEnvironment(loginShellEnv)
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
-      // only managed binary locations, the routed API key, and the bridge socket.
+      // only managed binary locations, the applied proxy, the routed API key, and the bridge socket.
       const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
         runtimeExecutable,
@@ -444,6 +473,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
+          // Inherit the applied proxy (claude-code parity); the gateway-host bypass keeps the local gateway direct.
+          ...buildDshProxyEnvironment(snapshot.provider, snapshot.model),
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
@@ -790,6 +821,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           }
           continue
         }
+        if (notification.method === 'session.chunk') {
+          const { sessionId, ...data } = notification.params as unknown as DshAssistantChunk
+          const event = { type: 'assistant/chunk' as const, data }
+          if (sessionId === this.runtimeSessionId) this.adapter.handleEvent(event)
+          else this.subagents.handleChildEvent(sessionId, event)
+          continue
+        }
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
@@ -808,6 +846,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           this.pendingTurnEnd = undefined
         }
         this.sessionEventSeqs.set(params.sessionId, event.seq)
+        this.releaseBackgroundWorkIfIdle()
         for (const pending of this.pendingBridgeEvents.splice(0)) {
           this.emitBridgeEvent(pending.event, pending.source)
         }
@@ -868,7 +907,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         const checkpoint = DshForkCheckpointSchema.safeParse({
           runtime: 'dsh',
           runtimeSessionId: this.runtimeSessionId,
-          boundary
+          boundary,
+          formatVersion: 4
         })
         this.eventQueue.push({
           type: 'turn-complete',

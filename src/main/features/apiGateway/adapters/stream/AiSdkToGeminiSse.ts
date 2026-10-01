@@ -163,9 +163,16 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {
+    // AI SDK's `outputTokens` counts all generated tokens including reasoning —
+    // the breakdown lives in `outputTokenDetails` (every major provider maps
+    // total = text + reasoning). Gemini reports candidates separately from
+    // thoughts (total = prompt + candidates + thoughts), so emitting the
+    // reasoning-inclusive total as candidatesTokenCount would double-count
+    // thoughts inside the frame.
+    const candidatesTokenCount = Math.max(0, this.state.outputTokens - this.thoughtsTokens)
     const usage: GeminiUsageMetadata = {
       promptTokenCount: this.state.inputTokens,
-      candidatesTokenCount: this.state.outputTokens,
+      candidatesTokenCount,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
     if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens

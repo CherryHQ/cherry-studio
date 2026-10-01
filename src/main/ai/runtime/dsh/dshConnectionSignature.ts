@@ -17,10 +17,13 @@ import { usesDshGateway } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { createAgentProxyEnvironmentFingerprint } from '@main/services/proxy/agentProxyEnvironment'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+
+import { buildDshProxyEnvironment } from './dshProxyEnvironment'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -98,6 +101,9 @@ export async function captureDshConnectionSnapshot(
   const configuration = { ...agent.configuration, permission_mode: undefined }
   const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  // Spawn-frozen proxy routing: a proxy endpoint/bypass change must rebuild
+  // the connection, computed from the same material the child receives.
+  const proxyEnvironmentFingerprint = createAgentProxyEnvironmentFingerprint(buildDshProxyEnvironment(provider, model))
 
   const signature = createHash('sha256')
     .update(
@@ -118,7 +124,8 @@ export async function captureDshConnectionSnapshot(
           browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          gatewayCredentials
+          gatewayCredentials,
+          proxyEnvironmentFingerprint
         })
       )
     )
