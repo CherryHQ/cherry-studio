@@ -819,6 +819,25 @@ function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_fals
   return name in node.inputs ? { name, value: node.inputs[name] } : undefined
 }
 
+/** Input types that carry a widget value rather than a graph stream. */
+const SCALAR_INPUT_TYPES = new Set(['STRING', 'INT', 'FLOAT', 'BOOLEAN', 'COMBO'])
+
+/**
+ * The type the server declares for a node input, looked up by its leaf as well
+ * as by its full key: the backend nests a widget under the group it belongs to,
+ * so the leaf is the name the server declares.
+ */
+function declaredInputType(objectInfo: ObjectInfo, classType: string, name: string): string | undefined {
+  const spec = objectInfo[classType]?.input
+  const leaf = name.slice(name.lastIndexOf('.') + 1)
+  const entry = (spec?.required?.[name] ??
+    spec?.optional?.[name] ??
+    spec?.required?.[leaf] ??
+    spec?.optional?.[leaf]) as unknown[] | undefined
+  const type = Array.isArray(entry) ? entry[0] : undefined
+  return Array.isArray(type) ? 'COMBO' : typeof type === 'string' ? type : undefined
+}
+
 export interface PromptTargetOptions {
   /** Text widgets the workflow promotes on a subgraph instance, from
    *  `ConversionResult.promotedText`. */
@@ -979,10 +998,20 @@ export function findPromptTarget(
         return { nodeId, input: 'value' }
       }
       const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
+      // An output class ends a run, so only the media it saves can lead to the
+      // text: a scalar reference leaving it — `SaveImage.filename_prefix` fed
+      // by a string primitive — is metadata the workflow set, not the prompt,
+      // and following it would overwrite the source the metadata reads.
+      const endsRun = objectInfo?.[target.class_type]?.output_node === true
       // Never follow an intermediate node's negative edge (e.g. a ControlNet
       // apply node carries both streams) — only the sampler's own negative
       // branch is out of bounds, not a conditioning input anywhere.
-      const following = refs.filter(([name]) => name !== 'negative')
+      const following = refs.filter(([name]) => {
+        if (name === 'negative') return false
+        if (!endsRun) return true
+        const type = declaredInputType(objectInfo, target.class_type, name)
+        return type === undefined || !SCALAR_INPUT_TYPES.has(type)
+      })
       // Follow the prompt edge before the node's other references when it lands
       // on a plain text node: a generator keeps its prompt, its style and its
       // reference image as separate sockets, and object order alone would let a

@@ -410,9 +410,31 @@ describe('ComfyUI seed placement', () => {
 
 describe('ComfyUI output anchors', () => {
   const outputInfo: ObjectInfo = {
-    SaveImage: { input: {}, output_node: true },
+    SaveImage: {
+      input: { required: { images: ['IMAGE', {}], filename_prefix: ['STRING', { default: 'ComfyUI' }] } },
+      output_node: true
+    },
     RunwayTextToImageNode: { input: { required: { prompt: ['STRING', {}] } } }
   }
+
+  it('does not follow a string reference leaving the output node', () => {
+    // `filename_prefix` fed by a string primitive is metadata the workflow set,
+    // not the text a run supplies: following it overwrites the primitive.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'filename' }, inputs: { value: 'ComfyUI' } },
+      '2': { class_type: 'RunwayTextToImageNode', _meta: { title: 'generator' }, inputs: { prompt: 'saved text' } },
+      '3': {
+        class_type: 'SaveImage',
+        _meta: { title: 'save' },
+        inputs: { filename_prefix: ['1', 0], images: ['2', 0] }
+      }
+    }
+    expect(findPromptTarget(graph, { objectInfo: outputInfo })).toEqual({
+      nodeId: '2',
+      input: 'prompt',
+      samplerId: '2'
+    })
+  })
 
   it('walks back from the classes the server executes, not from a stray node', () => {
     // The stray text node reads nothing and nothing reads it; a run never
