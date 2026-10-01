@@ -1126,8 +1126,8 @@ describe('ProviderRegistryService', () => {
         off: {
           operations: [
             {
-              target: 'reasoning.effort',
-              value: { source: 'literal', value: 'none' },
+              target: 'reasoning.effort' as const,
+              value: { source: 'literal' as const, value: 'none' },
               delivery: 'request-body' as const
             }
           ]
@@ -1147,7 +1147,7 @@ describe('ProviderRegistryService', () => {
               }
             },
             defaultChatEndpoint: 'openai-chat-completions',
-            metadata: {}
+            metadata: { website: {} }
           }
         ]
       })
@@ -1202,7 +1202,11 @@ describe('mergeEndpointReasoningFormat', () => {
     const catalogWire = {
       off: {
         operations: [
-          { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' }
+          {
+            target: 'reasoning.effort' as const,
+            value: { source: 'literal' as const, value: 'none' },
+            delivery: 'request-body' as const
+          }
         ]
       }
     }
@@ -1217,7 +1221,11 @@ describe('mergeEndpointReasoningFormat', () => {
     const catalogWire = {
       off: {
         operations: [
-          { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' }
+          {
+            target: 'reasoning.effort' as const,
+            value: { source: 'literal' as const, value: 'none' },
+            delivery: 'request-body' as const
+          }
         ]
       }
     }
