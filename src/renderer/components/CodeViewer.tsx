@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
+import stringWidth from 'string-width'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -19,31 +20,14 @@ const WRAPPED_LINE_TAB_SIZE = 2
 // Pessimistic width deduction so `ch` gutters and sub-pixel layout do not overstate chars/row.
 const WRAPPED_ESTIMATE_WIDTH_MARGIN_PX = 4
 
-function isEastAsianWideCodePoint(codePoint: number): boolean {
-  return (
-    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
-    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
-    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
-    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
-    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
-    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
-    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
-    (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
-    (codePoint >= 0x20000 && codePoint <= 0x2fffd) ||
-    (codePoint >= 0x30000 && codePoint <= 0x3fffd)
-  )
-}
-
 function wrappedLineVisualColumns(line: string): number {
+  const parts = line.split('\t')
   let columns = 0
-  for (let index = 0; index < line.length;) {
-    const codePoint = line.codePointAt(index)!
-    if (codePoint === 0x09) {
+  for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+    if (partIndex > 0) {
       columns += WRAPPED_LINE_TAB_SIZE - (columns % WRAPPED_LINE_TAB_SIZE)
-    } else {
-      columns += isEastAsianWideCodePoint(codePoint) ? 2 : 1
     }
-    index += codePoint > 0xffff ? 2 : 1
+    columns += stringWidth(parts[partIndex])
   }
   return columns
 }
