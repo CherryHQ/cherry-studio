@@ -4,6 +4,22 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
 const SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9]*)\b/i
+const CODE_FENCE_PATTERN = /```[\s\S]*?```/g
+const CODE_FENCE_PLACEHOLDER = /\u0000CODE_FENCE_(\d+)\u0000/g
+
+function maskCodeFences(text: string): { text: string; fences: string[] } {
+  const fences: string[] = []
+  const masked = text.replace(CODE_FENCE_PATTERN, (fence) => {
+    const index = fences.length
+    fences.push(fence)
+    return `\u0000CODE_FENCE_${index}\u0000`
+  })
+  return { text: masked, fences }
+}
+
+function unmaskCodeFences(text: string, fences: string[]): string {
+  return text.replace(CODE_FENCE_PLACEHOLDER, (_, index) => fences[Number(index)] ?? '')
+}
 
 function isModelScratchpadTagName(tag: string): boolean {
   return MODEL_SCRATCHPAD_TAG_SET.has(tag.toLowerCase())
@@ -32,13 +48,30 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
  * Removes model scratchpad scaffolding from compaction output. Tag names are not fixed —
  * models may emit `<thinking>`, `<analysis>`, `<assessment>`, or other simple wrappers.
  */
-export function stripModelScratchpadBlocks(raw: string): string {
-  let out = stripKnownModelScratchpadBlocks(raw)
-
-  const summaryMatch = out.match(/<summary>([\s\S]*?)<\/summary>/i)
-  if (summaryMatch) {
-    out = summaryMatch[1]
+function unwrapWholeSummaryWrapper(text: string): string | null {
+  const trimmed = text.trim()
+  const opening = /^<summary\b[^>]*>/i.exec(trimmed)
+  if (!opening) {
+    return null
   }
 
+  const closing = /<\/summary\s*>$/i.exec(trimmed)
+  if (!closing) {
+    return null
+  }
+
+  return trimmed.slice(opening[0].length, closing.index!)
+}
+
+export function stripModelScratchpadBlocks(raw: string): string {
+  const { text: masked, fences } = maskCodeFences(raw)
+  let out = stripKnownModelScratchpadBlocks(masked)
+
+  const unwrapped = unwrapWholeSummaryWrapper(out)
+  if (unwrapped !== null) {
+    out = unwrapped
+  }
+
+  out = unmaskCodeFences(out, fences)
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
