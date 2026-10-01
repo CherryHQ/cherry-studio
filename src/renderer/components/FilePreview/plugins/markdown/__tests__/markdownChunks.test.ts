@@ -99,6 +99,45 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
   })
 
+  it('splits every chunk at the budget rather than every paragraph after the first', () => {
+    // Without a reset, the budget stops being spent once and every later paragraph becomes a chunk.
+    const content = Array.from({ length: 10 }, (_, i) => `paragraph-${i + 1}`).join('\n\n')
+
+    const chunks = splitMarkdownChunks(content, 60)
+
+    expect(chunks).toHaveLength(2)
+  })
+
+  it('keeps bracket display math that spans blank lines in one chunk', () => {
+    const content = ['opening paragraph', '', '\\[', 'x = 1', '', 'y = 2', '\\]', 'after'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('x = 1\n\ny = 2')
+  })
+
+  it('keeps a LaTeX environment that spans blank lines in one chunk', () => {
+    const content = ['opening paragraph', '', '\\begin{align}', 'x = 1', '', 'y = 2', '\\end{align}', 'after'].join(
+      '\n'
+    )
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('x = 1\n\ny = 2')
+  })
+
+  it('carries a multi-paragraph footnote definition in full', () => {
+    const content = ['[^1]: first paragraph', '', '    second paragraph', '', 'see [^1]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^1]: first paragraph\n\n    second paragraph')
+    }
+  })
+
   it('does not carry definition syntax found inside a fenced code block', () => {
     const content = ['```', '[label]: https://example.com', '```', '', 'see [label]'].join('\n')
 
