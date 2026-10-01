@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
-import { remoteCapabilitiesSchema } from './authorization'
+import { remoteCapabilitiesSchema, remoteCapabilitySchema } from './authorization'
+import { directEndpointSchema } from './discovery'
 import { remoteFailureSchema } from './errors'
 import { protocolSupportSchema } from './negotiation'
 import { opaqueId, timestamp, unicodeText } from './values'
@@ -28,6 +29,10 @@ export const remoteLimits = Object.freeze({
 })
 
 const empty = z.strictObject({})
+export const remoteEndpointSnapshotSchema = z.looseObject({
+  desktopIdentity: opaqueId,
+  endpoints: z.array(directEndpointSchema).max(32)
+})
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,
   result,
@@ -42,6 +47,7 @@ export function connectionMethods<A extends z.ZodType>(authorization: A) {
       z.looseObject({
         protocolVersion: z.number().int().positive(),
         agentFailureVersion: z.number().int().positive().optional(),
+        connectionEndpointsVersion: z.number().int().positive().optional(),
         limits: z.record(z.string(), z.number().int().positive()),
         heartbeatMs: z.number().int().positive()
       })
@@ -51,6 +57,7 @@ export function connectionMethods<A extends z.ZodType>(authorization: A) {
       token.extend({ deviceId: opaqueId })
     ),
     'connection.refresh': method(empty, token),
+    'connection.endpoints': method(z.strictObject({ domain: remoteCapabilitySchema }), remoteEndpointSnapshotSchema),
     'connection.ping': method(
       z.strictObject({ nonce: opaqueId }),
       z.looseObject({ nonce: opaqueId, serverTime: timestamp })

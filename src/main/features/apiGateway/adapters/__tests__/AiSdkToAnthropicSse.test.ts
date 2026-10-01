@@ -92,7 +92,8 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message_start',
         message: {
           role: 'assistant',
-          model: 'test:model'
+          model: 'test:model',
+          stop_details: null
         }
       })
 
@@ -120,7 +121,7 @@ describe('AiSdkToAnthropicSse', () => {
       // Verify message_delta with stop_reason
       expect(events[5]).toMatchObject({
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn' }
+        delta: { stop_reason: 'end_turn', stop_details: null }
       })
 
       // Verify message_stop
@@ -518,6 +519,7 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message',
         role: 'assistant',
         model: 'test:model',
+        stop_details: null,
         stop_reason: 'tool_use'
       })
 
@@ -597,6 +599,7 @@ describe('AiSdkToAnthropicSse', () => {
           content: [],
           model: 'test',
           container: null,
+          stop_details: null,
           stop_reason: null,
           stop_sequence: null,
           usage: {

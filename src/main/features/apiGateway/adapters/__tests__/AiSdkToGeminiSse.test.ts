@@ -72,14 +72,14 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     expect(frames[frames.length - 1].candidates[0].finishReason).toBe('MAX_TOKENS')
   })
 
-  it('projects usage onto the terminal frame', () => {
+  it('projects usage onto the terminal frame with candidatesTokenCount excluding thoughts', () => {
     const frames = run([
       textDelta('x'),
       finish('stop', { stats: { inputTokens: 10, outputTokens: 20, outputTokenDetails: { reasoningTokens: 5 } } })
     ])
     expect(frames[frames.length - 1].usageMetadata).toEqual({
       promptTokenCount: 10,
-      candidatesTokenCount: 20,
+      candidatesTokenCount: 15,
       totalTokenCount: 30,
       thoughtsTokenCount: 5
     })
@@ -122,7 +122,7 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
     expect(response.usageMetadata).toMatchObject({ promptTokenCount: 3, candidatesTokenCount: 4, totalTokenCount: 7 })
   })
 
-  it('carries thoughtsTokenCount from the stats reasoning breakdown', () => {
+  it('keeps the Gemini usage invariant in the non-streaming response (total = prompt + candidates + thoughts)', () => {
     const adapter = new AiSdkToGeminiSse({ model: 'deepseek:deepseek-chat' })
     for (const chunk of [
       reasoningDelta('thinking...'),
@@ -135,7 +135,7 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
 
     expect(adapter.buildNonStreamingResponse().usageMetadata).toEqual({
       promptTokenCount: 3,
-      candidatesTokenCount: 4,
+      candidatesTokenCount: 2,
       totalTokenCount: 7,
       thoughtsTokenCount: 2
     })

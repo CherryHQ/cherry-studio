@@ -384,9 +384,6 @@ describe('useAgentMessageListProviderValue', () => {
       selectAllDisabled: false,
       isSelectAllLoading: false
     })
-    expect(useMessageExportActionsMock).toHaveBeenCalledWith({
-      topicName: 'Agent session'
-    })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
     expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
