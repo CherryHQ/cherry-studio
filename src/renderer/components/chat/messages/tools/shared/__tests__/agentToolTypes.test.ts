@@ -117,13 +117,19 @@ describe('dsh receipt identities', () => {
     })
   })
 
-  it('navigates a stamped receipt whose output carries no identity yet', () => {
-    // A deferred result is an envelope, so the adapter's stamp is the only correlation there is.
+  it('keeps a deferred receipt as the flow that can hydrate its own answer', () => {
+    // The pane hydrates the selected call's deferred result, so a receipt whose result is still an
+    // envelope has to stay selected: stamping it onto the launch root would strand its answer.
     const launchIndex = buildAgentLaunchIndex({ m1: [launchPart('call-a', 'agent-a', 'Audit the renderer')] })
 
     expect(
-      resolveResumeReceiptState({ $deferredToolResult: { toolCallId: 'call-send' } }, 'call-a', launchIndex, true)
-    ).toEqual({ kind: 'navigable', toolCallId: 'call-a', description: 'Audit the renderer' })
+      resolveResumeReceiptState(
+        { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call-send' } },
+        'call-a',
+        launchIndex,
+        true
+      )
+    ).toEqual({ kind: 'self' })
   })
 })
 
