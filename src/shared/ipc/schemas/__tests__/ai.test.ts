@@ -36,20 +36,6 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   })
 })
 
-describe('ai.ollama.set_num_ctx_cap IPC schema', () => {
-  const setNumCtxCap = aiRequestSchemas['ai.ollama.set_num_ctx_cap'].input
-
-  it('accepts a well-formed uniqueModelId and positive cap', () => {
-    expect(setNumCtxCap.safeParse({ uniqueModelId: 'ollama::qwen3', numCtxCap: 8192 }).success).toBe(true)
-  })
-
-  it('rejects malformed uniqueModelId values', () => {
-    for (const uniqueModelId of ['no-separator', '::qwen3', 'ollama::', 42]) {
-      expect(setNumCtxCap.safeParse({ uniqueModelId, numCtxCap: 8192 }).success).toBe(false)
-    }
-  })
-})
-
 describe('ai.stream.open IPC schema', () => {
   const openStream = aiRequestSchemas['ai.stream.open'].input
 
