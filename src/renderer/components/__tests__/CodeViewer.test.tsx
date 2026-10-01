@@ -602,7 +602,52 @@ describe('CodeViewer', () => {
       expect(offscreenResize).toBeDefined()
       const estimatedHeight = offscreenResize![1] as number
       const narrowCharsPerRow = 4
-      const visualColumns = stringWidth(ansiLine.replaceAll('\u001b', ''))
+      const visualColumns = stringWidth(ansiLine.replaceAll('\u001b', '').replaceAll('\u009b', ''))
+      expect(visualColumns).toBeGreaterThan(stringWidth(ansiLine))
+      expect(estimatedHeight).toBeGreaterThanOrEqual(lineHeight * Math.ceil(visualColumns / narrowCharsPerRow))
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
+  it('estimates enough height for offscreen wrapped rows with C1 CSI ANSI sequences', () => {
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const csi = '\u009b'
+    const ansiLine = `${csi}[31m${'x'.repeat(40)}${csi}[0m`
+    mockRowHeights(new Map([[0, 21]]))
+    const lineHeight = 21
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList?.contains('shiki-scroller')) return 72
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 21
+        }
+      })
+
+      render(<CodeViewer value={`line 1\n${ansiLine}`} language="text" wrapped maxHeight="350px" />)
+
+      const offscreenResize = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenResize).toBeDefined()
+      const estimatedHeight = offscreenResize![1] as number
+      const narrowCharsPerRow = 4
+      const visualColumns = stringWidth(ansiLine.replaceAll('\u001b', '').replaceAll('\u009b', ''))
       expect(visualColumns).toBeGreaterThan(stringWidth(ansiLine))
       expect(estimatedHeight).toBeGreaterThanOrEqual(lineHeight * Math.ceil(visualColumns / narrowCharsPerRow))
     } finally {
