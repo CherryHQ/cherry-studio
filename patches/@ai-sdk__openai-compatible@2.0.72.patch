@@ -601,48 +601,33 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
  
  type OpenAICompatibleFormDataInput = {
 diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai-compatible-chat-language-model.ts
+index a5dba91eabd76577f5123064b4573a3a7ae038b5..3bd5e6a46e1e5a202d5edb416a04deb8552629b6 100644
 --- a/src/chat/openai-compatible-chat-language-model.ts
 +++ b/src/chat/openai-compatible-chat-language-model.ts
-@@ -317,6 +317,19 @@
+@@ -317,6 +317,11 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV3 {
        });
      }
 
 +    for (const annotation of choice.message.annotations ?? []) {
-+      const citation = urlCitationSchema.safeParse(annotation);
-+      if (!citation.success) continue;
-+      const { url, title } = citation.data.url_citation;
-+      content.push({
-+        type: 'source',
-+        sourceType: 'url',
-+        id: generateId(),
-+        url,
-+        title: typeof title === 'string' ? title : undefined,
-+      });
++      const source = parseUrlCitation(annotation);
++      if (source != null) content.push(source);
 +    }
 +
      // tool calls:
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
-@@ -699,6 +712,18 @@
+@@ -699,6 +704,10 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV3 {
                  });
                }
              }
 +            for (const annotation of delta.annotations ?? []) {
-+              const citation = urlCitationSchema.safeParse(annotation);
-+              if (!citation.success) continue;
-+              const { url, title } = citation.data.url_citation;
-+              controller.enqueue({
-+                type: 'source',
-+                sourceType: 'url',
-+                id: generateId(),
-+                url,
-+                title: typeof title === 'string' ? title : undefined,
-+              });
++              const source = parseUrlCitation(annotation);
++              if (source != null) controller.enqueue(source);
 +            }
            },
 
            flush(controller) {
-@@ -817,6 +842,16 @@
+@@ -817,6 +826,31 @@ const openaiCompatibleTokenUsageSchema = z
 
  // limited version of the schema, focussed on what is needed for the implementation
  // this approach limits breakages when the API changes and increases efficiency
@@ -656,10 +641,25 @@ diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai
 +  }),
 +});
 +
++function parseUrlCitation(
++  annotation: unknown,
++): Extract<LanguageModelV3Content, { type: 'source' }> | undefined {
++  const citation = urlCitationSchema.safeParse(annotation);
++  if (!citation.success) return undefined;
++  const { url, title } = citation.data.url_citation;
++  return {
++    type: 'source',
++    sourceType: 'url',
++    id: generateId(),
++    url,
++    title: typeof title === 'string' ? title : undefined,
++  };
++}
++
  const OpenAICompatibleChatResponseSchema = z.looseObject({
    id: z.string().nullish(),
    created: z.number().nullish(),
-@@ -828,6 +863,7 @@
+@@ -828,6 +862,7 @@ const OpenAICompatibleChatResponseSchema = z.looseObject({
          content: z.string().nullish(),
          reasoning_content: z.string().nullish(),
          reasoning: z.string().nullish(),
@@ -667,7 +667,7 @@ diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai
          tool_calls: z
            .array(
              z.object({
-@@ -870,6 +906,7 @@
+@@ -870,6 +905,7 @@ const chunkBaseSchema = z.looseObject({
            // providers serving `gpt-oss` set `reasoning`. See #7866
            reasoning_content: z.string().nullish(),
            reasoning: z.string().nullish(),
