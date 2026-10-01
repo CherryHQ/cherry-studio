@@ -145,10 +145,7 @@ const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
   it('delegates Ollama num_ctx cap writes to AiService', async () => {
-    await aiHandlers['ai.ollama.set_num_ctx_cap'](
-      { uniqueModelId: 'ollama::qwen3', numCtxCap: 32_768 },
-      ctx
-    )
+    await aiHandlers['ai.ollama.set_num_ctx_cap']({ uniqueModelId: 'ollama::qwen3', numCtxCap: 32_768 }, ctx)
     expect(aiService.lowerOllamaNumCtxCap).toHaveBeenCalledWith('ollama::qwen3', 32_768)
   })
 
