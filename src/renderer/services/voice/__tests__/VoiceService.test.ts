@@ -1,3 +1,4 @@
+import i18n from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
@@ -27,7 +28,8 @@ function createService(): VoiceService {
   })
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('en-US')
   request.mockReset()
   on.mockReset()
   unsubscribe = vi.fn()
@@ -45,6 +47,69 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
+  it.each([
+    ['zh-CN', 'zh-CN'],
+    ['zh-TW', 'zh-CN'],
+    ['ja-JP', 'en-US']
+  ])('uses the interface default for an unset recognition language in %s', async (locale, language) => {
+    await i18n.changeLanguage(locale)
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readTranscriptionPreferences: async () => ({ modelId: '', language: '' })
+    })
+
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({ language })
+  })
+
+  it('updates only an implicit recognition language when the interface changes', async () => {
+    const preferences = { modelId: APPLE_ASR_MODEL_ID, language: '' }
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readTranscriptionPreferences: async () => preferences
+    })
+
+    await i18n.changeLanguage('zh-CN')
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'zh-CN'
+    })
+    await i18n.changeLanguage('en-US')
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'en-US'
+    })
+    expect(preferences.language).toBe('')
+
+    preferences.language = 'ja-JP'
+    await i18n.changeLanguage('zh-CN')
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'ja-JP'
+    })
+  })
+
+  it('keeps an existing Windows voice without adding a conflicting interface language', async () => {
+    await i18n.changeLanguage('en-US')
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readSpeechPreferences: async () => ({
+        modelId: WINDOWS_TTS_MODEL_ID,
+        voice: 'windows.zh-CN.huihui',
+        language: '',
+        speed: 1
+      })
+    })
+
+    await expect(service.resolveSpeechPreferences()).resolves.toEqual({
+      modelId: WINDOWS_TTS_MODEL_ID,
+      voice: 'windows.zh-CN.huihui',
+      speed: 1
+    })
+  })
+
   it.each([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID])('resolves exact speech parameters for %s', async (modelId) => {
     const readSpeechPreferences = vi.fn(async () => ({
       modelId,
@@ -84,7 +149,7 @@ describe('VoiceService state ownership', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('preserves an explicit recognition model and omits the automatic language sentinel', async () => {
+  it('uses the interface default for a legacy automatic recognition language', async () => {
     const readTranscriptionPreferences = vi.fn(async () => ({ modelId: APPLE_ASR_MODEL_ID, language: 'auto' }))
     const service = new VoiceService({
       ipc: { request, on },
@@ -94,13 +159,14 @@ describe('VoiceService state ownership', () => {
     })
 
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId: APPLE_ASR_MODEL_ID
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'en-US'
     })
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('omits a stale stored language for FunASR preferences', async () => {
-    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: FUNASR_MODEL_ID, language: 'en-US' }))
+  it.each(['', 'en-US'])('omits the stored language %j for FunASR preferences', async (language) => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: FUNASR_MODEL_ID, language }))
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
@@ -785,6 +851,7 @@ describe('VoiceService route facade', () => {
     const service = createService()
 
     await service.listModels()
+    await service.listTranscriptionLocales()
     await service.getModelStatus({ modelId: 'local-voice::apple-system-asr', language: 'en-US' })
     await service.listVoices()
     const install = service.installTranscriptionAsset({ language: 'en-US', source: 'settings' })
@@ -794,6 +861,7 @@ describe('VoiceService route facade', () => {
 
     expect(request.mock.calls).toEqual([
       ['ai.voice.models.list'],
+      ['ai.transcription.locales.list'],
       ['ai.voice.model.status', { modelId: 'local-voice::apple-system-asr', language: 'en-US' }],
       ['ai.speech.voices.list'],
       [

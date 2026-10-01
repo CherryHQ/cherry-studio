@@ -1,10 +1,13 @@
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+
+vi.unmock('@cherrystudio/ui')
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -25,6 +28,7 @@ const voice = vi.hoisted(() => {
     dictationListeners: new Set<() => void>(),
     speechListeners: new Set<() => void>(),
     listModels: vi.fn(),
+    listTranscriptionLocales: vi.fn(),
     getModelStatus: vi.fn(),
     listVoices: vi.fn(),
     install: vi.fn(),
@@ -40,15 +44,16 @@ const voice = vi.hoisted(() => {
     funAsrCancel: vi.fn(),
     funAsrRemove: vi.fn(),
     funAsrModel: { status: 'not_downloaded', percent: 0, isStatusResolved: true } as any,
-    bind: vi.fn(() => vi.fn()),
-    markCurrent: vi.fn(() => true)
+    targetManager: undefined as VoiceTargetManager | undefined
   }
 })
 
-vi.mock('@renderer/services/voice', () => ({
+vi.mock('@renderer/services/voice', async () => ({
+  getDefaultVoiceLanguage: (await import('@renderer/services/voice/voiceLanguage')).getDefaultVoiceLanguage,
   voiceService: {
     initialize: vi.fn(async () => undefined),
     listModels: voice.listModels,
+    listTranscriptionLocales: voice.listTranscriptionLocales,
     getModelStatus: voice.getModelStatus,
     listVoices: voice.listVoices,
     installTranscriptionAsset: voice.install,
@@ -77,7 +82,9 @@ vi.mock('@renderer/services/voice', () => ({
     start: voice.speechStart,
     stop: voice.speechStop
   },
-  voiceTargetManager: { bind: voice.bind, markCurrent: voice.markCurrent }
+  get voiceTargetManager() {
+    return voice.targetManager
+  }
 }))
 
 vi.mock('@renderer/hooks/useFunAsrModel', () => ({
@@ -103,14 +110,21 @@ const models = [
 
 describe('VoiceSettings', () => {
   beforeAll(async () => {
+    if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
+    if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
+    if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
+    HTMLElement.prototype.scrollIntoView = () => {}
     await i18n.changeLanguage('en-US')
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US')
     MockUsePreferenceUtils.resetMocks()
+    voice.targetManager = new VoiceTargetManager()
     voice.microphone.mockReset()
     voice.openMicrophoneSettings.mockReset()
     voice.listModels.mockResolvedValue({ models })
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN', 'ja-JP'], installed: ['en-US'] })
     voice.listVoices.mockResolvedValue([{ id: 'voice.exact', name: 'Exact Voice', language: 'en-US' }])
     voice.getModelStatus.mockResolvedValue({ status: 'ready' })
     voice.install.mockReturnValue({ sessionId: 'install', requestId: 'request', result: Promise.resolve() })
@@ -132,12 +146,76 @@ describe('VoiceSettings', () => {
     vi.clearAllMocks()
   })
 
+  it('follows the interface for unset languages without saving the derived default', async () => {
+    voice.listModels.mockResolvedValue({ models, defaultAsrModelId: APPLE_ASR_MODEL_ID })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.english', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' }
+    ])
+    await i18n.changeLanguage('zh-CN')
+    const user = userEvent.setup()
+    const { unmount } = render(<VoiceSettings />)
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: '识别语言' })).toHaveTextContent('跟随界面'))
+    expect(screen.getByRole('combobox', { name: '朗读语言' })).toHaveTextContent('中文（中国）')
+    await user.click(screen.getByRole('combobox', { name: '朗读语音' }))
+    expect(await screen.findByRole('option', { name: 'Tingting' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Samantha' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await act(async () => i18n.changeLanguage('ja-JP'))
+    expect(screen.getByRole('combobox', { name: '認識言語' })).toHaveTextContent('英語')
+    await act(async () => i18n.changeLanguage('en-US'))
+    expect(screen.getByRole('combobox', { name: 'Speech language' })).toHaveTextContent('English (United States)')
+    await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
+    expect(await screen.findByRole('option', { name: 'Samantha' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Tingting' })).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBeNull()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBeNull()
+    unmount()
+  })
+
+  it('restores interface defaults after an explicit language choice', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
+      'feature.voice.recognition.language': 'ja-JP',
+      'feature.voice.speech.language': 'zh-CN',
+      'feature.voice.speech.voice_id': 'voice.chinese'
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.english', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' }
+    ])
+    const user = userEvent.setup()
+    const { rerender } = render(<VoiceSettings />)
+    const recognition = screen.getByRole('combobox', { name: 'Recognition language' })
+    await waitFor(() => expect(recognition).toBeEnabled())
+    expect(recognition).toHaveTextContent('Japanese (Japan)')
+    await user.click(recognition)
+    await user.click(await screen.findByRole('option', { name: 'Follow interface (English (United States))' }))
+    rerender(<VoiceSettings />)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
+    expect(recognition).toHaveTextContent('Follow interface')
+
+    await user.click(screen.getByRole('combobox', { name: 'Speech language' }))
+    await user.click(await screen.findByRole('option', { name: 'Follow interface (English (United States))' }))
+    rerender(<VoiceSettings />)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
+    expect(screen.getByRole('combobox', { name: 'Speech language' })).toHaveTextContent('Follow interface')
+    await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
+    expect(await screen.findByRole('option', { name: 'Samantha' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Tingting' })).not.toBeInTheDocument()
+  })
+
   it('keeps missing configuration discoverable', async () => {
     render(<VoiceSettings />)
 
     expect(await screen.findByRole('heading', { name: /voice/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
-    expect(screen.getByLabelText(/speech voice/i)).toHaveValue('')
+    expect(screen.getByLabelText(/recognition model/i)).toHaveTextContent(/not configured/i)
+    expect(screen.getByLabelText(/speech language/i)).toHaveTextContent('Follow interface (English (United States))')
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
     expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
   })
@@ -155,6 +233,62 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(voice.install).toHaveBeenCalledWith({ language: 'en-US', source: 'settings' }))
   })
 
+  it('offers supported Apple recognition languages and saves the chosen locale', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const { unmount } = render(<VoiceSettings />)
+
+    const language = await screen.findByRole('combobox', { name: /recognition language/i })
+    const user = userEvent.setup()
+    await waitFor(() => expect(language).toBeEnabled())
+    await user.click(language)
+    const chinese = await screen.findByRole('option', { name: 'Chinese (China)' })
+    expect(screen.queryByRole('option', { name: /French/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /recognition language/i })).not.toBeInTheDocument()
+
+    await user.click(chinese)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+    )
+    unmount()
+    render(<VoiceSettings />)
+    await waitFor(() =>
+      expect(voice.getModelStatus).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: 'zh-CN' })
+    )
+  })
+
+  it('does not reuse the previous language readiness while a newly selected language is checked', async () => {
+    const japaneseStatus = deferred<{ status: 'not_installed'; reason: 'asset_required' }>()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
+      'feature.voice.recognition.language': 'en-US'
+    })
+    voice.getModelStatus.mockImplementation(({ language }) =>
+      language === 'ja-JP' ? japaneseStatus.promise : Promise.resolve({ status: 'ready' })
+    )
+    const { rerender } = render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.language', 'ja-JP')
+    rerender(<VoiceSettings />)
+
+    expect(record).toBeDisabled()
+    await act(async () => japaneseStatus.resolve({ status: 'not_installed', reason: 'asset_required' }))
+    expect(await screen.findByRole('button', { name: /install/i })).toBeEnabled()
+  })
+
+  it('can install Apple assets for the existing English default without writing a locale preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'asset_required' })
+    render(<VoiceSettings />)
+
+    const language = await screen.findByRole('combobox', { name: /recognition language/i })
+    await waitFor(() => expect(language).toHaveTextContent('English (United States)'))
+    fireEvent.click(await screen.findByRole('button', { name: /install/i }))
+    await waitFor(() => expect(voice.install).toHaveBeenCalledWith({ language: 'en-US', source: 'settings' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
+  })
+
   it('uses the Main recommended ASR model without persisting it or installing assets', async () => {
     voice.listModels.mockResolvedValue({ models, defaultAsrModelId: APPLE_ASR_MODEL_ID })
     render(<VoiceSettings />)
@@ -164,9 +298,177 @@ describe('VoiceSettings', () => {
     fireEvent.click(record)
 
     expect(voice.dictationStartScoped).toHaveBeenCalledWith()
-    expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
+    expect(screen.getByLabelText(/recognition model/i)).toHaveTextContent(/not configured/i)
     expect(MockUsePreferenceUtils.getAllPreferenceValues()).not.toHaveProperty('feature.voice.recognition.model_id')
     expect(voice.install).not.toHaveBeenCalled()
+  })
+
+  it('filters voices by the default or chosen language and can restore the interface default', async () => {
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.english', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' },
+      { id: 'voice.chinese.premium', name: 'Tingting (Premium)', language: 'zh-CN' }
+    ])
+    const user = userEvent.setup()
+    const { rerender } = render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: /speech language/i })
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
+    expect(screen.getByText('Speech voice')).toBeInTheDocument()
+    await user.click(language)
+    const chinese = await screen.findByRole('option', { name: 'Chinese (China)' })
+    expect(screen.getAllByRole('option', { name: 'Chinese (China)' })).toHaveLength(1)
+
+    await user.click(chinese)
+    rerender(<VoiceSettings />)
+    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
+    expect(voiceInput).toBeEnabled()
+    await user.click(voiceInput)
+    expect(await screen.findByRole('option', { name: 'Tingting' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Tingting (Premium)' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Samantha|zh-CN/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: 'Tingting (Premium)' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.chinese.premium')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+    rerender(<VoiceSettings />)
+
+    await user.click(language)
+    await user.click(await screen.findByRole('option', { name: 'Follow interface (English (United States))' }))
+    rerender(<VoiceSettings />)
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
+    expect(screen.getByText('Speech voice')).toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('')
+  })
+
+  it('uses matching language-region labels and groups regional variants in both language selectors', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listTranscriptionLocales.mockResolvedValue({
+      supported: ['en-US', 'fr-FR', 'en-GB', 'en-AU'],
+      installed: ['en-US']
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.us', name: 'Samantha', language: 'en-US' },
+      { id: 'voice.fr', name: 'Thomas', language: 'fr-FR' },
+      { id: 'voice.gb', name: 'Daniel', language: 'en-GB' },
+      { id: 'voice.au', name: 'Karen', language: 'en-AU' }
+    ])
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    const recognitionLanguage = screen.getByRole('combobox', { name: /recognition language/i })
+    await waitFor(() => expect(recognitionLanguage).toBeEnabled())
+    await user.click(recognitionLanguage)
+    const labels = ['English (Australia)', 'English (United Kingdom)', 'English (United States)', 'French (France)']
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'Follow interface (English (United States))',
+      ...labels
+    ])
+
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('combobox', { name: /speech language/i }))
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'Follow interface (English (United States))',
+      ...labels
+    ])
+  })
+
+  it.each([
+    {
+      locale: 'en-US',
+      label: 'Arabic (world)',
+      recognition: 'Recognition language',
+      speech: 'Speech language',
+      voice: 'Speech voice'
+    },
+    { locale: 'zh-CN', label: '阿拉伯语（世界）', recognition: '识别语言', speech: '朗读语言', voice: '朗读语音' }
+  ])('localizes the world region in $locale when Electron returns its numeric code', async (labels) => {
+    await i18n.changeLanguage(labels.locale)
+    const nativeOf = Intl.DisplayNames.prototype.of
+    const displayName = vi
+      .spyOn(Intl.DisplayNames.prototype, 'of')
+      .mockImplementation(function (this: Intl.DisplayNames, code) {
+        if (code === 'ar-001')
+          return this.resolvedOptions().locale.startsWith('zh') ? '阿拉伯语（001）' : 'Arabic (001)'
+        return nativeOf.call(this, code)
+      })
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['ar-001'], installed: ['ar-001'] })
+    voice.listVoices.mockResolvedValue([{ id: 'voice.arabic', name: 'Majed', language: 'ar-001' }])
+    const view = render(<VoiceSettings />)
+    try {
+      const user = userEvent.setup()
+      const recognition = screen.getByRole('combobox', { name: labels.recognition })
+      await waitFor(() => expect(recognition).toBeEnabled())
+      await user.click(recognition)
+      await user.click(await screen.findByRole('option', { name: labels.label }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('ar-001')
+
+      await user.click(screen.getByRole('combobox', { name: labels.speech }))
+      await user.click(await screen.findByRole('option', { name: labels.label }))
+      view.rerender(<VoiceSettings />)
+      await user.click(screen.getByRole('combobox', { name: labels.voice }))
+      await user.click(await screen.findByRole('option', { name: 'Majed' }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('ar-001')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.arabic')
+    } finally {
+      view.unmount()
+      displayName.mockRestore()
+      await i18n.changeLanguage('en-US')
+    }
+  })
+
+  it('clears an incompatible voice when the user changes language without selecting a replacement', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.language': 'en-US',
+      'feature.voice.speech.voice_id': 'voice.exact'
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'voice.exact', name: 'Exact Voice', language: 'en-US' },
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' }
+    ])
+    const { rerender } = render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: /speech language/i })
+    const user = userEvent.setup()
+    await user.click(language)
+    await user.click(await screen.findByRole('option', { name: 'Chinese (China)' }))
+    rerender(<VoiceSettings />)
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('zh-CN')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent(/not configured/i)
+    expect(screen.getByRole('button', { name: /play preview/i })).toBeDisabled()
+  })
+
+  it('derives the language from an existing voice without rewriting saved settings', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', 'voice.exact')
+    voice.listVoices.mockResolvedValue([{ id: 'voice.exact', name: 'Exact Voice', language: 'zh-CN' }])
+    render(<VoiceSettings />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /speech language/i })).toHaveTextContent('Chinese (China)')
+    )
+    expect(screen.getByRole('combobox', { name: /speech voice/i })).toHaveTextContent('Exact Voice')
+    await act(async () => i18n.changeLanguage('ja-JP'))
+    expect(screen.getByRole('combobox', { name: i18n.t('settings.voice.speech.language') })).toHaveTextContent('中国語')
+    expect(screen.getByRole('combobox', { name: i18n.t('settings.voice.speech.voice') })).toHaveTextContent(
+      'Exact Voice'
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBeNull()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.exact')
+  })
+
+  it('keeps an unavailable saved voice visible without silently substituting another voice', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.language': 'en-US',
+      'feature.voice.speech.voice_id': 'voice.removed'
+    })
+    render(<VoiceSettings />)
+
+    const voiceInput = screen.getByRole('combobox', { name: /speech voice/i })
+    expect(voiceInput).toHaveTextContent(/voice.*unavailable/i)
+    await userEvent.setup().click(voiceInput)
+    expect(await screen.findByRole('option', { name: /voice.*unavailable/i })).toHaveAttribute('aria-disabled', 'true')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.removed')
   })
 
   it('queries TTS status with the exact selected voice and language', async () => {
@@ -187,6 +489,63 @@ describe('VoiceSettings', () => {
     expect(screen.getByTestId('speech-status')).toHaveTextContent(/ready/i)
   })
 
+  it('waits for the current speech voice check before allowing preview', async () => {
+    const nextVoiceStatus = deferred<{ status: 'ready' }>()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact',
+      'feature.voice.speech.language': 'en-US'
+    })
+    voice.getModelStatus.mockImplementation(({ voice: voiceId }) =>
+      voiceId === 'voice.next' ? nextVoiceStatus.promise : Promise.resolve({ status: 'ready' })
+    )
+    const { rerender } = render(<VoiceSettings />)
+    await userEvent.setup().type(screen.getByRole('textbox', { name: /preview text/i }), 'Hello world')
+    const preview = screen.getByRole('button', { name: /play preview/i })
+    await waitFor(() => expect(preview).toBeEnabled())
+
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', 'voice.next')
+    rerender(<VoiceSettings />)
+    expect(preview).toBeDisabled()
+    await act(async () => nextVoiceStatus.resolve({ status: 'ready' }))
+    expect(preview).toBeEnabled()
+  })
+
+  it.each([
+    ['voice.exact', false],
+    ['voice.third', false],
+    ['voice.third', true]
+  ])('waits for an older voice check when switching to %s (previous check fails: %s)', async (finalVoice, fails) => {
+    const pendingStatus = deferred<{ status: 'ready' }>()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact'
+    })
+    voice.getModelStatus.mockImplementation(({ voice: voiceId }) =>
+      voiceId === 'voice.pending' ? pendingStatus.promise : Promise.resolve({ status: 'ready' })
+    )
+    const { rerender } = render(<VoiceSettings />)
+    await userEvent.setup().type(screen.getByRole('textbox', { name: /preview text/i }), 'Hello world')
+    const preview = screen.getByRole('button', { name: /play preview/i })
+    await waitFor(() => expect(preview).toBeEnabled())
+    await act(async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', 'voice.pending')
+      rerender(<VoiceSettings />)
+    })
+    expect(preview).toBeDisabled()
+
+    await act(async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.voice_id', finalVoice)
+      rerender(<VoiceSettings />)
+    })
+    expect(preview).toBeDisabled()
+    await act(async () => {
+      if (fails) pendingStatus.reject(new Error('Voice check failed'))
+      else pendingStatus.resolve({ status: 'ready' })
+    })
+    expect(preview).toBeEnabled()
+  })
+
   it('downloads FunASR from Voice settings without reserving a Voice session', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
     render(<VoiceSettings />)
@@ -195,7 +554,7 @@ describe('VoiceSettings', () => {
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/funaudiollm.*modelscope/i)
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/apache-2\.0/i)
     expect(screen.getByLabelText(/recognition language/i)).toBeDisabled()
-    expect(screen.getByLabelText(/recognition language/i)).toHaveValue('Automatic detection')
+    expect(screen.getByLabelText(/recognition language/i)).toHaveTextContent(/auto/i)
     expect(voice.funAsrDownload).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('button', { name: /download model/i }))
     await waitFor(() => expect(voice.funAsrDownload).toHaveBeenCalledOnce())
@@ -222,7 +581,8 @@ describe('VoiceSettings', () => {
     })
     render(<VoiceSettings />)
 
-    await user.click(await screen.findByRole('button', { name: 'FunASR Nano' }))
+    await user.click(screen.getByRole('combobox', { name: /recognition model/i }))
+    await user.click(await screen.findByRole('option', { name: 'FunASR Nano' }))
 
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
@@ -365,6 +725,76 @@ describe('VoiceSettings', () => {
       sourceLabel: 'preview',
       sourceEntityId: 'voice-settings'
     })
+  })
+
+  it('replaces the full test text instead of inserting at a moved cursor', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    const transcript = screen.getByRole('textbox', { name: /recognition test transcript/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    await user.click(record)
+    const target = voice.targetManager!.captureCurrent()!
+
+    await user.type(transcript, 'Edited test text.')
+    await user.keyboard('{Home}{ArrowRight}')
+    act(() => {
+      voice.targetManager!.insert(target, 'Current recording.')
+    })
+    expect(transcript).toHaveValue('Current recording.')
+  })
+
+  it('explains when no speech was detected and allows a new recording', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.dictation = {
+      phase: 'failed',
+      elapsedMs: 2000,
+      recoveryAvailable: false,
+      retryAvailable: false,
+      error: 'no_speech'
+    }
+    render(<VoiceSettings />)
+
+    const recordingTest = within(document.getElementById('setting-voice-recognition-test')!)
+    expect(await recordingTest.findByRole('alert')).toHaveTextContent(
+      'No speech was detected. Check your microphone and record again.'
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: /record test/i })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps recognition and playback errors beside their own test controls without hiding either', async () => {
+    voice.dictation = { phase: 'failed', elapsedMs: 0, recoveryAvailable: false, error: 'no_speech' }
+    voice.speech = { phase: 'failed', progress: { completed: 0, total: 0 }, error: 'timeout' }
+    render(<VoiceSettings />)
+
+    const recordingTest = within(document.getElementById('setting-voice-recognition-test')!)
+    const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
+    expect(await recordingTest.findByRole('alert')).toHaveTextContent(/no speech was detected/i)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/timed out/i)
+    expect(screen.getAllByRole('alert')).toHaveLength(2)
+  })
+
+  it('clears the previous result when starting a new recording test', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    const transcript = screen.getByRole('textbox', { name: /recognition test transcript/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    await user.click(record)
+    const target = voice.targetManager!.captureCurrent()!
+    act(() => {
+      voice.targetManager!.insert(target, 'Previous result.')
+    })
+    expect(transcript).toHaveValue('Previous result.')
+
+    await user.click(record)
+
+    expect(transcript).toHaveValue('')
   })
 
   it('persists the local-only disclosure before enabling auto-read and restores focus', async () => {
@@ -612,24 +1042,6 @@ describe('VoiceSettings', () => {
 
     fireEvent.click(await screen.findByRole('switch', { name: /automatically read/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/operation failed/i)
-  })
-
-  it('normalizes the automatic language sentinel to an empty preference and omits it from requests', async () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
-      'feature.voice.recognition.language': ''
-    })
-    render(<VoiceSettings />)
-
-    await waitFor(() => expect(voice.getModelStatus).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID }))
-    const language = screen.getByLabelText(/recognition language/i)
-    expect(language).toHaveValue('')
-    fireEvent.change(language, { target: { value: 'auto' } })
-    await waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
-    )
-    fireEvent.click(screen.getByRole('button', { name: /record test/i }))
-    expect(voice.dictationStartScoped).toHaveBeenCalledWith()
   })
 
   it('keeps the current scoped dictation run after its target unmounts', async () => {

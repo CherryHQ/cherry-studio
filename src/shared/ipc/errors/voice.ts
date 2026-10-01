@@ -10,6 +10,7 @@ export const voiceErrorCodes = {
   busy: 'VOICE_BUSY',
   forbidden_owner: 'VOICE_FORBIDDEN',
   invalid_audio: 'VOICE_INVALID_AUDIO',
+  no_speech: 'VOICE_NO_SPEECH',
   aborted: 'VOICE_ABORTED',
   stopped: 'VOICE_STOPPED',
   invalid_request: 'VOICE_INVALID_REQUEST',

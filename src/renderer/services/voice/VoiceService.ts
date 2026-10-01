@@ -1,4 +1,5 @@
 import { preferenceService } from '@renderer/data/PreferenceService'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import {
   APPLE_ASR_MODEL_ID,
@@ -14,6 +15,8 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { EventPayload, InputFor, OutputFor } from '@shared/ipc/types'
+
+import { getDefaultVoiceLanguage } from './voiceLanguage'
 
 type VoiceRoute = keyof typeof voiceRequestSchemas
 export type VoiceCommandEvent = Extract<VoiceSessionEvent, { type: 'command' }>
@@ -169,7 +172,11 @@ export class VoiceService {
       if (!isTranscriptionModelId(storedModelId)) throw new VoiceDomainError('unsupported')
       modelId = storedModelId
     }
-    const language = modelId === FUNASR_MODEL_ID ? undefined : this.optionalLanguage(preferences.language)
+    const language =
+      modelId === FUNASR_MODEL_ID
+        ? undefined
+        : (this.optionalLanguage(preferences.language) ??
+          getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
     return {
       ...(modelId && { modelId }),
       ...(language && { language })
@@ -241,6 +248,10 @@ export class VoiceService {
 
   listModels(): Promise<OutputFor<'ai.voice.models.list'>> {
     return this.invoke(() => this.ipc.request('ai.voice.models.list'))
+  }
+
+  listTranscriptionLocales(): Promise<OutputFor<'ai.transcription.locales.list'>> {
+    return this.invoke(() => this.ipc.request('ai.transcription.locales.list'))
   }
 
   getModelStatus(input: InputFor<'ai.voice.model.status'>): Promise<OutputFor<'ai.voice.model.status'>> {

@@ -46,7 +46,11 @@ export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRun
   return new VoiceRuntimeError('operation_failed')
 }
 
-export async function withScratch<T>(operation: (directory: string) => Promise<T>, signal?: AbortSignal): Promise<T> {
+export async function withScratch<T>(
+  operation: (directory: string) => Promise<T>,
+  signal?: AbortSignal,
+  mapFailure = normalizeFailure
+): Promise<T> {
   checkAbort(signal)
   const directory = join(application.getPath('feature.voice.temp'), randomUUID())
   try {
@@ -54,7 +58,7 @@ export async function withScratch<T>(operation: (directory: string) => Promise<T
     checkAbort(signal)
     return await operation(directory)
   } catch (error) {
-    throw normalizeFailure(error, signal)
+    throw mapFailure(error, signal)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

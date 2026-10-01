@@ -6,6 +6,7 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -107,6 +108,7 @@ import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
+import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
 
@@ -1160,7 +1162,17 @@ export class AiService extends BaseService {
     signal: AbortSignal
   ): Promise<TranscriptionResult> {
     signal.throwIfAborted()
-    return aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
+    try {
+      const result = await aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
+      if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
+      return result
+    } catch (error) {
+      if (NoTranscriptGeneratedError.isInstance(error)) {
+        signal.throwIfAborted()
+        throw new VoiceRuntimeError('no_speech')
+      }
+      throw error
+    }
   }
 
   // ── Embedding ──
