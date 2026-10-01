@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "移行先",
   "settings.data.notes_relocation.error.flush_failed": "移行前に開いているノートを保存できませんでした。ノートを閉じるか保存してから、もう一度お試しください。",
   "settings.data.notes_relocation.error.generic": "ノートディレクトリの移行に失敗しました",
+  "settings.data.notes_relocation.error.in_progress": "別のノートフォルダの移行がすでに進行中です。完了してからもう一度お試しください。",
   "settings.data.notes_relocation.error.invalid_target": "選択したディレクトリが無効か、アクセスが拒否されました",
   "settings.data.notes_relocation.error.preference_update_failed": "ノートは新しいフォルダにコピーされましたが、新しいノートパスを保存できませんでした。設定で手動で指定してください。",
   "settings.data.notes_relocation.error.same_path": "新しいディレクトリは現在のノートディレクトリと同じです",

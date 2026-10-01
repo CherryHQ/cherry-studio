@@ -81,12 +81,15 @@ describe('requestRendererNotesEditsFlush', () => {
     expect(broadcastMock).not.toHaveBeenCalled()
   })
 
-  it('resolves when a registered window unregisters before acknowledging', async () => {
+  it('rejects when a registered window unregisters before acknowledging', async () => {
     registerRendererNotesEditsFlushWindow('window-a')
 
     const flushPromise = requestRendererNotesEditsFlush()
     unregisterRendererNotesEditsFlushWindow('window-a')
 
-    await expect(flushPromise).resolves.toBeUndefined()
+    await expect(flushPromise).rejects.toMatchObject({
+      code: notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED
+    })
+    await expect(flushPromise).rejects.toBeInstanceOf(IpcError)
   })
 })

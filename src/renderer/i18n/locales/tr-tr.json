@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "Hedef",
   "settings.data.notes_relocation.error.flush_failed": "Taşımadan önce açık notlar kaydedilemedi. Notlarınızı kapatın veya kaydedin ve tekrar deneyin.",
   "settings.data.notes_relocation.error.generic": "Notlar dizini taşınamadı",
+  "settings.data.notes_relocation.error.in_progress": "Başka bir notlar klasörü taşıması zaten devam ediyor. Bitmesini bekleyin ve tekrar deneyin.",
   "settings.data.notes_relocation.error.invalid_target": "Seçilen dizin geçersiz veya erişim reddedildi",
   "settings.data.notes_relocation.error.preference_update_failed": "Notlar yeni klasöre kopyalandı, ancak yeni not yolu kaydedilemedi. Ayarlardan elle belirleyin.",
   "settings.data.notes_relocation.error.same_path": "Yeni dizin mevcut notlar diziniyle aynı",

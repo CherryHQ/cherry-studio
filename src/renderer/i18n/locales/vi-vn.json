@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "Đến",
   "settings.data.notes_relocation.error.flush_failed": "Không thể lưu các ghi chú đang mở trước khi di chuyển. Hãy đóng hoặc lưu ghi chú rồi thử lại.",
   "settings.data.notes_relocation.error.generic": "Không thể di chuyển thư mục ghi chú",
+  "settings.data.notes_relocation.error.in_progress": "Đang có một thao tác di chuyển thư mục ghi chú khác. Hãy đợi hoàn tất và thử lại.",
   "settings.data.notes_relocation.error.invalid_target": "Thư mục đã chọn không hợp lệ hoặc bị từ chối truy cập",
   "settings.data.notes_relocation.error.preference_update_failed": "Ghi chú đã được sao chép sang thư mục mới, nhưng không thể lưu đường dẫn mới. Hãy đặt thủ công trong cài đặt.",
   "settings.data.notes_relocation.error.same_path": "Thư mục mới trùng với thư mục ghi chú hiện tại",

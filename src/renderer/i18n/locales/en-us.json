@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "To",
   "settings.data.notes_relocation.error.flush_failed": "Could not save open notes before migration. Close or save your notes and try again.",
   "settings.data.notes_relocation.error.generic": "Failed to migrate notes directory",
+  "settings.data.notes_relocation.error.in_progress": "Another notes directory migration is already in progress. Wait for it to finish and try again.",
   "settings.data.notes_relocation.error.invalid_target": "The selected directory is invalid or access denied",
   "settings.data.notes_relocation.error.preference_update_failed": "Notes were copied to the new folder, but the app could not save the new notes path. Set it manually in settings.",
   "settings.data.notes_relocation.error.same_path": "The new directory is the same as the current notes directory",

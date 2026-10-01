@@ -3843,6 +3843,7 @@
   "settings.data.notes_relocation.confirm.to": "Куда",
   "settings.data.notes_relocation.error.flush_failed": "Не удалось сохранить открытые заметки перед переносом. Закройте или сохраните заметки и повторите попытку.",
   "settings.data.notes_relocation.error.generic": "Не удалось перенести каталог заметок",
+  "settings.data.notes_relocation.error.in_progress": "Уже выполняется другой перенос папки заметок. Дождитесь его завершения и повторите попытку.",
   "settings.data.notes_relocation.error.invalid_target": "Выбранный каталог недействителен или доступ запрещён",
   "settings.data.notes_relocation.error.preference_update_failed": "Заметки скопированы в новую папку, но сохранить новый путь не удалось. Укажите его вручную в настройках.",
   "settings.data.notes_relocation.error.same_path": "Новый каталог совпадает с текущим каталогом заметок",

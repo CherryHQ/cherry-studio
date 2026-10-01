@@ -13,7 +13,8 @@ import {
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
   requestRendererNotesEditsFlush,
-  unregisterRendererNotesEditsFlushWindow
+  unregisterRendererNotesEditsFlushWindow,
+  withNotesRelocationExclusive
 } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -61,14 +62,15 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.notes_relocation.flush_edits_ack': async ({ requestId, ok }, { senderId }) => {
     acknowledgeRendererNotesEditsFlush(requestId, senderId, ok)
   },
-  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) => {
-    try {
-      await requestRendererNotesEditsFlush()
-      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
-    } finally {
-      application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
-    }
-  },
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }) =>
+    withNotesRelocationExclusive(async () => {
+      try {
+        await requestRendererNotesEditsFlush()
+        return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      } finally {
+        application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
+      }
+    }),
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),
