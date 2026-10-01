@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { stripModelScratchpadBlocks, textStartsWithModelScratchpadTag } from '../scratchpadText'
+import {
+  stripKnownModelScratchpadBlocks,
+  stripModelScratchpadBlocks,
+  textStartsWithModelScratchpadTag
+} from '../scratchpadText'
 
 describe('scratchpadText', () => {
   it('detects scratchpad-shaped text by its opening wrapper tag', () => {
@@ -12,9 +16,7 @@ describe('scratchpadText', () => {
 
   it('strips arbitrary paired scratchpad blocks and unwraps summary payloads', () => {
     expect(
-      stripModelScratchpadBlocks(
-        '<thinking>hidden</thinking><analysis>also hidden</analysis><summary>kept</summary>'
-      )
+      stripModelScratchpadBlocks('<thinking>hidden</thinking><analysis>also hidden</analysis><summary>kept</summary>')
     ).toBe('kept')
   })
 
@@ -24,5 +26,11 @@ describe('scratchpadText', () => {
 
   it('preserves non-scratchpad markup when stripping compaction output', () => {
     expect(stripModelScratchpadBlocks('<thinking>hidden</thinking><div>visible</div>')).toBe('<div>visible</div>')
+  })
+
+  it('keeps trailing reply text when stripping known scratchpad wrappers', () => {
+    expect(
+      stripKnownModelScratchpadBlocks('<thinking>hidden</thinking>visible follow-up in the same block')
+    ).toBe('visible follow-up in the same block')
   })
 })
