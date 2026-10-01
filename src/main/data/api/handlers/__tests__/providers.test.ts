@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   createMock,
   listMock,
-  listEditionHiddenProviderIdsMock,
   getByProviderIdMock,
   updateMock,
   deleteMock,
@@ -19,7 +18,6 @@ const {
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
-  listEditionHiddenProviderIdsMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -44,7 +42,6 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     create: createMock,
     list: listMock,
-    listEditionHiddenProviderIds: listEditionHiddenProviderIdsMock,
     getByProviderId: getByProviderIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -107,17 +104,6 @@ describe('providerHandlers', () => {
       ).rejects.toThrow()
 
       expect(createMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/providers/edition-hidden', () => {
-    it('returns the IDs hidden by edition policy', async () => {
-      listEditionHiddenProviderIdsMock.mockReturnValueOnce(['openai', 'anthropic'])
-
-      const result = await providerHandlers['/providers/edition-hidden'].GET({})
-
-      expect(listEditionHiddenProviderIdsMock).toHaveBeenCalledOnce()
-      expect(result).toEqual(['openai', 'anthropic'])
     })
   })
 

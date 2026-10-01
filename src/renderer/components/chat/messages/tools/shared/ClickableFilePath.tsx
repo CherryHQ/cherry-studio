@@ -18,17 +18,25 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  preserveWrappingPunctuation?: boolean
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  preserveWrappingPunctuation = false
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
-  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(path), [path])
+  const displayPath = useMemo(
+    () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
+    [path, preserveWrappingPunctuation]
+  )
+  const unresolvedTargetPath = useMemo(
+    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+    [path, preserveWrappingPunctuation]
+  )
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
@@ -90,7 +98,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           tabIndex={canOpen ? 0 : undefined}
           onClick={canOpen ? handleOpen : undefined}
           onKeyDown={canOpen ? handleKeyDown : undefined}
-          className={`inline-flex items-center gap-1 break-all ${
+          className={`inline-flex items-center gap-1 break-all [table_&]:break-normal ${
             canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
           }`}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />

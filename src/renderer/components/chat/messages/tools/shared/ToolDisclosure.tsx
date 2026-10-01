@@ -100,7 +100,7 @@ export function ToolDisclosure({
                 data-testid={`collapse-content-${item.key}`}
                 className={cn(
                   isLight
-                    ? 'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
+                    ? 'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto overscroll-contain rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
                     : 'p-2.5',
                   bodyClassName,
                   item.classNames?.body

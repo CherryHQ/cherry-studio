@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +9,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import { TopicRightPane } from '../TopicRightPane'
 
-const developerModeEnabled = vi.fn(() => true)
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
@@ -19,11 +19,6 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
   ...(await importOriginal()),
   useIsActiveTab: () => true
-}))
-
-vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) =>
-    key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -120,7 +115,25 @@ vi.mock('react-i18next', () => ({
 describe('TopicRightPane', () => {
   beforeEach(() => {
     useCommandHandlerMock.mockClear()
-    developerModeEnabled.mockReturnValue(true)
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+  })
+
+  it('hides the browser entry when conversation or global browser control is disabled', () => {
+    const pane = (browserEnabled: boolean) => (
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Shortcuts browserEnabled={browserEnabled} />
+      </TopicRightPane.Scope>
+    )
+    const view = render(pane(true))
+    expect(screen.getByRole('button', { name: 'settings.browser.title' })).toBeVisible()
+    view.rerender(pane(false))
+    expect(screen.queryByRole('button', { name: 'settings.browser.title' })).not.toBeInTheDocument()
+    view.rerender(pane(true))
+    expect(screen.getByRole('button', { name: 'settings.browser.title' })).toBeVisible()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    view.rerender(pane(true))
+    expect(screen.queryByRole('button', { name: 'settings.browser.title' })).not.toBeInTheDocument()
   })
 
   const triggerRightSidebarShortcut = () => {
@@ -270,7 +283,7 @@ describe('TopicRightPane', () => {
   })
 
   it('hides the trace tab when developer mode is off', async () => {
-    developerModeEnabled.mockReturnValue(false)
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
 
     render(
       <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">

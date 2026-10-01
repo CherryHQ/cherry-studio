@@ -190,6 +190,32 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
+    const forkSession = vi.fn()
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
+    expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
@@ -244,26 +270,27 @@ describe('messageMenuBarActions', () => {
     )
   })
 
-  it('keeps user edit toolbar action for root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
+  it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: {
+        editMessage: mode === 'resend' ? undefined : vi.fn(),
+        canEditMessage: mode === 'inline' ? undefined : () => mode === 'resend'
+      },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toEqual(
+      mode === 'blocked' ? ['copy'] : ['copy', 'user-edit']
     )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
