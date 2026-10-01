@@ -37,7 +37,7 @@ describe.each([
       url: ({ path }) => `https://apihub.agnes-ai.com/v1${path}`,
       headers: () => ({}),
       fetch: (async (_url: unknown, init: RequestInit) => {
-        bodies.push(JSON.parse(String(init.body)))
+        bodies.push(init.body instanceof FormData ? Object.fromEntries(init.body) : JSON.parse(String(init.body)))
         return respond(bodies.length - 1)
       }) as unknown as typeof globalThis.fetch
     })
@@ -52,6 +52,30 @@ describe.each([
     expect(bodies).toHaveLength(1)
     expect(bodies[0].response_format).toBe('b64_json')
     expect(result.images).toEqual(['QUJD'])
+  })
+
+  it.each(['generation', 'edit'] as const)('normalizes mixed image replies consistently for %s', async (mode) => {
+    const { image, bodies } = model(() =>
+      ok({
+        data: [
+          { b64_json: 'QUJD', url: 'https://img/prefer-base64.png' },
+          { b64_json: null, url: 'https://img/url.png' },
+          { b64_json: '', url: 'https://img/empty-base64.png' },
+          { b64_json: null, url: null },
+          {}
+        ]
+      })
+    )
+
+    const result = await image.doGenerate({
+      ...options,
+      ...(mode === 'edit'
+        ? { files: [{ type: 'file' as const, data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' }] }
+        : {})
+    })
+
+    expect(bodies).toHaveLength(1)
+    expect(result.images).toEqual(['QUJD', 'https://img/url.png', ''])
   })
 
   it('retries without response_format when the model rejects it with a 400', async () => {

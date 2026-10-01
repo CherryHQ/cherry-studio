@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289a40ac8ee 100644
+index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..4db4ac72eb287ecc382988f85028ca4fe467dfb2 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -257,7 +257,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -133,7 +133,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1649,31 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1585,13 +1649,38 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -163,23 +163,26 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
 +    (detail) => typeof detail === "string" && /response(?:_|\s|-)?format/i.test(detail)
 +  );
 +}
++function normalizeImageResponse(data) {
++  return data.flatMap((item) => {
++    if (typeof item.b64_json === "string") return [item.b64_json];
++    if (typeof item.url === "string") return [item.url];
++    return [];
++  });
++}
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1749,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1667,7 +1756,7 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
 -        images: response2.data.map((item) => item.b64_json),
-+        images: response2.data.flatMap((item) => {
-+          if (typeof item.b64_json === 'string') return [item.b64_json];
-+          if (typeof item.url === 'string') return [item.url];
-+          return [];
-+        }),
++        images: normalizeImageResponse(response2.data),
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1762,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1676,7 +1765,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -188,7 +191,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1773,8 @@ var OpenAICompatibleImageModel = class {
+@@ -1687,8 +1776,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -199,7 +202,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1785,25 @@ var OpenAICompatibleImageModel = class {
+@@ -1699,8 +1788,21 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -218,15 +221,11 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
 +    const { value: response, responseHeaders } = posted;
      return {
 -      images: response.data.map((item) => item.b64_json),
-+      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === 'string') return [item.b64_json];
-+        if (typeof item.url === 'string') return [item.url];
-+        return [];
-+      }),
++      images: normalizeImageResponse(response.data),
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1814,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1711,7 +1813,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -236,7 +235,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae6f7fa4b1 100644
+index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..5e0784e5e88320b6b16ed1e4b5aa50b831a69170 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -241,7 +241,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -379,7 +378,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1605,6 +1669,24 @@ import {
+@@ -1605,6 +1669,31 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -401,23 +400,26 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
 +    (detail) => typeof detail === "string" && /response(?:_|\s|-)?format/i.test(detail)
 +  );
 +}
++function normalizeImageResponse(data) {
++  return data.flatMap((item) => {
++    if (typeof item.b64_json === "string") return [item.b64_json];
++    if (typeof item.url === "string") return [item.url];
++    return [];
++  });
++}
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1762,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1680,7 +1769,7 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
 -        images: response2.data.map((item) => item.b64_json),
-+        images: response2.data.flatMap((item) => {
-+          if (typeof item.b64_json === 'string') return [item.b64_json];
-+          if (typeof item.url === 'string') return [item.url];
-+          return [];
-+        }),
++        images: normalizeImageResponse(response2.data),
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1775,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1689,7 +1778,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -426,7 +428,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1786,8 @@ var OpenAICompatibleImageModel = class {
+@@ -1700,8 +1789,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -437,7 +439,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1798,25 @@ var OpenAICompatibleImageModel = class {
+@@ -1712,8 +1801,21 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -456,15 +458,11 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
 +    const { value: response, responseHeaders } = posted;
      return {
 -      images: response.data.map((item) => item.b64_json),
-+      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === 'string') return [item.b64_json];
-+        if (typeof item.url === 'string') return [item.url];
-+        return [];
-+      }),
++      images: normalizeImageResponse(response.data),
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1827,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1724,7 +1826,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
@@ -474,10 +472,10 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/src/image/openai-compatible-image-model.ts b/src/image/openai-compatible-image-model.ts
-index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65368006a0 100644
+index 408e96c59cc66085ccd0b9e9900f2887e05dd238..dd7bf88f2d5716722d1d12230108983ffe323c79 100644
 --- a/src/image/openai-compatible-image-model.ts
 +++ b/src/image/openai-compatible-image-model.ts
-@@ -23,6 +23,34 @@ import {
+@@ -23,6 +23,44 @@ import {
  } from '../openai-compatible-error';
  import type { OpenAICompatibleImageModelId } from './openai-compatible-image-settings';
  
@@ -509,23 +507,29 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
 +  );
 +}
 +
++function normalizeImageResponse(
++  data: Array<{ b64_json?: string | null; url?: string | null }>,
++): string[] {
++  return data.flatMap(item => {
++    if (typeof item.b64_json === 'string') return [item.b64_json];
++    if (typeof item.url === 'string') return [item.url];
++    return [];
++  });
++}
++
  export type OpenAICompatibleImageModelConfig = {
    provider: string;
    headers: () => Record<string, string | undefined>;
-@@ -125,7 +153,11 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+@@ -125,7 +163,7 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
        });
  
        return {
 -        images: response.data.map(item => item.b64_json),
-+        images: response.data.flatMap(item => {
-+          if (typeof item.b64_json === 'string') return [item.b64_json];
-+          if (typeof item.url === 'string') return [item.url];
-+          return [];
-+        }),
++        images: normalizeImageResponse(response.data),
          warnings,
          response: {
            timestamp: currentDate,
-@@ -136,7 +168,8 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+@@ -136,7 +174,8 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
      }
  
      // Standard image generation mode - use JSON and /images/generations endpoint
@@ -535,7 +539,7 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
        url: this.config.url({
          path: '/images/generations',
          modelId: this.modelId,
-@@ -147,8 +180,10 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+@@ -147,8 +186,10 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
          prompt,
          n,
          size,
@@ -547,7 +551,7 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
        },
        failedResponseHandler: createJsonErrorResponseHandler(
          this.config.errorStructure ?? defaultOpenAICompatibleErrorStructure,
-@@ -158,10 +193,36 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+@@ -158,10 +199,32 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
        ),
        abortSignal,
        fetch: this.config.fetch,
@@ -578,15 +582,11 @@ index 408e96c59cc66085ccd0b9e9900f2887e05dd238..6c799d18eff37050b5da35d283361f65
  
      return {
 -      images: response.data.map(item => item.b64_json),
-+      images: response.data.flatMap(item => {
-+        if (typeof item.b64_json === 'string') return [item.b64_json];
-+        if (typeof item.url === 'string') return [item.url];
-+        return [];
-+      }),
++      images: normalizeImageResponse(response.data),
        warnings,
        response: {
          timestamp: currentDate,
-@@ -175,7 +236,12 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
+@@ -175,7 +238,12 @@ export class OpenAICompatibleImageModel implements ImageModelV3 {
  // minimal version of the schema, focussed on what is needed for the implementation
  // this approach limits breakages when the API changes and increases efficiency
  const openaiCompatibleImageResponseSchema = z.object({
