@@ -108,10 +108,10 @@ export function AgentToolCallCard({
             title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
-  // A resume receipt keeps the disclosure row that carries its presentation; the launch row is for
-  // a launch, which opens a flow of its own and has no resume label to show.
-  if (openToolFlow && !labelOverride) {
-    const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
+  // Every flow entry — a launch, or a receipt that resumed one — is the same row, titled by the
+  // agent it belongs to.
+  if (openToolFlow) {
+    const title = flowTitle ?? getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
     const Icon = failed

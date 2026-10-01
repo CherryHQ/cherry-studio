@@ -151,7 +151,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
         flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
-        labelOverride={resumeHeader?.header}
+        labelOverride={resumeEntry ? undefined : resumeHeader?.header}
         showInlineDetails={!isSubagentTool}
       />
       <ToolApprovalOutcome approval={toolResponse.approval} />
