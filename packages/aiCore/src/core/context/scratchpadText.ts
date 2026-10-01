@@ -33,14 +33,12 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
  * models may emit `<thinking>`, `<analysis>`, `<assessment>`, or other simple wrappers.
  */
 export function stripModelScratchpadBlocks(raw: string): string {
-  let out = raw
+  let out = stripKnownModelScratchpadBlocks(raw)
 
   const summaryMatch = out.match(/<summary>([\s\S]*?)<\/summary>/i)
   if (summaryMatch) {
     out = summaryMatch[1]
   }
-
-  out = stripKnownModelScratchpadBlocks(out)
 
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }

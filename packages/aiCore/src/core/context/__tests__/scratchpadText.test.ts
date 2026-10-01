@@ -28,6 +28,14 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks('<thinking>hidden</thinking><div>visible</div>')).toBe('<div>visible</div>')
   })
 
+  it('ignores summary tags nested inside scratchpad blocks', () => {
+    expect(
+      stripModelScratchpadBlocks(
+        '<analysis><summary>decoy inside scratchpad</summary></analysis><summary>actual summary</summary>'
+      )
+    ).toBe('actual summary')
+  })
+
   it('keeps trailing reply text when stripping known scratchpad wrappers', () => {
     expect(stripKnownModelScratchpadBlocks('<thinking>hidden</thinking>visible follow-up in the same block')).toBe(
       'visible follow-up in the same block'

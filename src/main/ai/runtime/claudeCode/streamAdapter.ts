@@ -981,6 +981,9 @@ export class ClaudeCodeStreamAdapter {
       if (atBlockEnd && textStartsWithModelScratchpadTag(probe)) {
         return { action: 'suppress' }
       }
+      if (atBlockEnd) {
+        return { action: 'emit', visible: probe }
+      }
       return { action: 'pending' }
     }
 
