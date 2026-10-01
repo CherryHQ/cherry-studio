@@ -1053,8 +1053,9 @@ export class ClaudeCodeStreamAdapter {
       const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
       if (classified.action === 'pending') return
       if (classified.action === 'suppress') {
-        ctx.textStartDeferred = false
+        ctx.textStartDeferred = true
         ctx.scratchpadTextProbe = ''
+        ctx.suppressActiveTextPart = false
         ctx.textPartStarted = false
         return
       }

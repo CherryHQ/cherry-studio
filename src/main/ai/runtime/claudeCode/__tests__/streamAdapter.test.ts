@@ -2086,6 +2086,46 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
     })
 
+    it('preserves visible text after a scratchpad-only delta followed by a later visible delta', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking = '<thinking>internal reasoning</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: leakedThinking }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'visible answer in a later delta' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('visible answer in a later delta')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking>')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
     it('preserves ordinary markup and avoids orphan text-end while probing scratchpad prefixes', () => {
       const { adapter, parts } = createAdapter()
 
