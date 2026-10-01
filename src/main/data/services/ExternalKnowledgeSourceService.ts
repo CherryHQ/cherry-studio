@@ -6,11 +6,15 @@ import {
   type InsertExternalKnowledgeSourceRow,
   externalKnowledgeSourceTable
 } from '@data/db/schemas/externalKnowledgeSource'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { ExternalKnowledgeSourceListItem } from '@shared/data/api/schemas/externalKnowledge'
 import {
+  ExternalKnowledgeSchedulePolicySchema,
   type ExternalKnowledgeSource,
+  type ExternalKnowledgeSchedulePolicy,
   type ExternalKnowledgeSourceState,
   ExternalKnowledgeSourceSchema,
   type ExternalKnowledgeSyncOutcome,
@@ -102,6 +106,43 @@ export class ExternalKnowledgeSourceService {
     return this.listByBaseIdTx(this.db, baseId)
   }
 
+  listByBaseIdWithSchedule(baseId: string): ExternalKnowledgeSourceListItem[] {
+    knowledgeBaseService.getById(baseId)
+    return this.db
+      .select({
+        source: externalKnowledgeSourceTable,
+        trigger: jobScheduleTable.trigger,
+        enabled: jobScheduleTable.enabled,
+        nextRun: jobScheduleTable.nextRun
+      })
+      .from(externalKnowledgeSourceTable)
+      .leftJoin(jobScheduleTable, eq(externalKnowledgeSourceTable.scheduleId, jobScheduleTable.id))
+      .where(eq(externalKnowledgeSourceTable.baseId, baseId))
+      .orderBy(desc(externalKnowledgeSourceTable.updatedAt), desc(externalKnowledgeSourceTable.id))
+      .all()
+      .map(({ source, trigger, enabled, nextRun }) => {
+        let policy: ExternalKnowledgeSchedulePolicy = { kind: 'manual' }
+        if (trigger) {
+          if (trigger.kind !== 'cron') {
+            throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeSource', 'Linked schedule is not daily')
+          }
+          const [minute, hour] = trigger.expr.split(' ')
+          policy = ExternalKnowledgeSchedulePolicySchema.parse({
+            kind: 'daily',
+            time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+            timezone: trigger.timezone
+          })
+        }
+        return {
+          ...rowToEntity(source),
+          schedule: {
+            policy,
+            nextRunAt: enabled && nextRun !== null ? timestampToISO(nextRun) : null
+          }
+        }
+      })
+  }
+
   listByBaseIdTx(tx: Pick<DbType, 'select'>, baseId: string): ExternalKnowledgeSource[] {
     return tx
       .select()
@@ -124,6 +165,21 @@ export class ExternalKnowledgeSourceService {
       .limit(1)
       .get()
     return row ? rowToEntity(row) : null
+  }
+
+  rename(id: string, name: string): ExternalKnowledgeSource {
+    const trimmedName = name.trim()
+    if (!trimmedName || trimmedName.length > 256) {
+      throw DataApiErrorFactory.validation({ name: ['Name must be between 1 and 256 characters'] })
+    }
+    const [row] = this.db
+      .update(externalKnowledgeSourceTable)
+      .set({ name: trimmedName, updatedAt: Date.now() })
+      .where(eq(externalKnowledgeSourceTable.id, id))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', id)
+    return rowToEntity(row)
   }
 
   listByConnectionId(connectionId: string): ExternalKnowledgeSource[] {

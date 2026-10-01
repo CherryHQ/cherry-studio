@@ -26,6 +26,21 @@ Feishu China `/wiki/{token}` and `/docx/{token}` URLs. It rejects credentials in
 the URL, non-default ports, Lark hosts, arbitrary hosts, path traversal, and
 unsupported paths before a provider request is admitted.
 
+`knowledge.feishu.spaces.list` pages through Wiki spaces available to the
+connected user. It requires the optional `wiki:space:retrieve` user scope;
+missing discovery permission does not change Connection or Source state. Feishu
+does not include the personal `my_library` in this list. The picker retains the
+URL path for connections without discovery permission and for a specific node
+or document. `knowledge.feishu.space.preview` accepts a selected space id and
+rechecks access in main before scanning all of its visible root nodes.
+New PersonalAgent registrations request the discovery scope. A self-built app
+requests it only when the user opts into space selection during authorization;
+its existing URL authorization path remains available without that scope.
+An existing connection may explicitly reauthorize with discovery consent. This
+uses the existing reconnect lifecycle, so dependent Sources pause until the
+connection succeeds again. A missing discovery permission alone does not pause
+them.
+
 Only the validated token and URL kind enter provider operations. API requests
 always use the fixed `https://open.feishu.cn` origin. Query strings and fragments
 from the input URL do not enter the returned safe original URL. Renderer output
@@ -35,6 +50,9 @@ provider payload, or Feishu-specific traversal sidecar.
 Resolve and preview are separate commands. Preview re-runs resolution from the
 raw URL and does not accept a prior resolution or session handle as authority.
 Its result is an ephemeral observation, not an initial-sync snapshot.
+Space preview likewise rechecks the space id instead of trusting list metadata
+from the renderer. It returns space metadata and counts without inventing a
+root-node descriptor or URL.
 
 ## Resolution and traversal
 
@@ -76,11 +94,13 @@ the scan with persisted Documents and publishes the resulting changes.
 
 ## Source creation, synchronization, and lifecycle
 
-`knowledge.external_source.create` accepts only a base id, connection id, raw
-URL, and name. Main re-runs trusted scope resolution rather than accepting a
-preview result as authority. Source creation, the initial durable Job enqueue,
-and the `activeJobId` fence commit in one SQLite transaction. A failure in any
-step leaves no Source or Job intent behind.
+`knowledge.external_source.create` accepts a base id, connection id, name, and
+either a raw URL or a selected space id. Main re-runs trusted URL resolution or
+rechecks that the selected space is available to the connected user rather than
+accepting a preview result as authority. A selected space creates a whole-space
+scope. Source creation, the initial durable Job enqueue, and the `activeJobId`
+fence commit in one SQLite transaction. A failure in any step leaves no Source
+or Job intent behind.
 
 `knowledge.external_source.sync` accepts only a Source id. It re-reads the
 Source, rejects paused Sources and failed bases, and enqueues the same
@@ -161,6 +181,7 @@ limits:
 The budget state lives in the existing per-credential runtime state. There is no
 application-wide limiter, provider registry, module-global queue, or adapter
 singleton.
+Wiki space-list requests also use a 600 ms per-credential minimum interval.
 
 ## Error boundary
 
@@ -169,6 +190,8 @@ The runtime and IPC boundary preserve these distinct outcomes:
 - terminal connection authentication marks the Connection as
   `reauthorization-required`;
 - missing required application or user scope reports `scope-missing`;
+- missing optional Wiki discovery permission reports `scope-missing` only for
+  space-list and space-selection commands, without pausing existing Sources;
 - resource ACL denial does not change Connection authorization state;
 - a missing scope or node reports `scope-not-found`;
 - an unsupported node reports `unsupported-resource` without invalidating the

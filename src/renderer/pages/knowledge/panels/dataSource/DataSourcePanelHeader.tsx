@@ -18,6 +18,7 @@ interface DataSourcePanelHeaderProps {
   onBulkReindex: () => void
   onBulkDelete: () => void
   onAdd: (source: KnowledgeItemType) => void
+  onAddFeishuWiki: () => void
   /** Adding is only meaningful at the base root; a drilled-in directory mirrors a read-only
    *  filesystem folder, so the entry is hidden there to avoid "add" silently landing at the root. */
   canAddSource?: boolean
@@ -35,6 +36,7 @@ const DataSourcePanelHeader = ({
   onBulkReindex,
   onBulkDelete,
   onAdd,
+  onAddFeishuWiki,
   canAddSource = true,
   localModelStatus
 }: DataSourcePanelHeaderProps) => {
@@ -137,6 +139,16 @@ const DataSourcePanelHeader = ({
                     onClick={() => handleSourceSelect(source.value)}
                   />
                 ))}
+                <MenuItem
+                  role="menuitem"
+                  variant="ghost"
+                  label={t('knowledge.data_source.add_dialog.sources.feishu_wiki')}
+                  className="h-8 rounded-lg px-2.5 text-sm"
+                  onClick={() => {
+                    setIsSourceMenuOpen(false)
+                    onAddFeishuWiki()
+                  }}
+                />
               </MenuList>
             </PopoverContent>
           </Popover>

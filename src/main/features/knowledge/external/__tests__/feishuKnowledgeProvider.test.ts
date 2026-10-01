@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FEISHU_REQUIRED_USER_SCOPES,
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
   getDocxMarkdown,
   getWikiNode,
   listWikiChildNodes,
+  listWikiSpaces,
   getUserIdentity,
   refreshUserToken,
   revokeUserToken
@@ -57,6 +59,69 @@ describe('feishuKnowledgeProvider', () => {
     )
   })
 
+  it('requests space discovery only when selected for authorization', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        device_code: 'device-code',
+        user_code: 'ABCD-EFGH',
+        verification_uri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+        expires_in: 600
+      })
+    )
+
+    await beginDeviceAuthorization({ appId: 'cli_test', appSecret: 'secret-sentinel' }, undefined, true)
+
+    const [, init] = vi.mocked(net.fetch).mock.calls[0]
+    expect(new URLSearchParams(init?.body?.toString()).get('scope')?.split(' ')).toEqual([
+      ...FEISHU_REQUIRED_USER_SCOPES,
+      FEISHU_SPACE_DISCOVERY_USER_SCOPE
+    ])
+  })
+
+  it('lists a bounded page of Wiki spaces from the user token without exposing it in the result', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [{ space_id: 'space-1', name: 'Engineering', description: 'Team notes', secret: 'private' }],
+          has_more: true,
+          page_token: 'next-page'
+        }
+      })
+    )
+
+    await expect(listWikiSpaces('access-token-sentinel', 'previous-page')).resolves.toEqual({
+      spaces: [{ spaceId: 'space-1', name: 'Engineering', description: 'Team notes' }],
+      nextPageToken: 'next-page'
+    })
+    const [url, init] = vi.mocked(net.fetch).mock.calls[0]
+    expect(url).toBe('https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=50&page_token=previous-page')
+    expect(init?.headers).toEqual({ Authorization: 'Bearer access-token-sentinel' })
+  })
+
+  it('rejects a space page that claims another page without a cursor', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: true, page_token: '' } })
+    )
+
+    await expect(listWikiSpaces('access-token-sentinel')).rejects.toMatchObject({ code: 'invalid-response' })
+  })
+
+  it('classifies a Feishu list permission denial without exposing its response body', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 99991672, msg: 'private application details' }, { status: 403 })
+    )
+
+    const error = await listWikiSpaces('access-token-sentinel').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({
+      code: 'app-scope-missing',
+      terminal: true,
+      diagnostics: { httpStatus: 403, providerCode: 99991672 }
+    })
+    expect(JSON.stringify(error)).not.toContain('private application details')
+  })
+
   it('uses the actual token response scopes and rotates both tokens', async () => {
     vi.mocked(net.fetch)
       .mockResolvedValueOnce(
@@ -96,8 +161,12 @@ describe('feishuKnowledgeProvider', () => {
     )
 
     expect(error).toBeInstanceOf(FeishuProviderError)
-    expect(error).toMatchObject({ code: 'app-scope-missing', terminal: true })
-    expect((error as Error).message).not.toContain('secret-sentinel')
+    expect(error).toMatchObject({
+      code: 'app-scope-missing',
+      terminal: true,
+      diagnostics: { httpStatus: 400, oauthError: 'invalid_scope' }
+    })
+    expect(JSON.stringify(error)).not.toContain('secret-sentinel')
   })
 
   it('classifies invalid refresh grants as terminal reauthorization failures', async () => {
@@ -110,7 +179,11 @@ describe('feishuKnowledgeProvider', () => {
       'refresh-token-sentinel'
     ).catch((cause: unknown) => cause)
 
-    expect(error).toMatchObject({ code: 'reauthorization-required', terminal: true })
+    expect(error).toMatchObject({
+      code: 'reauthorization-required',
+      terminal: true,
+      diagnostics: { httpStatus: 400, providerCode: 20029, oauthError: 'invalid_grant' }
+    })
     expect(JSON.stringify(error)).not.toContain('refresh-token-sentinel')
   })
 
@@ -168,6 +241,42 @@ describe('feishuKnowledgeProvider', () => {
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
       'https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=wikcnNode&obj_type=wiki'
     )
+  })
+
+  it('accepts an origin Wiki node with empty optional metadata', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          node: {
+            space_id: 'space-1',
+            node_token: 'wikcnRoot',
+            obj_token: 'doxcnDocument',
+            obj_type: 'docx',
+            parent_node_token: '',
+            node_type: 'origin',
+            origin_node_token: '',
+            origin_space_id: '',
+            title: '',
+            has_child: false
+          }
+        }
+      })
+    )
+
+    await expect(getWikiNode('access-token', { token: 'wikcnRoot', objType: 'wiki' })).resolves.toEqual({
+      spaceId: 'space-1',
+      nodeToken: 'wikcnRoot',
+      objToken: 'doxcnDocument',
+      objType: 'docx',
+      parentNodeToken: null,
+      nodeType: 'origin',
+      originNodeToken: null,
+      originSpaceId: null,
+      title: '',
+      hasChild: false,
+      objEditTime: null
+    })
   })
 
   it('rejects incomplete or contradictory Wiki node responses', async () => {
@@ -283,8 +392,63 @@ describe('feishuKnowledgeProvider', () => {
     )
   })
 
+  it('accepts an empty Wiki root list when Feishu omits items', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { has_more: false, page_token: '0' } }))
+
+    await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
+  })
+
+  it.each(['', null])('accepts a terminal Wiki page with an empty page token (%s)', async (pageToken) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: false, page_token: pageToken } })
+    )
+
+    await expect(listWikiChildNodes('access-token', 'space-1')).resolves.toEqual({ nodes: [] })
+  })
+
+  it('reports invalid Wiki list fields without exposing response values', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [
+            {
+              space_id: 'space-1',
+              node_token: 'secret-sentinel?invalid',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              node_type: 'origin',
+              title: 'Private title',
+              has_child: false
+            }
+          ],
+          has_more: false
+        }
+      })
+    )
+
+    const error = await listWikiChildNodes('access-token', 'space-1').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({
+      code: 'invalid-response',
+      diagnostics: { endpoint: 'wiki.list-nodes', invalidFields: ['data.items.0.node_token'] }
+    })
+    expect(JSON.stringify(error)).not.toContain('secret-sentinel')
+    expect(JSON.stringify(error)).not.toContain('Private title')
+  })
+
   it('rejects pagination responses that claim another page without a token', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
+
+    await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('rejects pagination responses that claim another page with an empty token', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { items: [], has_more: true, page_token: '' } })
+    )
 
     await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
       code: 'invalid-response'

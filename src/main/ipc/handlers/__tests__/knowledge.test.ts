@@ -25,9 +25,12 @@ const knowledgeService = {
   removeExternalKnowledgeConnection: vi.fn(),
   resolveFeishuScope: vi.fn(),
   previewFeishuScope: vi.fn(),
+  listFeishuSpaces: vi.fn(),
+  previewFeishuSpace: vi.fn(),
   createExternalKnowledgeSource: vi.fn(),
   requestExternalKnowledgeSourceSync: vi.fn(),
   updateExternalKnowledgeSourceSchedule: vi.fn(),
+  renameExternalKnowledgeSource: vi.fn(),
   disconnectExternalKnowledgeSource: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
@@ -106,6 +109,31 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.requestExternalKnowledgeSourceSync).toHaveBeenCalledWith({ sourceId: externalSource.id })
   })
 
+  it('creates a whole-space source by id and rejects ambiguous or private creation inputs', async () => {
+    knowledgeService.createExternalKnowledgeSource.mockResolvedValue(externalSource)
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    const input = {
+      baseId: externalSource.baseId,
+      connectionId: externalSource.connectionId,
+      spaceId: 'space-1',
+      name: 'Engineering Wiki'
+    }
+
+    await expect(router.dispatch('knowledge.external_source.create', input, ctx)).resolves.toEqual(externalSource)
+    expect(knowledgeService.createExternalKnowledgeSource).toHaveBeenCalledWith(input)
+
+    for (const invalid of [
+      { ...input, url: 'https://acme.feishu.cn/wiki/root' },
+      { ...input, accessToken: 'secret' },
+      { ...input, preview: { supportedDocxCount: 2 } }
+    ]) {
+      await expect(router.dispatch('knowledge.external_source.create', invalid, ctx)).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED'
+      })
+    }
+    expect(knowledgeService.createExternalKnowledgeSource).toHaveBeenCalledTimes(1)
+  })
+
   it('routes daily/manual schedule updates and both disconnect modes through KnowledgeService', async () => {
     const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
     const daily = { kind: 'daily' as const, time: '09:30', timezone: 'Asia/Shanghai' }
@@ -140,6 +168,26 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.disconnectExternalKnowledgeSource).toHaveBeenNthCalledWith(2, {
       sourceId: externalSource.id,
       mode: 'remove-local'
+    })
+  })
+
+  it('accepts a trimmed display name and rejects remote scope edits', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    knowledgeService.renameExternalKnowledgeSource.mockResolvedValue({ ...externalSource, name: 'Product Wiki' })
+
+    await expect(
+      router.dispatch('knowledge.external_source.rename', { sourceId: externalSource.id, name: ' Product Wiki ' }, ctx)
+    ).resolves.toMatchObject({ name: 'Product Wiki' })
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.rename',
+        { sourceId: externalSource.id, name: 'Other', connectionId: externalSource.connectionId },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(knowledgeService.renameExternalKnowledgeSource).toHaveBeenCalledWith({
+      sourceId: externalSource.id,
+      name: 'Product Wiki'
     })
   })
 
@@ -270,7 +318,12 @@ describe('knowledgeHandlers', () => {
   it('routes both Feishu application credential entries through the same user authorization command', async () => {
     const started = { authorizationSessionId: 'session-1' }
     knowledgeService.beginFeishuUserAuthorization.mockResolvedValue(started)
-    const manual = { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'private-secret' }
+    const manual = {
+      kind: 'custom-app' as const,
+      appId: 'cli_manual',
+      appSecret: 'private-secret',
+      includeSpaceDiscovery: true
+    }
 
     const result = await knowledgeHandlers['knowledge.feishu.authorization.begin'](manual, ctx)
 
@@ -289,9 +342,25 @@ describe('knowledgeHandlers', () => {
 
     const result = await knowledgeHandlers['knowledge.feishu.connection.reconnect'](input, ctx)
 
-    expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(input.connectionId, input.credentials)
+    expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(
+      input.connectionId,
+      input.credentials,
+      undefined
+    )
     expect(result).toBe(started)
     expect(JSON.stringify(result)).not.toContain('replacement-secret')
+  })
+
+  it('forwards explicit Wiki discovery consent when upgrading an existing connection', async () => {
+    knowledgeService.reconnectFeishuConnection.mockResolvedValue({ authorizationSessionId: 'session-2' })
+    const input = {
+      connectionId: '01960000-0000-7000-8000-000000000001',
+      includeSpaceDiscovery: true
+    }
+
+    await knowledgeHandlers['knowledge.feishu.connection.reconnect'](input, ctx)
+
+    expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(input.connectionId, undefined, true)
   })
 
   it('rejects invalid Feishu command parameters before invoking KnowledgeService', async () => {
@@ -301,6 +370,13 @@ describe('knowledgeHandlers', () => {
       router.dispatch(
         'knowledge.feishu.authorization.begin',
         { kind: 'custom-app', appId: 'cli_manual', appSecret: 'secret', refreshToken: 'not-allowed' },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    await expect(
+      router.dispatch(
+        'knowledge.feishu.authorization.begin',
+        { kind: 'custom-app', appId: 'cli_manual', appSecret: 'secret', includeSpaceDiscovery: 'yes' },
         ctx
       )
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
@@ -429,6 +505,52 @@ describe('knowledgeHandlers', () => {
     ]) {
       expect(JSON.stringify([resolved, preview])).not.toContain(privateValue)
     }
+  })
+
+  it('lists only public Wiki space metadata and previews a selected whole space', async () => {
+    const connectionId = externalSource.connectionId
+    const space = { spaceId: 'space-1', name: 'Engineering Wiki', description: null }
+    const page = { spaces: [space], nextPageToken: 'next-page' }
+    const preview = {
+      space,
+      visibleNodeCount: 4,
+      supportedDocxCount: 2,
+      unsupportedOrSkippedCount: 2,
+      embeddingCostExact: false,
+      warnings: []
+    }
+    knowledgeService.listFeishuSpaces.mockResolvedValue(page)
+    knowledgeService.previewFeishuSpace.mockResolvedValue(preview)
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+
+    await expect(
+      router.dispatch('knowledge.feishu.spaces.list', { connectionId, pageToken: 'cursor' }, ctx)
+    ).resolves.toEqual(page)
+    await expect(
+      router.dispatch('knowledge.feishu.space.preview', { connectionId, spaceId: space.spaceId }, ctx)
+    ).resolves.toEqual(preview)
+    expect(knowledgeService.listFeishuSpaces).toHaveBeenCalledWith(connectionId, 'cursor')
+    expect(knowledgeService.previewFeishuSpace).toHaveBeenCalledWith(connectionId, space.spaceId)
+
+    await expect(
+      router.dispatch('knowledge.feishu.spaces.list', { connectionId, accessToken: 'secret' }, ctx)
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    await expect(
+      router.dispatch('knowledge.feishu.space.preview', { connectionId, spaceId: space.spaceId, providerData: {} }, ctx)
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+  })
+
+  it('maps optional Wiki discovery permission failure without leaking provider details', async () => {
+    knowledgeService.listFeishuSpaces.mockRejectedValue(new ExternalKnowledgeRuntimeError('scope-missing'))
+
+    const error = await knowledgeHandlers['knowledge.feishu.spaces.list'](
+      { connectionId: externalSource.connectionId },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({ code: knowledgeErrorCodes.FEISHU_SCOPE_MISSING })
+    expect(JSON.stringify(error)).not.toContain(externalSource.connectionId)
   })
 
   it('rejects renderer-supplied provider origins and credentials before scope resolution', async () => {

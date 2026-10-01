@@ -8,7 +8,7 @@ import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbed
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
-import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createExternalItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const { mockOpenSettingsTab, mockUseLocalModel } = vi.hoisted(() => ({
   mockOpenSettingsTab: vi.fn(),
@@ -17,10 +17,17 @@ const { mockOpenSettingsTab, mockUseLocalModel } = vi.hoisted(() => ({
 const mockUseQuery = vi.fn()
 const defaultOnPreviewFile = vi.fn()
 
-type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'> &
-  Partial<Pick<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>>
+type TestDataSourcePanelProps = Omit<
+  DataSourcePanelProps,
+  'baseId' | 'onAddFeishuWiki' | 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'
+> &
+  Partial<
+    Pick<DataSourcePanelProps, 'baseId' | 'onAddFeishuWiki' | 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>
+  >
 
 const DataSourcePanel = ({
+  baseId = 'base-1',
+  onAddFeishuWiki = vi.fn(),
   onDeleteItems = vi.fn(),
   onPreviewFile = defaultOnPreviewFile,
   onReindexItems = vi.fn(),
@@ -28,6 +35,8 @@ const DataSourcePanel = ({
 }: TestDataSourcePanelProps) => (
   <DataSourcePanelComponent
     {...props}
+    baseId={baseId}
+    onAddFeishuWiki={onAddFeishuWiki}
     onDeleteItems={onDeleteItems}
     onPreviewFile={onPreviewFile}
     onReindexItems={onReindexItems}
@@ -45,6 +54,8 @@ vi.mock('@renderer/hooks/useLocalModel', () => ({
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mockOpenSettingsTab
 }))
+
+vi.mock('../ExternalSourcesSection', () => ({ default: () => null }))
 
 // The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
 // so stub it with a plain pass-through that renders every row.
@@ -829,6 +840,28 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
+  it('opens an external item from its local snapshot on row click', () => {
+    const onItemClick = vi.fn()
+    const item = createExternalItem({ id: 'external-1' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('External doc'))
+
+    expect(previewSourceMock).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+  })
+
   it('views the original note content in-app on a note row click, not its chunks', () => {
     const onItemClick = vi.fn()
     const onViewNoteContent = vi.fn()
@@ -1199,6 +1232,32 @@ describe('DataSourcePanel', () => {
       expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('excludes source-owned items from bulk deletion', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          { ...createFileItem({ id: 'owned-1' }), canDelete: false },
+          { ...createFileItem({ id: 'local-1' }), canDelete: true }
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认删除选中的 1 个数据源')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(onDeleteItems).toHaveBeenCalledWith(['local-1']))
   })
 
   it('shows bulk delete failure toast and keeps selection when bulk delete rejects', async () => {
