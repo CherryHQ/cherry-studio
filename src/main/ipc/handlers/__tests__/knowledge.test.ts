@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ExternalKnowledgeRuntimeError } from '@main/features/knowledge/external/ExternalKnowledgeRuntime'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
+import { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
+
+import { IpcRouter } from '../../IpcRouter'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
@@ -10,6 +14,14 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 import { knowledgeHandlers } from '../knowledge'
 
 const knowledgeService = {
+  beginFeishuAppRegistration: vi.fn(),
+  cancelFeishuAppRegistration: vi.fn(),
+  beginFeishuUserAuthorization: vi.fn(),
+  completeFeishuUserAuthorization: vi.fn(),
+  cancelFeishuUserAuthorization: vi.fn(),
+  reconnectFeishuConnection: vi.fn(),
+  validateFeishuConnection: vi.fn(),
+  removeExternalKnowledgeConnection: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
   deleteBase: vi.fn(),
@@ -37,6 +49,121 @@ const ctx = { senderId: 'w1' }
 type In<R extends keyof typeof knowledgeHandlers> = Parameters<(typeof knowledgeHandlers)[R]>[0]
 
 describe('knowledgeHandlers', () => {
+  it('routes both Feishu application credential entries through the same user authorization command', async () => {
+    const started = { authorizationSessionId: 'session-1' }
+    knowledgeService.beginFeishuUserAuthorization.mockResolvedValue(started)
+    const manual = { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'private-secret' }
+
+    const result = await knowledgeHandlers['knowledge.feishu.authorization.begin'](manual, ctx)
+
+    expect(knowledgeService.beginFeishuUserAuthorization).toHaveBeenCalledWith(manual)
+    expect(result).toBe(started)
+    expect(JSON.stringify(result)).not.toContain('private-secret')
+  })
+
+  it('forwards replacement application credentials only into the reconnect command', async () => {
+    const started = { authorizationSessionId: 'session-1' }
+    knowledgeService.reconnectFeishuConnection.mockResolvedValue(started)
+    const input = {
+      connectionId: '01960000-0000-7000-8000-000000000001',
+      credentials: { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'replacement-secret' }
+    }
+
+    const result = await knowledgeHandlers['knowledge.feishu.connection.reconnect'](input, ctx)
+
+    expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(input.connectionId, input.credentials)
+    expect(result).toBe(started)
+    expect(JSON.stringify(result)).not.toContain('replacement-secret')
+  })
+
+  it('rejects invalid Feishu command parameters before invoking KnowledgeService', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+
+    await expect(
+      router.dispatch(
+        'knowledge.feishu.authorization.begin',
+        { kind: 'custom-app', appId: 'cli_manual', appSecret: 'secret', refreshToken: 'not-allowed' },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(knowledgeService.beginFeishuUserAuthorization).not.toHaveBeenCalled()
+  })
+
+  it('maps External Knowledge failures to stable errors without leaking credentials', async () => {
+    const secret = 'private-secret-value'
+    knowledgeService.beginFeishuUserAuthorization.mockRejectedValue(new Error(`provider rejected ${secret}`))
+
+    const error = await knowledgeHandlers['knowledge.feishu.authorization.begin'](
+      { kind: 'custom-app', appId: 'cli_manual', appSecret: secret },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toMatchObject({
+      code: knowledgeErrorCodes.FEISHU_AUTHORIZATION_FAILED,
+      message: 'Feishu authorization failed'
+    })
+    expect(JSON.stringify(error)).not.toContain(secret)
+  })
+
+  it.each([
+    {
+      runtimeCode: 'scope-missing' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_SCOPE_MISSING',
+      message: 'Required Feishu permissions were not granted'
+    },
+    {
+      runtimeCode: 'automatic-scope-mismatch' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_AUTOMATIC_SCOPE_MISMATCH',
+      message: 'The automatically registered Feishu application granted unexpected permissions'
+    },
+    {
+      runtimeCode: 'identity-conflict' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_IDENTITY_CONFLICT',
+      message: 'The Feishu account does not match this connection'
+    },
+    {
+      runtimeCode: 'identity-unverifiable' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_IDENTITY_UNVERIFIABLE',
+      message: 'The Feishu account identity could not be verified'
+    },
+    {
+      runtimeCode: 'reauthorization-required' as const,
+      ipcCode: 'KNOWLEDGE_EXTERNAL_REAUTHORIZATION_REQUIRED',
+      message: 'The Feishu connection requires authorization'
+    }
+  ])('maps $runtimeCode to its distinct fixed IPC error', async ({ runtimeCode, ipcCode, message }) => {
+    knowledgeService.validateFeishuConnection.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
+
+    const error = await knowledgeHandlers['knowledge.feishu.connection.validate'](
+      { connectionId: '01960000-0000-7000-8000-000000000001' },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toMatchObject({ code: ipcCode, message })
+    for (const privateValue of ['provider-payload', 'cli_private', 'user_private', 'feishu:credential-private']) {
+      expect(JSON.stringify(error)).not.toContain(privateValue)
+    }
+  })
+
+  it('delegates registration cancellation and connection removal as void commands', async () => {
+    knowledgeService.cancelFeishuAppRegistration.mockResolvedValue(undefined)
+    knowledgeService.removeExternalKnowledgeConnection.mockResolvedValue(undefined)
+
+    await knowledgeHandlers['knowledge.feishu.registration.cancel'](
+      { registrationSessionId: '01960000-0000-7000-8000-000000000002' },
+      ctx
+    )
+    await knowledgeHandlers['knowledge.feishu.connection.remove'](
+      { connectionId: '01960000-0000-7000-8000-000000000001' },
+      ctx
+    )
+
+    expect(knowledgeService.cancelFeishuAppRegistration).toHaveBeenCalledWith('01960000-0000-7000-8000-000000000002')
+    expect(knowledgeService.removeExternalKnowledgeConnection).toHaveBeenCalledWith(
+      '01960000-0000-7000-8000-000000000001'
+    )
+  })
+
   it('create_base unwraps { base } and returns KnowledgeService.createBase result', async () => {
     const base = { name: 'KB', dimensions: 1536, embeddingModelId: 'm' }
     const created = { id: 'base-1' }

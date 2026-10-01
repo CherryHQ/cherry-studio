@@ -2,6 +2,7 @@ import { application } from '@application'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddConflictStrategy,
@@ -18,6 +19,12 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import {
+  type BeginAppRegistrationResult,
+  type BeginAuthorizationResult,
+  type BeginUserAuthorizationInput,
+  ExternalKnowledgeRuntime
+} from './external/ExternalKnowledgeRuntime'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -49,6 +56,7 @@ export class KnowledgeService extends BaseService {
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
+  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime()
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -68,9 +76,52 @@ export class KnowledgeService extends BaseService {
     )
   }
 
+  protected async onReady(): Promise<void> {
+    await this.externalKnowledgeRuntime.start()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.externalKnowledgeRuntime.stop()
+  }
+
   protected async onAllReady(): Promise<void> {
     this.ingestionService.recoverDeletingItems()
     this.ingestionService.recoverInterruptedItems()
+  }
+
+  async beginFeishuAppRegistration(): Promise<BeginAppRegistrationResult> {
+    return await this.externalKnowledgeRuntime.beginAppRegistration()
+  }
+
+  async cancelFeishuAppRegistration(registrationSessionId: string): Promise<void> {
+    await this.externalKnowledgeRuntime.cancelAppRegistration(registrationSessionId)
+  }
+
+  async beginFeishuUserAuthorization(input: BeginUserAuthorizationInput): Promise<BeginAuthorizationResult> {
+    return await this.externalKnowledgeRuntime.beginUserAuthorization(input)
+  }
+
+  async completeFeishuUserAuthorization(authorizationSessionId: string): Promise<ExternalKnowledgeConnection> {
+    return await this.externalKnowledgeRuntime.completeUserAuthorization(authorizationSessionId)
+  }
+
+  async cancelFeishuUserAuthorization(authorizationSessionId: string): Promise<void> {
+    await this.externalKnowledgeRuntime.cancelUserAuthorization(authorizationSessionId)
+  }
+
+  async reconnectFeishuConnection(
+    connectionId: string,
+    replacement?: BeginUserAuthorizationInput
+  ): Promise<BeginAuthorizationResult> {
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement)
+  }
+
+  async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
+    return await this.externalKnowledgeRuntime.validateConnection(connectionId)
+  }
+
+  async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {
+    await this.externalKnowledgeRuntime.removeUnreferencedConnection(connectionId)
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
