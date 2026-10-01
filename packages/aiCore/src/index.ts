@@ -78,6 +78,7 @@ export {
   PERSISTED_OUTPUT_TAG,
   resolveCompressionOutputTokens,
   MODEL_SCRATCHPAD_TAG_NAMES,
+  stripKnownModelScratchpadBlocks,
   stripModelScratchpadBlocks,
   summarizeModelMessages,
   textStartsWithModelScratchpadTag

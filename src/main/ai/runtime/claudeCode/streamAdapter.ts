@@ -35,8 +35,12 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
+import {
+  MODEL_SCRATCHPAD_TAG_NAMES,
+  stripKnownModelScratchpadBlocks,
+  textStartsWithModelScratchpadTag
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { MODEL_SCRATCHPAD_TAG_NAMES, textStartsWithModelScratchpadTag } from '@cherrystudio/ai-core'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
@@ -743,10 +747,7 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(
-        this.turnActive ? this.sink : this.createFlowSink(parentToolCallId),
-        false
-      )
+      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId), false)
     }
     this.flowContexts.push(flow)
     return flow
@@ -954,19 +955,49 @@ export class ClaudeCodeStreamAdapter {
     this.enqueueVisibleTextDelta(text, ctx)
   }
 
-  private resolveScratchpadTextProbe(probe: string): 'pending' | 'suppress' | 'emit' {
-    if (!probe) return 'pending'
-    if (textStartsWithModelScratchpadTag(probe)) return 'suppress'
+  private classifyScratchpadProbe(
+    probe: string,
+    atBlockEnd = false
+  ): { action: 'pending' } | { action: 'suppress' } | { action: 'emit'; visible: string } {
+    if (!probe) return { action: 'pending' }
 
     const trimmed = probe.trimStart()
-    if (!trimmed.startsWith('<')) return 'emit'
-    if (!trimmed.includes('>')) return 'pending'
+    if (!trimmed.startsWith('<')) {
+      return { action: 'emit', visible: probe }
+    }
+    if (!trimmed.includes('>')) {
+      if (atBlockEnd && textStartsWithModelScratchpadTag(probe)) {
+        return { action: 'suppress' }
+      }
+      return { action: 'pending' }
+    }
 
     const tagMatch = trimmed.match(/^<([a-z][a-z0-9]*)\b/i)
-    if (tagMatch && !MODEL_SCRATCHPAD_TAG_NAMES.includes(tagMatch[1].toLowerCase() as (typeof MODEL_SCRATCHPAD_TAG_NAMES)[number])) {
-      return 'emit'
+    if (
+      tagMatch &&
+      !MODEL_SCRATCHPAD_TAG_NAMES.includes(tagMatch[1].toLowerCase() as (typeof MODEL_SCRATCHPAD_TAG_NAMES)[number])
+    ) {
+      return { action: 'emit', visible: probe }
     }
-    return 'pending'
+
+    if (textStartsWithModelScratchpadTag(probe)) {
+      const stripped = stripKnownModelScratchpadBlocks(probe)
+      if (stripped.length < probe.length) {
+        if (stripped.trim().length > 0) {
+          return { action: 'emit', visible: stripped }
+        }
+        return { action: 'suppress' }
+      }
+      if (atBlockEnd) {
+        return { action: 'suppress' }
+      }
+      return { action: 'pending' }
+    }
+
+    if (atBlockEnd) {
+      return { action: 'emit', visible: probe }
+    }
+    return { action: 'pending' }
   }
 
   private flushDeferredScratchpadText(ctx: StreamContext): void {
@@ -977,11 +1008,19 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     if (!pending) return
 
+    const classified = this.classifyScratchpadProbe(pending, true)
+    if (classified.action === 'pending' || classified.action === 'suppress') {
+      if (classified.action === 'suppress') {
+        ctx.suppressActiveTextPart = true
+      }
+      return
+    }
+
     ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
-    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: classified.visible })
     ctx.textPartStarted = true
-    ctx.accumulatedText += pending
-    ctx.streamedTextLength += pending.length
+    ctx.accumulatedText += classified.visible
+    ctx.streamedTextLength += classified.visible.length
   }
 
   private enqueueVisibleTextDelta(
@@ -1008,9 +1047,9 @@ export class ClaudeCodeStreamAdapter {
 
     if (ctx.filterParentlessScratchpadText && ctx.textStartDeferred) {
       ctx.scratchpadTextProbe += text
-      const decision = this.resolveScratchpadTextProbe(ctx.scratchpadTextProbe)
-      if (decision === 'pending') return
-      if (decision === 'suppress') {
+      const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
+      if (classified.action === 'pending') return
+      if (classified.action === 'suppress') {
         ctx.suppressActiveTextPart = true
         ctx.textStartDeferred = false
         ctx.scratchpadTextProbe = ''
@@ -1023,7 +1062,7 @@ export class ClaudeCodeStreamAdapter {
         ...(providerMetadata ? { providerMetadata } : {})
       })
       ctx.textPartStarted = true
-      text = ctx.scratchpadTextProbe
+      text = classified.visible
       ctx.scratchpadTextProbe = ''
     }
 
@@ -1226,28 +1265,32 @@ export class ClaudeCodeStreamAdapter {
 
   private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    let visibleText = text
     if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
-      if (ctx.hasReceivedStreamEvents) {
-        ctx.accumulatedText = text
-        ctx.streamedTextLength = text.length
-      } else {
-        ctx.accumulatedText += text
+      visibleText = stripKnownModelScratchpadBlocks(text)
+      if (!visibleText.trim()) {
+        if (ctx.hasReceivedStreamEvents) {
+          ctx.accumulatedText = text
+          ctx.streamedTextLength = text.length
+        } else {
+          ctx.accumulatedText += text
+        }
+        return
       }
-      return
     }
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
-      const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
-      ctx.accumulatedText = text
+      const deltaText = visibleText.length > newTextStart ? visibleText.slice(newTextStart) : ''
+      ctx.accumulatedText = visibleText
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
-      ctx.streamedTextLength = text.length
+      ctx.streamedTextLength = visibleText.length
     } else {
-      ctx.accumulatedText += text
+      ctx.accumulatedText += visibleText
       if (ctx.options.responseFormat?.type !== 'json') {
-        this.enqueueVisibleTextDelta(text, ctx, providerMetadata)
+        this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
       }
     }
   }

@@ -2147,6 +2147,28 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('<thinking>')
     })
 
+    it('keeps visible reply text after a scratchpad wrapper in the same content block', () => {
+      const { adapter, parts } = createAdapter()
+      const mixed =
+        '<thinking>internal reasoning about the session</thinking>visible follow-up in the same block'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: mixed } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('visible follow-up in the same block')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking>')
+    })
+
     it('settles a compaction that reports success without a boundary', () => {
       const { adapter, statusEvents } = createAdapter()
 

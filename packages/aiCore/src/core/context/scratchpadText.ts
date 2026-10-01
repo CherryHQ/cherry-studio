@@ -14,7 +14,8 @@ export function textStartsWithModelScratchpadTag(text: string): boolean {
   return match ? isModelScratchpadTagName(match[1]) : false
 }
 
-function stripKnownScratchpadBlocks(raw: string): string {
+/** Strips only known model scratchpad wrappers; leaves other markup intact. */
+export function stripKnownModelScratchpadBlocks(raw: string): string {
   let out = raw
   let previous: string
   do {
@@ -39,7 +40,7 @@ export function stripModelScratchpadBlocks(raw: string): string {
     out = summaryMatch[1]
   }
 
-  out = stripKnownScratchpadBlocks(out)
+  out = stripKnownModelScratchpadBlocks(out)
 
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
