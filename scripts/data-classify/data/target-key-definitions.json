@@ -833,6 +833,13 @@
       "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
     },
     {
+      "targetKey": "chat.save.knowledge.last_base_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Knowledge base id last used by the save-conversation-to-knowledge dialog; preselected on the next open when it still exists and is usable."
+    },
+    {
       "targetKey": "feature.screenshot.enabled",
       "type": "boolean",
       "defaultValue": false,

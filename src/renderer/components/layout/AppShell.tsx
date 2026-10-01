@@ -133,8 +133,15 @@ export const AppShell = ({
       if (!minimalMode?.isHome) minimalMode?.returnHome()
       return
     }
-    if (activeTabId) handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab, isMinimal, minimalMode])
+    if (!activeTabId) return
+    // Closing the last tab would strand the shell in the empty Launchpad state;
+    // browsers close the window for the final tab (Safari / Chrome convention).
+    if (tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
+    handleCloseTab(activeTabId)
+  }, [activeTabId, handleCloseTab, isMinimal, minimalMode, tabs])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })

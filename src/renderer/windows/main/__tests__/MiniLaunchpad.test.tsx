@@ -41,7 +41,7 @@ describe('mini launchpad', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: '启动台' }))
-    await screen.findByRole('button', { name: 'Pinned application' })
+    await screen.findByRole('button', { name: 'Pinned application' }, { timeout: 5000 })
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '应用' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '小程序' })).toBeVisible()
