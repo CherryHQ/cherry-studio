@@ -569,6 +569,14 @@ function buildProviderModels(
       if (!modelId) continue
       const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
+      const existing = rows.find(
+        (row) => row.providerId === p.id && row.modelId === modelId && row.apiModelId === apiModelId
+      )
+      if (existing) {
+        existing.pricing = meta.pricing
+        if (template) Object.assign(existing, template, { pricing: meta.pricing })
+        continue
+      }
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
