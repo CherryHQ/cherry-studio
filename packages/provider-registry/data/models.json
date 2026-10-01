@@ -11026,11 +11026,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.015543
+          "perMillionTokens": 0.027
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.396
+          "perMillionTokens": 0.6
         }
       },
       "reasoning": {
@@ -11073,7 +11073,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2664
+          "perMillionTokens": 0.2317
         },
         "output": {
           "currency": "USD",
@@ -16994,6 +16994,31 @@
       "ownedBy": "kling"
     },
     {
+      "capabilities": [],
+      "contextWindow": 65536,
+      "family": "liquid",
+      "id": "d1",
+      "inputModalities": [
+        "text"
+      ],
+      "metadata": {},
+      "name": "Liquid d1",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "liquidai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -21200,7 +21225,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.38
+          "perMillionTokens": 0.6997000000000001
         },
         "output": {
           "currency": "USD",
@@ -34181,7 +34206,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.24750000000000003
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -34245,11 +34270,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06899999999999999
+          "perMillionTokens": 0.1666
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.882
+          "perMillionTokens": 0.5236
         }
       }
     },
