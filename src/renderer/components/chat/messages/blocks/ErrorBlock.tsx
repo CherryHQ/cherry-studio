@@ -243,12 +243,12 @@ const MessageErrorInfo: React.FC<{
         async () => {
           try {
             await ipcApi.request('ai.ollama.set_num_ctx_cap', { uniqueModelId, numCtxCap: cap })
-            await removeMessageErrorPart?.({ messageId: message.id, partId })
             if (regenerateMessage) {
               await regenerateMessage(message.id)
-              return
+            } else {
+              notifyInfo?.(t('error.ollama_context_retry_toast'))
             }
-            notifyInfo?.(t('error.ollama_context_retry_toast'))
+            await removeMessageErrorPart?.({ messageId: message.id, partId })
           } catch (retryError) {
             logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
               messageId: message.id,

@@ -12,7 +12,6 @@ import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { resolveOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
@@ -1690,11 +1689,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    const expectedNumCtx = resolveOllamaNumCtx({
-      trainedContextWindow: 131072,
-      freeMemoryBytes,
-      totalMemoryBytes
-    })
+    // 8 GiB free × 50% → 4 GiB budget → floor(4e9 / 96_000) tokens → round down to 32_768.
+    const expectedNumCtx = 32_768
     expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
     expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
       uniqueModelId: 'ollama::qwen3',

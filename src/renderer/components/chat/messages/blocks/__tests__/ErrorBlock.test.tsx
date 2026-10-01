@@ -128,6 +128,39 @@ describe('ErrorBlock', () => {
     })
   })
 
+  it('keeps the error part when regeneration fails after lowering the cap', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessage = vi.fn().mockRejectedValue(new Error('stream busy'))
+    mocks.actions = { removeMessageErrorPart, regenerateMessage }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaTrainedNumCtx: 131_072,
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          modelId: createUniqueModelId('ollama', 'qwen3'),
+          model: { id: 'qwen3', name: 'qwen3', provider: 'ollama' }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() => expect(regenerateMessage).toHaveBeenCalled())
+    expect(removeMessageErrorPart).not.toHaveBeenCalled()
+  })
+
   it('keys the cap to the model that actually failed, not the primary model', async () => {
     const i18nKey = 'ollama_context_memory'
     mocks.i18nKeys.add(`error.${i18nKey}`)
