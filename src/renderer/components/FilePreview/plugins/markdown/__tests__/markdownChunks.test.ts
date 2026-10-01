@@ -222,6 +222,16 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a footnote definition across the blank lines that separate its paragraphs', () => {
+    const content = ['[^1]: first paragraph', '', '', '    second paragraph', '', 'see [^1]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^1]: first paragraph\n\n\n    second paragraph')
+    }
+  })
+
   it('does not carry a code block that only follows a link definition', () => {
     // A footnote definition owns its indented lines; a link definition ends with its line run.
     const content = ['[label]: https://example.com', '', '    indented body', '', 'see [label]'].join('\n')
