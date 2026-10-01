@@ -1,13 +1,7 @@
 import { Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 import ProviderField from '../primitives/ProviderField'

@@ -270,6 +270,7 @@ export function useProviderEndpointActions({
       buildNextApiEndpointConfigs,
       debouncedPersistApiHost,
       patchProvider,
+      primaryEndpoint,
       provider,
       providerApiHost,
       setApiHost,
