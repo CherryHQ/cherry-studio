@@ -63,10 +63,7 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
     return
   }
   const resolved = realPath(filePath)
-  if (
-    pathUnderRoot(resolved, blockedRoots.source) ||
-    pathUnderRoot(resolved, blockedRoots.target)
-  ) {
+  if (pathUnderRoot(resolved, blockedRoots.source) || pathUnderRoot(resolved, blockedRoots.target)) {
     throw new Error('Notes directory migration is in progress')
   }
 }
