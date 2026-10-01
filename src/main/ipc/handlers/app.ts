@@ -9,6 +9,7 @@ import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import {
   completeNotesMigrationCommit,
+  getNotesMigrationSessionId,
   inspectNotesRelocation,
   migrateNotesDirectory,
   releaseNotesMigrationSession,
@@ -72,15 +73,20 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       }
       setNotesMigrationBlockedRoots(sourcePath, targetPath)
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      const sessionId = getNotesMigrationSessionId()
+      if (!sessionId) {
+        releaseNotesMigrationSession()
+        throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FAILED, 'notes migration session is missing')
+      }
       scheduleAwaitingMigrationCommit(ctx.senderId)
-      return result
+      return { ...result, sessionId }
     } catch (error) {
       releaseNotesMigrationSession()
       throw error
     }
   },
-  'app.notes_relocation.commit': async () => {
-    completeNotesMigrationCommit()
+  'app.notes_relocation.commit': async ({ sessionId }) => {
+    completeNotesMigrationCommit(sessionId)
   },
   'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
     rendererEditFlushCoordinator.acknowledgeMigrationLock(batchId, ctx.senderId, ok)

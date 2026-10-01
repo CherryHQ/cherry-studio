@@ -235,6 +235,24 @@ describe('FileStorage', () => {
       }
     })
   })
+
+  describe('batchUploadMarkdownFiles', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('rejects uploads into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      setNotesMigrationBlockedRoots(source, target)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+  })
 })
 
 function uniqueId(): string {

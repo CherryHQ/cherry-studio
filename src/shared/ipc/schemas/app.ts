@@ -93,7 +93,8 @@ export const appRequestSchemas = {
     }),
     output: z.object({
       source: notesDirectoryStatsSchema,
-      target: notesDirectoryStatsSchema
+      target: notesDirectoryStatsSchema,
+      sessionId: z.string().uuid()
     })
   }),
   'app.notes_relocation.flush_ack': defineRoute({
@@ -110,7 +111,10 @@ export const appRequestSchemas = {
     }),
     output: z.void()
   }),
-  'app.notes_relocation.commit': defineRoute({ input: z.void(), output: z.void() }),
+  'app.notes_relocation.commit': defineRoute({
+    input: z.object({ sessionId: z.string().uuid() }),
+    output: z.void()
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
