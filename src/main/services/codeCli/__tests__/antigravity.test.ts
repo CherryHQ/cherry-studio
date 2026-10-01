@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   root: '',
   getByProviderId: vi.fn(),
   getByKey: vi.fn(),
+  list: vi.fn(),
   resolveApiKey: vi.fn(),
   getMultiple: vi.fn()
 }))
@@ -33,7 +34,8 @@ vi.mock('@application', async () => {
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
-    getByKey: mocks.getByKey
+    getByKey: mocks.getByKey,
+    list: mocks.list
   }
 }))
 
@@ -51,8 +53,10 @@ describe('prepareAntigravityLaunch', () => {
     mocks.root = await mkdtemp(path.join(tmpdir(), 'cherry-antigravity-test-'))
     mocks.getByProviderId.mockReset()
     mocks.getByKey.mockReset()
+    mocks.list.mockReset()
     mocks.resolveApiKey.mockReset()
     mocks.getMultiple.mockReset()
+    mocks.list.mockReturnValue([])
   })
 
   afterEach(async () => {
@@ -71,7 +75,7 @@ describe('prepareAntigravityLaunch', () => {
         'google-generate-content': { baseUrl: 'https://gemini.example.test' }
       }
     })
-    mocks.getByKey.mockReturnValue({ apiKeyId: 'key-a' })
+    mocks.list.mockReturnValue([{ id: 'custom-gemini::gemini-2.5-pro', apiKeyId: 'key-a' }])
     mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     const result = await prepareAntigravityLaunch({
@@ -82,6 +86,7 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
+    expect(mocks.getByKey).not.toHaveBeenCalled()
     expect(mocks.resolveApiKey).toHaveBeenCalledWith('custom-gemini', undefined, 'key-a')
     expect(result).toEqual({
       env: {
@@ -93,6 +98,29 @@ describe('prepareAntigravityLaunch', () => {
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toEqual({ theme: 'system', modelProvider: 'gemini' })
     if (process.platform !== 'win32') expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+  })
+
+  it('resolves api key bindings by provider-facing apiModelId when the internal id differs', async () => {
+    mocks.getByProviderId.mockReturnValue({ id: 'custom-gemini', endpointConfigs: {} })
+    mocks.list.mockReturnValue([
+      {
+        id: 'custom-gemini::my-alias',
+        apiModelId: 'gemini-2.5-pro',
+        apiKeyId: 'key-bound'
+      }
+    ])
+    mocks.resolveApiKey.mockReturnValue({ value: 'alias-secret' })
+
+    await prepareAntigravityLaunch({
+      mode: 'normal',
+      cliTool: CodeCli.ANTIGRAVITY_CLI,
+      providerId: 'custom-gemini',
+      model: 'gemini-2.5-pro',
+      directory: '/tmp/project'
+    })
+
+    expect(mocks.getByKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).toHaveBeenCalledWith('custom-gemini', undefined, 'key-bound')
   })
 
   it('reads gateway credentials in main and uses an Antigravity custom model URL without the Gemini sentinel', async () => {
@@ -136,7 +164,7 @@ describe('prepareAntigravityLaunch', () => {
   it('rejects an unsafe model id without touching the isolated settings', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
-    mocks.getByKey.mockReturnValue({})
+    mocks.list.mockReturnValue([{ id: 'gemini::gemini; open /Applications/Calculator.app' }])
     mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     await expect(
@@ -157,7 +185,7 @@ describe('prepareAntigravityLaunch', () => {
     await mkdir(settingsDir, { recursive: true })
     await writeFile(settingsPath, '{ invalid json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
-    mocks.getByKey.mockReturnValue({})
+    mocks.list.mockReturnValue([{ id: 'gemini::gemini-2.5-pro' }])
     mocks.resolveApiKey.mockReturnValue({ value: 'direct-secret' })
 
     await expect(
