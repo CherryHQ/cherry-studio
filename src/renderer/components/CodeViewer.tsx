@@ -27,7 +27,8 @@ function wrappedLineVisualColumns(line: string): number {
     if (partIndex > 0) {
       columns += WRAPPED_LINE_TAB_SIZE - (columns % WRAPPED_LINE_TAB_SIZE)
     }
-    columns += stringWidth(parts[partIndex])
+    // string-width strips CSI/OSC sequences, but CodeViewer renders those bytes in HTML.
+    columns += stringWidth(parts[partIndex].replaceAll('\u001b', ''))
   }
   return columns
 }
@@ -614,7 +615,11 @@ const CodeViewer = ({
     if (prev.length > 0) {
       const scroller = scrollerRef.current
       const maxIndex = Math.max(prev.length, rawLines.length) - 1
-      for (let index = 0; index <= maxIndex; index++) {
+      let startIndex = 0
+      while (startIndex <= maxIndex && prev[startIndex] === rawLines[startIndex]) {
+        startIndex++
+      }
+      for (let index = startIndex; index <= maxIndex; index++) {
         if (prev[index] === rawLines[index]) continue
         // Newly appended lines get their initial size from estimateSize; remeasure only in-place edits.
         if (prev[index] === undefined) continue
