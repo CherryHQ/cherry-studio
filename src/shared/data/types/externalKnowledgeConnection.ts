@@ -19,7 +19,6 @@ export type ExternalKnowledgeAuthorizationStatus = z.infer<typeof ExternalKnowle
 const NonBlankStringSchema = z.string().trim().min(1)
 const NullableNonBlankStringSchema = NonBlankStringSchema.nullable()
 
-export const ExternalKnowledgeCredentialReferenceSchema = NonBlankStringSchema.max(256)
 export const ExternalKnowledgeGrantedScopesSchema = z
   .array(NonBlankStringSchema.max(256))
   .max(256)
@@ -32,7 +31,6 @@ export const ExternalKnowledgeConnectionSchema = z
     appId: NonBlankStringSchema.max(256),
     appCredentialSource: ExternalKnowledgeAppCredentialSourceSchema,
     authorizationStatus: ExternalKnowledgeAuthorizationStatusSchema,
-    credentialReference: ExternalKnowledgeCredentialReferenceSchema,
     accountUserId: NullableNonBlankStringSchema,
     accountOpenId: NullableNonBlankStringSchema,
     accountUnionId: NullableNonBlankStringSchema,

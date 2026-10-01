@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { delay } from 'es-toolkit'
 
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 
 import {
   externalKnowledgeCredentialStore,

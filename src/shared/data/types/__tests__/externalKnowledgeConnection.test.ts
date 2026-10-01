@@ -6,7 +6,6 @@ const validConnection = {
   appId: 'cli_example',
   appCredentialSource: 'personal-agent',
   authorizationStatus: 'connected',
-  credentialReference: 'cred_01994c00ef10',
   accountUserId: 'user_example',
   accountOpenId: 'ou_example',
   accountUnionId: 'on_example',
@@ -28,14 +27,19 @@ describe('ExternalKnowledgeConnectionSchema', () => {
     expect(ExternalKnowledgeConnectionSchema.parse(validConnection)).toEqual(validConnection)
   })
 
-  it.each(['appSecret', 'accessToken', 'refreshToken'])('rejects the secret field %s', async (secretField) => {
-    const { ExternalKnowledgeConnectionSchema } = await import('../externalKnowledgeConnection')
+  it.each(['appSecret', 'accessToken', 'refreshToken', 'credentialReference'])(
+    'rejects the internal field %s',
+    async (secretField) => {
+      const { ExternalKnowledgeConnectionSchema } = await import('../externalKnowledgeConnection')
 
-    expect(
-      ExternalKnowledgeConnectionSchema.safeParse({ ...validConnection, [secretField]: 'must-not-cross-the-boundary' })
-        .success
-    ).toBe(false)
-  })
+      expect(
+        ExternalKnowledgeConnectionSchema.safeParse({
+          ...validConnection,
+          [secretField]: 'must-not-cross-the-boundary'
+        }).success
+      ).toBe(false)
+    }
+  )
 
   it('requires connected rows to carry the user and tenant identity established by authorization', async () => {
     const { ExternalKnowledgeConnectionSchema } = await import('../externalKnowledgeConnection')

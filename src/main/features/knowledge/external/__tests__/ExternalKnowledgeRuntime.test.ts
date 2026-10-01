@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 
 import type {
   ExternalKnowledgeCredential,
