@@ -8,6 +8,7 @@ import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
 import { powerPointFilePreviewPlugin } from './plugins/powerpoint/powerPointFilePreviewPlugin'
 import { spreadsheetFilePreviewPlugin } from './plugins/spreadsheet/spreadsheetFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
+import { videoFilePreviewPlugin } from './plugins/video/videoFilePreviewPlugin'
 import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
@@ -51,6 +52,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     powerPointFilePreviewPlugin,
     spreadsheetFilePreviewPlugin,
     textFilePreviewPlugin,
+    videoFilePreviewPlugin,
     wordFilePreviewPlugin
   ]
 })

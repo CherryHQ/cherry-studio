@@ -12,6 +12,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
 
+import { useOptionalAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 interface AgentComposerSlotProps {
@@ -60,6 +61,7 @@ function AgentComposerSlot({
   resendEditedMessage
 }: AgentComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
+  const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
   const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
     () =>
@@ -94,6 +96,9 @@ function AgentComposerSlot({
         sendDisabled={sendDisabled || (isEditing && (isStreaming || editBusy))}
         onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
+        previewInputFile={
+          rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
+        }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
       />
     ) : (

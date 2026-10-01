@@ -26,7 +26,7 @@
 import * as z from 'zod'
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { type FileType, FileTypeSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
@@ -220,6 +220,7 @@ export interface CherryFileMeta {
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
+  originalPath?: AbsoluteFilePath
 }
 
 /**
