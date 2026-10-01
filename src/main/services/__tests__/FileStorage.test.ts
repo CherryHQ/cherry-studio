@@ -9,6 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
+import {
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots
+} from '@main/services/notesRelocation/migrationSession'
+
 import { fileStorage } from '../FileStorage'
 
 const event = {} as Electron.IpcMainInvokeEvent
@@ -23,6 +28,21 @@ describe('FileStorage', () => {
   })
 
   describe('save', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('rejects writes into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-tgt-'))
+      const dest = path.join(target, 'export.md')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.save(event, 'note.md', 'content')).rejects.toMatch(/migration is in progress/)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns null (does not throw) when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
@@ -168,6 +188,21 @@ describe('FileStorage', () => {
   // Catches an inverted canceled/filePath check (cancel writing a file, confirm
   // returning false) and a lost 'base64' encoding (literal base64 text on disk).
   describe('saveImage', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('returns false when saving into a notes root blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-tgt-'))
+      const dest = path.join(target, 'image.png')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns false and writes nothing when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
