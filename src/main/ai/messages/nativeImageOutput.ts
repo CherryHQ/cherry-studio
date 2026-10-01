@@ -2,7 +2,7 @@ import type { UIMessageChunk } from 'ai'
 import { fileTypeFromBuffer } from 'file-type'
 
 import { application } from '@application'
-import { retainMessageArtifact } from '@main/services/messageArtifactRetention'
+import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 import { NATIVE_IMAGE_TOOL_NAME, type NativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 
@@ -29,7 +29,7 @@ export async function storeNativeImageOutput(output: unknown, messageId: string)
       cleanupPolicy: 'delete_when_unreferenced'
     })
   )
-  retainMessageArtifact(messageId, application.get('FileManager').retainEntry(entry.id))
+  messageArtifactRetentionService.retainMessageArtifact(messageId, application.get('FileManager').retainEntry(entry.id))
   return {
     nativeImage: true,
     files: [{ id: entry.id, name: entry.name }],

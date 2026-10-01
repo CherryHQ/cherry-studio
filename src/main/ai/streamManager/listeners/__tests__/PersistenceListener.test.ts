@@ -10,7 +10,7 @@
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { retainMessageArtifact, releaseMessageArtifacts } from '@main/services/messageArtifactRetention'
+import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -541,7 +541,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 describe('message artifact ownership handoff', () => {
   it.each(['success', 'paused', 'error'] as const)('holds artifacts until %s persistence finishes', async (status) => {
     const release = vi.fn()
-    retainMessageArtifact('artifact-message', release)
+    messageArtifactRetentionService.retainMessageArtifact('artifact-message', release)
     let finish!: () => void
     const listener = new PersistenceListener({
       topicId: 'artifacts',
@@ -573,7 +573,7 @@ describe('message artifact ownership handoff', () => {
 
   it('releases artifacts after a failed terminal write even when no output reached the accumulator', async () => {
     const release = vi.fn()
-    retainMessageArtifact('unpublished-image', release)
+    messageArtifactRetentionService.retainMessageArtifact('unpublished-image', release)
     const listener = new PersistenceListener({
       topicId: 'artifacts',
       backend: {
@@ -593,7 +593,7 @@ describe('message artifact ownership handoff', () => {
 
   it('keeps temporary-chat artifacts after terminal persistence until their in-memory owner is discarded', async () => {
     const release = vi.fn()
-    retainMessageArtifact('temporary-image', release)
+    messageArtifactRetentionService.retainMessageArtifact('temporary-image', release)
     const listener = new PersistenceListener({
       topicId: 'temporary-artifacts',
       backend: { kind: 'temp', persistAssistant: () => {} },
@@ -601,7 +601,7 @@ describe('message artifact ownership handoff', () => {
     })
     await listener.onDone({ status: 'success', finalMessage: { id: 'temporary-image', role: 'assistant', parts: [] } })
     expect(release).not.toHaveBeenCalled()
-    releaseMessageArtifacts('temporary-image')
+    messageArtifactRetentionService.releaseMessageArtifacts('temporary-image')
     expect(release).toHaveBeenCalledOnce()
   })
 })

@@ -7,7 +7,7 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { releaseMessageArtifacts } from '@main/services/messageArtifactRetention'
+import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
@@ -109,7 +109,7 @@ export class PersistenceListener implements StreamListener {
         topicId: this.opts.topicId,
         status
       })
-      if (result.anchorMessageId) releaseMessageArtifacts(result.anchorMessageId)
+      if (result.anchorMessageId) messageArtifactRetentionService.releaseMessageArtifacts(result.anchorMessageId)
       return
     }
 
@@ -182,7 +182,7 @@ export class PersistenceListener implements StreamListener {
     } finally {
       if (!persisted || this.opts.backend.kind !== 'temp') {
         for (const id of new Set([finalMessage?.id, result.anchorMessageId])) {
-          if (id) releaseMessageArtifacts(id)
+          if (id) messageArtifactRetentionService.releaseMessageArtifacts(id)
         }
       }
     }

@@ -19,7 +19,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import { releaseMessageArtifacts } from '@main/services/messageArtifactRetention'
+import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
@@ -99,7 +99,8 @@ export class TemporaryChatService {
     if (!this.topics.has(id)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', id)
     }
-    for (const message of this.messages.get(id) ?? []) releaseMessageArtifacts(message.id)
+    for (const message of this.messages.get(id) ?? [])
+      messageArtifactRetentionService.releaseMessageArtifacts(message.id)
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
@@ -274,7 +275,7 @@ export class TemporaryChatService {
       throw err
     }
 
-    for (const message of msgs) releaseMessageArtifacts(message.id)
+    for (const message of msgs) messageArtifactRetentionService.releaseMessageArtifacts(message.id)
     topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized

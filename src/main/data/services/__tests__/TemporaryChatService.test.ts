@@ -10,7 +10,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
-import { retainMessageArtifact } from '@main/services/messageArtifactRetention'
+import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -39,7 +39,7 @@ describe('TemporaryChatService', () => {
     const topic = service.createTopic({ name: 'Images' })
     const message = service.appendMessage(topic.id, { role: 'assistant', data: mainText('image') })
     const release = vi.fn()
-    retainMessageArtifact(message.id, release)
+    messageArtifactRetentionService.retainMessageArtifact(message.id, release)
     service.deleteTopic(topic.id)
     expect(release).toHaveBeenCalledOnce()
   })
@@ -76,7 +76,7 @@ describe('TemporaryChatService', () => {
       }
     })
     let referencedAtRelease = false
-    retainMessageArtifact(message.id, () => {
+    messageArtifactRetentionService.retainMessageArtifact(message.id, () => {
       referencedAtRelease =
         dbh.db.select().from(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.fileEntryId, fileId)).all()
           .length === 1
