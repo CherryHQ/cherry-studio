@@ -105,16 +105,26 @@ const BasicDataSettings: React.FC = () => {
   }, [refreshCacheSize])
 
   useEffect(() => {
+    let active = true
     void resolveNotesPath(notesPath || '')
       .then((resolved) => {
+        if (!active) {
+          return
+        }
         setResolvedNotesPath(resolved.path)
         setIsNotesPathFallback(resolved.isFallback)
       })
       .catch((error) => {
+        if (!active) {
+          return
+        }
         logger.warn('Failed to resolve notes path', error as Error)
         setResolvedNotesPath(undefined)
         setIsNotesPathFallback(false)
       })
+    return () => {
+      active = false
+    }
   }, [notesPath])
 
   const handleSelectAppDataPath = async () => {

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@renderer/data/CacheService'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 
@@ -686,6 +687,7 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
 
     const newNode = { ...mocks.noteNode, externalPath: '/new/notes/note.md', treePath: '/note' }
+    cacheService.setShared('notes.directory_root_transition', { from: '/old/notes', to: '/new/notes' })
     mocks.notesPath = '/new/notes'
     mocks.projectedNodes = [newNode]
     rerender(<NotesPage />)

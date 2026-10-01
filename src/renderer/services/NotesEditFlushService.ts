@@ -7,7 +7,7 @@ type NotesEditFlush = () => Promise<void>
  */
 export class NotesEditFlushService {
   private callbacks = new Set<NotesEditFlush>()
-  private migrationLocked = false
+  private migrationLockDepth = 0
   private migrationLockListeners = new Set<() => void>()
 
   register(flush: NotesEditFlush): () => void {
@@ -29,26 +29,28 @@ export class NotesEditFlushService {
   }
 
   getMigrationLocked(): boolean {
-    return this.migrationLocked
+    return this.migrationLockDepth > 0
   }
 
   beginMigrationLock(): void {
-    if (this.migrationLocked) {
-      return
-    }
-    this.migrationLocked = true
-    for (const listener of this.migrationLockListeners) {
-      listener()
+    const wasLocked = this.migrationLockDepth > 0
+    this.migrationLockDepth += 1
+    if (!wasLocked) {
+      for (const listener of this.migrationLockListeners) {
+        listener()
+      }
     }
   }
 
   endMigrationLock(): void {
-    if (!this.migrationLocked) {
+    if (this.migrationLockDepth === 0) {
       return
     }
-    this.migrationLocked = false
-    for (const listener of this.migrationLockListeners) {
-      listener()
+    this.migrationLockDepth -= 1
+    if (this.migrationLockDepth === 0) {
+      for (const listener of this.migrationLockListeners) {
+        listener()
+      }
     }
   }
 }
