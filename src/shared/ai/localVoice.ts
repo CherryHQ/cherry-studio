@@ -12,6 +12,8 @@ export const FUNASR_SUPPORTED_PLATFORM_KEYS = [
   'win32-x64'
 ] as const
 
+export const DEFAULT_APPLE_ASR_LOCALE = 'en-US'
+
 export const MIN_SPEECH_SPEED = 0.5
 export const MAX_SPEECH_SPEED = 2
 export const DEFAULT_SPEECH_SPEED = 1
