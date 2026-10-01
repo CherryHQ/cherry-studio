@@ -278,6 +278,7 @@ export class AgentChannelService {
 
   private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
+      { endpoint: '/agent-workspaces', kind: 'membership' },
       { endpoint: '/agent-channels', kind, entityIds: [id] },
       { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
     ])

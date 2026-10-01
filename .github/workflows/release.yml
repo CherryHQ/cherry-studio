@@ -33,6 +33,11 @@ jobs:
     name: Prepare release ref
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
+    permissions:
+      # Draft releases are only visible to tokens with push access.
+      actions: read
+      contents: write
+      pull-requests: read
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
@@ -52,6 +57,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.sha }}
 
       - name: Validate release branch and version
@@ -360,7 +366,7 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
-      - name: Prepare bilingual release notes
+      - name: Prepare release body
         shell: bash
         env:
           REPO: ${{ github.repository }}

@@ -11,7 +11,8 @@ import type { Editor, JSONContent } from '@tiptap/core'
 import {
   getComposerCursorTextOffset,
   getComposerInputText,
-  getComposerPositionAtTextOffset
+  getComposerPositionAtTextOffset,
+  getComposerTextOffset
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
@@ -73,6 +74,7 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
   return {
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
+    getSelectionEndOffset: () => getComposerTextOffset(editor, editor.state.selection.to),
     insertText: (insertedText, options) => {
       editor
         .chain()

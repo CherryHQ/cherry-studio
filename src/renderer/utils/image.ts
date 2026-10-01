@@ -1,3 +1,4 @@
+import type { Element as HastElement } from 'hast'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
 
@@ -847,18 +848,6 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
 
-  let svgBase64: string
-  try {
-    // 使用 TextEncoder 处理 Unicode 字符
-    const encoder = new TextEncoder()
-    const encodedData = encoder.encode(svgData)
-    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
-    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
-  } catch (error) {
-    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
-    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
-  }
-
   // 创建 Canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -873,6 +862,7 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
+    const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
     img.onload = () => {
       try {
@@ -881,14 +871,17 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
         resolve(canvas)
       } catch (error) {
         reject(new Error(`Failed to draw image on canvas: ${error}`))
+      } finally {
+        URL.revokeObjectURL(svgUrl)
       }
     }
 
     img.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
       reject(new Error('Failed to load SVG image'))
     }
 
-    img.src = svgBase64
+    img.src = svgUrl
   })
 }
 
@@ -1075,6 +1068,28 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
   element.removeAttribute('preserveAspectRatio')
 
   return element
+}
+
+/**
+ * Whether an SVG node is a KaTeX stretchy glyph (square roots, extensible
+ * arrows). KaTeX emits these with a `400em` width, a `0 0 400000 <h>`
+ * viewBox, and a `* slice` preserveAspectRatio. They must render exactly
+ * where KaTeX placed them: wrapping them in extra boxes (e.g. a
+ * `display: contents` context-menu trigger) stops Chromium from painting
+ * the SVG, dropping the root sign from formulas.
+ */
+export function isKatexGeneratedSvg(node: HastElement | undefined): boolean {
+  if (!node || node.tagName !== 'svg') return false
+  const properties = node.properties ?? {}
+  if (properties.id !== undefined || properties.className !== undefined) return false
+  if (properties.width !== '400em') return false
+  const preserveAspectRatio = properties.preserveAspectRatio
+  if (typeof preserveAspectRatio !== 'string' || !preserveAspectRatio.endsWith(' slice')) return false
+  const viewBox = properties.viewBox
+  if (typeof viewBox !== 'string' || !/^\s*0\s+0\s+400000\s+\d+\s*$/.test(viewBox)) return false
+  return !node.children.some(
+    (child) => child.type === 'element' && (child.tagName === 'text' || child.tagName === 'tspan')
+  )
 }
 
 /**

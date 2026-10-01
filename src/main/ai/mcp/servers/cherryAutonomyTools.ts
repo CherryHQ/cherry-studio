@@ -49,8 +49,9 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
@@ -105,18 +106,18 @@ function parseDurationToMinutes(duration: string): number {
 const CRON_TOOL: Tool = {
   name: CRON_TOOL_NAME,
   description:
-    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
+    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'update' with an id to change only the supplied fields, 'list' to see this Agent's jobs, or 'remove' to delete a job. Edit existing jobs with 'update' instead of removing and re-creating them. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['add', 'list', 'remove'],
+        enum: ['add', 'update', 'list', 'remove'],
         description: 'The action to perform'
       },
       name: {
         type: 'string',
-        description: 'Name of the job (required for add)'
+        description: 'Name of the job (required for add). Names are unique across all Agents, including disabled jobs.'
       },
       message: {
         type: 'string',
@@ -139,16 +140,22 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to use this turn’s configured notification recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
+          'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
       },
       timeout_minutes: {
-        type: 'number',
+        type: ['number', 'null'],
+        minimum: 1,
         description:
-          'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
+          'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+      },
+      reuse_session: {
+        type: 'boolean',
+        description:
+          'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
       },
       id: {
         type: 'string',
-        description: 'Job ID (required for remove)'
+        description: 'Job ID (required for update and remove)'
       }
     },
     required: ['action']
@@ -458,13 +465,14 @@ export class CherryAutonomyTools {
           const action = args.action
           switch (action) {
             case 'add':
-              return await this.addJob(args)
+            case 'update':
+              return this.saveJob(args, action)
             case 'list':
               return this.listJobs()
             case 'remove':
               return await this.removeJob(args)
             default:
-              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
+              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/update/list/remove`)
           }
         }
         case NOTIFY_TOOL_NAME:
@@ -519,7 +527,11 @@ export class CherryAutonomyTools {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      let message = error instanceof Error ? error.message : String(error)
+      if (toolName === CRON_TOOL_NAME && message.startsWith(JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT)) {
+        message +=
+          " Names are unique across all Agents, including disabled jobs; cron list only shows this Agent's jobs. Use update with the existing job id to edit your own task, choose a different name, or inspect the conflicting task in Settings > Scheduled Tasks."
+      }
       logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
       if (!(error instanceof AgentSessionDeliveryRoutingError)) {
         return {
@@ -811,31 +823,48 @@ export class CherryAutonomyTools {
       : 'not-granted'
   }
 
-  private async addJob(args: Record<string, unknown>) {
-    const name = args.name as string | undefined
-    const message = args.message as string | undefined
-    const cronExpr = args.cron as string | undefined
-    const every = args.every as string | undefined
-    const at = args.at as string | undefined
+  private saveJob(args: Record<string, unknown>, action: 'add' | 'update') {
+    const {
+      name,
+      message,
+      cron: cronExpr,
+      every,
+      at,
+      timeout_minutes: timeoutMinutes,
+      reuse_session: reuseSession,
+      id
+    } = z
+      .object({
+        name: z.string().min(1).optional(),
+        message: z.string().min(1).optional(),
+        cron: z.string().min(1).optional(),
+        every: z.string().min(1).optional(),
+        at: z.string().min(1).optional(),
+        timeout_minutes: TimeoutMinutesAtomSchema,
+        reuse_session: z.boolean().optional(),
+        id: z.string().min(1).optional()
+      })
+      .parse(args)
     const rawChannelIds = args.channel_ids
-    const timeoutMinutes = args.timeout_minutes as number | undefined
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
-    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
+    if (action === 'update' && !id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for update")
+    if (action === 'add' && !name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
+    if (action === 'add' && !message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
     // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
     const scheduleCount = [cronExpr, every, at].filter(Boolean).length
-    if (scheduleCount === 0) throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
+    if (action === 'add' && scheduleCount === 0)
+      throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
     if (scheduleCount > 1) throw new McpError(ErrorCode.InvalidParams, "Use only one of 'cron', 'every', or 'at'")
 
-    let trigger: Trigger
+    let trigger: Trigger | undefined
 
     if (cronExpr) {
       trigger = { kind: 'cron', expr: cronExpr }
     } else if (every) {
       const minutes = parseDurationToMinutes(every)
       trigger = { kind: 'interval', ms: minutes * 60_000 }
-    } else {
-      const date = new Date(at!)
+    } else if (at) {
+      const date = new Date(at)
       if (isNaN(date.getTime())) throw new McpError(ErrorCode.InvalidParams, `Invalid timestamp: "${at}"`)
       trigger = { kind: 'once', at: date.getTime() }
     }
@@ -848,7 +877,7 @@ export class CherryAutonomyTools {
         throw new McpError(ErrorCode.InvalidParams, "'channel_ids' must be an array of channel ids")
       }
       channelIds = rawChannelIds as string[]
-    } else if (this.trustedNotifyChannels.length > 0) {
+    } else if (action === 'add' && this.trustedNotifyChannels.length > 0) {
       channelIds = this.trustedNotifyChannels.map((channel) => channel.id)
     }
 
@@ -864,18 +893,32 @@ export class CherryAutonomyTools {
       }
     }
 
-    const task = application.get('AgentJobsService').createTask(this.agentId, {
+    const service = application.get('AgentJobsService')
+    const patch = {
       name,
       prompt: message,
       trigger,
-      workspace: this.workspace,
-      timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
-      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
-    })
+      timeoutMinutes,
+      channelIds,
+      ...(reuseSession !== undefined ? { reuseSession } : {})
+    }
+    const task =
+      action === 'add'
+        ? service.createTask(this.agentId, {
+            ...patch,
+            name: name!,
+            prompt: message!,
+            trigger: trigger!,
+            workspace: this.workspace,
+            channelIds: channelIds?.length ? channelIds : undefined
+          })
+        : service.updateTask(this.agentId, id!, patch)
+    if (!task) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
 
-    logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
+    const outcome = action === 'add' ? 'created' : 'updated'
+    logger.info(`Cron job ${outcome} via tool`, { agentId: this.agentId, taskId: task.id })
     return {
-      content: [{ type: 'text' as const, text: `Job created:\n${JSON.stringify(task, null, 2)}` }]
+      content: [{ type: 'text' as const, text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}` }]
     }
   }
 

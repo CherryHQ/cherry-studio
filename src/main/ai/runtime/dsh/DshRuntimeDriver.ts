@@ -28,10 +28,9 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
 
   async fork(input: RuntimeForkInput) {
     input.signal.throwIfAborted()
-    const checkpoint = parseDshForkCheckpoint(input.checkpoint)
-    let events: unknown[] | undefined
+    parseDshForkCheckpoint(input.checkpoint)
     try {
-      events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(checkpoint.boundary, input.signal)
+      await this.forkSources.get(input.sourceSessionId)?.flushForFork(input.signal)
     } catch (error) {
       input.signal.throwIfAborted()
       if (error instanceof AgentSessionForkError) throw error
@@ -40,7 +39,7 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new AgentSessionForkError(reason, error instanceof Error ? error.message : reason)
     }
     input.signal.throwIfAborted()
-    return forkDshSession(input, events)
+    return forkDshSession(input)
   }
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
