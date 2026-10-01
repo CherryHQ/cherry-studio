@@ -14,6 +14,7 @@ import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -29,9 +30,10 @@ function readOllamaRetryNumCtx(error: SerializedError | undefined): number | und
   return undefined
 }
 
-function readOllamaRetryModelId(error: SerializedError | undefined): string | undefined {
+function readOllamaRetryModelId(error: SerializedError | undefined): UniqueModelId | undefined {
   const bag = error as Record<string, unknown> | undefined
-  return typeof bag?.ollamaNumCtxModelId === 'string' ? bag.ollamaNumCtxModelId : undefined
+  const modelId = bag?.ollamaNumCtxModelId
+  return isUniqueModelId(modelId) ? modelId : undefined
 }
 const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
 const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
