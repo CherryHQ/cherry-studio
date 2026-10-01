@@ -68,6 +68,9 @@ export type ObjectInfo = Record<
     /** The server executes this class for its side effect, so a node of it is
      * where a run ends — the anchor the target walk falls back to. */
     output_node?: boolean
+    /** The types this class produces. `STRING` marks a node that carries text
+     * to whatever reads it. */
+    output?: unknown
   }
 >
 
@@ -218,12 +221,19 @@ const isValueSource = (node: ApiPromptNode): boolean =>
  * walk may stop at, and the kind an edgeless text source is not — a generator
  * with its own seed writes its prompt from its input rather than holding it.
  */
-const holdsText = (node: ApiPromptNode): boolean =>
-  // A concatenate exists to join text, so it carries text even when its
-  // operands are links: a nested one is a text source to the node above it.
-  node.class_type === 'StringConcatenate' ||
-  typeof node.inputs.value === 'string' ||
-  Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && isPromptShaped(name))
+const holdsText = (node: ApiPromptNode, objectInfo?: ObjectInfo): boolean => {
+  // The server says which classes produce a STRING — a concatenate, a format, a
+  // primitive. Any of them carries text to the node that reads it, whatever its
+  // own inputs are; a concatenate that joins two links is a text source to the
+  // node above it just as a primitive is.
+  const outputs = objectInfo?.[node.class_type]?.output
+  if (Array.isArray(outputs) && outputs.includes('STRING')) return true
+  return (
+    node.class_type === 'StringConcatenate' ||
+    typeof node.inputs.value === 'string' ||
+    Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && isPromptShaped(name))
+  )
+}
 
 /** Whether a node samples on its own, rather than only carrying text. */
 const isPlainTextNode = (node: ApiPromptNode): boolean =>
@@ -1023,7 +1033,7 @@ export function findPromptTarget(
       // socket carries the workflow's text is the workflow's own choice.
       const textEdges = following.filter(([, value]) => {
         const producer = prompt[value[0]]
-        return producer !== undefined && holdsText(producer) && isPlainTextNode(producer)
+        return producer !== undefined && holdsText(producer, objectInfo) && isPlainTextNode(producer)
       })
       // A `StringConcatenate` joins text sources, and both operands have the
       // same STRING contract: `string_a` and `string_b` rank nothing, so a

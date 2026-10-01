@@ -234,6 +234,31 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(hasPromptText(graph)).toBe(true)
   })
 
+  it('refuses a StringConcatenate whose linked operand is a text producer', () => {
+    // The server says `StringFormat` produces a STRING, so it carries text to
+    // the concat just as a primitive would: the outer literal is not the run's
+    // text by default.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'StringFormat', _meta: { title: 'format' }, inputs: { f_string: 'the run text' } },
+      '2': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: 'style, ', string_b: ['1', 0], delimiter: '' }
+      },
+      '3': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['2', 0] } },
+      '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 1 } },
+      '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } }
+    }
+    const info: ObjectInfo = {
+      StringFormat: { input: { required: { f_string: ['STRING', {}] } }, output: ['STRING'] },
+      StringConcatenate: {
+        input: { required: { string_a: ['STRING', {}], string_b: ['STRING', {}], delimiter: ['STRING', {}] } },
+        output: ['STRING']
+      }
+    }
+    expect(findPromptTarget(graph, { objectInfo: info })).toBeUndefined()
+  })
+
   it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
     // `string_a` and `string_b` rank nothing: one is the workflow's style or
     // prefix, the other is the run's text, and object order cannot tell them
