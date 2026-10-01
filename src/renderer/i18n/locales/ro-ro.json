@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Către",
   "settings.data.notes_relocation.error.generic": "Migrarea directorului de notițe a eșuat",
   "settings.data.notes_relocation.error.invalid_target": "Directorul selectat este invalid sau accesul a fost refuzat",
+  "settings.data.notes_relocation.error.migration_in_progress": "Migrarea directorului de notițe este în curs. Încercați din nou după finalizare.",
   "settings.data.notes_relocation.error.same_path": "Noul director este același cu directorul actual de notițe",
   "settings.data.notes_relocation.error.source_missing": "Directorul actual de notițe nu a putut fi citit",
   "settings.data.notes_relocation.error.source_not_directory": "Calea actuală de notițe nu este un director",

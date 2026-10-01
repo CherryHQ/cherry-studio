@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Nach",
   "settings.data.notes_relocation.error.generic": "Migration des Notizverzeichnisses fehlgeschlagen",
   "settings.data.notes_relocation.error.invalid_target": "Das ausgewählte Verzeichnis ist ungültig oder der Zugriff wurde verweigert",
+  "settings.data.notes_relocation.error.migration_in_progress": "Die Notizenverzeichnis-Migration läuft. Versuchen Sie es erneut, wenn sie abgeschlossen ist.",
   "settings.data.notes_relocation.error.same_path": "Das neue Verzeichnis ist identisch mit dem aktuellen Notizverzeichnis",
   "settings.data.notes_relocation.error.source_missing": "Das aktuelle Notizverzeichnis konnte nicht gelesen werden",
   "settings.data.notes_relocation.error.source_not_directory": "Der aktuelle Notizpfad ist kein Verzeichnis",

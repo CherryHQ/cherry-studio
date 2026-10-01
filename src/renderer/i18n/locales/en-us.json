@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "To",
   "settings.data.notes_relocation.error.generic": "Failed to migrate notes directory",
   "settings.data.notes_relocation.error.invalid_target": "The selected directory is invalid or access denied",
+  "settings.data.notes_relocation.error.migration_in_progress": "Notes directory migration is in progress. Try again when it finishes.",
   "settings.data.notes_relocation.error.same_path": "The new directory is the same as the current notes directory",
   "settings.data.notes_relocation.error.source_missing": "The current notes directory could not be read",
   "settings.data.notes_relocation.error.source_not_directory": "The current notes path is not a directory",

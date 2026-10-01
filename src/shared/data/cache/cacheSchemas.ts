@@ -147,6 +147,8 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
+  /** Set after a successful directory migration so selection can follow the new root. */
+  'notes.directory_root_transition': { from: string; to: string } | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -244,6 +246,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.right_pane_open_override': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
+  'notes.directory_root_transition': undefined,
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],

@@ -3882,6 +3882,7 @@
   "settings.data.notes_relocation.confirm.to": "Para",
   "settings.data.notes_relocation.error.generic": "Falha ao migrar o diretório de notas",
   "settings.data.notes_relocation.error.invalid_target": "O diretório selecionado é inválido ou o acesso foi negado",
+  "settings.data.notes_relocation.error.migration_in_progress": "A migração do diretório de notas está em curso. Tente novamente quando terminar.",
   "settings.data.notes_relocation.error.same_path": "O novo diretório é igual ao diretório de notas atual",
   "settings.data.notes_relocation.error.source_missing": "Não foi possível ler o diretório de notas atual",
   "settings.data.notes_relocation.error.source_not_directory": "O caminho de notas atual não é um diretório",

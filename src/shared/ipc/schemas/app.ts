@@ -110,6 +110,7 @@ export const appRequestSchemas = {
     }),
     output: z.void()
   }),
+  'app.notes_relocation.commit': defineRoute({ input: z.void(), output: z.void() }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
