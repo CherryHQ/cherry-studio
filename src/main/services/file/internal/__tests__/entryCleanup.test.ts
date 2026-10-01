@@ -51,7 +51,8 @@ function makeDeps() {
     fileRefService,
     danglingCache,
     versionCache: createVersionCacheImpl(10),
-    contentWriteLock: new KeyedMutex()
+    contentWriteLock: new KeyedMutex(),
+    isEntryRetained: () => false
   }
 }
 
