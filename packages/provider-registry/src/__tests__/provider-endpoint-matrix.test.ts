@@ -179,6 +179,21 @@ describe('doubao (Ark) endpoint matrix', () => {
  * chat endpoint when the requested endpoint has no `baseUrl`, so a placeholder host on a
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
+describe('aionly New API multiplexing', () => {
+  it('routes every declared endpoint through the newapi adapter family', () => {
+    for (const [endpointType, config] of Object.entries(provider('aionly').endpointConfigs ?? {})) {
+      expect(config?.adapterFamily, endpointType).toBe('newapi')
+    }
+  })
+
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
+  })
+})
+
 describe('new-api single-host endpoints', () => {
   it('carries a placeholder baseUrl on the default chat endpoint only', () => {
     const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})

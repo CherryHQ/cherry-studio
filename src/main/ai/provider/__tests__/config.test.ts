@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +20,9 @@ import {
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
+
+import { application } from '@application'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -1897,19 +1902,31 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('routes AIOnly Anthropic-synced models through the newapi adapter (issue #21166)', async () => {
+      const getPath = vi.mocked(application.getPath).getMockImplementation()
+      vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : (getPath?.(key, filename) ?? `/mock/${key}`)
+      )
+      providerRegistryService.clearCache()
+      // Pre-fix rows seed only chat-completions; registry merge must supply newapi on other endpoints.
+      const endpointConfigs = providerRegistryService.mergeEndpointConfigs(
+        {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.aiionly.com',
+            adapterFamily: 'openai-compatible'
+          }
+        },
+        'aionly',
+        'aionly'
+      )
+      expect(endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('newapi')
+
       const provider = makeProvider({
         id: 'aionly',
         presetProviderId: 'aionly',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://api.aiionly.com',
-            adapterFamily: 'newapi'
-          },
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
-          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' },
-          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' }
-        }
+        endpointConfigs: endpointConfigs ?? undefined
       })
       const model = makeModel({
         id: 'aionly::claude-sonnet',
