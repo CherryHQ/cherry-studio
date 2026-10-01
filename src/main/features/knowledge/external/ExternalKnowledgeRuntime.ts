@@ -6,6 +6,11 @@ import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowl
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
+import type {
+  ExternalKnowledgeDocumentRead,
+  ExternalKnowledgeScopePreview,
+  ExternalKnowledgeScopeResolution
+} from '@shared/data/types/externalKnowledgeRead'
 
 import {
   externalKnowledgeCredentialStore,
@@ -19,17 +24,32 @@ import {
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
   FEISHU_AUTOMATIC_ALLOWED_SCOPES,
+  FEISHU_READ_ENDPOINT_BUDGETS,
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getDocxMarkdown,
   getUserIdentity,
+  getWikiNode,
+  listWikiChildNodes,
   missingKnowledgeScopes,
   refreshUserToken,
   revokeUserToken,
   type FeishuApplicationCredentials,
   type FeishuDeviceAuthorization,
   type FeishuUserIdentity,
-  type FeishuUserTokenSet
+  type FeishuUserTokenSet,
+  type FeishuWikiNode,
+  type FeishuWikiNodePage
 } from './feishuKnowledgeProvider'
+import {
+  FeishuKnowledgeReadError,
+  parseFeishuKnowledgeUrl,
+  previewFeishuKnowledgeScope,
+  readFeishuDocx,
+  resolveFeishuKnowledgeScope,
+  type FeishuKnowledgeReadOperations,
+  type FeishuKnowledgeReference
+} from './feishuKnowledgeReadAdapter'
 
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 const MAX_REQUEST_ATTEMPTS = 3
@@ -78,6 +98,19 @@ type Provider = {
   ): Promise<FeishuUserTokenSet>
   getUserIdentity(accessToken: string, signal?: AbortSignal): Promise<FeishuUserIdentity>
   revokeUserToken(credentials: FeishuApplicationCredentials, refreshToken: string, signal?: AbortSignal): Promise<void>
+  getWikiNode(
+    accessToken: string,
+    input: { token: string; objType: 'wiki' | 'docx' },
+    signal?: AbortSignal
+  ): Promise<FeishuWikiNode>
+  listWikiChildNodes(
+    accessToken: string,
+    spaceId: string,
+    parentNodeToken: string,
+    pageToken?: string,
+    signal?: AbortSignal
+  ): Promise<FeishuWikiNodePage>
+  getDocxMarkdown(accessToken: string, documentToken: string, signal?: AbortSignal): Promise<string>
 }
 
 type Registration = {
@@ -137,6 +170,16 @@ type CredentialRuntimeState = {
   validatedGeneration?: number
   requestTail?: Promise<void>
   nextAllowedAt: number
+  endpointNextAllowedAt: Map<string, number>
+}
+
+type EndpointBudget = { key: string; minimumIntervalMs: number }
+
+type AuthorizedReadContext = {
+  accessToken: string
+  connection: ExternalKnowledgeConnection
+  signal: AbortSignal
+  request<T>(budget: EndpointBudget, operation: () => Promise<T>): Promise<T>
 }
 
 export type BeginUserAuthorizationInput =
@@ -169,6 +212,12 @@ export type ExternalKnowledgeRuntimeErrorCode =
   | 'identity-unverifiable'
   | 'reauthorization-required'
   | 'authorization-failed'
+  | 'invalid-scope-url'
+  | 'resource-permission-denied'
+  | 'scope-not-found'
+  | 'unsupported-resource'
+  | 'transient'
+  | 'invalid-provider-response'
 
 export class ExternalKnowledgeRuntimeError extends Error {
   constructor(readonly code: ExternalKnowledgeRuntimeErrorCode) {
@@ -182,7 +231,10 @@ const defaultProvider: Provider = {
   exchangeDeviceAuthorization,
   refreshUserToken,
   getUserIdentity,
-  revokeUserToken
+  revokeUserToken,
+  getWikiNode,
+  listWikiChildNodes,
+  getDocxMarkdown
 }
 
 const defaultRegistration: Registration = { begin: registrationBegin, poll: registrationPoll }
@@ -468,6 +520,151 @@ export class ExternalKnowledgeRuntime {
       }
     })
     return await this.track(task)
+  }
+
+  async resolveFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopeResolution> {
+    this.assertAccepting()
+    this.assertValidFeishuScopeUrl(url)
+    return await this.runAuthorizedRead(connectionId, async (context) => {
+      const resolved = await resolveFeishuKnowledgeScope(
+        { connection: context.connection, url },
+        this.feishuReadOperations(context),
+        context.signal
+      )
+      return resolved.resolution
+    })
+  }
+
+  async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
+    this.assertAccepting()
+    this.assertValidFeishuScopeUrl(url)
+    return await this.runAuthorizedRead(connectionId, async (context) => {
+      const result = await previewFeishuKnowledgeScope(
+        { connection: context.connection, url },
+        this.feishuReadOperations(context),
+        context.signal
+      )
+      return result.preview
+    })
+  }
+
+  async readFeishuDocument(
+    connectionId: string,
+    reference: FeishuKnowledgeReference
+  ): Promise<ExternalKnowledgeDocumentRead> {
+    return await this.runAuthorizedRead(connectionId, async (context) =>
+      readFeishuDocx(reference, this.feishuReadOperations(context), context.signal)
+    )
+  }
+
+  private async runAuthorizedRead<T>(
+    connectionId: string,
+    operation: (context: AuthorizedReadContext) => Promise<T>
+  ): Promise<T> {
+    this.assertAccepting()
+    const connection = this.requireConnection(connectionId)
+    const state = this.getCredentialState(connection.credentialReference)
+    const generation = state.generation
+    const assertCurrent = () => this.assertCredentialGeneration(state, generation)
+    const previous = state.requestTail ?? Promise.resolve()
+    const signal = this.credentialSignal(state)
+    const task = previous
+      .catch(() => undefined)
+      .then(async () => {
+        assertCurrent()
+        try {
+          const accessToken = await this.acquireAccessToken(connectionId, signal)
+          assertCurrent()
+          const validatedConnection = await this.ensureConnectionValidated(
+            connection,
+            accessToken,
+            state,
+            generation,
+            signal
+          )
+          assertCurrent()
+          return await operation({
+            accessToken,
+            connection: validatedConnection,
+            signal,
+            request: (budget, request) => this.runCredentialRequest(state, generation, signal, request, budget)
+          })
+        } catch (error) {
+          assertCurrent()
+          throw this.readOperationError(error, connectionId, state, generation)
+        }
+      })
+    const tail = task.then(
+      () => undefined,
+      () => undefined
+    )
+    state.requestTail = tail
+    void tail.finally(() => {
+      if (state.requestTail === tail) state.requestTail = undefined
+    })
+    return await this.track(task)
+  }
+
+  private assertValidFeishuScopeUrl(url: string): void {
+    try {
+      parseFeishuKnowledgeUrl(url)
+    } catch (error) {
+      if (error instanceof FeishuKnowledgeReadError) throw new ExternalKnowledgeRuntimeError(error.code)
+      throw error
+    }
+  }
+
+  private feishuReadOperations(context: AuthorizedReadContext): FeishuKnowledgeReadOperations {
+    return {
+      getNode: (token, objType, signal) =>
+        context.request(FEISHU_READ_ENDPOINT_BUDGETS.getWikiNode, () =>
+          this.provider.getWikiNode(context.accessToken, { token, objType }, signal ?? context.signal)
+        ),
+      listChildNodes: (spaceId, parentNodeToken, pageToken, signal) =>
+        context.request(FEISHU_READ_ENDPOINT_BUDGETS.listWikiNodes, () =>
+          this.provider.listWikiChildNodes(
+            context.accessToken,
+            spaceId,
+            parentNodeToken,
+            pageToken,
+            signal ?? context.signal
+          )
+        ),
+      getDocumentMarkdown: (documentToken, signal) =>
+        context.request(FEISHU_READ_ENDPOINT_BUDGETS.getDocxMarkdown, () =>
+          this.provider.getDocxMarkdown(context.accessToken, documentToken, signal ?? context.signal)
+        )
+    }
+  }
+
+  private readOperationError(
+    error: unknown,
+    connectionId: string,
+    state: CredentialRuntimeState,
+    generation: number
+  ): unknown {
+    if (error instanceof FeishuKnowledgeReadError) return new ExternalKnowledgeRuntimeError(error.code)
+    if (!(error instanceof FeishuProviderError)) return error
+    if (error.terminal) {
+      this.markReauthorizationRequiredIfCurrent(connectionId, state, generation)
+      return new ExternalKnowledgeRuntimeError(
+        error.code === 'app-scope-missing'
+          ? 'scope-missing'
+          : error.code === 'identity-unverifiable'
+            ? 'identity-unverifiable'
+            : 'reauthorization-required'
+      )
+    }
+    switch (error.code) {
+      case 'resource-permission-denied':
+      case 'scope-not-found':
+      case 'transient':
+        return new ExternalKnowledgeRuntimeError(error.code)
+      case 'invalid-response':
+        return new ExternalKnowledgeRuntimeError('invalid-provider-response')
+      default:
+        return error
+    }
   }
 
   async validateConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
@@ -1006,7 +1203,8 @@ export class ExternalKnowledgeRuntime {
       phase: 'active',
       generation: 0,
       controller: new AbortController(),
-      nextAllowedAt: 0
+      nextAllowedAt: 0,
+      endpointNextAllowedAt: new Map()
     }
     this.credentialStates.set(credentialReference, state)
     return state
@@ -1021,6 +1219,7 @@ export class ExternalKnowledgeRuntime {
     state.validatedGeneration = undefined
     state.requestTail = undefined
     state.nextAllowedAt = 0
+    state.endpointNextAllowedAt.clear()
     for (const [sessionId, session] of this.authorizationSessions) {
       if (session.stateCredentialReference !== credentialReference) continue
       this.authorizationSessions.delete(sessionId)
@@ -1064,11 +1263,19 @@ export class ExternalKnowledgeRuntime {
     state: CredentialRuntimeState,
     generation: number,
     signal: AbortSignal,
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
+    budget?: EndpointBudget
   ): Promise<T> {
     for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
       await this.waitForCredentialBackoff(state, signal)
+      if (budget) {
+        const endpointWaitMs = (state.endpointNextAllowedAt.get(budget.key) ?? 0) - this.now()
+        if (endpointWaitMs > 0) await this.sleep(endpointWaitMs, signal)
+      }
       this.assertCredentialGeneration(state, generation)
+      if (budget) {
+        state.endpointNextAllowedAt.set(budget.key, this.now() + budget.minimumIntervalMs)
+      }
       try {
         const result = await operation()
         this.assertCredentialGeneration(state, generation)
