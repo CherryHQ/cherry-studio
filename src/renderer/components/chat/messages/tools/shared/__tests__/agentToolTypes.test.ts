@@ -117,6 +117,15 @@ describe('dsh receipt identities', () => {
     })
   })
 
+  it('keeps a send that has not returned yet out of the flow entries', () => {
+    // Nothing has resumed while the call is in flight, so the row must stay plain rather than
+    // offering a flow whose content cannot exist yet.
+    const launchIndex = buildAgentLaunchIndex({ m1: [launchPart('call-a', 'agent-a', 'Audit the renderer')] })
+
+    expect(resolveResumeReceiptState(undefined, undefined, launchIndex, true)).toEqual({ kind: 'none' })
+    expect(resolveResumeReceiptState(undefined, 'call-a', launchIndex, true)).toEqual({ kind: 'none' })
+  })
+
   it('keeps a deferred receipt as the flow that can hydrate its own answer', () => {
     // The pane hydrates the selected call's deferred result, so a receipt whose result is still an
     // envelope has to stay selected: stamping it onto the launch root would strand its answer.

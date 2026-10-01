@@ -132,7 +132,8 @@ export function AgentToolCallCard({
           : status === 'cancelled'
             ? t('message.tools.cancelled')
             : t('message.tools.pending')
-    const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+    // The highlight follows the flow the click opens, which a resume entry redirects to its launch.
+    const selected = actions?.isAgentToolFlowActive?.(flowTargetToolCallId ?? toolCallId ?? '') ?? false
     return (
       <Tooltip content={title} delay={600} asChild>
         <Button

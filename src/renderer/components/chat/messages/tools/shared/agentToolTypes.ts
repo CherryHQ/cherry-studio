@@ -460,6 +460,8 @@ export function resolveResumeReceiptState(
   launchIndex: AgentLaunchIndex | null,
   canNavigate: boolean
 ): ResumeReceiptState {
+  // No result yet: the send is still in flight, so nothing has resumed and the row stays plain.
+  if (output === undefined || output === null) return { kind: 'none' }
   // A large receipt is the resumed run's answer, not an edge — a delivery receipt is a few fields —
   // and only the receipt's own call can hydrate it (the pane hydrates the selected call's result),
   // so redirecting it to a launch root would leave that answer unhydrated.

@@ -102,6 +102,27 @@ describe('resume presentation inside a completed tool group', () => {
     expect(screen.queryByText('Inspect renderer')).toBeNull()
   })
 
+  // A receipt whose result is still an envelope names no child anywhere, so the icon must not be
+  // derived from the result: the header leads with the continuation icon like every other receipt.
+  it('heads a deferred receipt group with the continuation icon', () => {
+    const receipt: NormalToolResponse = {
+      ...resumeReceipt(),
+      response: { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call_resume' } }
+    }
+
+    const { container } = render(
+      <AgentLaunchIndexProvider value={null}>
+        <PartsProvider value={null}>
+          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
+        </PartsProvider>
+      </AgentLaunchIndexProvider>
+    )
+
+    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(container.querySelector('.lucide-sparkles')).not.toBeNull()
+    expect(container.querySelector('.lucide-wrench')).toBeNull()
+  })
+
   // A queued send to a still-running agent carries only pin.id — the group header must treat it
   // as the same continuation entry.
   it('renders the continue label for a queued-pin receipt', () => {

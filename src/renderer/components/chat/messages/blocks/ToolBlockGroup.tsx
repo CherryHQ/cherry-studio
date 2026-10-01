@@ -501,7 +501,9 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         <div className="min-w-0 max-w-full overflow-hidden" key={displayCandidate.item.id}>
           {resumeHeader.header}
         </div>,
-        activityIcon ?? latestToolIcon
+        // A resolved receipt always heads its group with the continuation icon; the result's shape
+        // (a deferred envelope names no child) must not sink it back to the generic tool icon.
+        activityIcon ?? <Sparkles aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
       )
     }
 
