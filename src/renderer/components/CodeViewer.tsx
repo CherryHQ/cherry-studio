@@ -20,6 +20,11 @@ const WRAPPED_LINE_TAB_SIZE = 2
 // Pessimistic width deduction so `ch` gutters and sub-pixel layout do not overstate chars/row.
 const WRAPPED_ESTIMATE_WIDTH_MARGIN_PX = 4
 
+function wrappedLineVisibleText(part: string): string {
+  // string-width strips ESC/C1 CSI and OSC sequences, but CodeViewer renders those bytes in HTML.
+  return part.replaceAll('\u001b', '').replaceAll('\u009b', '')
+}
+
 function wrappedLineVisualColumns(line: string): number {
   const parts = line.split('\t')
   let columns = 0
@@ -27,10 +32,36 @@ function wrappedLineVisualColumns(line: string): number {
     if (partIndex > 0) {
       columns += WRAPPED_LINE_TAB_SIZE - (columns % WRAPPED_LINE_TAB_SIZE)
     }
-    // string-width strips CSI/OSC sequences, but CodeViewer renders those bytes in HTML.
-    columns += stringWidth(parts[partIndex].replaceAll('\u001b', ''))
+    columns += stringWidth(wrappedLineVisibleText(parts[partIndex]))
   }
   return columns
+}
+
+/** First index whose line text differs; optimized for streaming append / last-line edits. */
+function firstChangedRawLineIndex(prev: string[], next: string[]): number {
+  const maxIndex = Math.max(prev.length, next.length) - 1
+  if (maxIndex < 0) return 0
+
+  if (next.length === prev.length + 1 && prev.length > 0 && prev[prev.length - 1] === next[prev.length - 1]) {
+    return next.length - 1
+  }
+
+  if (next.length === prev.length && next.length > 0 && prev[next.length - 1] !== next[next.length - 1]) {
+    let onlyLastLineChanged = true
+    for (let index = 0; index < next.length - 1; index++) {
+      if (prev[index] !== next[index]) {
+        onlyLastLineChanged = false
+        break
+      }
+    }
+    if (onlyLastLineChanged) return next.length - 1
+  }
+
+  let startIndex = 0
+  while (startIndex <= maxIndex && prev[startIndex] === next[startIndex]) {
+    startIndex++
+  }
+  return startIndex
 }
 
 interface SavedSelection {
@@ -131,6 +162,7 @@ const CodeViewer = ({
   const remeasureLayoutKeyRef = useRef('')
   const scrollerWidthRef = useRef(0)
   const prevRawLinesRef = useRef<string[]>([])
+  const prevGutterDigitsRef = useRef(0)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -612,13 +644,16 @@ const CodeViewer = ({
     }
 
     const prev = prevRawLinesRef.current
+    if (prevGutterDigitsRef.current !== gutterDigits) {
+      prevGutterDigitsRef.current = gutterDigits
+      remeasureLayoutKeyRef.current = ''
+      measuredRowHeightsRef.current.clear()
+    }
+
     if (prev.length > 0) {
       const scroller = scrollerRef.current
       const maxIndex = Math.max(prev.length, rawLines.length) - 1
-      let startIndex = 0
-      while (startIndex <= maxIndex && prev[startIndex] === rawLines[startIndex]) {
-        startIndex++
-      }
+      const startIndex = firstChangedRawLineIndex(prev, rawLines)
       for (let index = startIndex; index <= maxIndex; index++) {
         if (prev[index] === rawLines[index]) continue
         // Newly appended lines get their initial size from estimateSize; remeasure only in-place edits.
@@ -644,7 +679,7 @@ const CodeViewer = ({
       }
     }
     prevRawLinesRef.current = rawLines
-  }, [rawLines, wrapped, estimateWrappedRowHeight, virtualizer])
+  }, [gutterDigits, rawLines, wrapped, estimateWrappedRowHeight, virtualizer])
 
   useLayoutEffect(() => {
     if (!wrapped) return
