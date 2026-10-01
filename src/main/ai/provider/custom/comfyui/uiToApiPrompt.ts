@@ -876,6 +876,24 @@ export function findPromptTarget(
     return reached
   }
 
+  /** Whether `target` is reachable from `from` through reference inputs. */
+  const reaches = (from: string, target: string): boolean => {
+    const seen = new Set<string>()
+    const queue = [from]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      if (id === target) return true
+      if (seen.has(id)) continue
+      seen.add(id)
+      const node = prompt[id]
+      if (!node) continue
+      for (const value of Object.values(node.inputs)) {
+        if (isReference(value)) queue.push(value[0])
+      }
+    }
+    return false
+  }
+
   /**
    * The first text source reached from the node ids in `queue`, breadth first.
    * A node the graph cannot feed is its own value: a text widget the workflow
@@ -897,6 +915,21 @@ export function findPromptTarget(
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
       if (best) return { nodeId, input: best.name }
+      // A `StringConcatenate` can keep the run's text as one of its own
+      // literals — the style string linked in, the prompt typed into the node.
+      // That literal is where the run writes; following the linked operand would
+      // reach another node's constant and replace the workflow's style instead.
+      if (target.class_type === 'StringConcatenate') {
+        // Unless the workflow promotes the text of a node this one feeds: then
+        // the promotion — the workflow's own statement of what a run supplies —
+        // names the text, and the literal here is a style string.
+        const promotedBelow = promotedText.some((entry) => reaches(nodeId, entry.nodeId))
+        const literal = Object.entries(target.inputs).find(
+          ([name, value]) => name !== 'delimiter' && typeof value === 'string' && value.length > 0
+        )
+        if (literal && !promotedBelow) return { nodeId, input: literal[0] }
+        if (promotedBelow) continue
+      }
       // A switch puts one branch on the wire and leaves the other unevaluated,
       // so only the selected branch is part of the graph the sampler reads.
       // When that branch carries the text as a literal — the workflow's own
@@ -983,24 +1016,6 @@ export function findPromptTarget(
   }
   const orderedIds = Object.keys(prompt).sort(byNodeId)
   const samplingIds = orderedIds.filter((id) => seedInputKey(prompt[id].inputs) !== undefined)
-
-  /** Whether `target` is reachable from `from` through reference inputs. */
-  const reaches = (from: string, target: string): boolean => {
-    const seen = new Set<string>()
-    const queue = [from]
-    while (queue.length > 0) {
-      const id = queue.shift()!
-      if (id === target) return true
-      if (seen.has(id)) continue
-      seen.add(id)
-      const node = prompt[id]
-      if (!node) continue
-      for (const value of Object.values(node.inputs)) {
-        if (isReference(value)) queue.push(value[0])
-      }
-    }
-    return false
-  }
 
   /**
    * The node a per-run seed belongs to: the root when it samples, otherwise the

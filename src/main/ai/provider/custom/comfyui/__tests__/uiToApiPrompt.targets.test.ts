@@ -145,6 +145,50 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(findPromptTarget(graph)).toEqual({ nodeId: '1', input: 'value', samplerId: '3' })
   })
 
+  it('writes the run text into the literal a StringConcatenate keeps beside a link', () => {
+    // The style string is linked in, the text is typed into the node itself:
+    // the literal is the operand a run supplies.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'muted sketch' } },
+      '2': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: ['1', 0], string_b: 'a cat on a beach', delimiter: ', ' }
+      },
+      '3': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['2', 0] } },
+      '4': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['3', 0], seed: 1 } },
+      '5': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['4', 0] } }
+    }
+    expect(findPromptTarget(graph)).toEqual({ nodeId: '2', input: 'string_b', samplerId: '4' })
+  })
+
+  it('prefers the text the workflow promotes over a literal further down the concat', () => {
+    // The concat holds a style literal, but the workflow promotes the text of a
+    // node its other operand reaches: the promotion says what a run supplies.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } },
+      '2': {
+        class_type: 'ComfySwitchNode',
+        _meta: { title: 'switch' },
+        inputs: { on_true: ['1', 0], on_false: ['5', 0], switch: true }
+      },
+      '3': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'concat' },
+        inputs: { string_a: ['2', 0], string_b: 'style, ', delimiter: '' }
+      },
+      '4': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['3', 0] } },
+      '5': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'other' }, inputs: { value: 'other text' } },
+      '6': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['4', 0], seed: 1 } },
+      '7': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['6', 0] } }
+    }
+    expect(findPromptTarget(graph, { promotedText: [{ nodeId: '1', input: 'value' }] })).toEqual({
+      nodeId: '1',
+      input: 'value',
+      samplerId: '6'
+    })
+  })
+
   it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
     // `string_a` and `string_b` rank nothing: one is the workflow's style or
     // prefix, the other is the run's text, and object order cannot tell them
