@@ -355,7 +355,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const endpointDraftsForSave: Record<string, EndpointDraft> = { ...endpointDrafts }
     for (const [type, draft] of Object.entries(endpointDraftsForSave) as [EndpointType, EndpointDraft][]) {
       if (!reasoningFormatTouchedRef.current.has(type) && draft && 'reasoningFormat' in draft) {
-        const { reasoningFormat: _ignored, ...rest } = draft
+        const rest = { ...draft }
+        delete rest.reasoningFormat
         endpointDraftsForSave[type] = rest
       }
     }
