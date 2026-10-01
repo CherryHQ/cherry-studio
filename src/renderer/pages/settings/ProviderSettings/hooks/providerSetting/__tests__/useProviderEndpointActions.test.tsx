@@ -249,38 +249,7 @@ describe('useProviderEndpointActions', () => {
     })
   })
 
-  it('persists a self-hosted reasoning format on the primary endpoint', async () => {
-    const { result } = renderHook(() =>
-      useProviderEndpointActions({
-        provider,
-        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        apiHost: 'https://api.openai.com',
-        setApiHost: setApiHostMock,
-        providerApiHost: 'https://api.openai.com',
-        anthropicApiHost: '',
-        setAnthropicApiHost: setAnthropicApiHostMock,
-        defaultApiHost: 'https://api.openai.com',
-        apiVersion: '',
-        patchProvider: patchProviderMock
-      })
-    )
-
-    await act(async () => {
-      await result.current.commitReasoningFormat({ type: 'self-hosted' })
-      await flushEndpointAction()
-    })
-
-    expect(patchProviderMock).toHaveBeenCalledWith({
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://api.openai.com',
-          reasoningFormat: { type: 'self-hosted' }
-        }
-      }
-    })
-  })
-
-  it('clears the reasoning format override when reverting to the default', async () => {
+  it('preserves reasoning format when committing a host change', async () => {
     const providerWithOverride = {
       ...provider,
       endpointConfigs: {
@@ -295,7 +264,7 @@ describe('useProviderEndpointActions', () => {
       useProviderEndpointActions({
         provider: providerWithOverride,
         primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        apiHost: 'https://api.openai.com',
+        apiHost: 'https://proxy.example.com',
         setApiHost: setApiHostMock,
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
@@ -307,15 +276,15 @@ describe('useProviderEndpointActions', () => {
     )
 
     await act(async () => {
-      await result.current.commitReasoningFormat(undefined)
+      await result.current.commitApiHost()
       await flushEndpointAction()
     })
 
     expect(patchProviderMock).toHaveBeenCalledWith({
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://api.openai.com',
-          reasoningFormat: undefined
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
         }
       }
     })

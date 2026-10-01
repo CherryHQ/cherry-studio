@@ -20,7 +20,6 @@ import {
   FastModeTransportSchema,
   objectValues,
   ProviderEditionSchema,
-  ProviderReasoningFormatSchema,
   ProviderReasoningFormatSelectorSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
@@ -216,8 +215,8 @@ export const EndpointConfigSchema = z.object({
   adapterFamily: z.string().optional(),
   /** Dialect deviations of this host's implementation of the endpoint */
   dialect: EndpointDialectSchema.optional(),
-  /** How this endpoint expects reasoning parameters to be formatted (e.g. `self-hosted` for vLLM/SGLang relays). */
-  reasoningFormat: ProviderReasoningFormatSchema.optional()
+  /** User-selected reasoning format; wire profiles resolve main-side from the registry. */
+  reasoningFormat: ProviderReasoningFormatSelectorSchema.optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>

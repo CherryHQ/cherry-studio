@@ -135,7 +135,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   {"pattern":"^kimi-k2[.-]7-code","toggle":false},
   {"pattern":"^kimi-k3$","effort":["low","high","max"],"toggle":true},
   {"pattern":"^kimi-k3-fast$","effort":["low","high","max"]},
-  {"pattern":"^kimi-k2$","effort":["none","low","medium","high"]},
+  {"pattern":"^kimi-k2$","toggle":true},
   {"pattern":"^kimi-k2[.-][5-9]\\d*","toggle":true},
   {"pattern":"kimi-k2[.-][5-9]\\d*","budget":{"min":0,"max":30720},"template":true},
   {"pattern":"^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$"},
