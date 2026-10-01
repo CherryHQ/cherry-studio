@@ -407,7 +407,6 @@
   "agent.toolPermission.button.run": "Run",
   "agent.toolPermission.confirmation": "Are you sure you want to run this Claude tool?",
   "agent.toolPermission.decisionDenied": "Denied",
-  "agent.toolPermission.defaultDenyMessage": "User denied permission for this tool.",
   "agent.toolPermission.error.sendFailed": "Failed to send your decision. Please try again.",
   "agent.toolPermission.inputPreview": "Tool input preview",
   "agent.toolPermission.pendingBadge": "Pending",

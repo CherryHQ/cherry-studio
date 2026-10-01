@@ -121,6 +121,83 @@ describe('toModelMessages', () => {
     })
   })
 
+  it('attributes a denied approval reason to the user, leaving the stored part alone', async () => {
+    const messages = [
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-responded',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ]
+
+    const model = await toModelMessages(messages)
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason:
+            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+        }
+      ]
+    })
+    expect((messages[1].parts[0] as { approval?: { reason?: string } }).approval?.reason).toBe('use a copy')
+  })
+
+  it('attributes a denied approval reason on the terminal output-denied shape', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'output-denied',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason:
+            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+        },
+        {
+          type: 'tool-result',
+          toolCallId: '1',
+          toolName: 'kb_manage',
+          output: {
+            type: 'error-text',
+            value:
+              "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+          }
+        }
+      ]
+    })
+  })
+
   it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
       [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],

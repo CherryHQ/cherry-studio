@@ -37,6 +37,7 @@ import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/a
 import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -233,7 +234,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+      return {
+        block: true,
+        reason:
+          decision.reasonSource === 'user'
+            ? withUserDenialFeedback(decision.reason)
+            : (decision.reason ?? 'User denied permission for this tool.')
+      }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return
