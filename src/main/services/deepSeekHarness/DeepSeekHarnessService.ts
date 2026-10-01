@@ -267,7 +267,7 @@ export class DeepSeekHarnessService extends BaseService {
     return {
       route,
       credentialRef,
-      credentialValue: apiKey ?? NO_KEY_PLACEHOLDER,
+      credentialValue: apiKey || NO_KEY_PLACEHOLDER,
       displayName: `Cherry Studio: ${provider.name}`,
       protocol,
       baseUrl,

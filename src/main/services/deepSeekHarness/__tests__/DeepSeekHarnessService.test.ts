@@ -339,6 +339,20 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
+  it('writes the no-key placeholder for auth-optional providers without an API key', async () => {
+    mocks.providerGet.mockReturnValue({ ...provider, authOptional: true })
+    mocks.providerResolveApiKey.mockReturnValue({ value: '' })
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+
+    await expect(service.start(startInput)).resolves.toEqual({ success: true, url: 'http://127.0.0.1:43123' })
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ credentialValue: 'no-key-required' })
+    )
+    await service.stop()
+  })
+
   it('does not expose provider request headers through the DeepSeek Harness settings route', async () => {
     mocks.providerGet.mockReturnValue({
       ...provider,

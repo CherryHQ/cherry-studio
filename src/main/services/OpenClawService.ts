@@ -1373,7 +1373,7 @@ export class OpenClawService extends BaseService {
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
-      let config = this.readExistingOpenClawConfig()
+      const config = this.readExistingOpenClawConfig()
 
       // Build provider key
       const providerKey = `cherry-${provider.id}`
