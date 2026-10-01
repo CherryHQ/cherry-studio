@@ -29,7 +29,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
-import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
+import { assertNotesPathNotMutatingDuringMigration, isNotesMigrationWriteBlockedError } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -1079,12 +1079,15 @@ class FileStorage {
       // Create folders in order (shallow to deep)
       const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
       for (const folder of sortedFolders) {
+        assertNotesPathNotMutatingDuringMigration(folder)
         try {
-          assertNotesPathNotMutatingDuringMigration(folder)
           if (!fs.existsSync(folder)) {
             await fs.promises.mkdir(folder, { recursive: true })
           }
         } catch (error) {
+          if (isNotesMigrationWriteBlockedError(error)) {
+            throw error
+          }
           logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
         }
       }
@@ -1099,12 +1102,18 @@ class FileStorage {
         const results = await Promise.allSettled(
           batch.map(async (op) => {
             assertNotesPathNotMutatingDuringMigration(op.targetPath)
-            // Read from source and write to target in Main process
             const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
+            assertNotesPathNotMutatingDuringMigration(op.targetPath)
             await fs.promises.writeFile(op.targetPath, content, 'utf-8')
             return true
           })
         )
+
+        for (const result of results) {
+          if (result.status === 'rejected' && isNotesMigrationWriteBlockedError(result.reason)) {
+            throw result.reason
+          }
+        }
 
         results.forEach((result, index) => {
           if (result.status === 'fulfilled') {

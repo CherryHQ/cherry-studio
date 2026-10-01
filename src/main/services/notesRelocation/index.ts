@@ -4,6 +4,8 @@ export {
   completeNotesMigrationCommit,
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
+  isNotesMigrationWriteBlockedError,
+  NotesMigrationWriteBlockedError,
   releaseNotesMigrationSession,
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,

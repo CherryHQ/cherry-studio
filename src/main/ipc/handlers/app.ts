@@ -62,6 +62,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
         'another notes directory migration is already in progress'
       )
     }
+    setNotesMigrationBlockedRoots(sourcePath, targetPath)
     try {
       const prepared = await rendererEditFlushCoordinator.prepareForMigration()
       if (!prepared) {
@@ -71,7 +72,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
           'a renderer window failed to prepare for notes directory migration'
         )
       }
-      setNotesMigrationBlockedRoots(sourcePath, targetPath)
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
       const sessionId = getNotesMigrationSessionId()
       if (!sessionId) {

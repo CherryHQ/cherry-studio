@@ -252,6 +252,30 @@ describe('FileStorage', () => {
         /migration is in progress/
       )
     })
+
+    it('aborts an in-flight batch upload when migration starts before a write', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-tgt-'))
+      const first = path.join(source, 'first.md')
+      const second = path.join(source, 'second.md')
+      fs.writeFileSync(first, '# one')
+      fs.writeFileSync(second, '# two')
+
+      const originalRead = fs.promises.readFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'readFile').mockImplementation(async (filePath, ...args) => {
+        const content = await originalRead(filePath as fs.PathLike, ...(args as [BufferEncoding]))
+        if (String(filePath).endsWith('first.md')) {
+          setNotesMigrationBlockedRoots(source, target)
+        }
+        return content
+      })
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [first, second], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+      expect(fs.existsSync(path.join(target, 'first.md'))).toBe(false)
+      expect(fs.existsSync(path.join(target, 'second.md'))).toBe(false)
+    })
   })
 })
 
