@@ -1,20 +1,24 @@
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
-let notesRelocationInProgress = false
+let notesRelocationSessionOwnerId: string | null = null
 
-export async function withNotesRelocationExclusive<T>(run: () => Promise<T>): Promise<T> {
-  if (notesRelocationInProgress) {
+export function acquireNotesRelocationSession(ownerId: string): void {
+  if (notesRelocationSessionOwnerId != null) {
     throw new IpcError(
       notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS,
       'another notes directory migration is already in progress'
     )
   }
+  notesRelocationSessionOwnerId = ownerId
+}
 
-  notesRelocationInProgress = true
-  try {
-    return await run()
-  } finally {
-    notesRelocationInProgress = false
+export function releaseNotesRelocationSession(ownerId: string): void {
+  if (notesRelocationSessionOwnerId === ownerId) {
+    notesRelocationSessionOwnerId = null
   }
+}
+
+export function isNotesRelocationSessionActive(): boolean {
+  return notesRelocationSessionOwnerId != null
 }

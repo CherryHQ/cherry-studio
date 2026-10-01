@@ -98,12 +98,14 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     lockNotesEditsForRelocation()
+    let migrateSucceeded = false
     try {
       await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,
         merge
       })
+      migrateSucceeded = true
 
       try {
         await onSuccess(targetPath)
@@ -115,6 +117,13 @@ export async function migrateNotesDirectoryWithUi(options: {
 
       toast.success(t('settings.data.notes_relocation.success'))
     } finally {
+      if (migrateSucceeded) {
+        try {
+          await ipcApi.request('app.notes_relocation.complete')
+        } catch (error) {
+          logger.error('Failed to complete notes relocation session', error as Error)
+        }
+      }
       unlockNotesEditsForRelocation()
     }
   } catch (error) {
