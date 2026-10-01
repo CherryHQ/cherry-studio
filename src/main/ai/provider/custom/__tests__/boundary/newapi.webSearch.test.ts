@@ -21,7 +21,9 @@ function createModel(fetch: typeof globalThis.fetch) {
 }
 
 const packageRoot = dirname(createRequire(import.meta.url).resolve('@ai-sdk/openai-compatible/package.json'))
-const { createOpenAICompatible } = await import(join(packageRoot, 'src/openai-compatible-provider.ts'))
+const { createOpenAICompatible }: typeof import('@ai-sdk/openai-compatible') = await import(
+  join(packageRoot, 'src/openai-compatible-provider.ts')
+)
 
 // Run the citation contract against source too, catching patches lost during dependency rebuilds.
 describe.each(['dist', 'source'])('New API Gemini web search boundary (%s)', (entrypoint) => {
