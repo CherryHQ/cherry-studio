@@ -132,6 +132,30 @@ describe('sanitizeRemoteUrl', () => {
 })
 
 describe('resolveRemoteFetchUrl', () => {
+  it.each([
+    ['http://127.0.0.1:18000/upload', 'http://localhost:18000', '127.0.0.1', 4],
+    ['http://[::1]:18000/upload', 'http://127.0.0.1:18000', '::1', 6],
+    ['http://localhost:18000/upload', 'http://127.0.0.1:18000', '127.0.0.1', 4]
+  ])('accepts configured same-port loopback alias %s', async (url, configuredApiHost, address, family) => {
+    lookupMock.mockResolvedValue([{ address, family }])
+    await expect(resolveRemoteFetchUrl(url, { configuredApiHost })).resolves.toEqual({
+      url,
+      address: { address, family }
+    })
+  })
+
+  it.each([
+    'http://127.0.0.1:18001/upload',
+    'https://127.0.0.1:18000/upload',
+    'http://192.168.1.1:18000/upload',
+    'http://untrusted.example:18000/upload'
+  ])('does not extend configured trust to %s', async (url) => {
+    lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    await expect(resolveRemoteFetchUrl(url, { configuredApiHost: 'http://localhost:18000' })).rejects.toThrow(
+      'Unsafe remote url'
+    )
+  })
+
   beforeEach(() => {
     lookupMock.mockReset()
     lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])

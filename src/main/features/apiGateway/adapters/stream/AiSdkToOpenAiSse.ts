@@ -263,7 +263,11 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
     }
 
     const index = this.currentToolCallIndex++
-    const argsString = JSON.stringify(args)
+    // Default arg-less calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
+    // which JSON serialization drops entirely, so the emitted tool_call would be
+    // missing the required `arguments` field. The Responses and Anthropic adapters
+    // already default the same way.
+    const argsString = JSON.stringify(args ?? {})
 
     this.toolCalls.set(toolCallId, {
       index,

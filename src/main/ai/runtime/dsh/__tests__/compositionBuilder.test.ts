@@ -452,7 +452,7 @@ describe('buildDshCompositionYaml', () => {
 
     const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
     const { Config } = await import(pluginUrl)
-    expect(Config(llmConfig).providers['openai-codex']).toMatchObject({ reasoning: 'ultra' })
+    expect(Config(llmConfig).providers.get()['openai-codex']).toMatchObject({ reasoning: 'ultra' })
   })
 
   it('preserves provider-default reasoning when Cherry selects Default', () => {
@@ -522,7 +522,7 @@ describe('buildDshCompositionYaml', () => {
     const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
     const { Config } = await import(pluginUrl)
 
-    expect(Config(llmConfig).providers.deepseek.models[0].compat).toMatchObject({ supportsDeveloperRole: false })
+    expect(Config(llmConfig).providers.get().deepseek.models[0].compat).toMatchObject({ supportsDeveloperRole: false })
   })
 
   it('sends system only when the configured endpoint rejects the developer role', async () => {
