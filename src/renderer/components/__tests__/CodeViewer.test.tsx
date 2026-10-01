@@ -592,7 +592,7 @@ describe('CodeViewer', () => {
       Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
         configurable: true,
         get(this: HTMLElement) {
-          // Narrow enough that 3-digit vs 2-digit gutter changes chars-per-row below the 24 cap.
+          // Narrow enough that 3-digit vs 2-digit gutter changes chars-per-row.
           if (this.classList?.contains('shiki-scroller')) return 300
           const index = this.getAttribute('data-index')
           return index === null ? 300 : 55

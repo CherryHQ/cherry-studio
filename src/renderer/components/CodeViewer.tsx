@@ -388,9 +388,12 @@ const CodeViewer = ({
       return 1
     }
     const paddingLeft = fontSize
-    const gutterWidth = lineNumbers ? gutterDigits * fontSize * 0.55 : 0
-    const lineNumberMargin = lineNumbers ? fontSize : 0
-    const contentWidth = scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - 8
+    // Match VirtualizedRow: `--gutter-width: Ndigits ch`, `mr-4`, and line-content `pr-[1em]`.
+    const gutterWidth = lineNumbers ? gutterDigits * fontSize : 0
+    const lineNumberMargin = lineNumbers ? 16 : 0
+    const lineContentPaddingRight = fontSize
+    const contentWidth =
+      scroller.clientWidth - paddingLeft - gutterWidth - lineNumberMargin - lineContentPaddingRight
     // Monospace code is ~1em wide; a smaller factor over-counts chars per row and under-estimates height.
     const charWidth = Math.max(1, fontSize)
     return Math.max(1, Math.floor(contentWidth / charWidth))
@@ -399,7 +402,7 @@ const CodeViewer = ({
     (line: string) => {
       if (line.length === 0) return lineHeight
       // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
-      const charsPerRow = Math.min(wrappedCharsPerRow(), 24)
+      const charsPerRow = wrappedCharsPerRow()
       return lineHeight * Math.max(1, Math.ceil(line.length / charsPerRow))
     },
     [lineHeight, wrappedCharsPerRow]
@@ -574,7 +577,7 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     remeasureRows()
-  }, [expanded, wrapped, fontSize, lineNumbers, remeasureRows])
+  }, [expanded, wrapped, fontSize, gutterDigits, lineNumbers, remeasureRows])
 
   useLayoutEffect(() => {
     if (!wrapped) return
