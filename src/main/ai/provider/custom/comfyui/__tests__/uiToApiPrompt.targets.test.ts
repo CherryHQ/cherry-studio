@@ -210,6 +210,30 @@ describe('ComfyUI text held outside the encode node', () => {
     expect(hasPromptText(graph)).toBe(true)
   })
 
+  it('refuses a StringConcatenate whose linked operand is another concat', () => {
+    // A nested concat carries text too, so the outer one joins two text sources
+    // and its literal is not the run's text by default.
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'style' }, inputs: { value: 'style, ' } },
+      '2': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: { value: 'the run text' } },
+      '3': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'inner' },
+        inputs: { string_a: ['2', 0], string_b: 'suffix', delimiter: ', ' }
+      },
+      '4': {
+        class_type: 'StringConcatenate',
+        _meta: { title: 'outer' },
+        inputs: { string_a: ['1', 0], string_b: ['3', 0], delimiter: ', ' }
+      },
+      '5': { class_type: 'CLIPTextEncode', _meta: { title: 'encode' }, inputs: { text: ['4', 0] } },
+      '6': { class_type: 'KSampler', _meta: { title: 'sampler' }, inputs: { positive: ['5', 0], seed: 1 } },
+      '7': { class_type: 'SaveImage', _meta: { title: 'save' }, inputs: { images: ['6', 0] } }
+    }
+    expect(findPromptTarget(graph)).toBeUndefined()
+    expect(hasPromptText(graph)).toBe(true)
+  })
+
   it('refuses to pick an operand of a StringConcatenate that has text on both sides', () => {
     // `string_a` and `string_b` rank nothing: one is the workflow's style or
     // prefix, the other is the run's text, and object order cannot tell them

@@ -219,6 +219,9 @@ const isValueSource = (node: ApiPromptNode): boolean =>
  * with its own seed writes its prompt from its input rather than holding it.
  */
 const holdsText = (node: ApiPromptNode): boolean =>
+  // A concatenate exists to join text, so it carries text even when its
+  // operands are links: a nested one is a text source to the node above it.
+  node.class_type === 'StringConcatenate' ||
   typeof node.inputs.value === 'string' ||
   Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && isPromptShaped(name))
 
