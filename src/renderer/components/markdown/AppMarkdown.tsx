@@ -9,10 +9,12 @@ import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import { useMarkdownComponents } from './MarkdownRenderers'
+import { copyComposedParagraphs } from './paragraphCopy'
 import { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
 import { remarkLiteralAutolinkFix } from './remarkLiteralAutolinkFix'
 import { useMarkdownHost } from './useMarkdownHost'
 import { MarkdownStreamingContext } from './useMarkdownStreaming'
+import { ParagraphLayoutContext } from './useParagraphLayout'
 
 export interface AppMarkdownProps {
   children: string
@@ -26,6 +28,7 @@ export interface AppMarkdownProps {
   rehypePlugins?: Pluggable[]
   /** Replaces default source cleanup when the host protects embedded content. */
   transformSource?: (source: string) => string
+  paragraphLayout?: 'native' | 'justified'
 }
 
 const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
@@ -47,7 +50,8 @@ function MarkdownContent({
   components,
   remarkPlugins,
   rehypePlugins,
-  transformSource = removeSvgEmptyLines
+  transformSource = removeSvgEmptyLines,
+  paragraphLayout = 'native'
 }: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
   const { openFilePath } = useMarkdownHost()
@@ -79,7 +83,7 @@ function MarkdownContent({
     preserveFileLinkHrefs: Boolean(openFilePath)
   }
 
-  return (
+  const markdown = (
     <MarkdownStreamingContext value={isStreaming}>
       {hasStreamed || isStreaming ? (
         <StreamingMarkdown
@@ -93,5 +97,14 @@ function MarkdownContent({
         <Markdown {...commonProps}>{content}</Markdown>
       )}
     </MarkdownStreamingContext>
+  )
+  return paragraphLayout === 'justified' ? (
+    <ParagraphLayoutContext value={!isStreaming}>
+      <div className="contents" onCopy={copyComposedParagraphs}>
+        {markdown}
+      </div>
+    </ParagraphLayoutContext>
+  ) : (
+    markdown
   )
 }

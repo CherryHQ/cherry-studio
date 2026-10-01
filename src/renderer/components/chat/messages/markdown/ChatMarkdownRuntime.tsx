@@ -90,6 +90,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
         <AppMarkdown
           id={block.id}
           isStreaming={isStreaming}
+          paragraphLayout="justified"
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}
           remarkPlugins={remarkPlugins}

@@ -135,6 +135,16 @@ vi.stubGlobal(
   }
 )
 
+vi.stubGlobal(
+  'IntersectionObserver',
+  class IntersectionObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+)
+Object.defineProperty(document, 'fonts', { configurable: true, value: new EventTarget() })
+
 vi.stubGlobal('electron', {
   ipcRenderer: {
     on: vi.fn(),

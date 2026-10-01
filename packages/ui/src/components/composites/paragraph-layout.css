@@ -1,0 +1,30 @@
+[data-paragraph-layout='composed'] {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  text-wrap: nowrap !important;
+  font-kerning: none;
+}
+
+[data-paragraph-piece] {
+  display: inline-block;
+  white-space: pre;
+  vertical-align: baseline;
+}
+
+[data-paragraph-piece='space'] {
+  font-size: 0;
+}
+
+[data-paragraph-piece='break'] {
+  display: block;
+  height: 0;
+}
+
+[data-paragraph-piece='hyphen']::before {
+  content: '‐';
+}
+
+[data-paragraph-atomic] {
+  display: inline-block;
+}

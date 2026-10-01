@@ -156,6 +156,7 @@ const RichEditor = ({
   onMarkdownChange,
   onBlur,
   editable = true,
+  paragraphLayout = 'native',
   autoFocus = true,
   className = '',
   wrapperStyle,
@@ -185,6 +186,7 @@ const RichEditor = ({
     onBlur,
     placeholder,
     editable,
+    paragraphLayout,
     autoFocus,
     enableSpellCheck,
     ariaLabel,
@@ -228,6 +230,14 @@ const RichEditor = ({
     []
   )
   const deferredContentSearchQuery = useDeferredValue(contentSearchState.query).trim()
+  const [layoutRevision, setLayoutRevision] = useState(0)
+  useEffect(() => {
+    const root = editor?.view.dom
+    if (!root || !contentSearchState.enabled) return
+    const refresh = () => setLayoutRevision((revision) => revision + 1)
+    root.addEventListener('paragraph-layout', refresh)
+    return () => root.removeEventListener('paragraph-layout', refresh)
+  }, [editor, contentSearchState.enabled])
   const contentSearchCriteriaKey = `${deferredContentSearchQuery}\u0000${contentSearchState.caseSensitive ? '1' : '0'}${contentSearchState.wholeWord ? '1' : '0'}`
   const contentSearchRanges = useMemo(() => {
     const target = scrollContainerRef.current
@@ -257,6 +267,7 @@ const RichEditor = ({
     contentSearchState.wholeWord,
     deferredContentSearchQuery,
     enableContentSearch,
+    layoutRevision,
     markdown
   ])
   const contentSearchCurrentIndex =
