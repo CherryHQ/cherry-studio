@@ -143,7 +143,9 @@ vi.stubGlobal(
     disconnect() {}
   }
 )
-Object.defineProperty(document, 'fonts', { configurable: true, value: new EventTarget() })
+if (typeof document !== 'undefined') {
+  Object.defineProperty(document, 'fonts', { configurable: true, value: new EventTarget() })
+}
 
 vi.stubGlobal('electron', {
   ipcRenderer: {
