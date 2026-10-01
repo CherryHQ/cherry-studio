@@ -1,8 +1,9 @@
-import { House, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Separator, Tooltip } from '@cherrystudio/ui'
+import { BackButton } from '@renderer/components/BackButton'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
@@ -49,15 +50,10 @@ export function MainWindowShell() {
         isMac && !fullscreen && !sidebarOpen && 'pl-[max(80px,env(titlebar-area-x))]'
       )}>
       {!navigation.isHome && (
-        <div className="[-webkit-app-region:no-drag]">
-          <NavbarIcon
-            tone="conversation"
-            className="[&_svg]:!size-4"
-            aria-label={t('minimal.return_home')}
-            onClick={navigation.returnHome}>
-            <House strokeWidth={1.7} />
-          </NavbarIcon>
-        </div>
+        <>
+          <BackButton className="pr-0" aria-label={t('minimal.return_home')} onClick={navigation.returnHome} />
+          <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-3" />
+        </>
       )}
       {!navigation.isHome && <span className="min-w-0 truncate text-sm text-muted-foreground">{activeTab?.title}</span>}
       {navigation.isHome && (
