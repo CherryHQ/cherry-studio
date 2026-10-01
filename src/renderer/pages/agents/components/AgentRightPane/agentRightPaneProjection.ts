@@ -492,9 +492,10 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
 
 /** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
 function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
-  const record = part as { toolName?: unknown; output?: unknown; input?: unknown }
-  const resumeToolName = record.toolName === AgentToolsType.SendMessage || record.toolName === 'send_message'
-  if (!resumeToolName) return false
+  const record = part as { output?: unknown; input?: unknown }
+  // A persisted static part carries the name in its type (`tool-SendMessage`), so the canonical
+  // reader decides; the wire name alone would miss every settled history row.
+  if (getCanonicalToolName(part) !== AgentToolsType.SendMessage) return false
   // The result names the woken child; dsh's send_message input carries it as agent_id.
   const input = record.input as { agent_id?: unknown; subagent_id?: unknown } | undefined
   const inputTarget = typeof input?.agent_id === 'string' ? input.agent_id : input?.subagent_id

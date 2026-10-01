@@ -259,6 +259,37 @@ describe('agent right pane flow rounds', () => {
 
   // dsh names children subagent_id and wakes them with the lowercase send_message tool; the
   // continuation splitter must treat that pair exactly like the claude SendMessage receipts.
+  // A settled history row is a persisted static part: its name lives in the part type, not in a
+  // `toolName` field, so the round boundary has to read it the way the launch index does.
+  it('splits rounds for a persisted static SendMessage receipt', () => {
+    const launchOutput = 'Async agent launched successfully.\nagentId: agent-77 (internal metadata.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      {
+        type: 'tool-SendMessage',
+        toolCallId: 'call_resume',
+        state: 'output-available',
+        input: { to: 'agent-77', message: 'Please finalize' },
+        output: { success: true, resumedAgentId: 'agent-77' }
+      } as unknown as CherryMessagePart,
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    expect((projection.partsByMessageId['call_launch:agent-flow-resume-1'][0] as { text?: string }).text).toBe(
+      'Please finalize'
+    )
+  })
+
   it('splits rounds for a dsh send_message continuation', () => {
     const parts = [
       {
