@@ -51,6 +51,7 @@ import { getToolName, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { getPartParentToolCallId } from '../toolParentMetadata'
@@ -459,6 +460,10 @@ export function resolveResumeReceiptState(
   launchIndex: AgentLaunchIndex | null,
   canNavigate: boolean
 ): ResumeReceiptState {
+  // A large receipt is the resumed run's answer, not an edge — a delivery receipt is a few fields —
+  // and only the receipt's own call can hydrate it (the pane hydrates the selected call's result),
+  // so redirecting it to a launch root would leave that answer unhydrated.
+  if (isDeferredToolOutput(output)) return canNavigate ? { kind: 'self' } : { kind: 'labelled' }
   const resumedAgentId = getResumedAgentId(output)
   const launch = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
   // The stamp resolves without scanning, but it must land inside the loaded window — a paged-out
