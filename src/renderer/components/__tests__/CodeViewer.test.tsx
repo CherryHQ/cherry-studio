@@ -568,6 +568,71 @@ describe('CodeViewer', () => {
     }
   })
 
+  it('clears offscreen wrapped row cache when line-number gutter digit width changes', () => {
+    const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'clientWidth')
+    mocks.useVirtualizer.mockImplementation((options: { count: number; getItemKey: (index: number) => string }) => {
+      const state = mocks.stateFor(options.getItemKey)
+      state.count = options.count
+      return {
+        ...state.instance,
+        getVirtualItems: () => [{ index: 0, key: 'row-0', start: 0 }]
+      }
+    })
+
+    const longSecondLine = 'x'.repeat(200)
+    const value100 = Array.from({ length: 100 }, (_, index) => (index === 1 ? longSecondLine : `line ${index}`)).join(
+      '\n'
+    )
+    const value99 = Array.from({ length: 99 }, (_, index) => (index === 1 ? longSecondLine : `line ${index}`)).join(
+      '\n'
+    )
+    mockRowHeights(new Map([[0, 55]]))
+
+    try {
+      Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get(this: HTMLElement) {
+          // Narrow enough that 3-digit vs 2-digit gutter changes chars-per-row below the 24 cap.
+          if (this.classList?.contains('shiki-scroller')) return 300
+          const index = this.getAttribute('data-index')
+          return index === null ? 300 : 55
+        }
+      })
+
+      const { rerender } = render(
+        <CodeViewer value={value100} language="text" wrapped maxHeight="350px" options={{ lineNumbers: true }} />
+      )
+
+      const offscreenAt100 = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenAt100).toBeDefined()
+      const cachedAtThreeDigitGutter = offscreenAt100![1] as number
+
+      mocks.resizeItem.mockClear()
+
+      rerender(
+        <CodeViewer
+          className="remeasure"
+          value={value99}
+          language="text"
+          wrapped
+          maxHeight="350px"
+          options={{ lineNumbers: true }}
+        />
+      )
+
+      const offscreenAt99 = mocks.resizeItem.mock.calls.find(([index]) => index === 1)
+      expect(offscreenAt99).toBeDefined()
+      expect(offscreenAt99![1] as number).toBeLessThan(cachedAtThreeDigitGutter)
+    } finally {
+      mocks.useVirtualizer.mockImplementation(mocks.createVirtualizer)
+      if (originalClientWidthDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor)
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth
+      }
+    }
+  })
+
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
     // The wrapped line-content must be able to shrink below its min-content width
     // (base64, URLs, minified JSON), otherwise long lines overflow the container
