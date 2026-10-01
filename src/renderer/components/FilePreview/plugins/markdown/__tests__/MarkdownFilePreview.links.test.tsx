@@ -22,6 +22,17 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
 }))
 
+// jsdom has no real layout, so the chunk virtualizer reports every chunk here; windowing itself is
+// covered in MarkdownChunkPreview.test.tsx.
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({ key: String(index), index, start: index * 30, size: 30 })),
+    getTotalSize: () => options.count * 30,
+    measureElement: () => {}
+  })
+}))
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
