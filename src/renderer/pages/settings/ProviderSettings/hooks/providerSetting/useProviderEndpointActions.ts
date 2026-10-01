@@ -136,6 +136,7 @@ export function useProviderEndpointActions({
         return false
       }
 
+      await awaitEndpointConfigWrites(currentProvider.id)
       const liveProvider = providerRef.current ?? currentProvider
       const baseEndpoint = liveProvider.endpointConfigs?.[primaryEndpoint]
       let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
@@ -231,11 +232,13 @@ export function useProviderEndpointActions({
           return false
         }
 
+        await awaitEndpointConfigWrites(provider.id)
+        const liveProvider = providerRef.current ?? provider
         let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
         if (!nextEndpointConfigs) {
           return false
         }
-        const existingReasoningFormat = provider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat
+        const existingReasoningFormat = liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat
         if (existingReasoningFormat !== undefined) {
           nextEndpointConfigs = {
             ...nextEndpointConfigs,
@@ -336,9 +339,10 @@ export function useProviderEndpointActions({
       return false
     }
 
+    await awaitEndpointConfigWrites(currentProvider.id)
     const liveProvider = providerRef.current ?? currentProvider
     const nextBaseUrl = defaultApiHost
-    const nextEndpoint: Record<string, unknown> = {
+    const nextEndpoint = {
       ...liveProvider.endpointConfigs?.[primaryEndpoint],
       baseUrl: nextBaseUrl
     }

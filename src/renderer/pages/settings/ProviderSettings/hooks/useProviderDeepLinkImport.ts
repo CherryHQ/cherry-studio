@@ -46,7 +46,7 @@ export function useProviderDeepLinkImport(
 ) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { createProvider } = useProviders()
+  const { createProvider, providers } = useProviders()
   const { updateProviderById } = useProviderActions()
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
@@ -79,9 +79,12 @@ export function useProviderDeepLinkImport(
           void navigate({ to: '/settings/provider' })
           return
         }
+        const existingProvider = providers.find((entry) => entry.id === providerId)
         const endpointConfigs = updatedProvider.apiHost
           ? {
+              ...(isNew ? undefined : existingProvider?.endpointConfigs),
               [defaultChatEndpoint]: {
+                ...(isNew ? undefined : existingProvider?.endpointConfigs?.[defaultChatEndpoint]),
                 baseUrl: updatedProvider.apiHost
               }
             }
@@ -134,5 +137,5 @@ export function useProviderDeepLinkImport(
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }
-  }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, searchAddProviderData, t, updateProviderById])
+  }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, providers, searchAddProviderData, t, updateProviderById])
 }
