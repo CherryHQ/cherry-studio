@@ -4,5 +4,6 @@ export default defineCreator({
   id: 'arceeai',
   name: 'Arcee AI',
   families: ['trinity'],
-  idPrefixes: ['trinity', 'afm', 'arcee']
+  idPrefixes: ['trinity', 'afm', 'arcee'],
+  reasoningFamilies: [{ pattern: '^trinity', effort: ['none', 'low', 'medium', 'high'] }]
 })

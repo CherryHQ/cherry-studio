@@ -18,6 +18,7 @@ export default defineCreator({
     { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
     { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
     // Kimi K2.5+ exposes the thinking toggle; kimi-k2-thinking is always-on.
+    { pattern: '^kimi-k2$', effort: ['none', 'low', 'medium', 'high'] },
     { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
     // The thinking budget is a K2.x-era knob — K3 controls depth via
     // `reasoning_effort` only (platform.kimi.com thinking-effort guide).

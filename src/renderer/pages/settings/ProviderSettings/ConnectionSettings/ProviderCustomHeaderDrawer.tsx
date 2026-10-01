@@ -261,6 +261,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
+  const reasoningFormatTouchedRef = useRef<Set<EndpointType>>(new Set())
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -270,6 +271,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
+    reasoningFormatTouchedRef.current.clear()
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
       drafts[type] = {
@@ -350,7 +352,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDrafts)
+    const endpointDraftsForSave: Record<string, EndpointDraft> = { ...endpointDrafts }
+    for (const [type, draft] of Object.entries(endpointDraftsForSave) as [EndpointType, EndpointDraft][]) {
+      if (!reasoningFormatTouchedRef.current.has(type) && draft && 'reasoningFormat' in draft) {
+        const { reasoningFormat: _ignored, ...rest } = draft
+        endpointDraftsForSave[type] = rest
+      }
+    }
+
+    const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDraftsForSave)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousDefaultBaseUrl = trim(current.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
     const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
@@ -517,7 +527,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         ? 'self-hosted'
                         : 'default'
                     })()}
-                    onValueChange={(next) =>
+                    onValueChange={(next) => {
+                      reasoningFormatTouchedRef.current.add(type)
                       setEndpointDrafts((prev) => ({
                         ...prev,
                         [type]: {
@@ -525,7 +536,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                           reasoningFormat: next === 'self-hosted' ? { type: 'self-hosted' } : null
                         }
                       }))
-                    }>
+                    }}>
                     <SelectTrigger
                       size="sm"
                       className="w-48"
