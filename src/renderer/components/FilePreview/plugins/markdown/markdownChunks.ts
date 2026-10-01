@@ -68,6 +68,20 @@ const DEFINITION_START = /^\s{0,3}(?:\[[^\]]+\]:\s*\S|\[\^[^\]]+\]:)/
 
 const INDENTED_LINE = /^\s+\S/
 
+/** The environments `remarkLatexMath` treats as display math. */
+const LATEX_ENVIRONMENTS = 'equation\\*?|align\\*?|aligned|gather\\*?|gathered|multline\\*?'
+
+/**
+ * The terminator of the display math `remarkLatexMath` opens with a bracket or an environment —
+ * the `$$` form is tracked separately, because it closes with the same delimiter it opens with.
+ */
+function displayMathTerminator(line: string): RegExp | null {
+  const environment = new RegExp(`^\\s{0,3}\\\\begin\\{(${LATEX_ENVIRONMENTS})\\}`).exec(line)
+  if (environment) return new RegExp(`\\\\end\\{${environment[1]}\\}`)
+  if (/^\s{0,3}\\\[(?!.*\\\])/.test(line)) return /\\\]/
+  return null
+}
+
 /**
  * Split markdown source into independently renderable chunks, breaking on blank lines only.
  *
@@ -87,11 +101,13 @@ export function splitMarkdownChunks(
   let bufferChars = 0
   let fence: Fence | null = null
   let inDisplayMath = false
+  let mathTerminator: RegExp | null = null
   let htmlTerminator: RegExp | null = null
   let inDefinition = false
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    const blank = line.trim() === ''
     bufferChars += line.length + 1
 
     if (fence) {
@@ -102,15 +118,19 @@ export function splitMarkdownChunks(
       if (htmlTerminator.test(line)) htmlTerminator = null
       continue
     }
+    if (mathTerminator) {
+      if (mathTerminator.test(line)) mathTerminator = null
+      continue
+    }
     const opened = parseFence(line)
     if (opened) {
       fence = opened
       inDefinition = false
       continue
     }
-    const terminator = htmlBlockTerminator(line)
-    if (terminator) {
-      if (!terminator.test(line)) htmlTerminator = terminator
+    const htmlEnd = htmlBlockTerminator(line)
+    if (htmlEnd) {
+      if (!htmlEnd.test(line)) htmlTerminator = htmlEnd
       inDefinition = false
       continue
     }
@@ -119,21 +139,31 @@ export function splitMarkdownChunks(
       inDefinition = false
       continue
     }
+    const mathEnd = displayMathTerminator(line)
+    if (mathEnd) {
+      if (!mathEnd.test(line)) mathTerminator = mathEnd
+      inDefinition = false
+      continue
+    }
+    // A multi-paragraph definition continues on indented lines, including across its blank lines.
+    if (inDefinition && (INDENTED_LINE.test(line) || (blank && INDENTED_LINE.test(lines[i + 1] ?? '')))) {
+      definitions.push(line)
+      continue
+    }
     if (!inDisplayMath && DEFINITION_START.test(line)) {
       definitions.push(line)
       inDefinition = true
       continue
     }
-    if (inDefinition && INDENTED_LINE.test(line)) {
-      definitions.push(line)
-      continue
-    }
     inDefinition = false
 
     // A blank line ends the current block, so it is the only place a chunk may safely end.
-    if (inDisplayMath || line.trim() !== '') continue
+    if (inDisplayMath || !blank) continue
     if (INDENTED_LINE.test(lines[i + 1] ?? '')) continue
-    if (bufferChars >= budgetChars) boundaries.push(i + 1)
+    if (bufferChars >= budgetChars) {
+      boundaries.push(i + 1)
+      bufferChars = 0
+    }
   }
 
   const prefix = definitions.length > 0 ? `${definitions.join('\n')}\n\n` : ''
