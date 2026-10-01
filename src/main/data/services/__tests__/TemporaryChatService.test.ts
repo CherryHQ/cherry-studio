@@ -9,8 +9,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
-import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))

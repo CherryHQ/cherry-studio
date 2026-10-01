@@ -2,7 +2,7 @@ import type { UIMessageChunk } from 'ai'
 import { fileTypeFromBuffer } from 'file-type'
 
 import { application } from '@application'
-import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { NATIVE_IMAGE_TOOL_NAME, type NativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 

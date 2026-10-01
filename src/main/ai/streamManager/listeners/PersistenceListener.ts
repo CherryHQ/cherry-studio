@@ -5,9 +5,9 @@
  */
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { messageArtifactRetentionService } from '@main/services/MessageArtifactRetentionService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
