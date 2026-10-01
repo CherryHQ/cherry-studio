@@ -315,6 +315,30 @@ function createFileItem(
   }
 }
 
+function createExternalItem(
+  id = 'external-1',
+  baseId = 'kb-1',
+  status: KnowledgeItemOf<'external'>['status'] = 'completed'
+): KnowledgeItemOf<'external'> {
+  const lifecycle =
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
+
+  return {
+    id,
+    baseId,
+    groupId: null,
+    type: 'external',
+    data: {
+      source: 'feishu://document/doc-1',
+      title: 'External doc',
+      relativePath: 'external.md' as PosixRelativeFilePath
+    },
+    ...lifecycle,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
 function expectFailedBaseGuard(error: unknown, operation: string) {
   expect(isDataApiError(error)).toBe(true)
   expect(error).toMatchObject({
@@ -1087,6 +1111,45 @@ describe('KnowledgeService', () => {
       expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } })
     )
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
+  it('restores an external snapshot as an ownerless static external item', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    const sourceExternal = createExternalItem('source-external', 'source-kb')
+    const restoredExternal = createExternalItem('restored-external', 'restored-kb', 'processing')
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([sourceExternal])
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredExternal)
+    knowledgeItemGetByIdMock.mockReturnValue(restoredExternal)
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      '/mock/feature.knowledgebase.data/source-kb/raw/external.md',
+      'external.md'
+    )
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith('restored-kb', {
+      type: 'external',
+      data: {
+        source: 'feishu://document/doc-1',
+        title: 'External doc',
+        relativePath: 'external.md'
+      }
+    })
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.index-documents',
+      { baseId: 'restored-kb', itemId: 'restored-external' },
+      expect.anything()
+    )
   })
 
   it('schedules add, delete, and reindex through the new workflow jobs', async () => {

@@ -2,9 +2,14 @@
 description: Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools
 sources:
   - src/main/features/knowledge
+  - src/main/data/db/schemas/externalKnowledgeSource.ts
+  - src/main/data/db/schemas/externalKnowledgeDocument.ts
   - src/main/data/db/schemas/knowledge.ts
+  - src/main/data/services/ExternalKnowledgeSourceService.ts
+  - src/main/data/services/ExternalKnowledgeDocumentService.ts
   - src/main/data/services/KnowledgeBaseService.ts
   - src/main/data/services/KnowledgeItemService.ts
+  - src/shared/data/types/externalKnowledge.ts
   - src/shared/ipc/schemas/knowledge.ts
   - src/main/ipc/handlers/knowledge.ts
   - src/main/ai/tools/knowledgeLookup.ts
@@ -22,8 +27,12 @@ For workflow guard details, see [Knowledge Operation Guards](./operation-guards.
 
 The current implementation is split into four responsibility areas:
 
-1. `KnowledgeBaseService` / `KnowledgeItemService`
-   - Persist SQLite-backed knowledge base and knowledge item data.
+1. Knowledge data services
+   - `KnowledgeBaseService` / `KnowledgeItemService` persist SQLite-backed
+     knowledge base and knowledge item data.
+   - `ExternalKnowledgeSourceService` / `ExternalKnowledgeDocumentService`
+     expose the persisted provider-neutral source, document, and ownership read
+     model.
    - Persist `knowledge_base.status` and `error`; migrated bases with an
      unresolved embedding model or vector store remain recoverable `failed`
      bases.
@@ -33,6 +42,8 @@ The current implementation is split into four responsibility areas:
    - Reconcile container item status from child item state.
 2. Data API knowledge handlers
    - Expose database-backed list/get operations and base metadata/config patch.
+   - Expose external source/document reads and project subtree-aware
+     `canDelete` onto knowledge item list rows.
    - Do not perform vector-store mutations.
 3. `KnowledgeService`
    - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
@@ -45,6 +56,8 @@ The current implementation is split into four responsibility areas:
    - Execute durable workflow stages through JobManager.
    - Use `KnowledgeIngestionService` for next-step scheduling.
    - Use the per-base mutation lock (`KeyedMutex.runExclusive`) for same-base mutations and vector cleanup.
+   - Adapt `knowledge.index-documents` to the feature-local
+     `indexKnowledgeItem({ baseId, itemId, signal, reportProgress })` operation.
 
 ```text
 caller
@@ -68,10 +81,11 @@ There is no current `KnowledgeRuntimeService` and no in-memory Knowledge queue. 
 
 ## Storage Boundaries
 
-The main SQLite database owns `knowledge_base` and `knowledge_item`. These rows
-are the business authority for base configuration, item identity, hierarchy,
-status, and errors. The renderer never derives the item list from a filesystem
-scan.
+The main SQLite database owns `knowledge_base`, `knowledge_item`,
+`external_knowledge_source`, and `external_knowledge_document`. These rows are
+the business authority for base configuration, item identity, hierarchy,
+status, external ownership, and errors. The renderer never derives the item
+list from a filesystem scan.
 
 Each base also owns a directory under
 `application.getPath('feature.knowledgebase.data', baseId)`:
@@ -85,12 +99,76 @@ Each base also owns a directory under
 Item `relativePath` values are POSIX-style paths relative to `raw/`; main-process
 path guards reject absolute, escaping, and `.cherry/**` paths. Directory imports
 retain their subtree below one reserved top-level prefix. URL and note snapshots
-are Markdown with OKF frontmatter, which readers strip before indexing.
+are Markdown with Cherry OKF frontmatter, which readers strip before indexing.
+An external item points at provider-normalized Markdown in a pinned local
+snapshot below `raw/`. Its reader decodes the file as UTF-8 text and supplies it
+verbatim to the chunker, including any provider-authored leading frontmatter;
+the document `contentHash` must describe that exact text. Layer 2 indexing never
+fetches a provider.
 
 The per-base index is a rebuildable seven-table SQLite projection (`meta`,
 `material`, `content`, `search_unit`, `search_text`, `embedding`, and
 `search_text_fts`). `knowledge_item` remains authoritative for visibility and
 lifecycle; index rows are never the renderer's business-data source.
+
+## External Knowledge Domain
+
+Layer 2 establishes this persisted ownership chain:
+
+```text
+ExternalKnowledgeConnection
+  -> ExternalKnowledgeSource
+     -> ExternalKnowledgeDocument
+        -> zero or one KnowledgeItem(type = external)
+```
+
+An external item contains only the local indexing contract:
+
+```ts
+{
+  source: string
+  title: string
+  relativePath: string
+}
+```
+
+Provider credentials, tenant/connection identity, remote hierarchy and
+revision, normalized-content hashes, authorization state, document warnings,
+and availability stay in their owning connection/source/document records.
+They are not copied into `knowledge_item.data` or vector metadata.
+
+`ExternalKnowledgeSource.state` is only `active` or `paused`.
+`ExternalKnowledgeDocument.availability` is only `active` or `unavailable`:
+an active document owns exactly one external item, while an unavailable
+document owns none. A completed external item with no document owner is a
+static external item; this is an ownership condition, not another global
+Knowledge status.
+
+The schema enforces one document per `(sourceId, remoteObjectId)` and at most
+one document owner per knowledge item. Sources belong to one base and one
+connection; deleting a base cascades through the complete ownership graph,
+while deleting an independently owned item is rejected. Layer 2 does not add a
+sync-run entity, provider traversal, synchronization jobs, scheduling, or UI.
+Public `KnowledgeAddItemInput` also remains limited to user-owned source types;
+only trusted internal domain paths may create an external item after its local
+snapshot is pinned.
+
+Connection removal has a durable-delete-first contract. The runtime first runs
+a no-side-effect Source-reference preflight, closes admission for that
+credential generation, aborts and drains its authorization/request/refresh
+work, then calls `removeUnreferenced`, which rechecks Source references and
+deletes the Connection in one main-DB transaction. Only after that commit does
+the runtime best-effort revoke the provider token and remove the credential;
+startup reconciliation retires credential residue. The reference checks do not
+filter on Source state, so both active and paused Sources block removal.
+
+Layer 2 does not implement a Document publication writer. A future writer that
+binds or replaces `ExternalKnowledgeDocument.knowledgeItemId` must, in the same
+owner transaction, verify that the candidate item belongs to the Source's base,
+has type `external`, and is `completed` rather than deleting or otherwise
+active. It must also publish the content hash and remote revision that match the
+prepared snapshot. These are deferred writer requirements, not current Layer 2
+behavior.
 
 ## Caller Contract
 
@@ -101,6 +179,15 @@ Current Data API knowledge endpoints are read/update-only for database state tha
 - `PATCH /knowledge-bases/:id`
 - `GET /knowledge-bases/:id/items`
 - `GET /knowledge-items/:id`
+- `GET /knowledge-bases/:id/external-knowledge-sources`
+- `GET /external-knowledge-sources/:id`
+- `GET /external-knowledge-sources/:id/documents`
+- `GET /external-knowledge-documents/:id`
+
+Each row returned by `GET /knowledge-bases/:id/items` includes `canDelete`.
+The projection is false for an active document-owned external item and for a
+listed directory whose subtree contains one. It is advisory only; the workflow
+service remains the enforcement boundary.
 
 Base lifecycle, item workflow, source preview, chunk inspection, and direct
 search operations go through `KnowledgeService` IPC. Agent read/list/manage
@@ -113,7 +200,7 @@ The caller-facing add model is payload-based:
 2. The workflow creates the `knowledge_item` rows.
 3. The workflow queues either preparation or indexing work.
 
-For leaf items (`file`, `url`, `note`):
+For public leaf inputs (`file`, `url`, `note`):
 
 ```text
 caller
@@ -201,11 +288,25 @@ Current status writes are:
 - `processing` for accepted leaf roots before indexing starts, and for containers that still have active children.
 - `reading` while a leaf item reads source documents.
 - `embedding` while a leaf item embeds chunks.
-- `completed` after successful leaf indexing, including leaf indexing that writes zero chunks, or when a container has no active children.
+- `completed` after successful leaf indexing with at least one chunk, or when a container has no active children.
 - `failed` on indexing/preparation failure or scheduling compensation.
 - `deleting` after user-visible delete intent is written and before physical cleanup completes.
 
 `status` is the durable business state. JobManager progress is diagnostic execution state and is not the source of truth for item lifecycle. Container status is reconciled from immediate child statuses.
+
+The reusable `prepareKnowledgeMaterial` kernel reads an explicit indexable item
+descriptor, chunks it, looks up only the embedding-text hashes supplied by that
+preparation, embeds missing bodies, and returns `RebuildMaterialInput`. It
+validates a completed base, material path, abort state, and non-empty output,
+but does not open/publish the store or mutate item rows. The feature-local
+`indexKnowledgeItem` Job composition owns live lookup and lifecycle checks,
+URL/note snapshot capture, status transitions, preparation, the base-locked
+live-row recheck, atomic material rebuild, and completion. The durable indexing
+job remains a thin adapter preserving recovery, retry, timeout, queue, and
+settled-failure behavior. Layer 2 introduces no synchronizer or alternate
+publication path. Missing, deleting, and already-completed items are safe
+no-ops; an indexable item that produces no chunks fails instead of replacing an
+existing material with an empty one.
 
 Current persisted `knowledge_base` columns include:
 
@@ -227,9 +328,20 @@ existing vector contract must be rebuilt in a new base.
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Under the base mutation lock, one DB transaction marks selected root subtrees `deleting` and enqueues `knowledge.delete-subtree`.
+2. Under the base mutation lock, one DB transaction rejects the whole request if any selected root's recursive subtree has an active `ExternalKnowledgeDocument` owner, marks the accepted subtrees `deleting`, and enqueues `knowledge.delete-subtree`.
 3. The delete job cancels active jobs touching the subtree.
 4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
+
+The ownership check is based on document availability, not source state, so
+pausing a source does not make its active documents independently deletable.
+The same check covers a selected directory's descendants and a mixed batch;
+because enforcement, status writes, and enqueueing share one synchronous
+transaction, a rejection changes no selected item state. Ownerless
+completed external items are static external content and use the normal delete
+path. Reindex may also target a directly selected active-owned external leaf:
+the item and pinned snapshot remain in place while only its derived index is
+rebuilt. Ownership blocks reindex when selected container cleanup would delete
+an active-owned descendant.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
@@ -238,10 +350,10 @@ If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls bac
 `reindex-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
+2. Orchestration rejects active document ownership among descendants that a selected container rebuild would delete, then requires every selected subtree item to be terminal (`completed` or `failed`) and every selected root source to be available. A directly selected active-owned external leaf remains eligible and rebuilds from its pinned snapshot.
 3. Workflow service enqueues `knowledge.reindex-subtree`.
 4. The reindex job skips if delete won the race and any subtree item is now `deleting`.
-5. Under the base mutation lock, the reindex job deletes old vectors, removes expanded descendants for selected container roots, resets selected roots to `preparing` or `processing`, and schedules each selected root through the workflow service.
+5. Under the base mutation lock, the reindex job rechecks abort state, delete state, source availability, and active ownership for the container descendants it would delete before resetting statuses or touching artifacts; it then replaces source bytes, deletes old vectors and expanded descendants, and schedules each selected root through the workflow service.
 
 Reindex is not a cancellation primitive. Delete is the operation that can preempt active work.
 
@@ -319,6 +431,10 @@ user selects a valid embedding model for the failed base
 ```
 
 Only root items (`groupId = null`) are copied. Expanded directory children are intentionally not copied because they belong to the old base hierarchy and can be regenerated by the normal container preparation flow. The old failed base is left intact; product/UI code can decide whether to keep it for confirmation or delete it after a successful restore.
+
+External roots copy their pinned snapshot into the new base and become
+ownerless static external items there. Source/document ownership is not cloned
+by base restore.
 
 ## Search
 

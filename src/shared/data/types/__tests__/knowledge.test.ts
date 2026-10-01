@@ -3,15 +3,86 @@ import { describe, expect, it } from 'vitest'
 import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 
 import {
+  CreateKnowledgeItemSchema,
   DirectoryItemDataSchema,
+  ExternalItemDataSchema,
   FileItemDataSchema,
   getKnowledgeItemConflictKey,
   getKnowledgeItemDisplayTitle,
   getKnowledgeNoteFirstLine,
   getKnowledgePathBasename,
   KnowledgeRelativePathSchema,
+  KnowledgeAddItemInputSchema,
+  KnowledgeItemSchema,
   KnowledgeSearchResultSchema
 } from '../knowledge'
+
+const EXTERNAL_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+
+describe('external knowledge items', () => {
+  const data = {
+    source: 'Feishu Wiki',
+    title: 'Architecture',
+    relativePath: 'external/architecture.md'
+  }
+
+  it('accepts the minimal persisted data and leaf lifecycle states', () => {
+    expect(ExternalItemDataSchema.parse(data)).toEqual(data)
+    expect(
+      KnowledgeItemSchema.safeParse({
+        id: EXTERNAL_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type: 'external',
+        data,
+        status: 'completed',
+        error: null,
+        createdAt: '2026-09-19T00:00:00.000Z',
+        updatedAt: '2026-09-19T00:00:00.000Z'
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects missing local snapshot fields and provider metadata', () => {
+    expect(ExternalItemDataSchema.safeParse({ source: 'Feishu Wiki', title: 'Architecture' }).success).toBe(false)
+    expect(
+      ExternalItemDataSchema.safeParse({
+        ...data,
+        tenantId: 'tenant-1',
+        remoteRevision: '42',
+        currentWarning: 'stale'
+      }).success
+    ).toBe(false)
+  })
+
+  it('does not give external items the container-only preparing state', () => {
+    expect(
+      KnowledgeItemSchema.safeParse({
+        id: EXTERNAL_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type: 'external',
+        data,
+        status: 'preparing',
+        error: null,
+        createdAt: '2026-09-19T00:00:00.000Z',
+        updatedAt: '2026-09-19T00:00:00.000Z'
+      }).success
+    ).toBe(false)
+  })
+
+  it('allows internal creation but rejects external items on the public add surface', () => {
+    expect(CreateKnowledgeItemSchema.safeParse({ type: 'external', data }).success).toBe(true)
+    expect(KnowledgeAddItemInputSchema.safeParse({ type: 'external', data }).success).toBe(false)
+  })
+
+  it('uses the remote title for display and opts out of normal add conflict replacement', () => {
+    const item = { type: 'external' as const, data }
+    expect(getKnowledgeItemDisplayTitle(item)).toBe('Architecture')
+    expect(getKnowledgeItemConflictKey(item)).toBe('')
+  })
+})
 
 describe('KnowledgeRelativePathSchema', () => {
   it.each([

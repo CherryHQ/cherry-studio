@@ -179,6 +179,7 @@
 | Document | Description |
 |----------|-------------|
 | [Knowledge Reference](./references/knowledge/README.md) | Entry point for the current Knowledge backend, ingestion workflow, retrieval, and operation guards |
+| [External Knowledge Layer 2 Remediation Implementation Plan](./references/knowledge/external-knowledge-layer2-remediation-implementation.md) | Test-driven remediation plan for the External Knowledge Layer 2 domain foundation |
 | [Feishu Connection Foundation — Remediation Design](./references/knowledge/feishu-connection-fix-design.md) | Remediation design for the Feishu Connection foundation in PR 20699, covering stable identity, credential replacement, runtime validation, and protocol hardening |
 | [Feishu Connection Foundation Remediation Implementation Plan](./references/knowledge/feishu-connection-fix-implementation.md) | Test-driven implementation plan for remediating the Feishu Connection foundation in PR 20699 |
 | [Knowledge Service](./references/knowledge/knowledge-service.md) | Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools |

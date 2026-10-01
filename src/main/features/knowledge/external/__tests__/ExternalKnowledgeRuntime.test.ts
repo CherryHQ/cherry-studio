@@ -119,6 +119,8 @@ class MemoryConnections {
     return value
   })
   remove = vi.fn((id: string) => this.values.delete(id))
+  assertUnreferenced = vi.fn()
+  removeUnreferenced = vi.fn((id: string) => this.values.delete(id))
 }
 
 class MemoryCredentials {
@@ -1915,7 +1917,137 @@ describe('ExternalKnowledgeRuntime', () => {
 
     expect(wasAborted).toBe(true)
     expect(connections.getById(value.id)).toBeNull()
+    expect(connections.removeUnreferenced).toHaveBeenCalledWith(value.id)
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'missing' })
+  })
+
+  it('restores credential admission when durable removal rejects a referenced connection', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    connections.removeUnreferenced.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.invalidOperation('remove external knowledge connection', 'connection is in use')
+    })
+    const provider = createProvider({ revokeUserToken: vi.fn() })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.removeUnreferencedConnection(value.id)).rejects.toMatchObject({ code: 'connection-in-use' })
+
+    expect(connections.getById(value.id)).toEqual(value)
+    expect(provider.revokeUserToken).not.toHaveBeenCalled()
+    expect(credentials.remove).not.toHaveBeenCalled()
+    await expect(runtime.acquireAccessToken(value.id)).resolves.toBe('access-one')
+  })
+
+  it('preserves an in-flight authorization session when removal admission rejects the referenced connection', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const inUse = () => {
+      throw DataApiErrorFactory.invalidOperation('remove external knowledge connection', 'connection is in use')
+    }
+    connections.assertUnreferenced.mockImplementation(inUse)
+    connections.removeUnreferenced.mockImplementation(inUse)
+    const candidateStored = deferred<string>()
+    const finishCandidatePut = deferred<void>()
+    credentials.put.mockImplementation(async (reference, credential) => {
+      credentials.values.set(reference, { status: 'ok', credential })
+      candidateStored.resolve(reference)
+      await finishCandidatePut.promise
+    })
+    let authorizationSignal: AbortSignal | undefined
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+        expiresIn: 600,
+        interval: 5
+      })),
+      exchangeDeviceAuthorization: vi.fn(async (_credentials, _deviceCode, signal: AbortSignal) => {
+        authorizationSignal = signal
+        return {
+          accessToken: 'candidate-access',
+          refreshToken: 'candidate-refresh',
+          expiresIn: 7200,
+          refreshTokenExpiresIn: 604800,
+          grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+        }
+      }),
+      getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
+        accountOpenId: value.accountOpenId!,
+        accountUnionId: null,
+        tenantKey: value.tenantKey!,
+        displayName: 'Reauthorized user',
+        avatarUrl: null
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    const begun = await runtime.beginReconnect(value.id)
+    const completing = runtime.completeUserAuthorization(begun.authorizationSessionId)
+    const candidateReference = await candidateStored.promise
+
+    const removing = runtime.removeUnreferencedConnection(value.id).catch((error) => error)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    const sessionWasAborted = authorizationSignal?.aborted
+    const candidateBeforeRelease = await credentials.read(candidateReference)
+    const revokeCountBeforeRelease = provider.revokeUserToken.mock.calls.length
+    const credentialRemoveCallsBeforeRelease = credentials.remove.mock.calls.length
+    finishCandidatePut.resolve()
+    const [removalError, reauthorized] = await Promise.all([removing, completing.catch((error) => error)])
+
+    expect(removalError).toMatchObject({ code: 'connection-in-use' })
+    expect(sessionWasAborted).toBe(false)
+    expect(candidateBeforeRelease).toMatchObject({ status: 'ok' })
+    expect(revokeCountBeforeRelease).toBe(0)
+    expect(credentialRemoveCallsBeforeRelease).toBe(0)
+    expect(reauthorized).toMatchObject({
+      id: value.id,
+      authorizationStatus: 'connected',
+      credentialReference: candidateReference
+    })
+    expect(credentials.remove).not.toHaveBeenCalledWith(candidateReference)
+  })
+
+  it('keeps a durably removed connection deleted when credential retirement fails', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    const events: string[] = []
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    connections.removeUnreferenced.mockImplementationOnce((id: string) => {
+      events.push('connection-remove')
+      return connections.values.delete(id)
+    })
+    const provider = createProvider({
+      revokeUserToken: vi.fn(async () => {
+        events.push('provider-revoke')
+        throw new Error('offline')
+      })
+    })
+    credentials.remove.mockImplementation(async () => {
+      events.push('credential-remove')
+      throw new Error('keychain unavailable')
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await expect(runtime.removeUnreferencedConnection(value.id)).resolves.toBeUndefined()
+
+    expect(connections.getById(value.id)).toBeNull()
+    expect(connections.removeUnreferenced).toHaveBeenCalledWith(value.id)
+    expect(provider.revokeUserToken).toHaveBeenCalledOnce()
+    expect(credentials.remove).toHaveBeenCalledWith('ref-one')
+    expect(events).toEqual(['connection-remove', 'provider-revoke', 'credential-remove'])
+    await expect(runtime.acquireAccessToken(value.id)).rejects.toMatchObject({ code: 'not-found' })
   })
 
   it('waits for local connection removal to finish during shutdown', async () => {

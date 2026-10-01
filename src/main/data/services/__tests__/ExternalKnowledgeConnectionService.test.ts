@@ -2,6 +2,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
 import { ErrorCode } from '@shared/data/api/errors'
 
@@ -263,11 +265,55 @@ describe('ExternalKnowledgeConnectionService', () => {
     ).toThrow()
   })
 
+  it.each(['active', 'paused'] as const)(
+    'rejects admitting or removing a connection referenced by a %s source',
+    (state) => {
+      const connection = externalKnowledgeConnectionService.create(createInput)
+      const baseId = '11111111-1111-4111-8111-111111111111'
+      dbh.db
+        .insert(knowledgeBaseTable)
+        .values({
+          id: baseId,
+          name: 'External Knowledge',
+          dimensions: null,
+          embeddingModelId: null,
+          status: 'completed',
+          error: null,
+          chunkSize: 1024,
+          chunkOverlap: 200
+        })
+        .run()
+      dbh.db
+        .insert(externalKnowledgeSourceTable)
+        .values({
+          baseId,
+          connectionId: connection.id,
+          provider: 'feishu',
+          tenantId: 'tenant_example',
+          spaceId: 'space_example',
+          scope: { kind: 'space' },
+          name: 'Engineering Wiki',
+          state,
+          revision: 0
+        })
+        .run()
+
+      expect(() => externalKnowledgeConnectionService.assertUnreferenced(connection.id)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION, status: 400 })
+      )
+      expect(() => externalKnowledgeConnectionService.removeUnreferenced(connection.id)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION, status: 400 })
+      )
+      expect(externalKnowledgeConnectionService.getById(connection.id)).toEqual(connection)
+    }
+  )
+
   it('removes an unreferenced connection', () => {
     const connection = externalKnowledgeConnectionService.create(createInput)
 
-    expect(externalKnowledgeConnectionService.remove(connection.id)).toBe(true)
-    expect(externalKnowledgeConnectionService.remove(connection.id)).toBe(false)
+    expect(() => externalKnowledgeConnectionService.assertUnreferenced(connection.id)).not.toThrow()
+    expect(externalKnowledgeConnectionService.removeUnreferenced(connection.id)).toBe(true)
+    expect(externalKnowledgeConnectionService.removeUnreferenced(connection.id)).toBe(false)
     expect(externalKnowledgeConnectionService.list()).toEqual([])
   })
 })
