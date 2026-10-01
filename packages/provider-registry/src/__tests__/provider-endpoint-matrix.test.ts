@@ -197,3 +197,17 @@ describe('new-api single-host endpoints', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
   })
 })
+
+describe('aionly NewAPI relay endpoints (#21168)', () => {
+  it('routes every protocol through the newapi adapter family', () => {
+    const families = Object.values(provider('aionly').endpointConfigs ?? {}).map((config) => config?.adapterFamily)
+    expect(families.every((family) => family === 'newapi')).toBe(true)
+  })
+
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
+  })
+})

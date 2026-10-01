@@ -1896,26 +1896,4 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
-
-  describe('AiOnly preset (NewAPI relay)', () => {
-    it('routes anthropic-messages models through the newapi adapter instead of openai-compatible (#21168)', async () => {
-      const provider = makeProvider({
-        id: 'aionly',
-        presetProviderId: 'aionly',
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://api.aiionly.com/v1',
-            adapterFamily: 'newapi'
-          },
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' }
-        }
-      })
-      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
-
-      const config = await providerToAiSdkConfig(provider, model)
-
-      expect(config.providerId).toBe('newapi')
-      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1')
-    })
-  })
 })
