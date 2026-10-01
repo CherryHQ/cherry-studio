@@ -147,8 +147,6 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
-  /** Set after a successful directory migration so selection can follow the new root. */
-  'notes.directory_root_transition': { from: string; to: string } | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -246,7 +244,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.right_pane_open_override': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
-  'notes.directory_root_transition': undefined,
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],
@@ -373,6 +370,8 @@ export type SharedCacheSchema = {
   // mirrors the linked file-processing job's progress here every poll round so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  /** Set after a successful directory migration so selection can follow the new root. */
+  'notes.directory_root_transition': { from: string; to: string } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -414,7 +413,11 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
+<<<<<<< HEAD
   'knowledge.item.file_processing_progress.${itemId}': null
+=======
+  'notes.directory_root_transition': undefined
+>>>>>>> efef53b820 (fix(notes-relocation): fix CI types and tighten migration handshake)
 }
 
 /**

@@ -28,6 +28,7 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
+import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -93,6 +94,9 @@ const HeaderNavbar = ({
   }, [getCurrentNoteContent])
 
   const handleExportToWord = useCallback(async () => {
+    if (blockNotesActionsDuringMigration(t)) {
+      return
+    }
     try {
       const content = getCurrentNoteContent?.()
       if (!content) {
@@ -129,6 +133,9 @@ const HeaderNavbar = ({
   }, [activeNode, getCurrentNoteContent])
 
   const handleExportToPdf = useCallback(async () => {
+    if (blockNotesActionsDuringMigration(t)) {
+      return
+    }
     const payload = getPrintableDocumentPayload()
     if (!payload) return
 

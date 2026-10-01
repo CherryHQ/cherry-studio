@@ -15,6 +15,8 @@ import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { useNotesFileEditSession } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { consumeNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
+import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
 import {
   addDir,
   addNote,
@@ -33,8 +35,6 @@ import {
   reorderTreeNodes,
   updateTreeNode
 } from '@renderer/services/NotesTreeService'
-import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
-import { consumeNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
 import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
@@ -47,14 +47,6 @@ import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
-
-function blockNotesFilesystemDuringMigration(t: (key: string) => string): boolean {
-  if (!notesEditFlushService.getMigrationLocked()) {
-    return false
-  }
-  toast.error(t('settings.data.notes_relocation.error.migration_in_progress'))
-  return true
-}
 
 const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
   // Notes ships only `.md` files. Stats fuel `sortType: sort_updated_*` /
@@ -215,10 +207,9 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (lastSeenNotesPathRef.current !== notesPath) {
       const from = lastSeenNotesPathRef.current
-      const migrationTransition =
-        from && notesPath ? consumeNotesDirectoryRootTransition(notesPath) : null
+      const migrationTransition = from && notesPath ? consumeNotesDirectoryRootTransition(notesPath) : null
       notesRootTransitionRef.current =
-        migrationTransition && normalizePathValue(migrationTransition.from) === normalizePathValue(from)
+        migrationTransition && from && normalizePathValue(migrationTransition.from) === normalizePathValue(from)
           ? migrationTransition
           : null
       lastSeenNotesPathRef.current = notesPath
@@ -574,7 +565,7 @@ const NotesPage: FC = () => {
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, targetFolderId?: string) => {
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
       try {
@@ -595,7 +586,7 @@ const NotesPage: FC = () => {
 
   const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
       try {
@@ -685,7 +676,7 @@ const NotesPage: FC = () => {
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
       try {
@@ -743,7 +734,7 @@ const NotesPage: FC = () => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
       try {
@@ -832,7 +823,7 @@ const NotesPage: FC = () => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
       try {
@@ -902,7 +893,7 @@ const NotesPage: FC = () => {
       if (!notesPath) {
         return
       }
-      if (blockNotesFilesystemDuringMigration(t)) {
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
 
