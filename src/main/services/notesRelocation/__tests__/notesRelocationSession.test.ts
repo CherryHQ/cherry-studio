@@ -3,26 +3,32 @@ import { describe, expect, it } from 'vitest'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
-import { withNotesRelocationExclusive } from '../notesRelocationSession'
+import {
+  acquireNotesRelocationSession,
+  releaseNotesRelocationSession
+} from '../notesRelocationSession'
 
-describe('withNotesRelocationExclusive', () => {
-  it('rejects a second migration while the first is in progress', async () => {
-    let releaseFirst: (() => void) | undefined
-    const firstStarted = withNotesRelocationExclusive(
-      () =>
-        new Promise<void>((resolve) => {
-          releaseFirst = resolve
-        })
+describe('notesRelocationSession', () => {
+  it('rejects a second migration while the first session is active', () => {
+    acquireNotesRelocationSession('window-a')
+
+    expect(() => acquireNotesRelocationSession('window-b')).toThrow(
+      expect.objectContaining({
+        code: notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS
+      })
     )
 
-    const second = withNotesRelocationExclusive(async () => undefined)
+    releaseNotesRelocationSession('window-a')
+    expect(() => acquireNotesRelocationSession('window-b')).not.toThrow()
+    releaseNotesRelocationSession('window-b')
+  })
 
-    await expect(second).rejects.toMatchObject({
-      code: notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS
-    })
-    await expect(second).rejects.toBeInstanceOf(IpcError)
+  it('only releases the session for the owning window', () => {
+    acquireNotesRelocationSession('window-a')
+    releaseNotesRelocationSession('window-b')
 
-    releaseFirst?.()
-    await firstStarted
+    expect(() => acquireNotesRelocationSession('window-c')).toThrow(IpcError)
+
+    releaseNotesRelocationSession('window-a')
   })
 })
