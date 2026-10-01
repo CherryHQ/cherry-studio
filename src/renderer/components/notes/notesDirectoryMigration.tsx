@@ -2,7 +2,6 @@ import type { TFunction } from 'i18next'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { recordNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -97,7 +96,6 @@ export async function migrateNotesDirectoryWithUi(options: {
       return
     }
 
-    await notesEditFlushService.flushAll()
     let filesCopied = false
     try {
       await ipcApi.request('app.notes_relocation.migrate', {
@@ -108,11 +106,11 @@ export async function migrateNotesDirectoryWithUi(options: {
       filesCopied = true
       await onSuccess(targetPath)
       recordNotesDirectoryRootTransition(sourcePath, targetPath)
-      await ipcApi.request('app.notes_relocation.commit', undefined)
+      await ipcApi.request('app.notes_relocation.commit')
       toast.success(t('settings.data.notes_relocation.success'))
     } catch (error) {
       if (filesCopied) {
-        await ipcApi.request('app.notes_relocation.commit', undefined).catch((releaseError) => {
+        await ipcApi.request('app.notes_relocation.commit').catch((releaseError) => {
           logger.warn('Failed to release notes migration lock after error', releaseError as Error)
         })
       }

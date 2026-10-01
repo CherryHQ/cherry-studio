@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { ipcApi } from '@renderer/ipc'
+import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -89,6 +90,9 @@ export const useNotesMenu = ({
 
   const runExport = useCallback(
     async (fn: () => Promise<unknown>) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         await fn()
       } catch (error) {

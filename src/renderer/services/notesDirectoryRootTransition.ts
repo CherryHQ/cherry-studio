@@ -8,9 +8,7 @@ export function recordNotesDirectoryRootTransition(from: string, to: string): vo
   })
 }
 
-export function consumeNotesDirectoryRootTransition(
-  expectedTo: string
-): { from: string; to: string } | null {
+export function consumeNotesDirectoryRootTransition(expectedTo: string): { from: string; to: string } | null {
   const pending = cacheService.getShared('notes.directory_root_transition')
   const normalizedTo = normalizePathValue(expectedTo)
   if (!pending || normalizePathValue(pending.to) !== normalizedTo) {

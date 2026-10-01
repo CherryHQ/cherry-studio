@@ -95,22 +95,20 @@ class RendererEditFlushCoordinator {
     }
   }
 
-  async prepareForMigration(callerWindowId: WindowId | null): Promise<boolean> {
+  async prepareForMigration(_callerWindowId: WindowId | null): Promise<boolean> {
     const allWindowIds = this.listNotesWindowIds()
     const locked = await this.waitForAcks(this.lockPending, allWindowIds, 'edit lock')
     if (!locked) {
       return false
     }
-
-    const flushTargets = allWindowIds.filter((id) => id !== callerWindowId)
-    if (flushTargets.length === 0) {
+    if (allWindowIds.length === 0) {
       return true
     }
 
     return new Promise<boolean>((resolve) => {
       const batchId = randomUUID()
       const pending: PendingBatch = {
-        remaining: new Set(flushTargets),
+        remaining: new Set(allWindowIds),
         failed: false,
         timer: undefined as unknown as NodeJS.Timeout,
         resolve: (success) => {
@@ -127,7 +125,7 @@ class RendererEditFlushCoordinator {
       this.flushPending.set(batchId, pending)
 
       const ipcApiService = application.get('IpcApiService')
-      for (const id of flushTargets) {
+      for (const id of allWindowIds) {
         ipcApiService.send(id, 'app.notes_relocation.flush_requested', { batchId })
       }
     })

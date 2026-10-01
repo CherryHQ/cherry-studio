@@ -70,11 +70,15 @@ describe('RendererEditFlushCoordinator', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
 
+    expect(ipcApiService.send).toHaveBeenCalledWith('main', 'app.notes_relocation.flush_requested', {
+      batchId: expect.any(String)
+    })
     expect(ipcApiService.send).toHaveBeenCalledWith('sub-1', 'app.notes_relocation.flush_requested', {
       batchId: expect.any(String)
     })
 
     const flushId = flushBatchId()
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'main', true)
     rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'sub-1', true)
 
     await expect(prepared).resolves.toBe(true)
