@@ -132,8 +132,8 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const resumeHeader =
     resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse, t) : undefined
   const resumeTarget = resumeState?.kind === 'navigable' ? resumeState : undefined
-  // A receipt that owns its flow is an entry too, but it opens on its own call id, so it carries
-  // no explicit target — the card defaults to the call it renders.
+  // A receipt that owns its flow is an entry too, but it opens on its own call id: no target is
+  // passed, so the card defaults to the call it renders.
   const resumeEntry = resumeTarget !== undefined || resumeState?.kind === 'self'
   return (
     <>
@@ -152,7 +152,6 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         // resume request's summary.
         flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
         labelOverride={resumeHeader?.header}
-        leadingLabel={resumeEntry ? t('message.tools.activity.continueHandle') : undefined}
         showInlineDetails={!isSubagentTool}
       />
       <ToolApprovalOutcome approval={toolResponse.approval} />

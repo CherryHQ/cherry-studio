@@ -1443,6 +1443,35 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('Private child output')).toBeNull()
     })
 
+    // A receipt that resumed a child belongs in the subtask list beside its launch; leaving it
+    // inline was what kept a duplicate capsule at the message tail.
+    it('lists a resume receipt as a subtask of the message it continued', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          {
+            type: 'tool-SendMessage',
+            toolCallId: 'resume',
+            state: 'output-available',
+            input: { to: 'child', message: 'Please continue' },
+            output: { success: true, resumedAgentId: 'child' }
+          }
+        ] as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        { openAgentToolFlow: vi.fn() }
+      )
+
+      const toggle = screen.getByRole('button', { expanded: true })
+      const list = container.querySelector(`#${toggle.getAttribute('aria-controls')}`)
+      expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
+    })
+
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
       const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
       const actions = { openAgentToolFlow: vi.fn() }
