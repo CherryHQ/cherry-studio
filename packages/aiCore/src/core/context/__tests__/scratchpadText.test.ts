@@ -29,8 +29,8 @@ describe('scratchpadText', () => {
   })
 
   it('keeps trailing reply text when stripping known scratchpad wrappers', () => {
-    expect(
-      stripKnownModelScratchpadBlocks('<thinking>hidden</thinking>visible follow-up in the same block')
-    ).toBe('visible follow-up in the same block')
+    expect(stripKnownModelScratchpadBlocks('<thinking>hidden</thinking>visible follow-up in the same block')).toBe(
+      'visible follow-up in the same block'
+    )
   })
 })
