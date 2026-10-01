@@ -65,13 +65,24 @@ export function setNotesMigrationBlockedRoots(sourcePath: string, targetPath: st
   blockedRoots = { source: realPath(sourcePath), target: realPath(targetPath) }
 }
 
+export class NotesMigrationWriteBlockedError extends Error {
+  constructor() {
+    super('Notes directory migration is in progress')
+    this.name = 'NotesMigrationWriteBlockedError'
+  }
+}
+
+export function isNotesMigrationWriteBlockedError(error: unknown): error is NotesMigrationWriteBlockedError {
+  return error instanceof NotesMigrationWriteBlockedError
+}
+
 export function assertNotesPathNotMutatingDuringMigration(filePath: string): void {
   if (!blockedRoots) {
     return
   }
   const resolved = realPath(filePath)
   if (pathUnderRoot(resolved, blockedRoots.source) || pathUnderRoot(resolved, blockedRoots.target)) {
-    throw new Error('Notes directory migration is in progress')
+    throw new NotesMigrationWriteBlockedError()
   }
 }
 
