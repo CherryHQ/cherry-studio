@@ -7,13 +7,21 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
+import type * as MarkdownChunks from '../markdownChunks'
 import { MARKDOWN_MAX_BLOCK_CHARS } from '../markdownChunks'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  splitMarkdownChunks: vi.fn()
 }))
+
+vi.mock('../markdownChunks', async (importOriginal) => {
+  const actual = await importOriginal<typeof MarkdownChunks>()
+  mocks.splitMarkdownChunks.mockImplementation(actual.splitMarkdownChunks)
+  return { ...actual, splitMarkdownChunks: mocks.splitMarkdownChunks }
+})
 
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: (props: { language: string; options?: { highlight?: boolean }; value: string; wrapped: boolean }) => {
@@ -211,6 +219,17 @@ describe('MarkdownFilePreview', () => {
 
     expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('splits a windowable document once and windows that split', async () => {
+    // The split is synchronous work between reading the file and first paint, so the fallback
+    // decision and the windowing must share one pass over the source rather than each make their own.
+    mocks.readText.mockResolvedValueOnce('# File preview\n\nSecond paragraph')
+
+    renderPreview({ size: 2 * 1024 * 1024 - 1 })
+
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
+    expect(mocks.splitMarkdownChunks).toHaveBeenCalledTimes(1)
   })
 
   it('hides frontmatter and the source switch when the artifact host owns editing', async () => {

@@ -1,16 +1,17 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
 
 import { StaticMarkdown } from '@renderer/components/markdown'
 
-import { splitMarkdownChunks } from './markdownChunks'
+import type { MarkdownChunk } from './markdownChunks'
 
 // Markdown source lines render taller than code lines — wrapped prose, headings and table rows all
 // exceed one line box. The virtualizer corrects each chunk after it has been measured once.
 const ESTIMATED_CHUNK_LINE_PX = 30
 
 interface MarkdownChunkPreviewProps {
-  content: string
+  /** The document already split; the caller owns that single pass over the source. */
+  chunks: MarkdownChunk[]
   /** Stable identity; every chunk derives its own heading-ID prefix from it. */
   id: string
 }
@@ -20,8 +21,7 @@ interface MarkdownChunkPreviewProps {
  * document never pays a whole-file parse and layout in one frame and the first screenful is ready
  * as soon as those chunks have rendered.
  */
-export function MarkdownChunkPreview({ content, id }: MarkdownChunkPreviewProps) {
-  const chunks = useMemo(() => splitMarkdownChunks(content), [content])
+export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: chunks.length,
