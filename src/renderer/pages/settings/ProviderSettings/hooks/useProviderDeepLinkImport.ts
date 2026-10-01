@@ -149,5 +149,14 @@ export function useProviderDeepLinkImport(
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }
-  }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, providers, searchAddProviderData, t, updateProviderById])
+  }, [
+    addApiKeyTrigger,
+    createProvider,
+    navigate,
+    onSelectProvider,
+    providers,
+    searchAddProviderData,
+    t,
+    updateProviderById
+  ])
 }
