@@ -18,7 +18,7 @@ import { hasPathologicalLongLines } from '../../textPreviewGuard'
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { MarkdownChunkPreview } from './MarkdownChunkPreview'
-import { hasOversizedMarkdownBlock } from './markdownChunks'
+import { type MarkdownChunk, hasOversizedMarkdownChunk, splitMarkdownChunks } from './markdownChunks'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
@@ -100,6 +100,7 @@ function MarkdownPreviewPlainFallback() {
 interface MarkdownPreviewContentProps {
   filePath: AbsoluteFilePath
   hideFrontmatter: boolean
+  chunks: MarkdownChunk[]
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
@@ -132,6 +133,7 @@ function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string |
 function MarkdownPreviewContent({
   filePath,
   hideFrontmatter,
+  chunks,
   loadState,
   markdownId,
   mode,
@@ -174,7 +176,7 @@ function MarkdownPreviewContent({
 
   if (loadState.content.trim().length === 0) return <MarkdownPreviewEmpty />
 
-  const markdown = <MarkdownChunkPreview content={loadState.content} id={markdownId} />
+  const markdown = <MarkdownChunkPreview chunks={chunks} id={markdownId} />
 
   return (
     <MarkdownHostProvider resolveImageSrc={resolveImageSrc} openFilePath={navigation ? openFilePath : undefined}>
@@ -188,11 +190,14 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
   const readyContent = loadState.status === 'ready' ? loadState.content : null
+  // One pass over the source both windows the document and decides what cannot be windowed; splitting
+  // it again would double the synchronous work that stands between reading the file and first paint.
+  const chunks = useMemo(() => (readyContent === null ? [] : splitMarkdownChunks(readyContent)), [readyContent])
   // Windowing keeps large documents responsive, so only input it cannot window falls back: very
   // long lines, or a single block large enough that it would still reach the renderer whole.
   const plainFallback = useMemo(
-    () => readyContent !== null && (hasPathologicalLongLines(readyContent) || hasOversizedMarkdownBlock(readyContent)),
-    [readyContent]
+    () => readyContent !== null && (hasPathologicalLongLines(readyContent) || hasOversizedMarkdownChunk(chunks)),
+    [readyContent, chunks]
   )
   const effectiveMode = plainFallback ? 'source' : type === 'artifact' ? 'preview' : mode
   const viewerOwnsScroll =
@@ -246,6 +251,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         <MarkdownPreviewContent
           filePath={filePath}
           hideFrontmatter={type === 'artifact'}
+          chunks={chunks}
           loadState={loadState}
           markdownId={markdownId}
           mode={effectiveMode}

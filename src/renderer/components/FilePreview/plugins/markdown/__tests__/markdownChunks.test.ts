@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { hasOversizedMarkdownBlock, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunks } from '../markdownChunks'
+import { hasOversizedMarkdownChunk, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunks } from '../markdownChunks'
 
 const joined = (chunks: Array<{ text: string }>) => chunks.map((chunk) => chunk.text).join('\n')
 
@@ -39,6 +39,43 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
   })
 
+  it('keeps dollar display math that opens with content on its line in one chunk', () => {
+    const content = ['opening paragraph', '', '$$x = 1234567890', '', 'y = 2$$', '', 'after'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(3)
+    expect(chunks[1].text).toContain('$$x = 1234567890\n\ny = 2$$')
+  })
+
+  it('keeps dollar display math built around a LaTeX environment in one chunk', () => {
+    const content = ['opening paragraph', '', '$$\\begin{align}', 'x = 1', '', 'y = 2', '\\end{align}$$', ''].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('x = 1\n\ny = 2')
+  })
+
+  it('does not treat inline dollar math as a block a boundary could fall inside', () => {
+    // `$$x = 1$$` closes on its own line, so the parser leaves it to the inline tokenizer.
+    const content = ['opening paragraph', '', '$$x = 1$$ and text', '', 'after'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(3)
+  })
+
+  it('keeps the tail of a document in one chunk while its dollar math is unclosed', () => {
+    // The parser reads an unclosed `$$` as math to the end of the document, so the splitter follows it.
+    const content = ['opening paragraph', '', '$$x = 1', '', 'y = 2', '', 'after'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('y = 2\n\nafter')
+  })
+
   it('keeps a raw HTML block that spans blank lines in one chunk', () => {
     const content = ['opening paragraph', '', '<pre>', 'raw one', '', 'raw two', '</pre>', 'after'].join('\n')
 
@@ -55,6 +92,53 @@ describe('splitMarkdownChunks', () => {
     const chunks = splitMarkdownChunks(content, 10)
 
     expect(chunks[0].text).toContain('indented body')
+  })
+
+  it('does not end a chunk inside a run of blank lines that indented code spans', () => {
+    // One indented code block: only the last blank line before unindented text ends it.
+    const content = ['opening paragraph', '', '    code one', '', '', '    code two', '', 'after'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[0].text).toContain('code one\n\n\n    code two')
+  })
+
+  it('keeps an ordered list whose numbering a boundary would reset in one chunk', () => {
+    // The list numbers its items from its first marker, so `1. 1. 1.` renders 1, 2, 3 as one list
+    // and 1, 1, 1 as three documents.
+    const content = ['1. first', '', '1. second', '', '1. third'].join('\n')
+
+    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+  })
+
+  it('keeps the rest of an ordered list together once its numbering stops matching', () => {
+    const content = ['1. first', '', '1. second', '', '2. third'].join('\n')
+
+    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+  })
+
+  it('keeps an ordered list whose markers skip numbers in one chunk', () => {
+    // `1. 3. 5.` renders 1, 2, 3 as one list, so the written numbers cannot carry across a boundary.
+    const content = ['1. first', '', '3. second', '', '5. third'].join('\n')
+
+    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+  })
+
+  it('still windows an ordered list whose markers name the numbers it renders', () => {
+    const content = ['1. first', '', '2. second', '', '3. third'].join('\n')
+
+    expect(splitMarkdownChunks(content, 1)).toHaveLength(3)
+  })
+
+  it('still windows the ordered lists of a document where a heading ends the first one', () => {
+    const content = ['1. first', '', '1. second', '', '# heading', '', '1. third', '', '2. fourth'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks).toHaveLength(4)
+    expect(chunks[0].text).toContain('1. first\n\n1. second')
+    expect(chunks[3].text).toContain('2. fourth')
   })
 
   it('carries a link reference definition into the chunk that uses it', () => {
@@ -138,6 +222,15 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('does not carry a code block that only follows a link definition', () => {
+    // A footnote definition owns its indented lines; a link definition ends with its line run.
+    const content = ['[label]: https://example.com', '', '    indented body', '', 'see [label]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('indented body'))).toHaveLength(1)
+  })
+
   it('does not carry definition syntax found inside a fenced code block', () => {
     const content = ['```', '[label]: https://example.com', '```', '', 'see [label]'].join('\n')
 
@@ -147,12 +240,16 @@ describe('splitMarkdownChunks', () => {
   })
 })
 
-describe('hasOversizedMarkdownBlock', () => {
+describe('hasOversizedMarkdownChunk', () => {
   it('flags one indivisible block that would still reach the renderer whole', () => {
-    expect(hasOversizedMarkdownBlock(`# head\n\n${'a'.repeat(MARKDOWN_MAX_BLOCK_CHARS + 1)}`)).toBe(true)
+    const chunks = splitMarkdownChunks(`# head\n\n${'a'.repeat(MARKDOWN_MAX_BLOCK_CHARS + 1)}`)
+
+    expect(hasOversizedMarkdownChunk(chunks)).toBe(true)
   })
 
   it('does not flag a long document made of many small blocks', () => {
-    expect(hasOversizedMarkdownBlock('para\n\n'.repeat(100_000))).toBe(false)
+    const chunks = splitMarkdownChunks('para\n\n'.repeat(100_000))
+
+    expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
   })
 })

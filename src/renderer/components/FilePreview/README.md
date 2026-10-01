@@ -294,8 +294,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   plain-text source. Markdown then locks its preview/source switch and says so through
   `file_preview.markdown.plain_fallback.description`.
 - A Markdown chunk is its own document, so `splitMarkdownChunks` may only break on a blank line where no construct spans
-  it (fenced code, display math, raw HTML) and no indented continuation follows. Reference definitions are carried into
-  every chunk, because a link or footnote used in one chunk may be defined in another.
+  it (fenced code, display math, raw HTML, indented code) and where an ordered list keeps the numbering it has as one
+  list. Reference definitions are carried into every chunk, because a link or footnote used in one chunk may be defined
+  in another; only a footnote definition owns the indented lines that follow its blank ones. The source is split once,
+  and that one split decides both what is windowed and what cannot be.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
