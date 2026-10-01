@@ -1,13 +1,14 @@
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
+import type * as OpenAICompatible from '@ai-sdk/openai-compatible'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 const packageRoot = dirname(createRequire(import.meta.url).resolve('@ai-sdk/openai-compatible/package.json'))
-const { OpenAICompatibleImageModel: SourceImageModel }: typeof import('@ai-sdk/openai-compatible') = await import(
+const { OpenAICompatibleImageModel: SourceImageModel }: typeof OpenAICompatible = await import(
   join(packageRoot, 'src/image/openai-compatible-image-model.ts')
 )
 
