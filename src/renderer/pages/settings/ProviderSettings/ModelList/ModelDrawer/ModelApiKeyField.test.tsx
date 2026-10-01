@@ -21,7 +21,6 @@ const apiKeys: RuntimeApiKey[] = [
   { id: 'key-2', label: 'Backup', isEnabled: true }
 ]
 
-const fieldLabel = 'settings.models.edit.api_key.label'
 const autoLabel = 'settings.models.edit.api_key.auto'
 const autoValue = '__auto__'
 
