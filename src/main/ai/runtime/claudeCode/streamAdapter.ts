@@ -36,6 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import { loggerService } from '@logger'
+import { textStartsWithModelScratchpadTag } from '@cherrystudio/ai-core'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
@@ -146,6 +147,11 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
+  filterParentlessScratchpadText: boolean
+  scratchpadTextProbe: string
+  suppressActiveTextPart: boolean
+  textStartDeferred: boolean
 }
 
 /**
@@ -527,7 +533,7 @@ export class ClaudeCodeStreamAdapter {
    * missing-property check the guarantee that a turn starts clean — resetting fields individually
    * would silently leak whichever one a later change forgets.
    */
-  private createTurnContext(sink = this.sink): StreamContext {
+  private createTurnContext(sink = this.sink, filterParentlessScratchpadText = sink === this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
     return {
       sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
@@ -549,7 +555,11 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      filterParentlessScratchpadText,
+      scratchpadTextProbe: '',
+      suppressActiveTextPart: false,
+      textStartDeferred: false
     }
   }
 
@@ -731,7 +741,10 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext(
+        this.turnActive ? this.sink : this.createFlowSink(parentToolCallId),
+        false
+      )
     }
     this.flowContexts.push(flow)
     return flow
@@ -877,11 +890,16 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
-    ctx.sink.enqueue({
-      type: 'text-start',
-      id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
-    })
+    ctx.scratchpadTextProbe = ''
+    ctx.suppressActiveTextPart = false
+    ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+    if (!ctx.textStartDeferred) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: partId,
+        providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      })
+    }
     ctx.textStreamedViaContentBlock = true
   }
 
@@ -929,10 +947,59 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
+    this.enqueueVisibleTextDelta(text, ctx)
+  }
+
+  private resolveScratchpadTextProbe(probe: string): 'pending' | 'suppress' | 'emit' {
+    if (!probe) return 'pending'
+    if (textStartsWithModelScratchpadTag(probe)) return 'suppress'
+
+    const trimmed = probe.trimStart()
+    if (!trimmed.startsWith('<')) return 'emit'
+    if (!trimmed.includes('>')) return 'pending'
+    return 'emit'
+  }
+
+  private enqueueVisibleTextDelta(
+    text: string,
+    ctx: StreamContext,
+    providerMetadata?: Record<string, JSONObject>
+  ): void {
+    if (!text || ctx.suppressActiveTextPart) return
+
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+      ctx.scratchpadTextProbe = ''
+      if (!ctx.textStartDeferred) {
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          ...(providerMetadata ? { providerMetadata } : {})
+        })
+      }
     }
+
+    if (ctx.filterParentlessScratchpadText && ctx.textStartDeferred) {
+      ctx.scratchpadTextProbe += text
+      const decision = this.resolveScratchpadTextProbe(ctx.scratchpadTextProbe)
+      if (decision === 'pending') return
+      if (decision === 'suppress') {
+        ctx.suppressActiveTextPart = true
+        ctx.textStartDeferred = false
+        ctx.scratchpadTextProbe = ''
+        return
+      }
+      ctx.textStartDeferred = false
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        ...(providerMetadata ? { providerMetadata } : {})
+      })
+      text = ctx.scratchpadTextProbe
+      ctx.scratchpadTextProbe = ''
+    }
+
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
@@ -981,9 +1048,16 @@ export class ClaudeCodeStreamAdapter {
 
     const textId = ctx.textBlocksByIndex.get(blockIndex)
     if (textId) {
-      ctx.sink.enqueue({ type: 'text-end', id: textId })
+      if (!ctx.suppressActiveTextPart) {
+        ctx.sink.enqueue({ type: 'text-end', id: textId })
+      }
       ctx.textBlocksByIndex.delete(blockIndex)
-      if (ctx.textPartId === textId) ctx.textPartId = undefined
+      if (ctx.textPartId === textId) {
+        ctx.textPartId = undefined
+        ctx.scratchpadTextProbe = ''
+        ctx.suppressActiveTextPart = false
+        ctx.textStartDeferred = false
+      }
       return
     }
 
@@ -1121,27 +1195,28 @@ export class ClaudeCodeStreamAdapter {
 
   private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
+      if (ctx.hasReceivedStreamEvents) {
+        ctx.accumulatedText = text
+        ctx.streamedTextLength = text.length
+      } else {
+        ctx.accumulatedText += text
+      }
+      return
+    }
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
       const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
       ctx.accumulatedText = text
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
+        this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
       ctx.streamedTextLength = text.length
     } else {
       ctx.accumulatedText += text
       if (ctx.options.responseFormat?.type !== 'json') {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+        this.enqueueVisibleTextDelta(text, ctx, providerMetadata)
       }
     }
   }
@@ -1934,8 +2009,13 @@ export class ClaudeCodeStreamAdapter {
   private closeActiveTextPart(ctx: StreamContext): void {
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
-    ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    if (!ctx.suppressActiveTextPart) {
+      ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    }
     ctx.textPartId = undefined
+    ctx.scratchpadTextProbe = ''
+    ctx.suppressActiveTextPart = false
+    ctx.textStartDeferred = false
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {
       if (blockTextId === closedTextId) {
         ctx.textBlocksByIndex.delete(idx)
