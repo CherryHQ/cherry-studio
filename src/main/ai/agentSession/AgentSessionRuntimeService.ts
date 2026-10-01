@@ -441,7 +441,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
-  private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
+  private readonly closingSessions = new Map<
+    string,
+    { promise: Promise<void>; resumeToken?: string; agentType?: string }
+  >()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -1096,7 +1099,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
+    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken, entry.agentType)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
@@ -1104,13 +1107,19 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
-  private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
+  private trackSessionClosing(
+    sessionId: string,
+    closing: Promise<void>,
+    resumeToken?: string,
+    agentType?: string
+  ): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
         if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
       }),
-      resumeToken: resumeToken ?? priorClosing?.resumeToken
+      resumeToken: resumeToken ?? priorClosing?.resumeToken,
+      agentType: agentType ?? priorClosing?.agentType
     }
     this.closingSessions.set(sessionId, barrier)
     return barrier.promise
@@ -1215,7 +1224,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleWarmTeardown(sessionId: string): void {
     const existing = this.pendingWarmTeardowns.get(sessionId)
     if (existing) clearTimeout(existing)
-    const agentType = this.entries.get(sessionId)?.agentType
+    const agentType = this.entries.get(sessionId)?.agentType ?? this.closingSessions.get(sessionId)?.agentType
     const timer = setTimeout(() => {
       this.pendingWarmTeardowns.delete(sessionId)
       // Prewarm opens a real runtime connection, so releasing runtime-specific warm state alone would
@@ -3317,6 +3326,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private resolveSessionAgentType(sessionId: string): string | undefined {
     const fromEntry = this.entries.get(sessionId)?.agentType
     if (fromEntry) return fromEntry
+    const fromClosing = this.closingSessions.get(sessionId)?.agentType
+    if (fromClosing) return fromClosing
     let session: ReturnType<typeof agentSessionService.getById> | undefined
     try {
       session = agentSessionService.getById(sessionId)

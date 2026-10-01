@@ -310,21 +310,39 @@ describe('ClaudeCodeProcessManager', () => {
     await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(0))
   })
 
-  it('admits a live spawn into the slot an evicted warm child freed', () => {
-    const dying = createFakeChild()
-    const spawnProcess = vi.fn().mockReturnValueOnce(dying.process).mockReturnValueOnce(createFakeChild().process)
+  it('refuses a live spawn at the active cap until an evicted warm child exits', async () => {
+    const warmChildren = Array.from({ length: 6 }, () => createFakeChild())
+    const liveChild = createFakeChild()
+    const spawnProcess = vi.fn()
+    for (const child of warmChildren) spawnProcess.mockReturnValueOnce(child.process)
+    spawnProcess.mockReturnValueOnce(liveChild.process)
     const manager = new TestProcessManager(spawnProcess)
-    const diagnostics = createClaudeCodeProcessDiagnostics('warm-ref')
-    manager.spawn(spawnOptions, diagnostics)
+    const applicationGetExisting = vi.spyOn(application, 'getExisting') as unknown as Mock
+    applicationGetExisting.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') return manager
+      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery: vi.fn(() => false) }
+      throw new Error(`unexpected service ${name}`)
+    })
+    try {
+      for (let i = 0; i < 6; i++) {
+        manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics(`warm-${i}`), 'warm')
+      }
 
-    manager.releaseWarmQueryProcess('warm-ref')
-    expect(manager.getCapSlotProcessCount()).toBe(0)
-    expect(manager.getActiveProcessCount()).toBe(1)
+      manager.releaseWarmQueryProcess('warm-0')
+      expect(manager.getCapSlotProcessCount()).toBe(5)
+      expect(manager.getActiveProcessCount()).toBe(6)
+      expect(() => manager.spawn(spawnOptions)).toThrow('Claude Code CLI process cap reached')
 
-    manager.spawn(spawnOptions)
-    expect(manager.getCapSlotProcessCount()).toBe(1)
-    expect(manager.getActiveProcessCount()).toBe(2)
-    expect(dying.kill).toHaveBeenCalledWith('SIGTERM')
+      warmChildren[0].emitExit()
+      await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(5))
+
+      manager.spawn(spawnOptions)
+      expect(manager.getCapSlotProcessCount()).toBe(6)
+      expect(manager.getActiveProcessCount()).toBe(6)
+      expect(warmChildren[0].kill).toHaveBeenCalledWith('SIGTERM')
+    } finally {
+      applicationGetExisting.mockRestore()
+    }
   })
 
   it('refuses a warm park while an evicted child keeps the active count at the cap', () => {

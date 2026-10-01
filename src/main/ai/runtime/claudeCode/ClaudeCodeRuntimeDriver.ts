@@ -64,6 +64,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { ensureClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import { forkClaudeSession } from './claudeFork'
@@ -422,6 +423,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
+    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live'))) {
+      throw new Error('Claude Code CLI process cap reached')
+    }
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
     this.query = consumedWarmQuery

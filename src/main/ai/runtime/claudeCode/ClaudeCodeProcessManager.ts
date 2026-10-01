@@ -191,6 +191,27 @@ export class ClaudeCodeProcessManager extends BaseService {
     return this.processes.size
   }
 
+  waitForActiveProcessBelowCap(max: number, timeoutMs: number): Promise<void> {
+    if (this.getActiveProcessCount() < max) return Promise.resolve()
+    return new Promise((resolve) => {
+      const tryResolve = () => {
+        if (this.getActiveProcessCount() < max) {
+          clearInterval(poll)
+          clearTimeout(timer)
+          resolve()
+        }
+      }
+      const poll = setInterval(tryResolve, 50)
+      poll.unref?.()
+      const timer = setTimeout(() => {
+        clearInterval(poll)
+        resolve()
+      }, timeoutMs)
+      timer.unref?.()
+      tryResolve()
+    })
+  }
+
   /**
    * Drop a parked warm query's CLI child from the active cap before its async dispose finishes.
    * No-op when the reference is unknown or the process already exited.

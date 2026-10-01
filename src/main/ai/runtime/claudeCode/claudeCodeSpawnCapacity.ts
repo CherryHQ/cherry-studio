@@ -36,5 +36,23 @@ export function prepareClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority
   while (processManager.getCapSlotProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) {
     if (!warmManager.evictOldestWarmQuery()) return false
   }
-  return processManager.getCapSlotProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
+  return processManager.getActiveProcessCount() < MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES
+}
+
+const LIVE_SPAWN_CAPACITY_WAIT_MS = 30_000
+
+/** Live cold starts may wait for evicted warm children to exit so the physical process cap holds. */
+export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority): Promise<boolean> {
+  if (prepareClaudeCodeSpawnCapacity(priority)) return true
+  if (priority === 'warm') return false
+
+  const processManager = application.getExisting('ClaudeCodeProcessManager')
+  const deadline = Date.now() + LIVE_SPAWN_CAPACITY_WAIT_MS
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) break
+    await processManager.waitForActiveProcessBelowCap(MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES, remaining)
+    if (prepareClaudeCodeSpawnCapacity('live')) return true
+  }
+  return false
 }
