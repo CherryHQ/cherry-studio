@@ -64,7 +64,7 @@ import {
 } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { AgentToolsType, getResumedAgentId, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
-import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
+import { getPartLaunchToolCallId, hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
@@ -1550,9 +1550,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             if (name === AgentToolsType.Agent || name === AgentToolsType.Task) return true
             // A receipt that resumed a child of this message belongs to the same subtask list as
             // its launch; leaving it inline is what kept a duplicate capsule at the message tail.
+            // The stamp counts too: a deferred result names no child, yet the row still resumes one.
             return (
               name === AgentToolsType.SendMessage &&
-              getResumedAgentId((entry.part as { output?: unknown }).output) !== undefined
+              (getResumedAgentId((entry.part as { output?: unknown }).output) !== undefined ||
+                getPartLaunchToolCallId(entry.part) !== undefined)
             )
           })
         : [],

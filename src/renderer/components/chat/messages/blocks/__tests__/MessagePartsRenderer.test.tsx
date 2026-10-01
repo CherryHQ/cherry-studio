@@ -1472,6 +1472,36 @@ describe('MessagePartsRenderer', () => {
       expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
     })
 
+    // A receipt whose result is still an envelope names no child, but the adapter stamp already
+    // ties it to a launch of this message — it belongs in the list, not inline with the flow.
+    it('lists a stamp-only resume receipt as a subtask of the message it continued', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          {
+            type: 'tool-SendMessage',
+            toolCallId: 'resume',
+            state: 'output-available',
+            input: { to: 'child', message: 'Please continue' },
+            output: { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'resume' } },
+            providerMetadata: { cherry: { launchToolCallId: 'reviewer' } }
+          }
+        ] as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        { openAgentToolFlow: vi.fn() }
+      )
+
+      const toggle = screen.getByRole('button', { expanded: true })
+      const list = container.querySelector(`#${toggle.getAttribute('aria-controls')}`)
+      expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
+    })
+
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
       const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
       const actions = { openAgentToolFlow: vi.fn() }

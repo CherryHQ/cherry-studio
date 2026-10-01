@@ -1297,6 +1297,38 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // The row opens the launch's flow, so it has to highlight that flow — reading the receipt's own
+    // call id would leave the entry looking unselected while its flow is the one on screen.
+    it('marks a resume entry selected when its launch flow is the open one', () => {
+      const openAgentToolFlow = vi.fn()
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          }
+        ]
+      })
+      mockMessageListActions.mockReturnValue({
+        openAgentToolFlow,
+        isAgentToolFlowActive: (id: string) => id === 'call-launch'
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'true')
+    })
+
     // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
     // redirecting to the launch root would drop every round the resume produced.
     it('roots a cold-resumed receipt at its own call when content streams under it', () => {
