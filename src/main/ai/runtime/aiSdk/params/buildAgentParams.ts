@@ -796,20 +796,30 @@ function resolveEffectiveThinkingBudget(
     : undefined
 }
 
-/**
- * One body-routing policy shared by extraction and stripping: dotted bags
- * (`chat_template_kwargs.x`), the bags themselves, and reasoning targets the
- * resolved wire declares request-body are raw-HTTP-body keys — everything else
- * belongs in providerOptions.
- */
+/** Whether a provider-option key is routed to the raw HTTP body for this wire. */
 function isBodyRoutedOverrideKey(key: string, bodyRoutedTargets: ReadonlySet<string>): boolean {
-  return (
-    key.startsWith('chat_template_kwargs.') ||
-    key.startsWith('extra_body.') ||
-    key === 'chat_template_kwargs' ||
-    key === 'extra_body' ||
-    bodyRoutedTargets.has(key)
-  )
+  if (bodyRoutedTargets.has(key)) return true
+  const prefix = `${key}.`
+  for (const target of bodyRoutedTargets) {
+    if (target.startsWith(prefix)) return true
+  }
+  return false
+}
+
+function mergeBodyOverrideValue(body: Record<string, unknown>, key: string, value: unknown): void {
+  const dot = key.indexOf('.')
+  if (dot > 0) {
+    const bag = key.slice(0, dot)
+    const rest = key.slice(dot + 1)
+    const nested = (body[bag] ??= {}) as Record<string, unknown>
+    nested[rest] = value
+    return
+  }
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    body[key] = merge({}, (body[key] as Record<string, unknown> | undefined) ?? {}, value as Record<string, unknown>)
+  } else {
+    body[key] = value
+  }
 }
 
 function extractCallOverridesBodyParams(
@@ -828,58 +838,8 @@ function extractCallOverridesBodyParams(
     if (!opts || typeof opts !== 'object') continue
     for (const [key, value] of Object.entries(opts as Record<string, unknown>)) {
       if (value === undefined) continue
-      // Dotted body-routed keys (e.g. `chat_template_kwargs.enable_thinking`) must
-      // expand to a nested object, not a flat key, so the later deep-merge preserves
-      // sibling fields like `foo`. Check the dotted form before the generic
-      // body-target branch, otherwise the nested bag would shadow it.
-      if (key.startsWith('chat_template_kwargs.')) {
-        const rest = key.slice('chat_template_kwargs.'.length)
-        const bag = (body['chat_template_kwargs'] ??= {}) as Record<string, unknown>
-        bag[rest] = value
-        continue
-      }
-      if (key === 'chat_template_kwargs') {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge(
-            {},
-            (body[key] as Record<string, unknown> | undefined) ?? {},
-            value as Record<string, unknown>
-          )
-        } else {
-          body[key] = value
-        }
-        continue
-      }
-      if (key.startsWith('extra_body.')) {
-        const rest = key.slice('extra_body.'.length)
-        const bag = (body['extra_body'] ??= {}) as Record<string, unknown>
-        bag[rest] = value
-        continue
-      }
-      if (key === 'extra_body') {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge(
-            {},
-            (body[key] as Record<string, unknown> | undefined) ?? {},
-            value as Record<string, unknown>
-          )
-        } else {
-          body[key] = value
-        }
-        continue
-      }
-      // Generic body-routed targets declared with explicit delivery.
-      if (bodyRoutedTargets.has(key)) {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge(
-            {},
-            (body[key] as Record<string, unknown> | undefined) ?? {},
-            value as Record<string, unknown>
-          )
-        } else {
-          body[key] = value
-        }
-      }
+      if (!isBodyRoutedOverrideKey(key, bodyRoutedTargets)) continue
+      mergeBodyOverrideValue(body, key, value)
     }
   }
   return body
