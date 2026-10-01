@@ -2109,6 +2109,25 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(textEnds).toHaveLength(1)
     })
 
+    it('preserves markup whose tag name only shares a prefix with a scratchpad tag', () => {
+      const { adapter, parts } = createAdapter()
+      const markup = '<thinking-note>ordinary markup</thinking-note>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: markup } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(markup)
+    })
+
     it('preserves parentless text with an incomplete angle-bracket prefix at block end', () => {
       const { adapter, parts } = createAdapter()
 

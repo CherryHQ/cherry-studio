@@ -12,6 +12,8 @@ describe('scratchpadText', () => {
     expect(textStartsWithModelScratchpadTag('  <assessment>x</assessment>')).toBe(true)
     expect(textStartsWithModelScratchpadTag('visible reply')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<div>markup</div>')).toBe(false)
+    expect(textStartsWithModelScratchpadTag('<thinking-note>ordinary markup</thinking-note>')).toBe(false)
+    expect(textStartsWithModelScratchpadTag('<thinking />')).toBe(false)
   })
 
   it('strips arbitrary paired scratchpad blocks and unwraps summary payloads', () => {

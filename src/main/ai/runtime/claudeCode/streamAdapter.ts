@@ -972,7 +972,7 @@ export class ClaudeCodeStreamAdapter {
       return { action: 'pending' }
     }
 
-    const tagMatch = trimmed.match(/^<([a-z][a-z0-9]*)\b/i)
+    const tagMatch = trimmed.match(/^<([a-z][a-z0-9]*)(?:(?=\s[^/]*>)|(?=>))/i)
     if (
       tagMatch &&
       !MODEL_SCRATCHPAD_TAG_NAMES.includes(tagMatch[1].toLowerCase() as (typeof MODEL_SCRATCHPAD_TAG_NAMES)[number])
@@ -989,7 +989,7 @@ export class ClaudeCodeStreamAdapter {
         return { action: 'suppress' }
       }
       if (atBlockEnd) {
-        return { action: 'suppress' }
+        return { action: 'emit', visible: probe }
       }
       return { action: 'pending' }
     }
