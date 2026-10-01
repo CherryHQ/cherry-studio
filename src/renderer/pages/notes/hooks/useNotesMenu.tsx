@@ -52,6 +52,9 @@ export const useNotesMenu = ({
 
   const handleExportKnowledge = useCallback(
     async (note: NotesTreeNode) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
         const result = await SaveToKnowledgePopup.showForNote(note)
@@ -69,6 +72,9 @@ export const useNotesMenu = ({
 
   const handleImageAction = useCallback(
     async (node: NotesTreeNode, platform: 'copyImage' | 'exportImage') => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         const exportServicePromise = import('@renderer/services/ExportService')
         let selectionReady = Promise.resolve()
@@ -113,6 +119,9 @@ export const useNotesMenu = ({
 
   const handleDeleteNodeWrapper = useCallback(
     async (node: NotesTreeNode) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       const confirmText =
         node.type === 'folder'
           ? t('notes.delete_folder_confirm', { name: node.name })
@@ -154,14 +163,20 @@ export const useNotesMenu = ({
             id: 'notes.new-note',
             label: t('notes.new_note'),
             icon: <FilePlus size={14} />,
-            onSelect: () => onCreateNote(t('notes.untitled_note'), node.id)
+            onSelect: () => {
+              if (blockNotesActionsDuringMigration(t)) return
+              onCreateNote(t('notes.untitled_note'), node.id)
+            }
           },
           {
             type: 'item',
             id: 'notes.new-folder',
             label: t('notes.new_folder'),
             icon: <Folder size={14} />,
-            onSelect: () => onCreateFolder(t('notes.untitled_folder'), node.id)
+            onSelect: () => {
+              if (blockNotesActionsDuringMigration(t)) return
+              onCreateFolder(t('notes.untitled_folder'), node.id)
+            }
           },
           { type: 'separator' }
         )
