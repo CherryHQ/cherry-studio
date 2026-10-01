@@ -1050,9 +1050,9 @@ export class ClaudeCodeStreamAdapter {
       const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
       if (classified.action === 'pending') return
       if (classified.action === 'suppress') {
-        ctx.suppressActiveTextPart = true
         ctx.textStartDeferred = false
         ctx.scratchpadTextProbe = ''
+        ctx.textPartStarted = false
         return
       }
       ctx.textStartDeferred = false
@@ -1064,6 +1064,15 @@ export class ClaudeCodeStreamAdapter {
       ctx.textPartStarted = true
       text = classified.visible
       ctx.scratchpadTextProbe = ''
+    }
+
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        ...(providerMetadata ? { providerMetadata } : {})
+      })
+      ctx.textPartStarted = true
     }
 
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
