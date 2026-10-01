@@ -59,11 +59,11 @@ type PartialStreamingResponse = StreamingResponseFields & {
 }
 
 /**
- * Minimal usage type for streaming responses.
- * The SDK's ResponseUsage requires input_tokens_details and output_tokens_details,
- * but during streaming we may only have the basic token counts.
+ * Usage shape for streaming responses: the basic token counts plus the cache
+ * and reasoning breakdowns whenever the projection carries them.
  */
-type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'>
+type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> &
+  Partial<Pick<ResponseUsage, 'input_tokens_details' | 'output_tokens_details'>>
 
 /**
  * OpenAI Responses finish reasons
@@ -109,6 +109,10 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+  /** Cache-read subset reported by the projection's `inputTokenDetails`. */
+  private cachedTokens?: number
+  /** Reasoning subset reported by the projection's `outputTokenDetails`. */
+  private reasoningTokens?: number
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -148,16 +152,20 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   /**
-   * Build usage object for streaming responses.
-   * Uses StreamingUsage which only includes basic token counts,
-   * omitting the detailed breakdowns (input_tokens_details, output_tokens_details)
-   * that are not available during streaming.
+   * Build usage object for responses. The basic token counts always come from
+   * the projection; the cache and reasoning breakdowns are forwarded whenever
+   * the projection carries them (the Responses API exposes both, so this is a
+   * dialect that should surface them).
    */
   private buildUsage(): StreamingUsage {
     return {
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens
+      total_tokens: this.state.inputTokens + this.state.outputTokens,
+      ...(this.cachedTokens !== undefined ? { input_tokens_details: { cached_tokens: this.cachedTokens } } : {}),
+      ...(this.reasoningTokens !== undefined
+        ? { output_tokens_details: { reasoning_tokens: this.reasoningTokens } }
+        : {})
     }
   }
 
@@ -300,6 +308,12 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.cachedTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   /**

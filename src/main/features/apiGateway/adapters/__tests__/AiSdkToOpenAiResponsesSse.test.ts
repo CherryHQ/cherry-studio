@@ -13,6 +13,8 @@ const createTextDelta = (text: string, id = 'text_0'): UIMessageChunk => ({ type
 interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
+  cachedTokens?: number
+  reasoningTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
@@ -22,7 +24,11 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            ...(usage.cachedTokens !== undefined ? { inputTokenDetails: { cacheReadTokens: usage.cachedTokens } } : {}),
+            ...(usage.reasoningTokens !== undefined
+              ? { outputTokenDetails: { reasoningTokens: usage.reasoningTokens } }
+              : {})
           }
         }
       : undefined
@@ -83,6 +89,65 @@ describe('AiSdkToOpenAiResponsesSse', () => {
       // sequence_number is monotonically increasing across all events.
       const seqs = events.map((e) => (e as { sequence_number: number }).sequence_number)
       expect(seqs).toEqual([...seqs].sort((a, b) => a - b))
+    })
+  })
+
+  describe('Usage Tracking', () => {
+    it('projects the cache and reasoning breakdowns onto the completed usage', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', { inputTokens: 12, outputTokens: 7, cachedTokens: 9, reasoningTokens: 5 })
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const completed = events.find((e) => e.type === 'response.completed') as unknown as {
+        response: { usage: Record<string, unknown> }
+      }
+      expect(completed.response.usage).toEqual({
+        input_tokens: 12,
+        output_tokens: 7,
+        total_tokens: 19,
+        input_tokens_details: { cached_tokens: 9 },
+        output_tokens_details: { reasoning_tokens: 5 }
+      })
+    })
+
+    it('omits the usage details when the projection carries no breakdown', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const events = await collectEvents(
+        adapter.transform(createMockStream([createFinish('stop', { inputTokens: 12, outputTokens: 7 })]))
+      )
+
+      const completed = events.find((e) => e.type === 'response.completed') as unknown as {
+        response: { usage: Record<string, unknown> }
+      }
+      expect(completed.response.usage).toEqual({ input_tokens: 12, output_tokens: 7, total_tokens: 19 })
+    })
+
+    it('surfaces the breakdowns in the non-streaming usage', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', { inputTokens: 12, outputTokens: 7, cachedTokens: 9, reasoningTokens: 5 })
+      ])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain */
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse() as unknown as {
+        usage: Record<string, unknown>
+      }
+
+      expect(response.usage).toEqual({
+        input_tokens: 12,
+        output_tokens: 7,
+        total_tokens: 19,
+        input_tokens_details: { cached_tokens: 9 },
+        output_tokens_details: { reasoning_tokens: 5 }
+      })
     })
   })
 
