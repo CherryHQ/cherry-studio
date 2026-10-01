@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerService } from '@data/services/ProviderService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { providerService } from '@data/services/ProviderService'
+import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { providerToAiSdkConfig } from '@main/ai/provider/config'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
-import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
