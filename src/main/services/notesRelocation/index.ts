@@ -2,6 +2,7 @@ export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
   assertNotesPathNotMutatingDuringMigration,
   completeNotesMigrationCommit,
+  getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   releaseNotesMigrationSession,
   scheduleAwaitingMigrationCommit,

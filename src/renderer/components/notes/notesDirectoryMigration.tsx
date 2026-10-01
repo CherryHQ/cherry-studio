@@ -97,20 +97,22 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     let filesCopied = false
+    let migrationSessionId: string | undefined
     try {
-      await ipcApi.request('app.notes_relocation.migrate', {
+      const migrationResult = await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,
         merge
       })
+      migrationSessionId = migrationResult.sessionId
       filesCopied = true
-      await onSuccess(targetPath)
       recordNotesDirectoryRootTransition(sourcePath, targetPath)
-      await ipcApi.request('app.notes_relocation.commit')
+      await onSuccess(targetPath)
+      await ipcApi.request('app.notes_relocation.commit', { sessionId: migrationResult.sessionId })
       toast.success(t('settings.data.notes_relocation.success'))
     } catch (error) {
-      if (filesCopied) {
-        await ipcApi.request('app.notes_relocation.commit').catch((releaseError) => {
+      if (filesCopied && migrationSessionId) {
+        await ipcApi.request('app.notes_relocation.commit', { sessionId: migrationSessionId }).catch((releaseError) => {
           logger.warn('Failed to release notes migration lock after error', releaseError as Error)
         })
       }
