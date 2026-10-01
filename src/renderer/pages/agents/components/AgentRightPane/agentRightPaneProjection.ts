@@ -592,16 +592,14 @@ export function buildAgentToolFlowProjection(
     // A flow keeps only the task events of its own children: their linkage lives inside `data`
     // (`taskId`/`toolUseId`), which the walk below cannot reach through tool-call metadata.
     const taskIds = new Set<string>()
+    // The task bound to this root names the child even when the launch result is the child's own
+    // answer rather than a receipt — a foreground run reports no agent id anywhere else.
+    let rootTaskId: string | undefined
     for (const { parts } of messageEntries) {
       for (const part of parts) {
-        if (
-          part.type === 'data-agent-task-event' &&
-          part.data.toolUseId &&
-          part.data.toolUseId !== selectedToolCallId &&
-          selectedToolCallIds.has(part.data.toolUseId)
-        ) {
-          taskIds.add(part.data.taskId)
-        }
+        if (part.type !== 'data-agent-task-event' || !part.data.toolUseId) continue
+        if (part.data.toolUseId === selectedToolCallId) rootTaskId ??= part.data.taskId
+        else if (selectedToolCallIds.has(part.data.toolUseId)) taskIds.add(part.data.taskId)
       }
     }
 
@@ -609,7 +607,10 @@ export function buildAgentToolFlowProjection(
     // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
     // The launch receipt's own result text is NOT appended — it duplicates the agent's final
     // message already present above and goes stale across continuations.
-    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, resolvedSelectedOutput)
+    // A launch whose result is the child's answer (a foreground run) names no agent id, so the
+    // child is read from the task the runtime bound to this root — the same id a resume receipt
+    // targets.
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, resolvedSelectedOutput) ?? rootTaskId
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -703,7 +704,7 @@ export function buildAgentToolFlowProjection(
         // receipt is walked later it must not split a second time. The adapter only stamps parts
         // whose parent is this launch root, but sibling flows sharing the walk order need the
         // receipt-set check too, so both gates guard against splitting on foreign markers.
-        const marker = launchedAgentId ? getPartResumeMarker(part) : undefined
+        const marker = getPartResumeMarker(part)
 
         // A resume receipt is not itself part of the flow, but for untagged content it marks where
         // a new round starts. Skip if its call id was already consumed by a runtime marker.

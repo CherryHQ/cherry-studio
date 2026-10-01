@@ -290,6 +290,56 @@ describe('agent right pane flow rounds', () => {
     )
   })
 
+  // A foreground launch returns the child's answer, so nothing in its result names the child. The
+  // runtime's task event is what binds that root to it, and without that binding a later
+  // SendMessage receipt cannot be recognised as a continuation of this flow.
+  it('interleaves the resume prompt for a launch that names no agent id', () => {
+    const childId = 'a84dcee637f9fac0c'
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { description: 'Run the capability test', prompt: 'First round' },
+        'The capability test passed on the first round.'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: childId,
+          toolUseId: 'call_launch',
+          status: 'in_progress',
+          taskType: 'subagent'
+        }
+      } as unknown as CherryMessagePart,
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: childId, summary: 'Second round', message: 'Second round of the same capability test.' },
+        { success: true, resumedAgentId: childId }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    expect((projection.partsByMessageId['call_launch:agent-flow-resume-1'][0] as { text?: string }).text).toBe(
+      'Second round of the same capability test.'
+    )
+  })
+
   it('splits rounds for a dsh send_message continuation', () => {
     const parts = [
       {
