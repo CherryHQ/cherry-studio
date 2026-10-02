@@ -464,10 +464,15 @@ function findNearestValidOrderKey(
  * including the boot-time provider registry sync — with `invalid order key`.
  *
  * Each offending boundary value is re-keyed just past the nearest valid
- * neighbour (or to a fresh start key when none exists) and a warning logged;
- * the insert then proceeds normally. All rows sharing the offending value are
- * re-keyed onto the same new key — they were mutually unordered anyway. The
- * loop terminates because every pass removes one distinct invalid value.
+ * neighbour (or to a fresh start key when none exists) and a warning logged.
+ * All rows sharing the offending value are re-keyed onto the same new key —
+ * they were mutually unordered anyway. Repairing one value can expose another
+ * invalid value still sorting beyond the repaired key (for `'last'`) or before
+ * it (for `'first'`), so the boundary is re-read from the table after every
+ * pass and the loop only ends once the scope extremum itself is valid — the
+ * insert then proceeds normally and lands beyond (or before) every
+ * pre-existing row. The loop terminates because every pass removes one
+ * distinct invalid value.
  */
 function selectRepairedBoundaryKey(
   tx: TxLike,
@@ -493,7 +498,10 @@ function selectRepairedBoundaryKey(
       invalidKey: boundary,
       newKey
     })
-    boundary = newKey
+    // Re-select instead of trusting `newKey`: `newKey` is always valid, so
+    // assigning it here would end the loop while further invalid values may
+    // still sort beyond the repaired extremum.
+    boundary = selectBoundaryKey(tx, table, which, scope)
   }
   return boundary
 }
