@@ -188,6 +188,7 @@
   "agent.session.agent.delete.title": "删除全部会话",
   "agent.session.agent.delete.trigger": "删除全部会话",
   "agent.session.api_retry.history": "本回合 API 已重试 {{attempt}}/{{max}} 次（HTTP {{status}}）",
+  "agent.session.api_retry.history_detail": "API 错误 {{error}}（HTTP {{status}}），发生于 {{time}}",
   "agent.session.api_retry.reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
   "agent.session.api_retry.retrying": "正在重试 {{attempt}}/{{max}}…",
   "agent.session.api_retry.retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}",
