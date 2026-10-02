@@ -12,6 +12,7 @@ import {
   inspectNotesRelocation,
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
+  abandonNotesRelocationSession,
   acquireNotesRelocationSession,
   releaseNotesRelocationSession,
   requestRendererNotesEditsFlush,
@@ -57,8 +58,13 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
   },
   'app.notes_relocation.flush_edits_unregister': async (_input, { senderId }) => {
-    if (senderId != null) {
-      unregisterRendererNotesEditsFlushWindow(senderId)
+    if (senderId == null) {
+      return
+    }
+    const abandonedSession = abandonNotesRelocationSession(senderId)
+    unregisterRendererNotesEditsFlushWindow(senderId)
+    if (abandonedSession) {
+      application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
     }
   },
   'app.notes_relocation.flush_edits_ack': async ({ requestId, ok }, { senderId }) => {

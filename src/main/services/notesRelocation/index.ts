@@ -1,5 +1,6 @@
 export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
+  abandonNotesRelocationSession,
   acquireNotesRelocationSession,
   isNotesRelocationSessionActive,
   releaseNotesRelocationSession

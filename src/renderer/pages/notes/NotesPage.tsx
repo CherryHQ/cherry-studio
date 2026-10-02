@@ -8,10 +8,10 @@ import { loggerService } from '@logger'
 import { useNotesFileEditSession } from '@renderer/components/notes/NotesFileEditSessionProvider'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { runStructuralNotesFilesystemWrite } from '@renderer/hooks/notesFileEditFlush'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
-import { areNotesEditsLockedForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
@@ -497,13 +497,14 @@ const NotesPage: FC = () => {
     await window.api.file.move(fromPath, toPath)
   }, [])
 
-  const isNotesFilesystemWriteBlocked = useCallback(() => {
-    if (!areNotesEditsLockedForRelocation()) {
-      return false
-    }
-    toast.warning(t('settings.data.notes_relocation.error.in_progress'))
-    return true
-  }, [t])
+  const runNotesFilesystemWrite = useCallback(
+    (operation: () => Promise<void>) =>
+      runStructuralNotesFilesystemWrite(
+        () => toast.warning(t('settings.data.notes_relocation.error.in_progress')),
+        operation
+      ),
+    [t]
+  )
 
   const syncMetadataAfterFileOperation = useCallback(
     async (operation: () => Promise<void>, rollback?: () => Promise<void>) => {
@@ -543,54 +544,52 @@ const NotesPage: FC = () => {
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, targetFolderId?: string) => {
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
-      try {
-        const targetPath = getTargetFolderPath(targetFolderId)
-        if (!targetPath) {
-          throw new Error('No folder path selected')
+      await runNotesFilesystemWrite(async () => {
+        try {
+          const targetPath = getTargetFolderPath(targetFolderId)
+          if (!targetPath) {
+            throw new Error('No folder path selected')
+          }
+          await addDir(name, targetPath)
+          setFolderExpandedByPath(targetPath, true)
+          await refreshTree()
+        } catch (error) {
+          logger.error('Failed to create folder:', error as Error)
+          toast.error(t('notes.create_folder_failed'))
         }
-        await addDir(name, targetPath)
-        setFolderExpandedByPath(targetPath, true)
-        await refreshTree()
-      } catch (error) {
-        logger.error('Failed to create folder:', error as Error)
-        toast.error(t('notes.create_folder_failed'))
-      }
+      })
     },
-    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setFolderExpandedByPath, t]
+    [getTargetFolderPath, refreshTree, runNotesFilesystemWrite, setFolderExpandedByPath, t]
   )
 
   const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
-      try {
-        isCreatingNoteRef.current = true
+      await runNotesFilesystemWrite(async () => {
+        try {
+          isCreatingNoteRef.current = true
 
-        const targetPath = getTargetFolderPath(targetFolderId)
-        if (!targetPath) {
-          throw new Error('No folder path selected')
+          const targetPath = getTargetFolderPath(targetFolderId)
+          if (!targetPath) {
+            throw new Error('No folder path selected')
+          }
+          const { path: notePath } = await addNote(name, '', targetPath)
+          setFolderExpandedByPath(targetPath, true)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
+          setSelectedFolderId(null)
+
+          await refreshTree()
+          // Success: flag stays true until the watcher reports the new node
+          // and the [activeNode] effect above clears it.
+        } catch (error) {
+          // Write failed → file will never appear → clear the flag now so
+          // shouldClearPath isn't permanently suppressed.
+          isCreatingNoteRef.current = false
+          logger.error('Failed to create note:', error as Error)
+          toast.error(t('notes.create_note_failed'))
         }
-        const { path: notePath } = await addNote(name, '', targetPath)
-        setFolderExpandedByPath(targetPath, true)
-        setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
-        setSelectedFolderId(null)
-
-        await refreshTree()
-        // Success: flag stays true until the watcher reports the new node
-        // and the [activeNode] effect above clears it.
-      } catch (error) {
-        // Write failed → file will never appear → clear the flag now so
-        // shouldClearPath isn't permanently suppressed.
-        isCreatingNoteRef.current = false
-        logger.error('Failed to create note:', error as Error)
-        toast.error(t('notes.create_note_failed'))
-      }
+      })
     },
-    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
+    [getTargetFolderPath, refreshTree, runNotesFilesystemWrite, setActiveFilePath, setFolderExpandedByPath, t]
   )
 
   // 创建笔记会离开当前编辑会话；用户取消时不创建空文件。
@@ -654,57 +653,56 @@ const NotesPage: FC = () => {
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
-      try {
-        const nodeToDelete = findNode(notesTree, nodeId)
-        if (!nodeToDelete) return
-
-        // Persist any pending edit before removing the file so the session's
-        // switch-flush can't resurrect a just-deleted path.
-        await flushFileDraft()
-
-        const metadataSnapshot = getMetadataSnapshot(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
-        await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
-
+      await runNotesFilesystemWrite(async () => {
         try {
-          await delNode(nodeToDelete)
-        } catch (fileError) {
-          await restoreMetadataSnapshot(metadataSnapshot)
-          throw fileError
-        }
+          const nodeToDelete = findNode(notesTree, nodeId)
+          if (!nodeToDelete) return
 
-        const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
-        const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
-        const isActiveNode = normalizedActivePath === normalizedDeletePath
-        const isActiveDescendant =
-          nodeToDelete.type === 'folder' &&
-          normalizedActivePath &&
-          normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
+          // Persist any pending edit before removing the file so the session's
+          // switch-flush can't resurrect a just-deleted path.
+          await flushFileDraft()
 
-        if (isActiveNode || isActiveDescendant) {
-          setActiveFilePath(undefined)
-          editorRef.current?.clear()
-        }
+          const metadataSnapshot = getMetadataSnapshot(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
+          await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
 
-        await refreshTree()
-      } catch (error) {
-        logger.error('Failed to delete node:', error as Error)
-        if (error instanceof Error && error.message) {
-          toast.error(t('notes.delete_failed'))
+          try {
+            await delNode(nodeToDelete)
+          } catch (fileError) {
+            await restoreMetadataSnapshot(metadataSnapshot)
+            throw fileError
+          }
+
+          const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
+          const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
+          const isActiveNode = normalizedActivePath === normalizedDeletePath
+          const isActiveDescendant =
+            nodeToDelete.type === 'folder' &&
+            normalizedActivePath &&
+            normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
+
+          if (isActiveNode || isActiveDescendant) {
+            setActiveFilePath(undefined)
+            editorRef.current?.clear()
+          }
+
+          await refreshTree()
+        } catch (error) {
+          logger.error('Failed to delete node:', error as Error)
+          if (error instanceof Error && error.message) {
+            toast.error(t('notes.delete_failed'))
+          }
         }
-      }
+      })
     },
     [
       activeFilePath,
       flushFileDraft,
       getMetadataSnapshot,
-      isNotesFilesystemWriteBlocked,
       notesTree,
       refreshTree,
       removePath,
       restoreMetadataSnapshot,
+      runNotesFilesystemWrite,
       setActiveFilePath,
       t
     ]
@@ -713,86 +711,85 @@ const NotesPage: FC = () => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
-      try {
-        isRenamingRef.current = true
+      await runNotesFilesystemWrite(async () => {
+        try {
+          isRenamingRef.current = true
 
-        const node = findNode(notesTree, nodeId)
-        if (!node || node.name === newName) {
-          return
+          const node = findNode(notesTree, nodeId)
+          if (!node || node.name === newName) {
+            return
+          }
+
+          const oldPath = node.externalPath
+          // Flush pending edits to the current path before it moves so the saved
+          // content is carried through the rename (and no stale-path write races).
+          await flushFileDraft()
+          const renamed = await renameEntry(node, newName)
+
+          // Tell the tree primitive about the rename so it mutates the
+          // existing TreeNode in place (identity preserved for downstream
+          // consumers / React keys) and dedups the chokidar unlink+add that
+          // follow. Best-effort: if treeId is null (hook still initializing)
+          // or the IPC fails, the watcher will catch up via removed+added —
+          // just without identity preservation.
+          if (treeId) {
+            // The name that actually landed on disk — `renameEntry` sanitises it and
+            // appends the markdown extension, so `renamed.name` is not the basename.
+            const renamedBasename = renamed.path.slice(renamed.path.lastIndexOf('/') + 1)
+            await ipcApi
+              .request('file.tree.rename', {
+                treeId,
+                oldPath: AbsoluteFilePathSchema.parse(oldPath),
+                newName: renamedBasename
+              })
+              .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
+          }
+
+          let nextActivePath: string | undefined
+
+          if (node.type === 'file' && activeFilePath === oldPath) {
+            nextActivePath = renamed.path
+          } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
+            const suffix = activeFilePath.slice(oldPath.length)
+            nextActivePath = `${renamed.path}${suffix}`
+          }
+
+          const metadataSynced = await syncMetadataAfterFileOperation(
+            () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
+            () => rollbackFileMove(renamed.path, oldPath, node.type)
+          )
+          if (!metadataSynced) {
+            return
+          }
+
+          if (nextActivePath) {
+            setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
+          }
+
+          await refreshTree()
+          // Success: flag stays true until the watcher reports the renamed
+          // node and the [activeNode] effect above clears it.
+        } catch (error) {
+          // Rename failed → clear the flag now so subsequent tree updates
+          // aren't suppressed.
+          isRenamingRef.current = false
+          logger.error('Failed to rename node:', error as Error)
+          toast.error(
+            error instanceof Error && error.message.startsWith('Target name already exists')
+              ? t('notes.target_name_exists')
+              : t('notes.rename_failed')
+          )
         }
-
-        const oldPath = node.externalPath
-        // Flush pending edits to the current path before it moves so the saved
-        // content is carried through the rename (and no stale-path write races).
-        await flushFileDraft()
-        const renamed = await renameEntry(node, newName)
-
-        // Tell the tree primitive about the rename so it mutates the
-        // existing TreeNode in place (identity preserved for downstream
-        // consumers / React keys) and dedups the chokidar unlink+add that
-        // follow. Best-effort: if treeId is null (hook still initializing)
-        // or the IPC fails, the watcher will catch up via removed+added —
-        // just without identity preservation.
-        if (treeId) {
-          // The name that actually landed on disk — `renameEntry` sanitises it and
-          // appends the markdown extension, so `renamed.name` is not the basename.
-          const renamedBasename = renamed.path.slice(renamed.path.lastIndexOf('/') + 1)
-          await ipcApi
-            .request('file.tree.rename', {
-              treeId,
-              oldPath: AbsoluteFilePathSchema.parse(oldPath),
-              newName: renamedBasename
-            })
-            .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
-        }
-
-        let nextActivePath: string | undefined
-
-        if (node.type === 'file' && activeFilePath === oldPath) {
-          nextActivePath = renamed.path
-        } else if (node.type === 'folder' && activeFilePath && activeFilePath.startsWith(`${oldPath}/`)) {
-          const suffix = activeFilePath.slice(oldPath.length)
-          nextActivePath = `${renamed.path}${suffix}`
-        }
-
-        const metadataSynced = await syncMetadataAfterFileOperation(
-          () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
-          () => rollbackFileMove(renamed.path, oldPath, node.type)
-        )
-        if (!metadataSynced) {
-          return
-        }
-
-        if (nextActivePath) {
-          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
-        }
-
-        await refreshTree()
-        // Success: flag stays true until the watcher reports the renamed
-        // node and the [activeNode] effect above clears it.
-      } catch (error) {
-        // Rename failed → clear the flag now so subsequent tree updates
-        // aren't suppressed.
-        isRenamingRef.current = false
-        logger.error('Failed to rename node:', error as Error)
-        toast.error(
-          error instanceof Error && error.message.startsWith('Target name already exists')
-            ? t('notes.target_name_exists')
-            : t('notes.rename_failed')
-        )
-      }
+      })
     },
     [
       activeFilePath,
       flushFileDraft,
-      isNotesFilesystemWriteBlocked,
       notesTree,
       refreshTree,
       rewritePath,
       rollbackFileMove,
+      runNotesFilesystemWrite,
       setActiveFilePath,
       syncMetadataAfterFileOperation,
       t,
@@ -803,68 +800,67 @@ const NotesPage: FC = () => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
-      try {
-        if (!files || files.length === 0) {
-          toast.warning(t('notes.no_file_selected'))
-          return
-        }
-
-        const targetFolderPath = getTargetFolderPath()
-        if (!targetFolderPath) {
-          throw new Error('No folder path selected')
-        }
-
-        // Validate uploadNotes function is available
-        if (typeof uploadNotes !== 'function') {
-          logger.error('uploadNotes function is not available', { uploadNotes })
-          toast.error(t('notes.upload_failed'))
-          return
-        }
-
-        let result: Awaited<ReturnType<typeof uploadNotes>>
+      await runNotesFilesystemWrite(async () => {
         try {
-          result = await uploadNotes(files, targetFolderPath)
-        } catch (uploadError) {
-          logger.error('Upload operation failed:', uploadError as Error)
-          throw uploadError
-        }
-
-        // Validate result object
-        if (!result || typeof result !== 'object') {
-          logger.error('Invalid upload result:', { result })
-          toast.error(t('notes.upload_failed'))
-          return
-        }
-
-        // 检查上传结果
-        if (result.fileCount === 0) {
-          if (result.failedFiles > 0) {
-            toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
+          if (!files || files.length === 0) {
+            toast.warning(t('notes.no_file_selected'))
             return
           }
-          toast.warning(t('notes.no_valid_files'))
-          return
+
+          const targetFolderPath = getTargetFolderPath()
+          if (!targetFolderPath) {
+            throw new Error('No folder path selected')
+          }
+
+          // Validate uploadNotes function is available
+          if (typeof uploadNotes !== 'function') {
+            logger.error('uploadNotes function is not available', { uploadNotes })
+            toast.error(t('notes.upload_failed'))
+            return
+          }
+
+          let result: Awaited<ReturnType<typeof uploadNotes>>
+          try {
+            result = await uploadNotes(files, targetFolderPath)
+          } catch (uploadError) {
+            logger.error('Upload operation failed:', uploadError as Error)
+            throw uploadError
+          }
+
+          // Validate result object
+          if (!result || typeof result !== 'object') {
+            logger.error('Invalid upload result:', { result })
+            toast.error(t('notes.upload_failed'))
+            return
+          }
+
+          // 检查上传结果
+          if (result.fileCount === 0) {
+            if (result.failedFiles > 0) {
+              toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
+              return
+            }
+            toast.warning(t('notes.no_valid_files'))
+            return
+          }
+
+          // 排序并显示上传结果
+          setFolderExpandedByPath(targetFolderPath, true)
+          await refreshTree()
+
+          if (result.failedFiles > 0) {
+            toast.warning(t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles }))
+            return
+          }
+
+          toast.success(t('notes.upload_success'))
+        } catch (error) {
+          logger.error('Failed to handle file upload:', error as Error)
+          toast.error(t('notes.upload_failed'))
         }
-
-        // 排序并显示上传结果
-        setFolderExpandedByPath(targetFolderPath, true)
-        await refreshTree()
-
-        if (result.failedFiles > 0) {
-          toast.warning(t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles }))
-          return
-        }
-
-        toast.success(t('notes.upload_success'))
-      } catch (error) {
-        logger.error('Failed to handle file upload:', error as Error)
-        toast.error(t('notes.upload_failed'))
-      }
+      })
     },
-    [getTargetFolderPath, isNotesFilesystemWriteBlocked, refreshTree, setFolderExpandedByPath, t]
+    [getTargetFolderPath, refreshTree, runNotesFilesystemWrite, setFolderExpandedByPath, t]
   )
 
   // 处理节点移动
@@ -873,107 +869,109 @@ const NotesPage: FC = () => {
       if (!notesPath) {
         return
       }
-      if (isNotesFilesystemWriteBlocked()) {
-        return
-      }
+      await runNotesFilesystemWrite(async () => {
+        try {
+          const sourceNode = findNode(notesTree, sourceNodeId)
+          const targetNode = findNode(notesTree, targetNodeId)
 
-      try {
-        const sourceNode = findNode(notesTree, sourceNodeId)
-        const targetNode = findNode(notesTree, targetNodeId)
-
-        if (!sourceNode || !targetNode) {
-          return
-        }
-
-        if (position === 'inside' && targetNode.type !== 'folder') {
-          return
-        }
-
-        const rootPath = normalizePathValue(notesPath)
-        const sourceParentNode = findParent(notesTree, sourceNodeId)
-        const targetParentNode = position === 'inside' ? targetNode : findParent(notesTree, targetNodeId)
-
-        const sourceParentPath = sourceParentNode ? sourceParentNode.externalPath : rootPath
-        const targetParentPath =
-          position === 'inside' ? targetNode.externalPath : targetParentNode ? targetParentNode.externalPath : rootPath
-
-        const normalizedSourceParent = normalizePathValue(sourceParentPath)
-        const normalizedTargetParent = normalizePathValue(targetParentPath)
-
-        const isManualReorder = position !== 'inside' && normalizedSourceParent === normalizedTargetParent
-
-        if (isManualReorder) {
-          // For manual reordering within the same parent, we can optimize by only updating the affected parent
-          setNotesTree((prev) =>
-            reorderTreeNodes(prev, sourceNodeId, targetNodeId, position === 'before' ? 'before' : 'after')
-          )
-          return
-        }
-
-        const { safeName } = await window.api.file.checkFileName(
-          normalizedTargetParent,
-          sourceNode.name,
-          sourceNode.type === 'file'
-        )
-
-        const destinationPath =
-          sourceNode.type === 'file'
-            ? `${normalizedTargetParent}/${safeName}.md`
-            : `${normalizedTargetParent}/${safeName}`
-
-        if (destinationPath === sourceNode.externalPath) {
-          return
-        }
-
-        // Flush pending edits before the file moves so saved content is carried
-        // through and no stale-path write races the move.
-        await flushFileDraft()
-
-        if (sourceNode.type === 'file') {
-          await window.api.file.move(sourceNode.externalPath, destinationPath)
-        } else {
-          await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
-        }
-
-        const metadataSynced = await syncMetadataAfterFileOperation(
-          () => rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder'),
-          () => rollbackFileMove(destinationPath, sourceNode.externalPath, sourceNode.type)
-        )
-        if (!metadataSynced) {
-          return
-        }
-        setFolderExpandedByPath(normalizedTargetParent, true)
-
-        const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
-        let nextActivePath: string | undefined
-        if (normalizedActivePath) {
-          if (normalizedActivePath === sourceNode.externalPath) {
-            nextActivePath = destinationPath
-          } else if (sourceNode.type === 'folder' && normalizedActivePath.startsWith(`${sourceNode.externalPath}/`)) {
-            const suffix = normalizedActivePath.slice(sourceNode.externalPath.length)
-            nextActivePath = `${destinationPath}${suffix}`
+          if (!sourceNode || !targetNode) {
+            return
           }
-        }
 
-        if (nextActivePath) {
-          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
-        }
+          if (position === 'inside' && targetNode.type !== 'folder') {
+            return
+          }
 
-        await refreshTree()
-      } catch (error) {
-        logger.error('Failed to move nodes:', error as Error)
-        toast.error(t('notes.move_failed'))
-      }
+          const rootPath = normalizePathValue(notesPath)
+          const sourceParentNode = findParent(notesTree, sourceNodeId)
+          const targetParentNode = position === 'inside' ? targetNode : findParent(notesTree, targetNodeId)
+
+          const sourceParentPath = sourceParentNode ? sourceParentNode.externalPath : rootPath
+          const targetParentPath =
+            position === 'inside'
+              ? targetNode.externalPath
+              : targetParentNode
+                ? targetParentNode.externalPath
+                : rootPath
+
+          const normalizedSourceParent = normalizePathValue(sourceParentPath)
+          const normalizedTargetParent = normalizePathValue(targetParentPath)
+
+          const isManualReorder = position !== 'inside' && normalizedSourceParent === normalizedTargetParent
+
+          if (isManualReorder) {
+            // For manual reordering within the same parent, we can optimize by only updating the affected parent
+            setNotesTree((prev) =>
+              reorderTreeNodes(prev, sourceNodeId, targetNodeId, position === 'before' ? 'before' : 'after')
+            )
+            return
+          }
+
+          const { safeName } = await window.api.file.checkFileName(
+            normalizedTargetParent,
+            sourceNode.name,
+            sourceNode.type === 'file'
+          )
+
+          const destinationPath =
+            sourceNode.type === 'file'
+              ? `${normalizedTargetParent}/${safeName}.md`
+              : `${normalizedTargetParent}/${safeName}`
+
+          if (destinationPath === sourceNode.externalPath) {
+            return
+          }
+
+          // Flush pending edits before the file moves so saved content is carried
+          // through and no stale-path write races the move.
+          await flushFileDraft()
+
+          if (sourceNode.type === 'file') {
+            await window.api.file.move(sourceNode.externalPath, destinationPath)
+          } else {
+            await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
+          }
+
+          const metadataSynced = await syncMetadataAfterFileOperation(
+            () => rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder'),
+            () => rollbackFileMove(destinationPath, sourceNode.externalPath, sourceNode.type)
+          )
+          if (!metadataSynced) {
+            return
+          }
+          setFolderExpandedByPath(normalizedTargetParent, true)
+
+          const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
+          let nextActivePath: string | undefined
+          if (normalizedActivePath) {
+            if (normalizedActivePath === sourceNode.externalPath) {
+              nextActivePath = destinationPath
+            } else if (sourceNode.type === 'folder' && normalizedActivePath.startsWith(`${sourceNode.externalPath}/`)) {
+              const suffix = normalizedActivePath.slice(sourceNode.externalPath.length)
+              nextActivePath = `${destinationPath}${suffix}`
+            }
+          }
+
+          if (nextActivePath) {
+            setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
+          }
+
+          await refreshTree()
+        } catch (error) {
+          logger.error('Failed to move nodes:', error as Error)
+          toast.error(t('notes.move_failed'))
+        }
+      })
     },
     [
       activeFilePath,
       flushFileDraft,
-      isNotesFilesystemWriteBlocked,
       notesPath,
       notesTree,
       refreshTree,
       rewritePath,
       rollbackFileMove,
+      runNotesFilesystemWrite,
       setActiveFilePath,
       setFolderExpandedByPath,
       syncMetadataAfterFileOperation,
