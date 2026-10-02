@@ -13,7 +13,6 @@ import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { hasPathologicalLongLines } from '../../textPreviewGuard'
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { MarkdownChunkPreview } from './MarkdownChunkPreview'
@@ -25,6 +24,7 @@ const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
 const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const EMPTY_CHUNKS: MarkdownChunk[] = []
 
 type MarkdownFileLoadState =
   | { status: 'error'; error: Error }
@@ -172,13 +172,11 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   const readyContent = loadState.status === 'ready' ? loadState.content : null
   // One pass over the source both windows the document and decides what cannot be windowed; splitting
   // it again would double the synchronous work that stands between reading the file and first paint.
-  const chunks = useMemo(() => (readyContent === null ? [] : splitMarkdownChunks(readyContent)), [readyContent])
+  const split = useMemo(() => (readyContent === null ? null : splitMarkdownChunks(readyContent)), [readyContent])
+  const chunks = split?.chunks ?? EMPTY_CHUNKS
   // Windowing keeps large documents responsive, so only input it cannot window falls back: very
   // long lines, or a single block large enough that it would still reach the renderer whole.
-  const plainFallback = useMemo(
-    () => readyContent !== null && (hasPathologicalLongLines(readyContent) || hasOversizedMarkdownChunk(chunks)),
-    [readyContent, chunks]
-  )
+  const plainFallback = split !== null && (split.longLines || hasOversizedMarkdownChunk(chunks))
   const effectiveMode = plainFallback ? 'source' : type === 'artifact' ? 'preview' : mode
   const viewerOwnsScroll =
     loadState.status === 'ready' && (effectiveMode === 'source' || (readyContent ?? '').trim().length > 0)
