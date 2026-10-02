@@ -8,35 +8,68 @@ import { isPidAlive } from '@main/ai/agents/backgroundTasks'
 import type * as ChannelsModule from '@main/ai/channels'
 
 // Mock TaskService before importing CherryAutonomyTools
-const mockCreateTask = vi.fn()
-const mockListTasks = vi.fn()
-const mockDeleteTask = vi.fn()
-const mockGetNotifyAdapters = vi.fn()
-const mockSendMessage = vi.fn()
-const mockSendFile = vi.fn()
-const mockGetAgent = vi.fn()
-const mockListAgents = vi.fn()
-const mockUpdateAgent = vi.fn()
-const mockQRCodeToDataURL = vi.fn()
-const mockListChannels = vi.fn()
-const mockCreateChannel = vi.fn()
-const mockCreateChannelAndWaitForQr = vi.fn()
-const mockGetChannel = vi.fn()
-const mockUpdateChannel = vi.fn()
-const mockUpdateChannelAndWaitForQr = vi.fn()
-const mockDeleteChannel = vi.fn()
-const mockReconnectChannel = vi.fn()
-const mockReconnectChannelWithQr = vi.fn()
-const mockGetSession = vi.fn()
-const mockReadConversation = vi.fn()
-const mockFindPersistedToolOutput = vi.fn()
-const mockListSessions = vi.fn()
-const mockSearchSessions = vi.fn()
-const mockSearchSessionMessages = vi.fn()
-const mockAcceptSessionDelivery = vi.fn()
-const mockCreateSessionWithDelivery = vi.fn()
-const mockListSessionDeliveries = vi.fn()
-const mockGetInteractionState = vi.fn()
+const {
+  mockCreateTask,
+  mockListTasks,
+  mockDeleteTask,
+  mockGetNotifyAdapters,
+  mockSendMessage,
+  mockSendFile,
+  mockGetAgent,
+  mockListAgents,
+  mockUpdateAgent,
+  mockQRCodeToDataURL,
+  mockListChannels,
+  mockCreateChannel,
+  mockCreateChannelAndWaitForQr,
+  mockGetChannel,
+  mockUpdateChannel,
+  mockUpdateChannelAndWaitForQr,
+  mockDeleteChannel,
+  mockReconnectChannel,
+  mockReconnectChannelWithQr,
+  mockGetSession,
+  mockReadConversation,
+  mockFindPersistedToolOutput,
+  mockListSessions,
+  mockSearchSessions,
+  mockSearchSessionMessages,
+  mockAcceptSessionDelivery,
+  mockCreateSessionWithDelivery,
+  mockListSessionDeliveries,
+  mockGetInteractionState
+} = vi.hoisted(() => ({
+  mockCreateTask: vi.fn(),
+  mockListTasks: vi.fn(),
+  mockDeleteTask: vi.fn(),
+  mockGetNotifyAdapters: vi.fn(),
+  mockSendMessage: vi.fn(),
+  mockSendFile: vi.fn(),
+  mockGetAgent: vi.fn(),
+  mockListAgents: vi.fn(),
+  mockUpdateAgent: vi.fn(),
+  mockQRCodeToDataURL: vi.fn(),
+  mockListChannels: vi.fn(),
+  mockCreateChannel: vi.fn(),
+  mockCreateChannelAndWaitForQr: vi.fn(),
+  mockGetChannel: vi.fn(),
+  mockUpdateChannel: vi.fn(),
+  mockUpdateChannelAndWaitForQr: vi.fn(),
+  mockDeleteChannel: vi.fn(),
+  mockReconnectChannel: vi.fn(),
+  mockReconnectChannelWithQr: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockReadConversation: vi.fn(),
+  mockFindPersistedToolOutput: vi.fn(),
+  mockListSessions: vi.fn(),
+  mockSearchSessions: vi.fn(),
+  mockSearchSessionMessages: vi.fn(),
+  mockAcceptSessionDelivery: vi.fn(),
+  mockCreateSessionWithDelivery: vi.fn(),
+  mockListSessionDeliveries: vi.fn(),
+  mockGetInteractionState: vi.fn()
+}))
+// Mock TaskService before importing CherryAutonomyTools
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
