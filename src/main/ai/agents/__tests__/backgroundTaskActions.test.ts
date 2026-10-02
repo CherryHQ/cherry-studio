@@ -16,6 +16,7 @@ import {
   startAgentBackgroundTask,
   stopAllAgentBackgroundTasks
 } from '../backgroundTaskActions'
+import * as tasks from '../backgroundTasks'
 import { getDetachedBackgroundTask, startDetachedBackgroundTask } from '../backgroundTasks'
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
@@ -54,6 +55,38 @@ describe('stopAllAgentBackgroundTasks', () => {
       })
     }
   )
+
+  it.skipIf(process.platform === 'win32')("stops an agent's tasks concurrently rather than one at a time", async () => {
+    // Each stop shells out synchronously to the platform, so a serial sweep holds the main
+    // process for the sum of every task's liveness probe. The contract is that the stops overlap.
+    const stopSpy = vi.spyOn(tasks, 'stopDetachedBackgroundTask')
+    let inFlight = 0
+    let peak = 0
+    stopSpy.mockImplementation(async (_dir, id) => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      inFlight -= 1
+      return { ...records[0], id, status: 'stopped' as const }
+    })
+    const records = await Promise.all(
+      [0, 1, 2].map(() =>
+        startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+          cwd: storageDir
+        })
+      )
+    )
+
+    try {
+      await stopAllAgentBackgroundTasks('agent-1')
+    } finally {
+      stopSpy.mockRestore()
+    }
+
+    expect(peak).toBe(records.length)
+  })
 })
 
 describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {
