@@ -1389,6 +1389,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               />
               <RowFlex className="flex-wrap items-center gap-2">
                 <AgentSelector
+                  excludeLocalAgents
                   value={agentId}
                   onChange={(nextAgentId) => {
                     setAgentId(nextAgentId)
@@ -1485,7 +1486,10 @@ const TasksSettings: FC = () => {
     isLoading: agentsLoading
   } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const agents: AgentInfo[] = useMemo(
-    () => (agentsData?.items ?? []).map((agent) => ({ id: agent.id, name: agent.name })),
+    () =>
+      (agentsData?.items ?? [])
+        .filter((agent) => agent.type !== 'local')
+        .map((agent) => ({ id: agent.id, name: agent.name })),
     [agentsData]
   )
   const {

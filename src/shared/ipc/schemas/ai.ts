@@ -2,6 +2,16 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import {
+  LocalAgentConfigurationSchema,
+  LocalAgentInstallResultSchema,
+  LocalAgentModelCatalogSchema,
+  LocalAgentUninstallResultSchema,
+  LocalAgentCheckResultSchema,
+  type LocalAgentSessionInfo,
+  type LocalAgentNotice,
+  type LocalAgentDetection
+} from '@shared/ai/localAgent'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -71,13 +81,18 @@ export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
+  model: UniqueModelIdSchema.nullable(),
   type: AgentEntitySchema.shape.type,
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
    */
   skillIds: AgentSkillIdSetSchema.optional()
-})
+}).refine(
+  (value) =>
+    value.type === 'local' ? !!value.configuration?.localRuntime && value.model === null : value.model !== null,
+  { message: 'Local agents require localRuntime; provider agents require a model' }
+)
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
@@ -321,6 +336,49 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.set_config_option': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      configId: z.string().min(1),
+      value: z.union([z.string(), z.boolean()])
+    }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.set_mode': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.set_thought_level': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.session_info': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<LocalAgentSessionInfo | null>()
+  }),
+  'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
+  'ai.local_agents.uninstall': defineRoute({
+    input: z.object({ presetId: z.string().min(1), expectedPath: z.string().min(1) }),
+    output: LocalAgentUninstallResultSchema
+  }),
+  'ai.local_agents.install': defineRoute({
+    input: z.object({ presetId: z.string().min(1) }),
+    output: LocalAgentInstallResultSchema
+  }),
+  'ai.local_agents.authenticate': defineRoute({
+    input: z.strictObject({ requestId: z.uuid(), config: LocalAgentConfigurationSchema, methodId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
+  'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
+  'ai.local_agents.open_terminal': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.object({ success: z.boolean(), message: z.string().optional() })
+  }),
+  'ai.local_agents.check': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: LocalAgentCheckResultSchema
+  }),
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
@@ -477,6 +535,8 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
+  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload

@@ -3,6 +3,8 @@ import path from 'path'
 import { application } from '@application'
 import { isWin } from '@main/core/platform'
 
+import { getBundledGitDir } from './bundledGit'
+
 /**
  * Layout and environment primitives for Cherry-managed binaries — where the
  * binaries live and what Cherry injects into a child process's env, independent
@@ -191,4 +193,20 @@ export function mergeBinaryExecutionEnv(
     ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
     ...binaryEnv
   }
+}
+
+/**
+ * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
+ * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
+ * while any git already on PATH keeps winning (#16402).
+ */
+export function appendBundledGitPathTail(env: Record<string, string>): void {
+  const gitDir = getBundledGitDir()
+  if (!gitDir) return
+  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const canonicalKey = pathKeys[0] ?? 'Path'
+  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
+  const updated = dedupePathSegments([...segments, gitDir]).join(';')
+  for (const key of pathKeys) env[key] = updated
+  if (pathKeys.length === 0) env[canonicalKey] = updated
 }

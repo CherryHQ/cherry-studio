@@ -2,11 +2,32 @@ import type { ComponentType, FC, SVGProps } from 'react'
 
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
+  ClineCli,
+  KiloCli,
+  GooseCli,
+  CodebuddyCodeCli,
+  AuggieCli,
+  JunieCli,
+  FactoryDroidCli,
+  DevinCli,
+  MistralVibeCli,
+  AmpCli,
+  DeepagentsCli,
+  GlmAcpAgentCli,
+  GrokBuildCli,
+  CortexCodeCli,
+  FastAgentCli,
+  StakpakCli,
+  VtcodeCli,
+  PoolsideCli,
   AntigravityCli,
   ClaudeCode,
+  CursorCli,
   GeminiCli,
   GithubCopilotCli,
   KimiCli as KimiCode,
+  KiroCli,
+  TraeCli,
   OpenaiCodex,
   OpenCode,
   PiCli,
@@ -37,11 +58,37 @@ export const CLI_TOOLS = [
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
+const CLI_ICONS: Record<string, SvgIcon> = {
+  ...Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon])),
+  cline: ClineCli,
+  kilo: KiloCli,
+  goose: GooseCli,
+  'codebuddy-code': CodebuddyCodeCli,
+  auggie: AuggieCli,
+  junie: JunieCli,
+  'factory-droid': FactoryDroidCli,
+  devin: DevinCli,
+  'antigravity-acp': AntigravityCli,
+  'mistral-vibe': MistralVibeCli,
+  'amp-acp': AmpCli,
+  'pi-acp': PiCli,
+  deepagents: DeepagentsCli,
+  'glm-acp-agent': GlmAcpAgentCli,
+  'grok-build': GrokBuildCli,
+  'cortex-code': CortexCodeCli,
+  'fast-agent': FastAgentCli,
+  stakpak: StakpakCli,
+  vtcode: VtcodeCli,
+  poolside: PoolsideCli,
+  cursor: CursorCli,
+  kiro: KiroCli,
+  trae: TraeCli
+}
 
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
 const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
+  [CodeCli.MINIMAX_CODE]: '24 24 72 72',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
   [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68'

@@ -6,14 +6,14 @@ import {
 } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
-  ModelRegistry,
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
+
+import { createPiModelRuntime } from './piSdk'
 
 const model: Model<'openai-completions'> = {
   id: 'length-recovery-test',
@@ -84,14 +84,13 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     ]
   })
   await resourceLoader.reload()
-  const authStorage = AuthStorage.inMemory()
-  authStorage.setRuntimeApiKey(model.provider, 'synthetic-test-key')
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
+  const modelRuntime = await createPiModelRuntime()
+  modelRuntime.registerProvider(model.provider, { baseUrl: model.baseUrl, api: model.api, models: [model] })
+  await modelRuntime.setRuntimeApiKey(model.provider, 'synthetic-test-key')
   const { session } = await createAgentSession({
     cwd,
     model,
-    authStorage,
-    modelRegistry,
+    modelRuntime,
     settingsManager,
     resourceLoader,
     sessionManager: SessionManager.inMemory(cwd),
@@ -101,9 +100,7 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
   const contexts: Context[] = []
   const events: AgentSessionEvent[] = []
   session.subscribe((event) => events.push(event))
-  // pi-agent-core resolves its own @earendil-works/pi-ai copy, so its AssistantMessageEventStream
-  // is a nominally distinct class from ours; the runtime object is the same shape.
-  session.agent.streamFn = ((_model: Model<'openai-completions'>, context: Context) => {
+  session.agent.streamFunction = (_model, context) => {
     contexts.push(structuredClone(context))
     const message = responses[contexts.length - 1]
     if (!message) throw new Error('Unexpected extra provider request')
@@ -112,7 +109,7 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     stream.push({ type: 'done', reason: message.stopReason, message })
     stream.end()
     return stream
-  }) as unknown as typeof session.agent.streamFn
+  }
   return { session, contexts, events }
 }
 

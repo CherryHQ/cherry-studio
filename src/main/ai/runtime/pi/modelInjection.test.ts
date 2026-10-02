@@ -6,6 +6,8 @@ import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { createPiModelRuntime } from './piSdk'
+
 const serviceMocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
   getApiKeys: vi.fn(),
@@ -343,7 +345,7 @@ describe('buildPiProviderInjection', () => {
   })
 
   it('hands pi header values it resolves back to the literals the user typed', async () => {
-    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const { ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const provider = makeProvider({
       id: 'p',
       defaultChatEndpoint: 'openai-chat-completions',
@@ -359,11 +361,13 @@ describe('buildPiProviderInjection', () => {
     })
     const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'm' }), REAL_KEY)
 
-    const authStorage = AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey('p', injection.apiKey)
-    const registry = ModelRegistry.inMemory(authStorage)
+    const modelRuntime = await createPiModelRuntime()
+    await modelRuntime.setRuntimeApiKey('p', injection.apiKey)
+    const registry = new ModelRegistry(modelRuntime)
     registry.registerProvider('p', injection.providerConfig)
-    const auth = await registry.getApiKeyAndHeaders(registry.find('p', injection.modelId)!)
+    const resolvedModel = registry.find('p', injection.modelId)
+    if (!resolvedModel) throw new Error('Injected model was not registered')
+    const auth = await registry.getApiKeyAndHeaders(resolvedModel)
 
     expect(auth).toMatchObject({
       ok: true,
@@ -612,14 +616,16 @@ describe('OpenCode Pi session headers', () => {
   })
 
   it('keeps session and custom header values literal for Pi', async () => {
-    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const { ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const configured = { ...provider, settings: { extraHeaders: { 'x-tenant': 'a$b' } } }
     const injection = await resolvePiProviderInjectionForSession('!session$1', configured, makeModel({}))
-    const authStorage = AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(provider.id, injection.apiKey)
-    const registry = ModelRegistry.inMemory(authStorage)
+    const modelRuntime = await createPiModelRuntime()
+    await modelRuntime.setRuntimeApiKey(provider.id, injection.apiKey)
+    const registry = new ModelRegistry(modelRuntime)
     registry.registerProvider(provider.id, injection.providerConfig)
-    const auth = await registry.getApiKeyAndHeaders(registry.find(provider.id, injection.modelId)!)
+    const resolvedModel = registry.find(provider.id, injection.modelId)
+    if (!resolvedModel) throw new Error('Injected model was not registered')
+    const auth = await registry.getApiKeyAndHeaders(resolvedModel)
 
     expect(auth).toMatchObject({
       ok: true,

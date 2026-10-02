@@ -40,6 +40,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -290,6 +291,13 @@ export class AgentSessionService {
     createdAt = Date.now()
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    const [owner] = tx
+      .select({ type: agentsTable.type, configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, dto.agentId))
+      .all()
+    if (owner?.type === 'local' && !(owner.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled)
+      throw DataApiErrorFactory.invalidOperation('create session', 'Local agent is disabled')
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -809,6 +817,29 @@ export class AgentSessionService {
     return { items: items.map((i) => i.session), nextCursor }
   }
 
+  updateGeneratedName(id: string, title: string): boolean {
+    const name = sanitizeConversationTitle(title)
+    if (!name) return false
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ name, updatedAt: Date.now() })
+      .where(
+        and(
+          eq(sessionsTable.id, id),
+          isNull(sessionsTable.deletedAt),
+          eq(sessionsTable.isNameManuallyEdited, false),
+          sql`${sessionsTable.name} != ${name}`
+        )
+      )
+      .run()
+    if (!result.changes) return false
+    this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
+    return true
+  }
+
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
     const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) {
@@ -849,6 +880,25 @@ export class AgentSessionService {
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    if (reassigned) {
+      const owners = tx
+        .select({ id: agentsTable.id, type: agentsTable.type, configuration: agentsTable.configuration })
+        .from(agentsTable)
+        .where(
+          inArray(
+            agentsTable.id,
+            [current.agentId, patch.agentId].filter((value): value is string => typeof value === 'string')
+          )
+        )
+        .all()
+      if (owners.some((owner) => owner.type === 'local')) this.assertSessionHasNoMessagesTx(tx, id)
+      const target = owners.find((owner) => owner.id === patch.agentId)
+      if (
+        target?.type === 'local' &&
+        !(target.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled
+      )
+        throw DataApiErrorFactory.invalidOperation('change agent', 'Local agent is disabled')
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))

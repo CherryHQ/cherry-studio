@@ -4,7 +4,7 @@
  * Registers the Cherry-resolved provider/model config with pi via
  * `pi.registerProvider`. The config carries only a non-secret placeholder key
  * (`PI_PLACEHOLDER_API_KEY`); the real Cherry key is injected separately through
- * the in-memory `AuthStorage` runtime override so raw keys never enter pi's
+ * the in-memory `ModelRuntime` runtime override so raw keys never enter pi's
  * config-value interpolation or any persisted pi file.
  *
  * The connection ALSO registers the same provider directly on the in-memory

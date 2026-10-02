@@ -183,6 +183,7 @@ vi.mock('./piConnectionSignature', () => ({
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
 vi.mock('./piSdk', () => ({
+  createPiModelRuntime: async () => ({ setRuntimeApiKey: mocks.setRuntimeApiKey }),
   loadPiSdk: mocks.loadPiSdk,
   loadPiAiCompat: mocks.loadPiAiCompat,
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
@@ -233,9 +234,9 @@ const fakeSession = {
 }
 
 const fakePi = {
-  AuthStorage: { inMemory: () => ({ setRuntimeApiKey: mocks.setRuntimeApiKey }) },
-  ModelRegistry: {
-    inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
+  ModelRegistry: class {
+    registerProvider = mocks.registerProvider
+    find = () => ({ id: 'm', provider: 'p' })
   },
   SettingsManager: {
     inMemory: (...args: unknown[]) => {

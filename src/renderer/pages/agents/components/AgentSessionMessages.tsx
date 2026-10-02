@@ -9,6 +9,7 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
@@ -89,6 +90,10 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
+            id: activeAgent.id,
+            avatarIcon: activeAgent.configuration?.localRuntime ? (
+              <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={30} />
+            ) : undefined,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
           }
         : undefined,

@@ -180,7 +180,7 @@ type FlowContext = {
 }
 
 export type ClaudeCodeStreamAdapterOptions = {
-  modelId: string
+  modelId?: string
   /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
   sessionId: string
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
@@ -486,7 +486,7 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
 
 export class ClaudeCodeStreamAdapter {
   private ctx: StreamContext
-  private readonly modelId: string
+  private readonly modelId?: string
   private readonly sessionId: string
   private readonly sink: StreamSink
   private readonly statusSink: StatusSink
@@ -1441,7 +1441,7 @@ export class ClaudeCodeStreamAdapter {
     }
     this.logMcpConnectionIssues(message.mcp_servers)
     logger.info(`Stream session initialized: ${message.session_id}`)
-    ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
+    if (this.modelId) ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
   /**
@@ -1988,7 +1988,7 @@ export class ClaudeCodeStreamAdapter {
     // invocations are priced from their frozen model snapshot when their
     // immutable usage record is captured.
     return {
-      modelId: this.modelId,
+      ...(this.modelId ? { modelId: this.modelId } : {}),
       stats: v3UsageToStats(usage)
     }
   }

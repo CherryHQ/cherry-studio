@@ -146,6 +146,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
+  if (toolName.startsWith('ACP: ')) return 'provider'
   if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type

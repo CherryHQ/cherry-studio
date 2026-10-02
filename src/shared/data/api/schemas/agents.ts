@@ -1,3 +1,4 @@
+import * as z from 'zod'
 /**
  * Agents domain API Schema definitions
  *
@@ -6,9 +7,8 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
-import * as z from 'zod'
-
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -41,13 +41,14 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi', 'dsh'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'dsh', 'local'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
+    localRuntime: LocalAgentConfigurationSchema.optional(),
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),

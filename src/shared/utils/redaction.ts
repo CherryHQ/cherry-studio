@@ -25,6 +25,20 @@ export function redactRecord(record: Record<string, string>): Record<string, str
   return out
 }
 
+/** Safe logging projection for direct configurations and their localRuntime wrapper. */
+export function redactLocalAgentConfiguration(value: unknown, parentKey?: string): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  const directConfiguration =
+    typeof record.protocol === 'string' &&
+    Array.isArray(record.args) &&
+    record.env !== null &&
+    typeof record.env === 'object' &&
+    !Array.isArray(record.env)
+  if (parentKey !== 'localRuntime' && !directConfiguration) return value
+  return { ...record, env: REDACTED, args: REDACTED }
+}
+
 const MAX_STRING = 300
 
 /**
@@ -32,7 +46,7 @@ const MAX_STRING = 300
  * name, long strings truncated, circular graphs short-circuited.
  */
 export function redactDeep(value: unknown): unknown {
-  const redact = (val: any, seen: WeakSet<object>): any => {
+  const redact = (val: any, seen: WeakSet<object>, parentKey?: string): any => {
     if (val == null) return val
     if (typeof val === 'string') {
       return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
@@ -42,8 +56,8 @@ export function redactDeep(value: unknown): unknown {
     seen.add(val)
     if (Array.isArray(val)) return val.map((v) => redact(v, seen))
     const out: Record<string, any> = {}
-    for (const [k, v] of Object.entries(val)) {
-      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
+    for (const [k, v] of Object.entries(redactLocalAgentConfiguration(val, parentKey) as object)) {
+      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen, k)
     }
     return out
   }

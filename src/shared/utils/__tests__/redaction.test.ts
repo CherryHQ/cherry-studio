@@ -80,6 +80,30 @@ describe('redactRecord', () => {
 })
 
 describe('redactDeep', () => {
+  it('hides arbitrary local runtime secrets in direct, wrapped, and array configurations without mutating them', () => {
+    const config = { protocol: 'acp', env: { CUSTOM: 'private' }, args: ['secret'] }
+    const safeConfig = { protocol: 'acp', env: REDACTED, args: REDACTED }
+    expect(redactDeep(config)).toEqual(safeConfig)
+    expect(redactDeep({ configuration: { localRuntime: config } })).toEqual({
+      configuration: { localRuntime: safeConfig }
+    })
+    expect(redactDeep([config])).toEqual([safeConfig])
+    expect(config.env.CUSTOM).toBe('private')
+    expect(config.args).toEqual(['secret'])
+  })
+
+  it('protects incomplete wrapped configurations without hiding unrelated command payloads', () => {
+    const command = { env: { MODE: 'test' }, args: ['--help'] }
+    expect(redactDeep(command)).toEqual(command)
+    expect(redactDeep({ localRuntime: command })).toEqual({ localRuntime: { env: REDACTED, args: REDACTED } })
+  })
+
+  it('terminates circular localRuntime wrappers without copying their secrets', () => {
+    const value: Record<string, unknown> = { protocol: 'acp', env: { CUSTOM: 'private' }, args: ['secret'] }
+    value.localRuntime = value
+    expect(redactDeep(value)).toEqual({ protocol: 'acp', env: REDACTED, args: REDACTED, localRuntime: '[Circular]' })
+  })
+
   it('redacts sensitive keys at any depth, keeps benign ones', () => {
     const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } }) as Record<string, any>
     expect(out.authorization).toBe(REDACTED)

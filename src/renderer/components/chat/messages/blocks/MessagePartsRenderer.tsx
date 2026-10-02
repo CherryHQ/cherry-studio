@@ -67,6 +67,8 @@ import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agent
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import { AcpContentBlock } from './AcpContentBlock'
+import { AgentPlanBlock } from './AgentPlanBlock'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
@@ -660,6 +662,11 @@ function renderPart(
         />
       )
     }
+
+    case 'data-agent-plan':
+      return <AgentPlanBlock key={partId} data={part.data} />
+    case 'data-acp-content':
+      return <AcpContentBlock key={partId} content={part.data.content} />
 
     case 'data-compaction-anchor':
       return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />

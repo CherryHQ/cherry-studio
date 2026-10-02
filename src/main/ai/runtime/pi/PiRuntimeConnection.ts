@@ -46,6 +46,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { isUniqueModelId } from '@shared/data/types/model'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -79,7 +80,7 @@ import {
   type PiMcpToolBridge,
   warmMcpToolCatalogs
 } from './piMcpToolAdapter'
-import { loadPiAiCompat, loadPiSdk } from './piSdk'
+import { createPiModelRuntime, loadPiAiCompat, loadPiSdk } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -203,7 +204,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
+  constructor(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
   }
@@ -282,9 +287,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       api: runtimeApi,
       models: providerConfig.models?.map((model) => ({ ...model, api: runtimeApi }))
     }
-    const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
-    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
+    const modelRuntime = await createPiModelRuntime()
+    await modelRuntime.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
+    const modelRegistry = new pi.ModelRegistry(modelRuntime)
     modelRegistry.registerProvider(runtimeProviderName, isolatedProviderConfig)
     this.apiProviderSourceId = `provider:${runtimeProviderName}`
     try {
@@ -418,8 +423,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const created = await pi.createAgentSession({
         cwd: workspacePath,
         agentDir,
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         settingsManager,
         sessionManager,
         resourceLoader,

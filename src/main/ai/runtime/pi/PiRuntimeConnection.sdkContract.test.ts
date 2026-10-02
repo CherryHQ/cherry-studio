@@ -3,11 +3,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import {
-  AuthStorage,
   createAgentSession,
   createBashToolDefinition,
   DefaultResourceLoader,
-  ModelRegistry,
   SessionManager,
   SettingsManager,
   type ToolDefinition
@@ -17,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 
 import { forkPiSession } from './piFork'
+import { createPiModelRuntime } from './piSdk'
 
 const directories: string[] = []
 afterEach(async () => {
@@ -39,13 +38,11 @@ async function createSession(excludeTools?: string[]) {
     noContextFiles: true
   })
   await resourceLoader.reload()
-  const authStorage = AuthStorage.inMemory()
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
+  const modelRuntime = await createPiModelRuntime()
   const managedBash = createBashToolDefinition(cwd, { spawnHook: (context) => context }) as ToolDefinition
   const { session } = await createAgentSession({
     cwd,
-    authStorage,
-    modelRegistry,
+    modelRuntime,
     settingsManager,
     resourceLoader,
     sessionManager: SessionManager.inMemory(cwd),
