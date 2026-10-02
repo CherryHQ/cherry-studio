@@ -35,7 +35,7 @@ import {
   toContentRole
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
@@ -44,6 +44,7 @@ import { resolveOutputReservation } from '../../contextBuild/resolveOutputReserv
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
+import { buildModelSnapshotFromRuntimeModel } from '../../messages/modelSnapshot'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
@@ -121,11 +122,7 @@ function buildAssistantMessageSnapshot(
   if (!assistant) return undefined
   return {
     ...assistant,
-    model: {
-      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-      name: model.name,
-      provider: model.providerId
-    }
+    model: buildModelSnapshotFromRuntimeModel(model)
   }
 }
 
