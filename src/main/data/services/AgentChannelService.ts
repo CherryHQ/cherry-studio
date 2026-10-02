@@ -233,9 +233,11 @@ export class AgentChannelService {
     updates: Partial<
       Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
         workspace: AgentSessionWorkspaceSource
+        configPatch: Record<string, unknown>
       }
     >
   ): AgentChannelEntity | null {
+    const { configPatch, ...fields } = updates
     const result = application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
       if (!existing) return null
@@ -243,13 +245,19 @@ export class AgentChannelService {
       const isActive = updates.isActive ?? existing.isActive
       const config = validateChannelConfig(
         existing.type,
-        updates.config !== undefined ? updates.config : existing.config,
+        configPatch !== undefined
+          ? { ...normalizeChannelConfig(existing.config), ...configPatch }
+          : updates.config !== undefined
+            ? updates.config
+            : existing.config,
         isActive
       )
       this.validateWeComBot(tx, existing.type, config, isActive, id)
       const normalizedUpdates = {
-        ...updates,
-        ...(updates.config !== undefined || updates.isActive !== undefined ? { config } : {})
+        ...fields,
+        ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
+          ? { config }
+          : {})
       }
       const updated = tx
         .update(channelsTable)

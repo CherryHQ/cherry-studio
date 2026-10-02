@@ -281,6 +281,7 @@ export class WeComAdapter extends ChannelAdapter {
     const files: FileAttachment[] = []
     let text = ''
     let total = 0
+    const byteBudget = { remaining: MESSAGE_BYTES + 20 * 32 }
     const controller = new AbortController()
     const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
     const download = async (media: { url: string; aeskey?: string }, image: boolean, index = 0) => {
@@ -289,6 +290,7 @@ export class WeComAdapter extends ChannelAdapter {
         () =>
           fetchRemoteBytes(media.url, {
             maxBytes: Math.min(FILE_BYTES + 32, MESSAGE_BYTES - total + 32),
+            byteBudget,
             maxRedirects: 3,
             signal
           }),
@@ -439,6 +441,10 @@ export class WeComAdapter extends ChannelAdapter {
       context.text = t('common.wecom_continued')
       await this.flush(context, true)
     }
+  }
+
+  override discardResponse(chatId: string, opts?: SendMessageOptions): void {
+    this.responses.delete(this.key(chatId, opts))
   }
 
   async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {

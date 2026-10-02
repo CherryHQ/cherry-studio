@@ -184,25 +184,30 @@ export const CreateAgentChannelSchema = z.discriminatedUnion('type', [
 ])
 export type CreateAgentChannelDto = z.infer<typeof CreateAgentChannelSchema>
 
-export const UpdateAgentChannelSchema = z.strictObject({
-  name: z.string().optional(),
-  agentId: z.string().nullable().optional(),
-  workspace: AgentSessionWorkspaceSourceSchema.optional(),
-  config: z
-    .union([
-      TelegramAgentChannelConfigSchema,
-      FeishuAgentChannelConfigSchema,
-      QQAgentChannelConfigSchema,
-      WeChatAgentChannelConfigSchema,
-      WeComAgentChannelConfigSchema,
-      DiscordAgentChannelConfigSchema,
-      SlackAgentChannelConfigSchema
-    ])
-    .optional(),
-  isActive: z.boolean().optional(),
-  activeChatIds: z.array(z.string()).optional(),
-  permissionMode: AgentPermissionModeSchema.nullable().optional()
-})
+export const UpdateAgentChannelSchema = z
+  .strictObject({
+    configPatch: z.record(z.string(), z.unknown()).optional(),
+    name: z.string().optional(),
+    agentId: z.string().nullable().optional(),
+    workspace: AgentSessionWorkspaceSourceSchema.optional(),
+    config: z
+      .union([
+        TelegramAgentChannelConfigSchema,
+        FeishuAgentChannelConfigSchema,
+        QQAgentChannelConfigSchema,
+        WeChatAgentChannelConfigSchema,
+        WeComAgentChannelConfigSchema,
+        DiscordAgentChannelConfigSchema,
+        SlackAgentChannelConfigSchema
+      ])
+      .optional(),
+    isActive: z.boolean().optional(),
+    activeChatIds: z.array(z.string()).optional(),
+    permissionMode: AgentPermissionModeSchema.nullable().optional()
+  })
+  .refine((updates) => updates.config === undefined || updates.configPatch === undefined, {
+    message: 'Use either config or configPatch, not both'
+  })
 export type UpdateAgentChannelDto = z.infer<typeof UpdateAgentChannelSchema>
 
 export const AgentChannelListQuerySchema = z.strictObject({

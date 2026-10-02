@@ -43,7 +43,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
 import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData } from './channelTypes'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
@@ -190,7 +190,7 @@ type EditModalProps = {
   channel: ChannelData | null
   agents: Array<{ id: string; name: string }>
   onClose: () => void
-  onSave: (id: string, updates: Partial<ChannelData>) => void
+  onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
 
@@ -255,7 +255,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
   const handleUpdate = useCallback(
-    (updates: Partial<ChannelData>) => {
+    (updates: ChannelUpdates) => {
       if (channel) onSave(channel.id, updates)
     },
     [channel, onSave]
@@ -508,13 +508,14 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [channels?.length, createChannel, channelDef, openEditModal])
 
   const handleSave = useCallback(
-    async (channelId: string, updates: Partial<ChannelData>) => {
+    async (channelId: string, updates: ChannelUpdates) => {
       if (!channelList.some((ch) => ch.id === channelId)) return
 
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
       if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
+      if (updates.configPatch !== undefined) apiUpdates.configPatch = updates.configPatch
       if (updates.config !== undefined) apiUpdates.config = updates.config
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode

@@ -79,6 +79,18 @@ describe('fetchRemoteText', () => {
     await expect(fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })).rejects.toThrow(/too large/)
   })
 
+  it('shares a byte budget across concurrent responses before buffering their bodies', async () => {
+    mockHttpsResponse({ body: Buffer.alloc(4) })
+    const byteBudget = { remaining: 6 }
+    const results = await Promise.allSettled([
+      fetchRemoteBytes('https://example.com/first', { maxBytes: 5, byteBudget }),
+      fetchRemoteBytes('https://example.com/second', { maxBytes: 5, byteBudget })
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(byteBudget.remaining).toBe(2)
+  })
+
   it('fetches through a prevalidated DNS address without re-resolving at connection time', async () => {
     mockHttpsResponse({ body: 'hello' })
 

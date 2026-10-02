@@ -248,6 +248,10 @@ export abstract class ChannelAdapter extends EventEmitter {
     // Default no-op — adapters that support streaming should override.
   }
 
+  /** Release an inbound response superseded by batching without sending a reply. */
+  // oxlint-disable-next-line no-unused-vars
+  discardResponse(_chatId: string, _opts?: SendMessageOptions): void {}
+
   /**
    * Called when the stream is complete. The adapter should finalize the
    * streaming UI (close streaming card, send final message, etc.).

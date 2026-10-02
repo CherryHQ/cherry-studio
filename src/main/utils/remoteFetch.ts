@@ -15,6 +15,7 @@ export type FetchRemoteTextOptions = {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
   readonly maxBytes?: number
+  readonly byteBudget?: { remaining: number }
   readonly maxRedirects?: number
 }
 
@@ -190,6 +191,14 @@ async function fetchRemoteResponse(
           return
         }
 
+        if (options.byteBudget) {
+          if (buffer.length > options.byteBudget.remaining) {
+            response.destroy()
+            fail(new Error('Remote responses exceeded the shared byte budget'))
+            return
+          }
+          options.byteBudget.remaining -= buffer.length
+        }
         chunks.push(buffer)
       })
 

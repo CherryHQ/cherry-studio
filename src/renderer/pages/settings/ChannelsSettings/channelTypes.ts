@@ -87,3 +87,5 @@ export type ChannelData = {
   createdAt?: number | null
   updatedAt?: number | null
 }
+
+export type ChannelUpdates = Partial<ChannelData> & { configPatch?: Record<string, unknown> }

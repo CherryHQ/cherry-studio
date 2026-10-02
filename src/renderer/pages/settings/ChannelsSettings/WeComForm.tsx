@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { Input, Label } from '@cherrystudio/ui'
 
 import { ChannelQrRegistration } from './ChannelQrRegistration'
-import type { ChannelData } from './channelTypes'
+import type { ChannelData, ChannelUpdates } from './channelTypes'
 
 export function WeComForm({
   channel,
   onConfigChange
 }: {
   channel: ChannelData
-  onConfigChange: (updates: Partial<ChannelData>) => void
+  onConfigChange: (updates: ChannelUpdates) => void
 }) {
   const { t } = useTranslation()
   const id = useId()
@@ -56,7 +56,7 @@ export function WeComForm({
                     : field.secret
                       ? event.target.value
                       : event.target.value.trim()
-                  onConfigChange({ config: { ...channel.config, [field.key]: next } })
+                  onConfigChange({ configPatch: { [field.key]: next } })
                 }}
               />
             </div>

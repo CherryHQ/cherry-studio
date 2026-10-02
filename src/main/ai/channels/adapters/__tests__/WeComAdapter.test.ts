@@ -344,6 +344,59 @@ describe('WeCom channel contract', () => {
     )
   })
 
+  it('releases superseded callbacks so rapid batches do not exhaust response capacity', async () => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    instance.on('message', (message) => messages.push(message))
+    for (let index = 0; index < 1100; index++) {
+      client.emit('message', frame(String(index)))
+      if (index) instance.discardResponse('dm:alice', reply(String(index - 1)))
+    }
+    expect(messages).toHaveLength(1100)
+    await instance.onStreamComplete('dm:alice', 'batched result', reply('1099'))
+    expect(
+      client.replyStreamNonBlocking.mock.calls.map(([frame, , text, finish]: any[]) => [
+        frame.headers.req_id,
+        text,
+        finish
+      ])
+    ).toEqual([['req-1099', 'batched result', true]])
+  })
+
+  it('bounds concurrent mixed downloads by a shared wire budget before all bodies accumulate', async () => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    instance.on('message', (message) => messages.push(message))
+    const image = Buffer.alloc(11 * 1024 * 1024)
+    image.write('GIF89a')
+    let downloaded = 0
+    vi.mocked(fetchRemoteBytes).mockImplementation(async (_url, options) => {
+      await Promise.resolve()
+      if (options?.byteBudget) {
+        if (options.byteBudget.remaining < image.length) throw new Error('budget exceeded')
+        options.byteBudget.remaining -= image.length
+      }
+      downloaded += image.length
+      return { body: image, headers: {} }
+    })
+    client.emit(
+      'message',
+      frame('budget', {
+        msgtype: 'mixed',
+        mixed: {
+          msg_item: [0, 1, 2, 3].map((index) => ({ msgtype: 'image', image: { url: `https://example.com/${index}` } }))
+        }
+      })
+    )
+    await tick()
+    expect(downloaded).toBeLessThanOrEqual(40 * 1024 * 1024 + 20 * 32)
+    expect(messages).toEqual([])
+    expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.slice(2)).toEqual([
+      t('common.wecom_attachment_failed'),
+      true
+    ])
+  })
+
   it('shares the minute quota across stream updates and active messages while reserving final delivery', async () => {
     vi.useFakeTimers()
     const { instance, client } = await adapter()
