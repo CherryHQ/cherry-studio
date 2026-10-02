@@ -17,7 +17,7 @@ import {
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
+import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
@@ -27,6 +27,7 @@ const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
+const ACTIVE_WRITERS_POLL_MS = 30_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
@@ -265,6 +266,13 @@ export class AutoBackupService extends BaseService {
         return
       }
 
+      if (error instanceof BackupActiveWritersError) {
+        logger.debug('Active data writers detected; automatic backup postponed', { type })
+        this.markStopped(type, false)
+        this.scheduleNext(type, 'immediate', generation, ACTIVE_WRITERS_POLL_MS)
+        return
+      }
+
       state.retryCount++
       if (state.retryCount < MAX_ATTEMPTS) {
         const delay = 2 ** (state.retryCount - 1) * 10_000 - 3_000
@@ -408,9 +416,11 @@ export class AutoBackupService extends BaseService {
     return this.active && this.schedules[type].generation === generation
   }
 
-  private markStopped(type: AutoBackupType): void {
+  private markStopped(type: AutoBackupType, resetRetryCount = true): void {
     const state = this.schedules[type]
-    state.retryCount = 0
+    if (resetRetryCount) {
+      state.retryCount = 0
+    }
     if (!state.running) return
     state.running = false
     this.emit({ type, status: 'stopped' })
