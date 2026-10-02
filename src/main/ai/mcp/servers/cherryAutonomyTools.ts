@@ -900,7 +900,15 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
     case 'kill': {
       const taskId = args.task_id?.trim() ?? ''
       if (!taskId) throw new Error("'task_id' is required for stop/kill")
-      const record = await stopDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId, args.action === 'kill')
+      const record = await stopDetachedBackgroundTask(
+        backgroundTaskStorageDir(ctx),
+        taskId,
+        args.action === 'kill',
+        (task) => {
+          indexBackgroundTask(ctx, task.record)
+          notifyBackgroundTaskCompletion(ctx, task)
+        }
+      )
       if (!record) throw new Error(`Task "${taskId}" is not running or cannot be verified`)
       indexBackgroundTask(ctx, record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }

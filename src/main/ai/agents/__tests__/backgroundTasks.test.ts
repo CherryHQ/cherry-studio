@@ -190,6 +190,27 @@ describe('backgroundTasks', () => {
       }
     })
 
+    it('notifies the completion channels when a task is force-killed', async () => {
+      // A kill ends the task without the child ever exiting, so no exit event fires and nothing
+      // else would tell the configured channels the task the user stopped has stopped.
+      const onExit = vi.fn()
+      const running = await startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir
+      })
+
+      try {
+        await stopDetachedBackgroundTask(storageDir, running.id, true, onExit)
+
+        expect(onExit).toHaveBeenCalledTimes(1)
+        expect(onExit.mock.calls[0][0].record.status).toBe('stopped')
+        expect(onExit.mock.calls[0][0].summary).toContain(running.id)
+      } finally {
+        await vi.waitFor(() => expect(isPidAlive(running.pid)).toBe(false), { timeout: 10_000 })
+      }
+    })
+
     it('flags a dead pid without a sentinel as unknown', async () => {
       const onExit = vi.fn()
       const finished = await startDetachedBackgroundTask({ storageDir, command: failCommand, cwd: storageDir, onExit })
