@@ -1372,6 +1372,55 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // The dsh runtime binds a cold-resumed child's task to the send_message call that resumed it,
+    // and the child's content streams there. That binding is enough to know the row owns its flow
+    // before any of that content has arrived, so the click must not redirect to the launch root.
+    it('roots a dsh task-bound receipt at its own call before its content arrives', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'subagent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer' },
+            output: 'started subagent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-123',
+            toolName: 'send_message',
+            state: 'output-available',
+            input: { agent_id: 'dsh-child-1' },
+            output: 'message delivered to agent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          },
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'dsh-child-1', toolUseId: 'call-123', status: 'in_progress' }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { agent_id: 'dsh-child-1', message: 'please continue' },
+        response: 'message delivered to agent dsh-child-1'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
     // A settled tool group empties PartsContext, so the receipt-root signal has to come from the
     // list-level index — otherwise the row silently redirects to a launch flow without the rounds.
     it('keeps a cold-resumed receipt rooted at itself inside a settled tool group', () => {
