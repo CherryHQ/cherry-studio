@@ -284,9 +284,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - A Markdown chunk is its own document, so `splitMarkdownChunks` may only break on a blank line where no construct spans
   it (fenced code, display math, raw HTML, indented code) and outside every list, which is one block: the pieces of a cut
   list renumber its ordered items and parse a loose list as a tight one. Reference definitions are carried into every
-  chunk, because a link or footnote used in one chunk may be defined in another; only a footnote definition owns the
-  indented lines that follow its blank ones. The source is split once, and that one split decides both what is windowed
-  and what cannot be.
+  chunk whole, even when a link's destination or title sits on a line of its own, because a link or footnote used in one
+  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. The
+  source is split once, and that one split decides both what is windowed and what cannot be.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
