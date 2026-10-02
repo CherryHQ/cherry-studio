@@ -127,6 +127,8 @@ const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
 const FLOW_HOST_RECOVERY_RETRY_MS = 5_000
 /** Per-root cap for chunks buffered while their host row is unresolved. */
 const MAX_RECOVERY_FLOW_CHUNKS = 1_000
+/** Session-wide cap across unresolved roots, so many roots cannot retain one stream each. */
+const MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION = 4_000
 /** Per-message and per-session caps for chunks buffered while no accumulator can be seeded. */
 const MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE = 1_000
 const MAX_PENDING_FLOW_CHUNKS_PER_SESSION = 4_000
@@ -332,6 +334,8 @@ type AgentSessionRuntimeEntry = {
   pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
   /** Roots whose recovery buffer overflowed; they wait for a fresh stream start before buffering again. */
   recoveryFlowOverflowRoots?: Set<string>
+  /** Chunks held across every unresolved root, kept in step with the buffers below. */
+  pendingRecoveryFlowChunkCount?: number
   /** Last look-up attempt per root, so a retry does not re-scan the DB on every chunk. */
   recoveryLookupAt?: Map<string, number>
   /** Single-flight finalization of the current detached flow batch. */
@@ -2325,8 +2329,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
     entry.pendingRecoveryFlowChunks = buffered
     const chunks = buffered.get(rootToolCallId) ?? []
-    if (chunks.length >= MAX_RECOVERY_FLOW_CHUNKS) {
+    if (
+      chunks.length >= MAX_RECOVERY_FLOW_CHUNKS ||
+      (entry.pendingRecoveryFlowChunkCount ?? 0) >= MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION
+    ) {
       buffered.delete(rootToolCallId)
+      entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - chunks.length)
       ;(entry.recoveryFlowOverflowRoots ??= new Set()).add(rootToolCallId)
       logger.warn('Detached flow recovery buffer overflowed; dropped its buffered prefix', {
         sessionId: entry.sessionId,
@@ -2337,6 +2345,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     chunks.push(chunk)
     buffered.set(rootToolCallId, chunks)
+    entry.pendingRecoveryFlowChunkCount = (entry.pendingRecoveryFlowChunkCount ?? 0) + 1
   }
 
   private recoverDetachedFlowHost(entry: AgentSessionRuntimeEntry, rootToolCallId: string): string | undefined {
@@ -2348,6 +2357,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
     if (buffered?.length) {
       entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
+      entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - buffered.length)
       for (const replayed of buffered) {
         if ((replayed.type === 'tool-input-start' || replayed.type === 'tool-input-available') && replayed.toolCallId) {
           ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(replayed.toolCallId, hostMessageId)
@@ -3709,11 +3719,22 @@ export class AgentSessionRuntimeService extends BaseService {
         for (const [messageId, chunks] of pending) {
           if (!chunks.length) continue
           let seedParts: CherryMessagePart[] = []
+          let rowAbsent = false
           try {
             const row = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
             seedParts = row.data.parts ?? []
-          } catch {
-            // The row may never have been written; the chunks themselves are the content.
+          } catch (error) {
+            // Only a row that is genuinely gone may be rebuilt from the buffer alone: another read
+            // failure may hide a row that exists, and publishing a seed-less snapshot would replace
+            // the flow's cached content with nothing but its tail.
+            rowAbsent = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+          }
+          if (!rowAbsent) {
+            logger.warn('Teardown flow snapshot skipped: its row could not be read', {
+              sessionId: entry.sessionId,
+              messageId
+            })
+            continue
           }
           let fallbackParts = seedParts
           try {
