@@ -208,6 +208,7 @@ export interface AdapterState {
   inputTokens: number
   cacheReadTokens?: number
   outputTokens: number
+  reasoningTokens?: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null
