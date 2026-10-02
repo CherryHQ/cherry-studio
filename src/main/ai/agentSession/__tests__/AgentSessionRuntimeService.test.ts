@@ -2289,6 +2289,35 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('connection reconcile — pull path (fresh-turn staleness check)', () => {
+    /**
+     * A stale warm connection plus the service wired to rebuild onto a second one, which is the
+     * shape every grace-period scenario below starts from: a finished turn whose connection still
+     * carries a different model, and a queued turn that forces a pull-path reconcile.
+     */
+    const staleConnectionPair = () => {
+      const stale = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('rebuild')
+      }
+      const rebuilt = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(rebuilt)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      return { stale, rebuilt, connect }
+    }
+
     it('rebuilds a stale warm connection before the next turn — no event required', async () => {
       const firstConnection = {
         events: createAsyncQueue<any>().iterable,
@@ -2422,26 +2451,7 @@ describe('AgentSessionRuntimeService', () => {
     it('forces the connection rebuild when background work never releases within the grace period', async () => {
       vi.useFakeTimers()
       try {
-        const firstConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('rebuild')
-        }
-        const secondConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('current')
-        }
-        const connect = vi.fn().mockResolvedValue(secondConnection)
-        runtimeDriverRegistry.register({
-          type: 'test-runtime',
-          capabilities: ['agent-session'],
-          connect,
-          validateSession: vi.fn(),
-          listAvailableTools: vi.fn().mockResolvedValue([])
-        })
+        const { stale: firstConnection, rebuilt: secondConnection, connect } = staleConnectionPair()
         const service = new AgentSessionRuntimeService()
         service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
         const entry = getEntry(service)
@@ -2507,26 +2517,7 @@ describe('AgentSessionRuntimeService', () => {
     it('does not force the rebuild over an autonomous generation that began during the grace window', async () => {
       vi.useFakeTimers()
       try {
-        const firstConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('rebuild')
-        }
-        const secondConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('current')
-        }
-        const connect = vi.fn().mockResolvedValue(secondConnection)
-        runtimeDriverRegistry.register({
-          type: 'test-runtime',
-          capabilities: ['agent-session'],
-          connect,
-          validateSession: vi.fn(),
-          listAvailableTools: vi.fn().mockResolvedValue([])
-        })
+        const { stale: firstConnection, rebuilt: secondConnection, connect } = staleConnectionPair()
         const service = new AgentSessionRuntimeService()
         service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
         const entry = getEntry(service)
@@ -2657,26 +2648,7 @@ describe('AgentSessionRuntimeService', () => {
     it('cancels the forced rebuild once background work releases within the grace period', async () => {
       vi.useFakeTimers()
       try {
-        const firstConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('rebuild')
-        }
-        const secondConnection = {
-          events: createAsyncQueue<any>().iterable,
-          send: vi.fn(),
-          close: vi.fn(),
-          reconcile: vi.fn().mockResolvedValue('current')
-        }
-        const connect = vi.fn().mockResolvedValue(secondConnection)
-        runtimeDriverRegistry.register({
-          type: 'test-runtime',
-          capabilities: ['agent-session'],
-          connect,
-          validateSession: vi.fn(),
-          listAvailableTools: vi.fn().mockResolvedValue([])
-        })
+        const { stale: firstConnection, rebuilt: secondConnection } = staleConnectionPair()
         const service = new AgentSessionRuntimeService()
         service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
         const entry = getEntry(service)
