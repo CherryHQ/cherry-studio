@@ -38,7 +38,8 @@ describe('HomeTabRuntime', () => {
       title: 'Topic A',
       emoji: '🍒',
       routePrefix: '/app/chat',
-      preserveVisuals: false
+      preserveVisuals: false,
+      conversation: { appId: 'assistants', key: 'topic-a' }
     })
     expect(cacheService.setPersist).toHaveBeenCalledWith('ui.chat.last_used_topic_id', 'topic-a')
   })

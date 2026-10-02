@@ -8,7 +8,7 @@ import {
   mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -20,23 +20,29 @@ import {
   getTopicMessages,
   useActiveTopic,
   useLatestTopic,
+  useTopicAutoRenameSync,
   useTopicById,
   useTopicMutations,
   useTopics
 } from '../useTopic'
 
-const { mockCloseConversationTabs, mockIpcRequest } = vi.hoisted(() => ({
-  mockCloseConversationTabs: vi.fn(),
-  mockIpcRequest: vi.fn()
-}))
+const { mockCloseConversationTabs, mockIpcRequest, mockApplyConversationTabs, mockSyncConversationTabs, mockUseIpcOn } =
+  vi.hoisted(() => ({
+    mockCloseConversationTabs: vi.fn(),
+    mockIpcRequest: vi.fn(),
+    mockApplyConversationTabs: vi.fn(),
+    mockSyncConversationTabs: vi.fn(),
+    mockUseIpcOn: vi.fn()
+  }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useCloseConversationTabs: () => mockCloseConversationTabs
+  useCloseConversationTabs: () => mockCloseConversationTabs,
+  useConversationTabsSync: () => ({ apply: mockApplyConversationTabs, sync: mockSyncConversationTabs })
 }))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mockIpcRequest },
-  useIpcOn: vi.fn()
+  useIpcOn: mockUseIpcOn
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -383,6 +389,23 @@ describe('useTopicMutations', () => {
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
+  it('syncs a renamed topic onto its conversation tabs everywhere, and leaves other updates alone', async () => {
+    const updateTrigger = vi.fn().mockResolvedValue(createApiTopic({ name: 'Renamed topic' }))
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/topics/:id', updateTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.updateTopic('topic-a', { name: 'Renamed topic' }))
+
+    // A rename must reach the other windows too: their tabs for this topic may all be
+    // dormant, with no page that could derive the new name.
+    expect(mockSyncConversationTabs).toHaveBeenCalledWith('assistants', 'topic-a', { title: 'Renamed topic' })
+
+    mockSyncConversationTabs.mockClear()
+    await act(async () => result.current.updateTopic('topic-a', { assistantId: 'assistant-next' }))
+
+    expect(mockSyncConversationTabs).not.toHaveBeenCalled()
+  })
+
   it('keeps permanent Topic deletion on the DB-only DataApi path', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
@@ -569,6 +592,36 @@ describe('useTopicMutations', () => {
 
     expect(caught).toBe(moveError)
     expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+  })
+})
+
+describe('useTopicAutoRenameSync', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('refreshes the topic caches and retitles its tabs when a topic is auto-renamed', async () => {
+    let emitAutoRenamed: ((payload: { topicId: string; name: string }) => void) | undefined
+    mockUseIpcOn.mockImplementation((event: string, handler: (payload: { topicId: string; name: string }) => void) => {
+      if (event === 'ai.topic.auto_renamed') emitAutoRenamed = handler
+    })
+    const invalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidate)
+
+    renderHook(() => useTopicAutoRenameSync())
+
+    await act(async () => {
+      emitAutoRenamed?.({ topicId: 'topic-a', name: 'Renamed topic' })
+    })
+
+    expect(invalidate).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    // The retitle follows the refetch so a page still holding the old name cannot
+    // stamp it back over the pushed title.
+    await waitFor(() =>
+      expect(mockApplyConversationTabs).toHaveBeenCalledWith('assistants', 'topic-a', { title: 'Renamed topic' })
+    )
+    expect(invalidate.mock.invocationCallOrder[0]).toBeLessThan(mockApplyConversationTabs.mock.invocationCallOrder[0])
   })
 })
 

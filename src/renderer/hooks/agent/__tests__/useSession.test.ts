@@ -6,7 +6,7 @@ import {
   mockUseMutation,
   mockUseQuery
 } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -22,12 +22,15 @@ import {
 } from '../useSession'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const mockApplyConversationTabs = vi.hoisted(() => vi.fn())
+const mockSyncConversationTabs = vi.hoisted(() => vi.fn())
 const mockUseIpcOn = vi.hoisted(() => vi.fn())
 const mockIpcRequest = vi.hoisted(() => vi.fn())
 const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useCloseConversationTabs: () => mockCloseConversationTabs
+  useCloseConversationTabs: () => mockCloseConversationTabs,
+  useConversationTabsSync: () => ({ apply: mockApplyConversationTabs, sync: mockSyncConversationTabs })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -896,6 +899,23 @@ describe('useUpdateSession', () => {
     expect(toast.success).toHaveBeenCalledWith('common.update_success')
   })
 
+  it('syncs a renamed session onto its conversation tabs everywhere, and leaves other updates alone', async () => {
+    const mockTrigger = vi.fn().mockResolvedValue(createSession({ name: 'Renamed session' }))
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
+
+    const { result } = renderHook(() => useUpdateSession())
+    await act(async () => result.current.updateSession({ id: 'session-1', name: 'Renamed session' }))
+
+    // A rename must reach the other windows too: their tabs for this session may all be
+    // dormant, with no page that could derive the new name.
+    expect(mockSyncConversationTabs).toHaveBeenCalledWith('agents', 'session-1', { title: 'Renamed session' })
+
+    mockSyncConversationTabs.mockClear()
+    await act(async () => result.current.updateSession({ id: 'session-1', agentId: 'agent-2' }))
+
+    expect(mockSyncConversationTabs).not.toHaveBeenCalled()
+  })
+
   it('keeps the session PATCH refresh scoped to session caches', () => {
     renderHook(() => useUpdateSession())
 
@@ -973,21 +993,29 @@ describe('useAgentSessionAutoRenameSync', () => {
     vi.clearAllMocks()
   })
 
-  it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
-    let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
-    mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
-      if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
-    })
+  it('refreshes the session caches and retitles its tabs when a session is auto-renamed', async () => {
+    let emitAutoRenamed: ((payload: { sessionId: string; name: string }) => void) | undefined
+    mockUseIpcOn.mockImplementation(
+      (event: string, handler: (payload: { sessionId: string; name: string }) => void) => {
+        if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
+      }
+    )
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
 
     renderHook(() => useAgentSessionAutoRenameSync())
 
     expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent.session.auto_renamed', expect.any(Function))
-    act(() => {
-      emitAutoRenamed?.({ sessionId: 'session-1' })
+    await act(async () => {
+      emitAutoRenamed?.({ sessionId: 'session-1', name: 'Renamed session' })
     })
 
     expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
+    // The retitle follows the refetch so a page still holding the old name cannot
+    // stamp it back over the pushed title.
+    await waitFor(() =>
+      expect(mockApplyConversationTabs).toHaveBeenCalledWith('agents', 'session-1', { title: 'Renamed session' })
+    )
+    expect(invalidate.mock.invocationCallOrder[0]).toBeLessThan(mockApplyConversationTabs.mock.invocationCallOrder[0])
   })
 })

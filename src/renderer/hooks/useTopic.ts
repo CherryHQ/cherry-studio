@@ -28,7 +28,7 @@ import {
   useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useConversationTabsSync } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -390,6 +390,7 @@ export function useTopicMutations() {
   const invalidate = useInvalidateCache()
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
+  const { sync: syncConversationTabs } = useConversationTabsSync()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
@@ -417,10 +418,14 @@ export function useTopicMutations() {
   const updateTopic = useCallback(
     async (topicId: string, dto: UpdateTopicDto): Promise<Topic> => {
       const topic = await updateTrigger({ params: { id: topicId }, body: dto })
+      // A rename must reach every tab of this conversation — a background or dormant one
+      // has no mounted page to re-derive its title from the refreshed data.
+      const renamedTo = dto.name !== undefined ? topic.name.trim() : ''
+      if (renamedTo) syncConversationTabs('assistants', topicId, { title: renamedTo })
       logger.info('Updated topic', { id: topicId })
       return topic
     },
-    [updateTrigger]
+    [syncConversationTabs, updateTrigger]
   )
 
   const deleteTopic = useCallback(
@@ -565,13 +570,28 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `ai.topic.auto_renamed` and invalidates the renamed
- * topic's SWR cache so the new name shows up without manual refetch.
+ * Listens for `ai.topic.auto_renamed`, invalidating the renamed topic's SWR
+ * cache so the new name shows up without manual refetch, and stamping that
+ * name onto every tab of the topic — an inactive tab has no live page that
+ * would pick the rename up on its own.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
+  // Main already broadcast this name to every window, so applying it here is enough.
+  const { apply: applyConversationTabs } = useConversationTabsSync()
 
-  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId, name }) => {
+    void (async () => {
+      try {
+        await invalidate(['/topics', `/topics/${topicId}`])
+      } catch (error) {
+        logger.warn('Failed to refresh an auto-renamed topic', error as Error, { topicId })
+      }
+      // Retitle only once the refetch has landed: a page still holding the old
+      // name would otherwise stamp it straight back onto every tab.
+      applyConversationTabs('assistants', topicId, { title: name })
+    })()
+  })
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────
