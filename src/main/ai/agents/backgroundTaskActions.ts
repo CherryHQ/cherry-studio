@@ -11,7 +11,7 @@ import {
   type BackgroundTaskRecord,
   type StartDetachedBackgroundTaskInput
 } from './backgroundTasks'
-import { listBackgroundTaskRecords, saveBackgroundTaskRecord } from './backgroundTaskStore'
+import { listBackgroundTaskRecords, saveBackgroundTaskRecord, saveBackgroundTaskRecords } from './backgroundTaskStore'
 
 const logger = loggerService.withContext('backgroundTaskActions')
 
@@ -64,12 +64,10 @@ export async function listAgentBackgroundTasks(agentId: string): Promise<Backgro
   const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
   // Indexing is best-effort (same seam as the MCP layer): the disk reconciliation has already
   // happened, so a DB failure must not turn the completed listing into an error response.
-  for (const record of records) {
-    try {
-      saveBackgroundTaskRecord(agentId, record)
-    } catch (error) {
-      logger.error('Failed to index background task after reconcile', { agentId, taskId: record.id, error })
-    }
+  try {
+    saveBackgroundTaskRecords(agentId, records)
+  } catch (error) {
+    logger.error('Failed to index background tasks after reconcile', { agentId, error })
   }
   return listBackgroundTaskRecords(agentId)
 }
