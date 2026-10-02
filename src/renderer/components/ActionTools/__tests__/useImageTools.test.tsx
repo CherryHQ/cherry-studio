@@ -244,18 +244,63 @@ describe('useImageTools', () => {
     expect(revokeObjectURL).toHaveBeenCalledTimes(2)
   })
 
-  it('opens a clean SVG in the image preview', async () => {
-    const { svg, containerRef } = createImageFixture()
-    const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'diagram', imgSelector: 'svg' }))
+  it.each(['white', 'transparent'])('opens a clean SVG with its %s inline canvas', async (backgroundColor) => {
+    const { container, svg, containerRef } = createImageFixture()
+    container.style.backgroundColor = backgroundColor
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        previewBackgroundColor: backgroundColor === 'white' ? '#333' : undefined
+      })
+    )
     svg.style.transform = 'translate(20px, 10px) scale(2)'
 
     await act(() => result.current.dialog())
 
-    expect(mocks.showImagePreview).toHaveBeenCalledOnce()
     const [previewSvg, previewOptions] = mocks.showImagePreview.mock.lastCall as [SVGElement, { format: 'svg' }]
     expect(previewSvg).not.toBe(svg)
     expect(previewSvg.style.transform).toBe('')
-    expect(previewOptions).toEqual({ format: 'svg' })
+    expect(previewOptions).toEqual({
+      format: 'svg',
+      backgroundColor: backgroundColor === 'white' ? 'rgb(255, 255, 255)' : 'rgba(0, 0, 0, 0)'
+    })
+  })
+
+  it.each([
+    ['light', 'white'],
+    ['dark', '#333']
+  ])('passes the Mermaid %s preview canvas when the host is transparent', async (_theme, backgroundColor) => {
+    const { containerRef } = createImageFixture()
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, { prefix: 'mermaid', imgSelector: 'svg', previewBackgroundColor: backgroundColor })
+    )
+
+    await act(() => result.current.dialog())
+
+    const [, previewOptions] = mocks.showImagePreview.mock.lastCall as [SVGElement, { backgroundColor: string }]
+    const probe = document.createElement('div')
+    probe.style.backgroundColor = previewOptions.backgroundColor
+    document.body.append(probe)
+    expect(getComputedStyle(probe).backgroundColor).toBe(
+      backgroundColor === '#333' ? 'rgb(51, 51, 51)' : 'rgb(255, 255, 255)'
+    )
+    probe.remove()
+  })
+
+  it('preserves a live SVG background supplied by a stylesheet when detaching the preview', async () => {
+    const { container, svg, containerRef } = createImageFixture()
+    svg.id = 'authored-background'
+    const style = document.createElement('style')
+    style.textContent = '#authored-background { background-color: ivory; }'
+    container.append(style)
+    const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'svg', imgSelector: 'svg' }))
+
+    await act(() => result.current.dialog())
+
+    const [previewSvg] = mocks.showImagePreview.mock.lastCall as [SVGElement]
+    expect(previewSvg.style.backgroundColor).toBe('rgb(255, 255, 240)')
+    expect(svg.style.backgroundColor).toBe('')
   })
 
   it('reports failures from copy, download, and preview actions', async () => {
