@@ -114,6 +114,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
+    // Set before returning: `afterPersist` reads it once this method resolves, so a downgraded
+    // empty success must not run the success-only naming hook.
     this.persistedSuccess = status === 'success' && !isEmptySuccessTerminal
     return {
       messageId: saved.id,
