@@ -1,5 +1,5 @@
 ---
-description: Reassessed SDK upgrade and runtime decisions for AI SDK 7.0.123, with the June migration proposal retained as history
+description: SDK-first phased implementation tracker for AI SDK v7, Tool Search, Code Mode, and Harness, with black-box cutover gates
 sources:
   - src/main/ai
   - packages/aiCore/src/core/context/compaction.ts
@@ -9,7 +9,7 @@ sources:
 
 # AI SDK Upgrade & Unified Runtime — Migration Assessment
 
-> Updated 2026-10-01. SDK baseline: `ai@7.0.123`; Cherry baseline: `e51a3ad0643`, `ai@6.0.185`.
+> Updated 2026-10-02. SDK target baseline: `ai@7.0.123`; Cherry baseline: `1b799934263`, `ai@6.0.185`.
 > This is a proposed work breakdown. No dependency, runtime, schema, or permission behavior is changed by this document.
 
 ## Current baseline
@@ -26,35 +26,57 @@ the revised assessment; old paths and code counts must be rechecked before imple
 
 | Original decision | Current assessment | Next verification |
 |---|---|---|
-| D1: stay on v6 | Reopen SDK version selection independently of runtime unification | Compare native tool search, stream recovery, patch removal opportunities, and migration costs |
+| D1: stay on v6 | Upgrade to a pinned v7 baseline as phase 1, before feature migrations | Close dependencies/patches, codemods, manual semantic work, and SDK-01–08 |
 | D2: reject Harness | Target Harness for all Agent execution backends, with replacement gated separately for each runtime | Prove the Cherry contract through real runtime black-box tests; close upstream adapter gaps before cutover |
 | D3–D4: context/safety model and prepareStep limits | Retain as design principles for the proposed shared loop, not a description of every driver | Identify concrete product requirements before changing orchestration |
 | D5: collapse drivers, stores, and permission logic | Not a prerequisite for the SDK upgrade | Audit current data/lifecycle owners; propose each change separately if needed |
 | D6: steer always aborts/restarts | Do not impose globally; runtime-native steering is adapter-dependent | Verify acceptance, ordering, cancellation, and user-visible behavior per runtime |
 | D7: borrow session lifecycle contracts | Compare with the existing host/driver contract before adding another one | Separate session resume, approval continuation, sandbox ownership, and history availability |
 
-## Proposed work packages
+## Implementation sequence
 
-1. **Dependency and patch audit.** Record resolved package versions and each relevant patch from
-   `pnpm-workspace.yaml`. Classify each hunk as remove, retain, or reimplement with a reproduction.
-   Verify older-provider adapters where useful; V2/V3 acceptance is not V4 feature parity.
-2. **SDK API migration prototype.** Cover context, callbacks, prompt fields, UI helpers, usage/finalStep,
-   provider metadata, and OTel integration. Verify typechecking plus real usage accounting, approval
-   continuation, cancellation, and Electron packaging. Keep runtime and storage ownership unchanged.
-3. **Tool discovery comparison.** Compare `toolSearch` / `deferLoading` with current meta-tools and defer
-   exposition. Verify active-tool restrictions, MCP tools, approval-required tools, and catalog updates.
-   Remove existing logic only when the upstream contract covers its actual behavior.
-4. **Streaming recovery comparison.** Distinguish same-step provider recovery from transport reconnect
-   and model fallback. Verify partial-text projection, tool-execution timing, duplicate side effects,
-   and usage attribution under retry. Default-off SDK recovery is not automatically a product default.
-5. **Optional Code Mode experiment.** Restrict nested tools to those that do not require human approval.
-   Verify cancellation, execution limits, result size, and Electron main-process compatibility.
-6. **Harness migration with black-box acceptance.** Target Claude Code, Pi, and DSH execution through
-   Harness. Start with one vertical slice, apply the acceptance matrix below to each runtime, and remove
-   a direct driver only after its replacement passes. Package availability alone does not establish parity.
+**Upgrade AI SDK first.** Feature adoption is downstream of a working, verified v7 baseline. The
+implementation plans below supersede the earlier loose list of experiments. Every stage is currently
+`planned`: the documents exist, but no dependencies, runtime code, or black-box tests have been migrated.
 
-Each work package needs its own scope and evidence. Passing the SDK migration does not imply adopting
-Code Mode or Harness, merging message stores, or deleting a driver.
+| Phase | Deliverable and implementation record | Entry requirement | Exit gate / status |
+|---|---|---|---|
+| 1. AI SDK upgrade | [Version/patch audit, all 32 codemods, manual semantic migration, regression plan](./sdk-upgrade-plan.md) | Exact Cherry baseline and supported provider/platform matrix | SDK-01–08 plus compatible peers, reviewed patches and package builds; **planned** |
+| 2. Tool Search | [Request binding, direct dispatch, prompt/UI/history changes, deletion map](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path) | Phase 1 accepted | TS-01–08, real-provider and Electron validation; **planned** |
+| 3. Code Mode | [QuickJS engine replacement, Pi approval parity, Core caller integration](./tool-discovery-plan.md#phase-3--replace-code-mode-execution-then-integrate-discovery) | Phase 1 accepted; Phase 2 accepted for native search integration | CM-01–10 for adopted routes; Pi engine replacement and chat feature activation recorded separately; **planned** |
+| 4. Harness | Common integration, then Pi / Claude Code / DSH adapter cutovers below | Phase 1 accepted; relevant tool/approval contracts from phases 2–3 stabilized | Each runtime passes the Harness matrix with native capability gaps closed; **planned** |
+| 5. Cleanup and rollout | Remove superseded live code and temporary selection paths, retain historical readers | Applicable replacements validated and rollback tested | All promised runtimes covered, no abandoned callers/patches, upgrade regression lane established; **planned** |
+
+Dependency and codemod work in phase 1 is one coherent SDK upgrade, not a separately shippable feature.
+Do not begin with `tool_search`, turn on Code Mode while fixing compiler errors, or use a successful
+upgrade as evidence that the later phases already pass. Static research can proceed in parallel;
+production replacements obey the gates. Chat does not gain Code Mode implicitly through this sequence.
+
+### Phase 4 implementation slices
+
+| Slice | Concrete work at the existing runtime boundary | Removal / acceptance |
+|---|---|---|
+| H1 — Shared integration | Map Harness session/turn lifecycle, chunks, approvals, usage and resume state to `AgentRuntimeConnection`; keep admission, persistence, delivery and reconciliation authority in Cherry | Prove one real vertical slice and the shared test fixture before generalizing; do not create another session host |
+| H2 — Pi | Reuse phase-3 work where the adapter supports it; verify host-process provider/auth, tools, skills, compaction, steer, fork/edit and context reporting | Replace `PiRuntimeDriver` direct SDK plumbing only after its complete contract passes; do not lose nested approvals or off-turn output |
+| H3 — Claude Code | Integrate a local filesystem/process sandbox bridge and lifecycle; preserve native identity, fork/edit, background events, managed binaries and credentials | Replace direct query/bridge plumbing after packaged and background-work acceptance; keep caller-owned cleanup explicit |
+| H4 — DSH | Establish upstream/custom adapter support; confirm ACP compatibility before choosing ACP; preserve goal/autonomous rounds, checkpoints, approvals and tool policy | Capability blocker until an adapter exists and passes the same product contract; naming a custom wrapper is not completion |
+
+Pi is the proposed first slice because it avoids the Claude sandbox-bridge integration, but current
+fork/policy/event gaps still block cutover. Resolve upstream gaps before downstream workarounds. No
+runtime may silently lose a shipped capability to make the shared interface smaller.
+
+### Deferred SDK opportunities
+
+Streaming recovery, FilesV4 lifecycle, image Batch jobs, and new audio/video/realtime APIs get separate
+implementation records after phase 1 if selected. Keep `streamRetries` off during baseline migration;
+provider retry, UI reconnect and cross-model fallback remain distinct. Async image Batch does not turn
+all `generateImage` providers into resumable background jobs. See the
+[SDK plan](./sdk-upgrade-plan.md#13-complete-the-manual-semantic-migration) and [feature inventory](./aisdk-v7-feature-inventory.md).
+
+For each phase record implementation PR/SHA, exact dependency lock, changed/retained/deleted surfaces,
+commands and observed outcomes, unresolved gaps, real-provider/platform coverage and rollback evidence.
+Advance from `planned` to `implementing`, `blocked on capability`, `validated`, and `rolled out` using
+actual evidence. Documentation completion, CI success, and production cutover are separate states.
 
 ## Harness migration direction
 

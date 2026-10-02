@@ -9,7 +9,7 @@ sources:
 
 # AI SDK v7 — Upgrade Assessment
 
-> Verified 2026-10-01. Published baseline: **`ai@7.0.123`**, released 2026-09-30.
+> SDK baseline verified 2026-10-01; implementation plan and Code Mode approval correction updated 2026-10-02. Published baseline: **`ai@7.0.123`**, released 2026-09-30.
 > Cherry baseline: **`e51a3ad0643`**, `ai@6.0.185`. This is research, not an SDK upgrade or a runtime migration approval.
 > The [June report](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/aisdk-v7-research.md) remains available in Git history.
 
@@ -17,10 +17,11 @@ sources:
 
 Evaluate an SDK upgrade independently of runtime unification. The strongest new reasons to evaluate v7
 are native deferred-tool discovery, streaming recovery, and upstream fixes overlapping Cherry's patches.
-Code Mode remains a separate experiment. The [migration plan](./migration-plan.md#harness-migration-direction)
+The [phase-1 implementation plan](./sdk-upgrade-plan.md) specifies codemod coverage and manual repairs.
+Code Mode is a later gated phase. The [migration plan](./migration-plan.md#harness-migration-direction)
 now targets Harness for all Agent execution backends, gated by per-runtime black-box acceptance;
-completing that migration is not a prerequisite for upgrading `ai`. The previous blanket recommendations to stay on v6 and reject Harness
-are superseded by this capability-based assessment.
+completing that migration is not a prerequisite for upgrading `ai`. The previous blanket recommendations
+to stay on v6 and reject Harness are superseded by this capability-based assessment.
 
 ## Reproducible baseline
 
@@ -42,7 +43,8 @@ See the [feature inventory](./aisdk-v7-feature-inventory.md) for versions, const
 
 - **Tool discovery:** `toolSearch()` and `deferLoading` can overlap Cherry's deferred-tool infrastructure.
 - **Code Mode:** QuickJS-hosted tool composition adds parallel calls and result filtering, but nested
-  calls cannot pause for human approval. It remains experimental and Node-only.
+  approval requires explicit host integration. The published Code Mode package exposes callback/interrupt
+  APIs despite the narrower live guide; see the [correction and plan](./tool-discovery-plan.md#31-resolve-the-approval-contract-from-the-published-package). It remains experimental and Node-only.
 - **Streaming recovery:** `StreamProviderError` plus `streamRetries` cover provider error events after
   streaming starts. This is distinct from cross-model fallback and transport reconnection.
 - **Files and media:** FilesV4 adds lifecycle operations; batches, realtime voice, streaming transcription,
@@ -56,7 +58,7 @@ See the [feature inventory](./aisdk-v7-feature-inventory.md) for versions, const
 
 | Boundary | v7 contract / migration concern | Cherry verification |
 |---|---|---|
-| Context | `experimental_context` becomes `runtimeContext`; `toolsContext` / `contextSchema` are a separate per-tool facility | Audit `Agent.ts`, tool execution adapters, and request-context ownership; v6 does not expose all three under the v7 names |
+| Context | Shared orchestration moves to `runtimeContext`; tool callbacks read `context` supplied through `toolsContext` / `contextSchema` | Audit `Agent.ts`, tool execution adapters, and request-context ownership; v6 does not expose all three under the v7 names |
 | Approval | Central `toolApproval` replaces per-tool `needsApproval`; reasons, transformed inputs, and signed approvals affect continuation | Preserve approval state and validate resumed tool inputs; SDK contracts do not replace Cherry authorization |
 | Lifecycle | `onStepFinish` → `onStepEnd`, `onFinish` → `onEnd`; native tool/model-call callbacks | Reconcile `AgentLoopHooks`, `composeHooks`, observers, aborts, and per-attempt telemetry before removing shims |
 | Results / usage | `usage` is aggregate; final-step data lives in `finalStep`; `fullStream` → `stream` | Audit usage/cost accounting and persistence, not just compilation |
@@ -120,7 +122,8 @@ Harness session compaction, message pruning, and application-owned summarization
 1. Inventory resolved SDK/provider versions and every applicable patch; reproduce the behavior each patch protects.
 2. Prototype the core API migration, usage semantics, approval round trips, and ESM packaging without changing runtime ownership.
 3. Compare native tool search and stream recovery with Cherry's existing implementations using real tool-heavy and interrupted streams.
-4. Evaluate Code Mode separately, with approval-required tools excluded from nested execution.
+4. Migrate Code Mode separately; initially keep approval-required tools direct on the Core route, and
+   verify the published callback/continuation APIs before replacing Pi's existing nested approvals.
 5. Execute the Harness migration acceptance plan per runtime, including real adapters, failure injection,
    real providers, and packaged Electron, before replacing direct drivers.
 

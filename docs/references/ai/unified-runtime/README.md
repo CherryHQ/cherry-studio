@@ -7,7 +7,7 @@ sources:
 
 # Unified Runtime — Design & AI SDK Research
 
-> Updated 2026-10-01. The SDK research is verified against **ai@7.0.123** and Cherry **ai@6.0.185**.
+> Updated 2026-10-02. The SDK research is verified against **ai@7.0.123** and Cherry **ai@6.0.185**.
 > Architecture proposals are not implementation status or approval to replace existing runtimes.
 
 ## Start here
@@ -16,13 +16,16 @@ sources:
 |---|---|
 | [AI SDK v7 assessment](./aisdk-v7-research.md) | Current recommendation, compatibility boundaries, patch audit, and verification order |
 | [Feature delta inventory](./aisdk-v7-feature-inventory.md) | Changes since 7.0.0, first relevant versions, experimental status, and official sources |
-| [Migration plan](./migration-plan.md) | Harness migration target, per-runtime gaps, black-box acceptance, and staged cutover; historical proposal retained |
+| [Migration plan](./migration-plan.md) | Ordered phase tracker: SDK upgrade → Tool Search → Code Mode → Harness → cleanup |
+| [Phase 1: SDK upgrade](./sdk-upgrade-plan.md) | Dependency and patch closure, all 32 official codemods, manual semantic work, and baseline acceptance |
+| [Phases 2–3: Tool Search and Code Mode](./tool-discovery-plan.md) | Concrete replacement/deletion maps, Pi versus chat boundaries, approval integration, and black-box cases |
 | [Architecture proposal](./architecture.md) | The original context (`C`) / safety gate (`G`) model, with current scope and compatibility corrections |
 | [Tool approval](./tool-approval-refactor.md) | Updated approval constraints, including Code Mode, followed by the original centralization proposal |
 | [Large-file upload](./large-file-upload-port.md) | Current attachment boundary and the expanded FilesV4 lifecycle assessment |
 
 ## Decision boundary
 
+Start with the [AI SDK upgrade](./sdk-upgrade-plan.md); subsequent features require its regression gate.
 Target Harness for all Agent execution backends, with each replacement gated by the
 [migration plan and black-box acceptance](./migration-plan.md#black-box-acceptance). Full compatibility
 has not yet been proven. SDK upgrade, native tool search, streaming recovery, and Code Mode remain

@@ -29,9 +29,12 @@ Sources: [Code Mode](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
 
 ### Execution boundaries
 
-**Code Mode does not support pausing nested tool calls for human approval.** A nested call requiring
-approval is rejected. Keep such tools directly callable; do not route them through Code Mode expecting
-Cherry's approval UI to resume the nested invocation.
+**Approval correction (2026-10-02):** the live Code Mode guide says nested approvals cannot pause,
+but the published `@ai-sdk/code-mode@1.0.80` API includes approval callbacks, interrupt/continue helpers,
+and signed replay state (introduced in `1.0.7`). This requires explicit host integration; it is not
+proof of automatic Core/Harness/Cherry approval parity. Keep gated tools direct in the initial Core
+adoption and verify Pi's existing nested approvals before replacement. See the
+[package evidence and implementation plan](./tool-discovery-plan.md#31-resolve-the-approval-contract-from-the-published-package).
 
 **Stream retries isolate failed tool attempts, not already-visible output.** Earlier completed steps are
 not replayed. Failed-attempt client-side tool calls and approval requests are withheld until a successful

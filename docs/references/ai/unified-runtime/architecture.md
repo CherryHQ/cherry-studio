@@ -33,7 +33,8 @@ remove drivers, or introduce a new permission engine.
   per-tool `toolsContext` / `contextSchema`. `CALL_OPTIONS` / `prepareCall` already exist in v6.
   The original claim that all three v7 surfaces exist in v6 was incorrect.
 - **Approval also differs by major.** v6 has per-tool `needsApproval` and the message-based approval flow;
-  centralized `toolApproval` is a v7 facility. Code Mode cannot suspend nested calls for human approval.
+  centralized `toolApproval` is a v7 facility. Code Mode package-level approval callbacks/continuations
+  require explicit integration; see the [corrected contract](./tool-discovery-plan.md#31-resolve-the-approval-contract-from-the-published-package).
 - **Compaction already exists in Cherry.** Reuse `packages/aiCore/src/core/context/compaction.ts` and the
   aiSdk context-compaction feature instead of creating the proposed parallel implementation.
 - **Steering is not universally abort+restart.** Preserve runtime-native capabilities and verify their

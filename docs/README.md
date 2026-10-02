@@ -55,9 +55,11 @@
 | [AI SDK v7 — Upgrade Assessment](./references/ai/unified-runtime/aisdk-v7-research.md) | AI SDK 7.0.123 assessment against Cherry Studio 6.0.185, with migration boundaries and patch audit priorities |
 | [Unified Runtime — Architecture Proposal](./references/ai/unified-runtime/architecture.md) | Unified-runtime design proposal with current runtime boundaries and AI SDK v7 compatibility corrections |
 | [Large-File Upload — Current Boundary & v7 Assessment](./references/ai/unified-runtime/large-file-upload-port.md) | Current attachment routing boundary and assessment of AI SDK v7 file uploads and lifecycle operations |
-| [AI SDK Upgrade & Unified Runtime — Migration Assessment](./references/ai/unified-runtime/migration-plan.md) | Reassessed SDK upgrade and runtime decisions for AI SDK 7.0.123, with the June migration proposal retained as history |
+| [AI SDK Upgrade & Unified Runtime — Migration Assessment](./references/ai/unified-runtime/migration-plan.md) | SDK-first phased implementation tracker for AI SDK v7, Tool Search, Code Mode, and Harness, with black-box cutover gates |
 | [Unified Runtime — Design & AI SDK Research](./references/ai/unified-runtime/README.md) | Current AI SDK v7 research and migration assessment, with the original unified-runtime proposal preserved for context |
+| [Phase 1 — Upgrade AI SDK Before Migrating Features](./references/ai/unified-runtime/sdk-upgrade-plan.md) | Phase one AI SDK v6 to v7 implementation plan with dependency closure, codemod coverage, manual semantic migration, and acceptance gates |
 | [Tool Approval — Migration Constraints & Proposal](./references/ai/unified-runtime/tool-approval-refactor.md) | Tool approval migration constraints for AI SDK 7.0.123 and the historical permission centralization proposal |
+| [Phases 2–3 — Tool Search and Code Mode](./references/ai/unified-runtime/tool-discovery-plan.md) | Post-SDK-upgrade Tool Search and Code Mode implementation phases, replacement maps, approval gaps, and black-box acceptance |
 
 ### API Gateway
 

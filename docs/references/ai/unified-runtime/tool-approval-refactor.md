@@ -7,7 +7,7 @@ sources:
 
 # Tool Approval — Migration Constraints & Proposal
 
-> Reassessed 2026-10-01. The original permission-engine design follows as historical rationale.
+> Reassessed 2026-10-02. The original permission-engine design follows as historical rationale.
 > This update does not approve a new permission subsystem or change persisted approval ownership.
 
 ## Current SDK boundaries
@@ -19,9 +19,12 @@ sources:
 | Central `toolApproval` | Absent | Call/Agent policy function or tool map |
 | Approval request reason | Audit current projection | Distinct request reason and approver response reason |
 | Signed approval continuation | Do not assume from old snippets | Verify secret configuration, serialization, input/schema validation, and persistent state |
-| Code Mode nested approval | Not applicable | Cannot suspend nested execution for approval; approval-required calls are rejected |
+| Code Mode nested approval | Cherry Pi has its own nested approval path | Code Mode package exposes callback/interrupt continuation APIs; explicit Cherry integration and black-box validation required |
 
-Keep approval-required tools directly callable if evaluating Code Mode. A policy verdict or signed SDK
+Keep approval-required tools directly callable during the initial Core Code Mode adoption. The published
+package exposes nested approval helpers despite the live guide's narrower claim; see the
+[verified package contract and migration gate](./tool-discovery-plan.md#31-resolve-the-approval-contract-from-the-published-package).
+Pi's existing nested approval behavior must be preserved before its engine is replaced. A policy verdict or signed SDK
 approval does not replace Cherry's own authorization and state ownership. Validate approval-resumed
 inputs against the actual schemas, including transforms, rather than treating persisted input as trusted.
 
@@ -36,10 +39,12 @@ Compare with the [current approval reference](../tool-approval.md) and
 - Verify denial completes correctly, request reasons survive projection, and modified tool schemas do not
   silently execute stale approved inputs.
 - Test deferred tools under the same authorization rules as directly exposed tools.
-- Confirm Code Mode cannot route around a required approval; do not expose such tools as nested callers.
+- Confirm Code Mode cannot route around a required approval. Test nested callback/interrupt paths,
+  stale/duplicate decisions, changed policy/schema, signing-key lifetime, and replayed side effects
+  before exposing gated tools through the new engine.
 - Keep provider-side execution and adapter-native approvals distinct from host-executed AI SDK tools.
 
-Sources: [Code Mode approval limitations](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
+Sources: [Code Mode guide (see package correction above)](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
 [published core changes](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md),
 [Agent settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/agent/tool-loop-agent-settings.ts).
 
