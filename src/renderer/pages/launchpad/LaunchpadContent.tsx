@@ -179,7 +179,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
         }}
         className={`${itemClassName} group flex h-auto cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 hover:bg-transparent focus-visible:scale-105 focus-visible:bg-transparent active:scale-95`}>
         <span className={cn('relative flex items-center justify-center', compact ? 'size-[46px]' : 'size-14')}>
-          <LaunchpadAppIcon src={item.iconSrc} size={compact ? 40 : 50} className="relative overflow-hidden bg-card" />
+          <LaunchpadAppIcon src={item.iconSrc} size={compact ? 40 : 50} className="relative overflow-hidden" />
         </span>
         <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
           {item.label}

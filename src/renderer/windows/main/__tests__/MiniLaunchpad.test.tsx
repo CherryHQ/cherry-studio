@@ -40,7 +40,7 @@ describe('mini launchpad', () => {
   it('shows apps without search and closes after opening the selected app', async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(screen.getByRole('button', { name: '启动台' }))
+    await user.click(screen.getByRole('button', { name: '应用' }))
     await screen.findByRole('button', { name: 'Pinned application' }, { timeout: 5000 })
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '应用' })).toBeVisible()
@@ -55,7 +55,7 @@ describe('mini launchpad', () => {
   it('opens a built-in app through the host callback and closes the popup', async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(screen.getByRole('button', { name: '启动台' }))
+    await user.click(screen.getByRole('button', { name: '应用' }))
     await user.click(await screen.findByRole('button', { name: '翻译' }))
     expect(screen.getByLabelText('destination')).toHaveTextContent('/app/translate')
     expect(screen.queryByRole('dialog', { name: '启动台' })).not.toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('mini launchpad', () => {
   it('dismisses with Escape and returns focus to the trigger', async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    const trigger = screen.getByRole('button', { name: '启动台' })
+    const trigger = screen.getByRole('button', { name: '应用' })
     await user.click(trigger)
     await user.keyboard('{Escape}')
     await waitFor(() => expect(trigger).toHaveFocus())
