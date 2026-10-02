@@ -285,7 +285,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   it (fenced code, display math, raw HTML, indented code) and outside every list, which is one block: the pieces of a cut
   list renumber its ordered items and parse a loose list as a tight one. Reference definitions are carried into every
   chunk whole, even when a link's destination or title sits on a line of its own, because a link or footnote used in one
-  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. Lines
+  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. A link
+  definition is carried without the block quote or list marker it was written behind, since that container is a block of
+  its own and carrying it would render an empty one in every chunk that does not use the definition. Lines
   are compared without their terminator, so a CRLF source windows exactly like the same source with LF endings. The
   source is split once, and that one split decides both what is windowed and what cannot be.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.

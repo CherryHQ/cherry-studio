@@ -219,6 +219,70 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition out of the block quote that holds it, without the quote', () => {
+    // A definition belongs to the document, so one written in a quote still serves every chunk —
+    // but the quote itself is a block of its own chunk, and carrying it would render an empty one.
+    const content = ['> [label]: https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com')
+    }
+    // The definition is carried bare; only the chunk that holds the quote shows it.
+    expect(chunks.filter((chunk) => chunk.text.includes('> [label]'))).toHaveLength(1)
+  })
+
+  it('carries a definition out of the list item that holds it, without the marker', () => {
+    const content = ['- [label]: https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('- [label]'))).toHaveLength(1)
+  })
+
+  it('carries a block-quoted definition that runs to its destination and title on later lines', () => {
+    const content = ['> [label]:', '> https://example.com', '> "the title"', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]:\nhttps://example.com\n"the title"')
+    }
+  })
+
+  it('carries a definition whose label holds an escaped closing bracket', () => {
+    // `[a\]b]` is a label for `a]b`; a label pattern that stops at the first bracket drops the run.
+    const content = ['[a\\]b]: https://example.com', '', 'para one', '', 'see [a\\]b]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[a\\]b]: https://example.com')
+    }
+  })
+
+  it('does not carry the quoted text that follows a block-quoted definition', () => {
+    // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
+    const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    // The definition travels whole; the paragraph the quote holds afterwards does not.
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com\n"the title"')
+      expect(chunk.text.split('\n\n')[0]).not.toContain('visible tail')
+    }
+  })
+
   it('carries a footnote definition into the chunk that uses it', () => {
     const content = ['[^1]: the note', '', 'see the note[^1]'].join('\n')
 

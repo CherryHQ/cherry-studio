@@ -69,8 +69,18 @@ function htmlBlockTerminator(line: string): RegExp | null {
 /** A footnote definition, which owns its indented lines. */
 const FOOTNOTE_DEFINITION_START = /^\s{0,3}\[\^[^\]]+\]:/
 
-/** A link reference definition label, which may leave its destination to a line of its own. */
-const LINK_DEFINITION_LABEL = /^\s{0,3}\[(?!\^)[^\]]+\]:[ \t]*/
+/**
+ * The container markers a definition may sit behind — a block quote, a list item, or both. A
+ * definition belongs to the document rather than to the block that happens to hold it, so the
+ * parser accepts one in a quote or a list item and registers it for the whole document.
+ */
+const DEFINITION_CONTAINER = /^(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+/
+
+/**
+ * A link reference definition label, which may leave its destination to a line of its own. A label
+ * may hold an escaped closing bracket (`[a\]b]`), so brackets only end the label when unescaped.
+ */
+const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\])+)\][ \t]*:([ \t]*)([\s\S]*)$/
 
 /** A link destination: an angle-bracketed run or a whitespace-free one. */
 const LINK_DESTINATION = /^(?:<[^<>]*>|[^\s]+)/
@@ -81,26 +91,51 @@ const LINK_TITLE = /^[ \t]*(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\))[ \t]*$/
 const INDENTED_LINE = /^\s+\S/
 
 /**
- * How many lines a link reference definition covers, or 0 when the label opens none. The destination
- * may sit a line below the label and the title a line below that, but nothing may follow the
- * destination except the title — so `[label]:\ntext` is a paragraph and `[label]:\n/url` is not.
- * Hoisting either the wrong way would show it in every chunk, so the span has to be exact.
+ * The bare text of a link reference definition and the lines it covers, or null when the line opens
+ * none. The destination may sit a line below the label and the title a line below that, but nothing
+ * may follow the destination except the title — so `[label]:\ntext` is a paragraph and
+ * `[label]:\n/url` is not. Hoisting either the wrong way would show it in every chunk, so the span
+ * has to be exact. The definition is returned without its block quote or list marker because that
+ * container belongs to the chunk it was written in, and carrying it would render an empty one.
  */
-function linkDefinitionSpan(lines: string[], index: number): number {
-  const label = LINK_DEFINITION_LABEL.exec(lines[index])
-  if (!label) return 0
-  let tail = lines[index].slice(label[0].length)
+function linkDefinition(lines: string[], index: number): { text: string; lines: number } | null {
+  const start = DEFINITION_CONTAINER.exec(lines[index])
+  const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
+  if (!label) return null
+  const body = [`[${label[1]}]:${label[2]}${label[3]}`]
+  let tail = label[3]
   let span = 1
   if (!LINK_DESTINATION.test(tail)) {
-    const next = lines[index + 1]
-    if (next === undefined || !/\S/.test(next)) return 0
-    tail = next.trimStart()
-    if (!LINK_DESTINATION.test(tail)) return 0
+    const next = continuation(lines[index + 1])
+    if (next === undefined) return null
+    tail = next
+    body.push(next)
     span = 2
   }
   tail = tail.replace(LINK_DESTINATION, '')
-  if (!/^[ \t]*$/.test(tail)) return LINK_TITLE.test(tail) ? span : 0
-  return LINK_TITLE.test(lines[index + span] ?? '') ? span + 1 : span
+  if (!/^[ \t]*$/.test(tail)) {
+    if (!LINK_TITLE.test(tail)) return null
+  } else {
+    const title = continuation(lines[index + span])
+    if (title !== undefined) {
+      if (!LINK_TITLE.test(title)) return null
+      body.push(title)
+      span += 1
+    }
+  }
+  return { text: body.join('\n'), lines: span }
+}
+
+/**
+ * The content a definition continuation line carries, or undefined when it is not one of ours. Only
+ * a container marker is removed: the indentation that follows it is what the parser reads to know
+ * the line continues this definition rather than starting a new block.
+ */
+function continuation(line: string | undefined): string | undefined {
+  if (line === undefined) return undefined
+  const container = DEFINITION_CONTAINER.exec(line)
+  const content = container ? line.slice(container[0].length) : line
+  return /\S/.test(content) ? content : undefined
 }
 
 /**
@@ -311,13 +346,11 @@ export function splitMarkdownChunks(
       continue
     }
     // A link definition is a run of up to three lines, none of them blank, so it holds no boundary.
-    const definitionSpan = linkDefinitionSpan(lines, i)
-    if (definitionSpan > 0) {
-      for (let n = 0; n < definitionSpan; n++) {
-        definitions.push(lines[i + n])
-        if (n > 0) bufferChars += lines[i + n].length + 1
-      }
-      i += definitionSpan - 1
+    const definition = linkDefinition(lines, i)
+    if (definition) {
+      definitions.push(definition.text)
+      bufferChars += definition.text.length + 1
+      i += definition.lines - 1
       inDefinition = false
       continue
     }
