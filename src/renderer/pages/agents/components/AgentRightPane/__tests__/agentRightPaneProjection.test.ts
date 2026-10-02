@@ -7,7 +7,8 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
+  findLatestAgentPreviewUrl,
+  isTaskListResponseCurrent
 } from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
@@ -909,5 +910,17 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([
       expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
+  })
+})
+
+describe('isTaskListResponseCurrent', () => {
+  it('drops a poll that was asked before the user stopped a task', () => {
+    // The poll is in flight; the stop lands and the row shows `stopped`; the stale response would
+    // put it back to `running`, where the Stop/Kill buttons disappear.
+    expect(isTaskListResponseCurrent(1, 2)).toBe(false)
+  })
+
+  it('applies a poll asked after the last mutation', () => {
+    expect(isTaskListResponseCurrent(2, 2)).toBe(true)
   })
 })
