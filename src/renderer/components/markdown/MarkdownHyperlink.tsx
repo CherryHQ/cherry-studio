@@ -3,7 +3,7 @@ import React, { memo, useMemo, useRef, useState } from 'react'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { OgCard } from '@renderer/components/OgCard'
 
-interface HyperLinkProps {
+interface MarkdownHyperlinkProps {
   children: React.ReactNode
   href: string
   onOpenLink?: (url: string) => void | Promise<void>
@@ -12,7 +12,7 @@ interface HyperLinkProps {
 const HYPERLINK_CARD_OPEN_DELAY = 500
 const HYPERLINK_CARD_CLOSE_DELAY = 100
 
-const Hyperlink: React.FC<HyperLinkProps> = ({ children, href, onOpenLink }) => {
+const MarkdownHyperlink: React.FC<MarkdownHyperlinkProps> = ({ children, href, onOpenLink }) => {
   const [open, setOpen] = useState(false)
   const contextMenuRequested = useRef(false)
   const dismissPreview = () => {
@@ -77,4 +77,4 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href, onOpenLink }) => 
   )
 }
 
-export default memo(Hyperlink)
+export default memo(MarkdownHyperlink)

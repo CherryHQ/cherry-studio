@@ -225,7 +225,12 @@ export const aiRequestSchemas = {
       assistantId: z.string().optional(),
       throwOnError: z.boolean().optional()
     }),
-    output: z.array(ModelSchema.partial())
+    // A listing, not a bare array: a provider whose "models" are its own files
+    // (ComfyUI) holds some back, and the caller has to be able to say which.
+    output: z.object({
+      models: z.array(ModelSchema.partial()),
+      skippedModels: z.array(z.string()).optional()
+    })
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({
@@ -428,6 +433,12 @@ export const aiRequestSchemas = {
   'ai.agent.background_task.stop': defineRoute({
     input: z.strictObject({ agentId: z.string().min(1), taskId: z.string().min(1), force: z.boolean().optional() }),
     output: z.custom<BackgroundTaskRecord | undefined>()
+  }),
+  // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
+  // main owns that resolution, so the renderer never joins paths itself.
+  'ai.agent.session.open_path': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), path: z.string().min(1) }),
+    output: z.void()
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──

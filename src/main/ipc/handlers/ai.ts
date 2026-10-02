@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { listAgentBackgroundTasks, stopAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
@@ -14,6 +15,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -23,6 +25,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -276,6 +279,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
           })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
+          if (error.reason === 'unsupported_checkpoint') {
+            throw new AgentSessionEditError('checkpoint_unsupported')
+          }
           const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
           throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
         }
@@ -292,6 +298,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.background_task.list': ({ agentId }) => listAgentBackgroundTasks(agentId),
   'ai.agent.background_task.stop': ({ agentId, taskId, force }) =>
     stopAgentBackgroundTask(agentId, taskId, force === true),
+  'ai.agent.session.open_path': async ({ sessionId, path }) => {
+    const workspacePath = agentSessionService.getById(sessionId).workspace.path
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+  },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
