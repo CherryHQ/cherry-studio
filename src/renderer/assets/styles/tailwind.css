@@ -14,6 +14,10 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant no-hover (@media (hover: none));
 
+/* v4 gates `hover:`/`group-hover:` behind @media (hover: hover), which never
+   matches on hover:none devices and strands hover-revealed controls hidden. */
+@custom-variant hover (&:hover);
+
 /*
  * Application-side Tailwind bridge for @cherrystudio/ui.
  *
