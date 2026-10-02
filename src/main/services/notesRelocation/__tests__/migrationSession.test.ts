@@ -7,12 +7,15 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   assertNotesPathNotMutatingDuringMigration,
+  beginNotesBatchMarkdownUpload,
   completeNotesMigrationCommit,
+  endNotesBatchMarkdownUpload,
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
-  tryBeginNotesDirectoryMigration
+  tryBeginNotesDirectoryMigration,
+  waitForNotesBatchMarkdownUploadsIdle
 } from '../migrationSession'
 
 describe('notes migration session', () => {
@@ -33,6 +36,26 @@ describe('notes migration session', () => {
       /migration is in progress/
     )
     expect(() => assertNotesPathNotMutatingDuringMigration(path.join(os.tmpdir(), 'other.md'))).not.toThrow()
+  })
+
+  it('waits for in-flight batch markdown uploads before installing the write barrier', async () => {
+    beginNotesBatchMarkdownUpload()
+    const idle = waitForNotesBatchMarkdownUploadsIdle()
+    let settled = false
+    void idle.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    endNotesBatchMarkdownUpload()
+    await idle
+    expect(settled).toBe(true)
+  })
+
+  it('rejects new batch uploads while a migration session is in flight', () => {
+    expect(tryBeginNotesDirectoryMigration()).toBe(true)
+    expect(() => beginNotesBatchMarkdownUpload()).toThrow(/migration is in progress/)
   })
 
   it('releases the session only when commit matches the active migration id', () => {

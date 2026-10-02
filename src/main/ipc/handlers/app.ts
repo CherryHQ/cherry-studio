@@ -16,7 +16,8 @@ import {
   rendererEditFlushCoordinator,
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,
-  tryBeginNotesDirectoryMigration
+  tryBeginNotesDirectoryMigration,
+  waitForNotesBatchMarkdownUploadsIdle
 } from '@main/services/notesRelocation'
 import { regionService } from '@main/services/RegionService'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
@@ -71,6 +72,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
           'a renderer window failed to prepare for notes directory migration'
         )
       }
+      await waitForNotesBatchMarkdownUploadsIdle()
       setNotesMigrationBlockedRoots(sourcePath, targetPath)
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
       const sessionId = getNotesMigrationSessionId()
