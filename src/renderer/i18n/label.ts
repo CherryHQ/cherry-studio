@@ -58,6 +58,7 @@ const providerKeyMap = {
   'new-api': 'provider.new-api',
   nvidia: 'provider.nvidia',
   o3: 'provider.o3',
+  oceantoken: 'provider.oceantoken',
   ocoolai: 'provider.ocoolai',
   ovms: 'provider.ovms',
   ollama: 'provider.ollama',

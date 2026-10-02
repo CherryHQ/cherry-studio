@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 163
+ * Generated at: 2026-09-28T03:39:59.268Z
+ * Total icons: 164
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -114,6 +114,7 @@ import { NomicIcon } from './nomic'
 import { NotebooklmIcon } from './notebooklm'
 import { NousresearchIcon } from './nousresearch'
 import { NvidiaIcon } from './nvidia'
+import { OceantokenIcon } from './oceantoken/oceantoken'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OmlxIcon } from './omlx/omlx'
@@ -279,6 +280,7 @@ export const PROVIDER_ICON_CATALOG = {
   notebooklm: NotebooklmIcon,
   nousresearch: NousresearchIcon,
   nvidia: NvidiaIcon,
+  oceantoken: OceantokenIcon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
   omlx: OmlxIcon,
@@ -302,8 +304,8 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

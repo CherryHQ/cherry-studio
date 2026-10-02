@@ -38,6 +38,7 @@ import p_moonshot from './moonshot'
 import p_moonshot_global from './moonshot-global'
 import p_new_api from './new-api'
 import p_nvidia from './nvidia'
+import p_oceantoken from './oceantoken'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
 import p_omlx from './omlx'
@@ -131,5 +132,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_oceantoken
 ]
