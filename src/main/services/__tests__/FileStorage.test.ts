@@ -263,7 +263,7 @@ describe('FileStorage', () => {
 
       const originalRead = fs.promises.readFile.bind(fs.promises)
       vi.spyOn(fs.promises, 'readFile').mockImplementation(async (filePath, ...args) => {
-        const content = await originalRead(filePath as fs.PathLike, ...(args as [BufferEncoding]))
+        const content = await originalRead(filePath, ...(args as [BufferEncoding]))
         if (String(filePath).endsWith('first.md')) {
           setNotesMigrationBlockedRoots(source, target)
         }

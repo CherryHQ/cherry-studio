@@ -29,7 +29,10 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
-import { assertNotesPathNotMutatingDuringMigration, isNotesMigrationWriteBlockedError } from '@main/services/notesRelocation'
+import {
+  assertNotesPathNotMutatingDuringMigration,
+  isNotesMigrationWriteBlockedError
+} from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -1099,32 +1102,23 @@ class FileStorage {
       for (let i = 0; i < fileOperations.length; i += BATCH_SIZE) {
         const batch = fileOperations.slice(i, i + BATCH_SIZE)
 
-        const results = await Promise.allSettled(
-          batch.map(async (op) => {
+        for (const op of batch) {
+          try {
             assertNotesPathNotMutatingDuringMigration(op.targetPath)
             const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
             assertNotesPathNotMutatingDuringMigration(op.targetPath)
             await fs.promises.writeFile(op.targetPath, content, 'utf-8')
-            return true
-          })
-        )
-
-        for (const result of results) {
-          if (result.status === 'rejected' && isNotesMigrationWriteBlockedError(result.reason)) {
-            throw result.reason
-          }
-        }
-
-        results.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
             successCount++
-          } else {
+          } catch (error) {
+            if (isNotesMigrationWriteBlockedError(error)) {
+              throw error
+            }
             failedFiles += 1
-            logger.error('Failed to upload file:', result.reason, {
-              file: batch[index].sourcePath
+            logger.error('Failed to upload file:', error as Error, {
+              file: op.sourcePath
             })
           }
-        })
+        }
       }
 
       logger.info('Batch upload completed', {
