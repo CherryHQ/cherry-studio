@@ -95,13 +95,18 @@ export async function stopAgentBackgroundTask(
  * Force-stops every running detached task of an agent. Permanent deletion calls
  * this before the agent's records are swept: afterwards no Cherry control path
  * can reach the process. Archival keeps tasks running so restore stays lossless.
+ *
+ * Each stop shells out synchronously to the platform, so the stops run together
+ * rather than one per task: an agent may hold any number of them. Every task is
+ * still stopped before this resolves, and any task that survives throws, so a
+ * partial sweep cannot be mistaken for a clean one.
  */
 export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void> {
   const storageDir = storageDirFor(agentId)
-  for (const record of await listDetachedBackgroundTasks(storageDir)) {
-    if (record.status !== 'running') continue
-    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-    if (!stopped || stopped.status === 'running') {
+  const running = (await listDetachedBackgroundTasks(storageDir)).filter((record) => record.status === 'running')
+  const stopped = await Promise.all(running.map((record) => stopDetachedBackgroundTask(storageDir, record.id, true)))
+  for (const [index, record] of running.entries()) {
+    if (!stopped[index] || stopped[index].status === 'running') {
       throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
     }
   }
