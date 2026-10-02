@@ -15,8 +15,21 @@ const COMMIT_TIMEOUT_MS = 60_000
 let migrationInFlight = false
 let activeSessionId: string | null = null
 let blockedRoots: { source: string; target: string } | null = null
+let activeNotesBatchMarkdownUploads = 0
+let batchMarkdownUploadIdleWaiters: Array<() => void> = []
 let commitWatchTimer: NodeJS.Timeout | undefined
 let commitWatchCleanup: (() => void) | undefined
+
+function resolveBatchMarkdownUploadIdleWaiters(): void {
+  if (activeNotesBatchMarkdownUploads > 0) {
+    return
+  }
+  const waiters = batchMarkdownUploadIdleWaiters
+  batchMarkdownUploadIdleWaiters = []
+  for (const resolve of waiters) {
+    resolve()
+  }
+}
 
 function normalizeForCompare(value: string): string {
   const resolved = path.resolve(value)
@@ -84,6 +97,27 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
   if (pathUnderRoot(resolved, blockedRoots.source) || pathUnderRoot(resolved, blockedRoots.target)) {
     throw new NotesMigrationWriteBlockedError()
   }
+}
+
+export function beginNotesBatchMarkdownUpload(): void {
+  if (migrationInFlight) {
+    throw new NotesMigrationWriteBlockedError()
+  }
+  activeNotesBatchMarkdownUploads++
+}
+
+export function endNotesBatchMarkdownUpload(): void {
+  activeNotesBatchMarkdownUploads--
+  resolveBatchMarkdownUploadIdleWaiters()
+}
+
+export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
+  if (activeNotesBatchMarkdownUploads === 0) {
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    batchMarkdownUploadIdleWaiters.push(resolve)
+  })
 }
 
 export function releaseNotesMigrationSession(): void {

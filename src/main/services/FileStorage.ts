@@ -31,6 +31,8 @@ import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
 import {
   assertNotesPathNotMutatingDuringMigration,
+  beginNotesBatchMarkdownUpload,
+  endNotesBatchMarkdownUpload,
   isNotesMigrationWriteBlockedError
 } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
@@ -1012,6 +1014,7 @@ class FileStorage {
     skippedFiles: number
     failedFiles: number
   }> => {
+    beginNotesBatchMarkdownUpload()
     try {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
@@ -1137,6 +1140,8 @@ class FileStorage {
     } catch (error) {
       logger.error('Batch upload failed:', error as Error)
       throw error
+    } finally {
+      endNotesBatchMarkdownUpload()
     }
   }
 }

@@ -11,7 +11,8 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import {
   releaseNotesMigrationSession,
-  setNotesMigrationBlockedRoots
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration
 } from '@main/services/notesRelocation/migrationSession'
 
 import { fileStorage } from '../FileStorage'
@@ -247,6 +248,18 @@ describe('FileStorage', () => {
       const markdown = path.join(source, 'note.md')
       fs.writeFileSync(markdown, '# hello')
       setNotesMigrationBlockedRoots(source, target)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+
+    it('rejects batch uploads while migration prepare is already in flight', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
 
       await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
         /migration is in progress/
