@@ -25,6 +25,7 @@
 
 import * as z from 'zod'
 
+import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 
@@ -66,14 +67,15 @@ export interface CompactPartData {
 /** Compaction anchor data — marks where a runtime context compaction completed. */
 export type CompactionAnchorPartData = CompactionAnchorData
 
-/** Latest provider retry observed during an agent turn. Persisted with the assistant message. */
-export interface AgentApiRetryPartData {
-  attempt: number
-  maxRetries: number
-  retryDelayMs: number
-  errorStatus: number | null
-  errorCategory: string
-  subagentType?: string
+/**
+ * Latest provider retry observed during an agent turn. Persisted with the assistant message.
+ *
+ * Extends the ephemeral {@link AgentSessionApiRetryInfo} rather than restating it: the durable part is
+ * written as `{ ...retry, startedAt }`, so a new field on the SDK contract would otherwise be spread
+ * into the stored payload untyped and the renderer would read a field its own type does not declare.
+ */
+export type AgentApiRetryPartData = AgentSessionApiRetryInfo & {
+  /** When this attempt's backoff started — the renderer counts `retryDelayMs` down from here. */
   startedAt: string
 }
 
