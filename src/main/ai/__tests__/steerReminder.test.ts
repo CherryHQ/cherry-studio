@@ -50,8 +50,14 @@ describe('wrapSteerReminder', () => {
 })
 
 describe('renderBackgroundTasksNote', () => {
-  it('returns undefined for an empty task list', () => {
-    expect(renderBackgroundTasksNote([])).toBeUndefined()
+  // The driver publishes an empty membership snapshot ahead of the terminal edge while the runtime
+  // still holds the work, so the caller has already established "still running" — the note must not
+  // read as "nothing is running" in that window.
+  it('still warns about pending work when the task snapshot is momentarily empty', () => {
+    const note = renderBackgroundTasksNote([])
+    expect(note).toContain('Background tasks started by an earlier turn are still running')
+    expect(note).not.toMatch(/\b0 background tasks\b/)
+    expect(note).toContain('Do not start duplicate work')
   })
 
   it('lists task descriptions with a singular/plural header', () => {

@@ -1093,6 +1093,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
+    // Read before `closeEntry` resets the runtime state: dropping the entry is what makes a held
+    // topic stream unresolvable, so this is the last moment that still knows a hold is owed one.
+    const { topicId, modelId } = entry
+    const heldTopic = willAgentSessionRuntimeContinue(entry.runtimeState)
     let closing: Promise<void>
     try {
       closing = this.closeEntry(entry)
@@ -1104,6 +1108,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
+      // Nothing can produce the held stream's receive-only wake or drain its work once the entry is
+      // gone, so settle the hold here instead of stranding it in `activeStreams` forever.
+      if (heldTopic) {
+        void application
+          .get('AiStreamManager')
+          .finalizeHeldTopicStream(topicId, modelId)
+          .catch((err) => logger.warn('Failed to finalize held topic stream', { sessionId, err }))
+      }
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
@@ -2218,10 +2230,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private backgroundTasksAdmissionNote(entry: AgentSessionRuntimeEntry): string | undefined {
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return undefined
     const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
-    const note = renderBackgroundTasksNote(
+    // The held occupancy is the authority on "work is still running"; the snapshot only names it, and
+    // the driver publishes empty membership ahead of the terminal edge — so an empty snapshot must
+    // not silence the reminder.
+    return renderBackgroundTasksNote(
       (tasks ?? []).map((task) => task.description).filter((description) => description.trim().length > 0)
     )
-    return note || undefined
   }
 
   private handleBackgroundWorkState(
@@ -2629,6 +2643,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
     }
+    // A dead connection can never deliver the receive-only wake the hold was opened for, so this
+    // detach is one of the "no successor is coming" edges the held stream has to be settled on.
+    this.releaseDrainedTopicStream(entry)
     const cache = application.get('CacheService')
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
