@@ -8,14 +8,17 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   assertNotesPathNotMutatingDuringMigration,
   beginNotesBatchMarkdownUpload,
+  beginNotesFilesystemMutation,
   completeNotesMigrationCommit,
   endNotesBatchMarkdownUpload,
+  endNotesFilesystemMutation,
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
   tryBeginNotesDirectoryMigration,
-  waitForNotesBatchMarkdownUploadsIdle
+  waitForNotesBatchMarkdownUploadsIdle,
+  waitForNotesFilesystemMutationsIdle
 } from '../migrationSession'
 
 describe('notes migration session', () => {
@@ -56,6 +59,21 @@ describe('notes migration session', () => {
   it('rejects new batch uploads while a migration session is in flight', () => {
     expect(tryBeginNotesDirectoryMigration()).toBe(true)
     expect(() => beginNotesBatchMarkdownUpload()).toThrow(/migration is in progress/)
+  })
+
+  it('waits for in-flight filesystem mutations before installing the write barrier', async () => {
+    beginNotesFilesystemMutation()
+    const idle = waitForNotesFilesystemMutationsIdle()
+    let settled = false
+    void idle.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    endNotesFilesystemMutation()
+    await idle
+    expect(settled).toBe(true)
   })
 
   it('releases the session only when commit matches the active migration id', () => {

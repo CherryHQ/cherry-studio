@@ -2,8 +2,10 @@ export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
   assertNotesPathNotMutatingDuringMigration,
   beginNotesBatchMarkdownUpload,
+  beginNotesFilesystemMutation,
   completeNotesMigrationCommit,
   endNotesBatchMarkdownUpload,
+  endNotesFilesystemMutation,
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   isNotesMigrationWriteBlockedError,
@@ -12,6 +14,8 @@ export {
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,
   tryBeginNotesDirectoryMigration,
-  waitForNotesBatchMarkdownUploadsIdle
+  waitForNotesBatchMarkdownUploadsIdle,
+  waitForNotesFilesystemMutationsIdle,
+  withNotesFilesystemMutation
 } from './migrationSession'
 export { rendererEditFlushCoordinator } from './rendererEditFlush'

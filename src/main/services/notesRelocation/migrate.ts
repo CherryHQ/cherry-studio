@@ -174,9 +174,16 @@ export async function migrateNotesDirectory(
         `target already has ${conflicts.length} conflicting entries`
       )
     }
+  } else {
+    const targetBeforeCopy = scanNotesDirectory(resolvedTarget)
+    if (targetBeforeCopy.fileCount > 0) {
+      throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY, 'target already contains files')
+    }
   }
 
-  const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
+  const copyOptions = options.merge
+    ? { skipExistingFiles: true as const }
+    : { failOnExistingDestination: true as const }
 
   try {
     for (const entry of entries) {
@@ -195,6 +202,12 @@ export async function migrateNotesDirectory(
           }
           if (copyOptions?.skipExistingFiles) {
             continue
+          }
+          if (copyOptions?.failOnExistingDestination) {
+            throw new IpcError(
+              notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+              'target already contains files'
+            )
           }
         }
         await fs.promises.copyFile(from, to)
@@ -221,6 +234,10 @@ export async function migrateNotesDirectory(
     if (error instanceof IpcError) {
       throw error
     }
-    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FAILED, (error as Error).message)
+    const message = (error as Error).message
+    if (message.includes('Destination file already exists')) {
+      throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY, 'target already contains files')
+    }
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FAILED, message)
   }
 }

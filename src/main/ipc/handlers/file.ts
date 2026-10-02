@@ -11,7 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { assertNotesPathNotMutatingDuringMigration } from '@main/services/notesRelocation'
+import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -65,11 +65,12 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       return await dispatchHandle(
         handle as FileHandle,
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
-        async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          assertNotesPathNotMutatingDuringMigration(path)
-          return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
-        }
+        (path) =>
+          withNotesFilesystemMutation(async () => {
+            await assertOutsideManagedStorageMutation(path)
+            assertNotesPathNotMutatingDuringMigration(path)
+            return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+          })
       )
     } catch (error) {
       if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
@@ -143,11 +144,12 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   // Guard the destination only: sources legitimately live inside managed storage
   // (attachments, generated images) and copying reads them without mutating.
   'file.copy': async ({ sourcePath, destPath }, { senderId }) => {
-    // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
-    await assertOutsideManagedStorageMutation(destPath)
-    assertNotesPathNotMutatingDuringMigration(destPath)
-    await copyNew(sourcePath, destPath)
+    await withNotesFilesystemMutation(async () => {
+      await assertOutsideManagedStorageMutation(destPath)
+      assertNotesPathNotMutatingDuringMigration(destPath)
+      await copyNew(sourcePath, destPath)
+    })
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
@@ -179,9 +181,10 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const owner = senderWebContents(senderId)
     if (owner) application.get('DirectoryTreeManager').dispose(treeId, owner.id)
   },
-  'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) => {
-    assertNotesPathNotMutatingDuringMigration(oldPath)
-    const owner = senderWebContents(senderId)
-    return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
-  }
+  'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) =>
+    withNotesFilesystemMutation(async () => {
+      assertNotesPathNotMutatingDuringMigration(oldPath)
+      const owner = senderWebContents(senderId)
+      return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
+    })
 }
