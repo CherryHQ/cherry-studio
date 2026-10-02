@@ -119,21 +119,29 @@ export function MinimalSidebarFooter() {
   return (
     <>
       {minimalMode?.enabled && (
-        <div className="flex shrink-0 items-center gap-1 border-t-[0.5px] border-border px-2 py-1">
-          <Tooltip content={name}>
-            <Button variant="ghost" size="icon" aria-label={name} onClick={() => UserPopup.show()}>
-              <UserAvatar user={{ name, avatar }} className="size-6" ring={false} />
-            </Button>
-          </Tooltip>
+        <div className="flex shrink-0 items-center gap-0.5 border-t-[0.5px] border-border px-2 py-1.5">
           <Button
             variant="ghost"
-            className="group flex-1 justify-start"
-            onClick={() => minimalMode.openFeature('/settings')}>
-            <Settings className="size-4 text-muted-foreground! group-hover:text-foreground!" />
-            {t('settings.title')}
+            className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1"
+            aria-label={name}
+            onClick={() => UserPopup.show()}>
+            <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" ring={false} />
+            <span className="truncate text-sm">{name}</span>
           </Button>
+          <Tooltip content={t('settings.title')} placement="top" delay={800}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="group size-[30px] shrink-0 rounded-md"
+              aria-label={t('settings.title')}
+              onClick={() => minimalMode.openFeature('/settings')}>
+              <Settings className="size-4 text-muted-foreground! group-hover:text-foreground!" strokeWidth={1.6} />
+            </Button>
+          </Tooltip>
           <HelpMenu
             layout="icon"
+            triggerClassName="size-[30px] rounded-md [&_svg]:size-4"
+            tooltipPlacement="top"
             onFeedbackClick={() => {
               setFeedbackDialogMounted(true)
               setFeedbackOpen(true)
