@@ -16,8 +16,9 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  * filter on top.
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
+  const enabled = query?.enabled !== false
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
-    enabled: query?.enabled !== false,
+    enabled,
     query: {
       limit: query?.limit ?? AGENTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {}),
@@ -26,7 +27,7 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
   })
   // Agent membership changes broadcast from any window; without this
   // subscription the library's own reads never refetch on them.
-  useDataChange('/agents', () => void refetch())
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
 
   const items = data?.items ?? []
   const stableRefetch = useCallback(() => refetch(), [refetch])
