@@ -1,7 +1,9 @@
 export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
 export {
   assertNotesPathNotMutatingDuringMigration,
+  beginNotesBatchMarkdownUpload,
   completeNotesMigrationCommit,
+  endNotesBatchMarkdownUpload,
   getNotesMigrationSessionId,
   isNotesDirectoryMigrationInFlight,
   isNotesMigrationWriteBlockedError,
@@ -9,6 +11,7 @@ export {
   releaseNotesMigrationSession,
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,
-  tryBeginNotesDirectoryMigration
+  tryBeginNotesDirectoryMigration,
+  waitForNotesBatchMarkdownUploadsIdle
 } from './migrationSession'
 export { rendererEditFlushCoordinator } from './rendererEditFlush'
