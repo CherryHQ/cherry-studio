@@ -71,9 +71,11 @@ const NotesSettings: FC = () => {
       }
 
       const resolvedSource = await resolveNotesPath(notesPath || '')
+      const migrationSourcePath =
+        resolvedSource.isFallback && notesPath ? notesPath : resolvedSource.path
       await migrateNotesDirectoryWithUi({
         t,
-        sourcePath: resolvedSource.path,
+        sourcePath: migrationSourcePath,
         targetPath: tempPath,
         onSuccess: async (path) => {
           await updateNotesPath(path)

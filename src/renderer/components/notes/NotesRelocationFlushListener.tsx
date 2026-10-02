@@ -4,7 +4,8 @@ import { loggerService } from '@logger'
 import {
   flushAllNotesEdits,
   lockNotesEditsForRelocation,
-  unlockNotesEditsForRelocation
+  unlockNotesEditsForRelocation,
+  waitForStructuralNotesWritesToSettle
 } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 
@@ -26,6 +27,7 @@ export const NotesRelocationFlushListener: FC = () => {
     lockNotesEditsForRelocation()
     let ok = true
     try {
+      await waitForStructuralNotesWritesToSettle()
       await flushAllNotesEdits()
     } catch (error) {
       ok = false
