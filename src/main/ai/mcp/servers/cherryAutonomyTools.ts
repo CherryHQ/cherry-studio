@@ -30,7 +30,7 @@ import {
   listDetachedBackgroundTasks,
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
-import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
+import { saveBackgroundTaskRecord, saveBackgroundTaskRecords } from '@main/ai/agents/backgroundTaskStore'
 import {
   detectDestructiveAssistantCommand,
   isGitHubIssueCreationCommand,
@@ -1065,7 +1065,7 @@ export class CherryAutonomyTools {
 
   private async listBackgroundTasks() {
     const tasks = await listDetachedBackgroundTasks(this.backgroundTaskStorageDir)
-    for (const task of tasks) this.indexBackgroundTask(task)
+    this.indexBackgroundTasks(tasks)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ tasks }, null, 2) }]
     }
@@ -1090,6 +1090,15 @@ export class CherryAutonomyTools {
       saveBackgroundTaskRecord(this.agentId, record)
     } catch (error) {
       logger.error('Failed to index detached background task', { taskId: record.id, error })
+    }
+  }
+
+  /** One transaction for the whole listing, so a large task set costs one write, not one per row. */
+  private indexBackgroundTasks(records: BackgroundTaskRecord[]): void {
+    try {
+      saveBackgroundTaskRecords(this.agentId, records)
+    } catch (error) {
+      logger.error('Failed to index detached background tasks', { agentId: this.agentId, error })
     }
   }
 
