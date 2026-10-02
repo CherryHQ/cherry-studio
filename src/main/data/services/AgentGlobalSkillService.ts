@@ -36,7 +36,11 @@ export class AgentGlobalSkillService {
   }
 
   getById(id: string): InstalledSkill | null {
-    const rows = this.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.db, id)
+  }
+
+  getByIdTx(tx: DbOrTx, id: string): InstalledSkill | null {
+    const rows = tx.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
     if (!rows[0]) return null
     return this.rowToInstalledSkill(rows[0])
   }
@@ -189,6 +193,38 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+  }
+
+  /** Publish the agent-scoped Skill projection only after its caller-owned transaction commits. */
+  notifyAgentSkillChange(skillId: string): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      }
+    ])
+  }
+
+  notifySkillProjectionChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [skillId] },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
+  notifySkillMembershipChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'membership', entityIds: [skillId] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
   }
 
   /**

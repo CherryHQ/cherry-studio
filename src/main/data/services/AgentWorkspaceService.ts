@@ -1,11 +1,13 @@
 import path from 'path'
 
-import { and, asc, count, desc, eq } from 'drizzle-orm'
+import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -88,7 +90,54 @@ export class AgentWorkspaceService {
     const rows = db
       .select()
       .from(agentWorkspaceTable)
-      .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
+      .where(
+        options.includeSystem
+          ? undefined
+          : and(
+              eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER),
+              or(
+                notExists(
+                  db
+                    .select({ id: sessionsTable.id })
+                    .from(sessionsTable)
+                    .where(
+                      and(eq(sessionsTable.workspaceId, agentWorkspaceTable.id), eq(sessionsTable.type, 'background'))
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: sessionsTable.id })
+                    .from(sessionsTable)
+                    .where(
+                      and(eq(sessionsTable.workspaceId, agentWorkspaceTable.id), ne(sessionsTable.type, 'background'))
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: agentChannelTable.id })
+                    .from(agentChannelTable)
+                    .where(
+                      and(
+                        sql`json_extract(${agentChannelTable.workspace}, '$.type') = 'user'`,
+                        sql`json_extract(${agentChannelTable.workspace}, '$.workspaceId') = ${agentWorkspaceTable.id}`
+                      )
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: jobScheduleTable.id })
+                    .from(jobScheduleTable)
+                    .where(
+                      and(
+                        eq(jobScheduleTable.type, 'agent.task'),
+                        sql`json_extract(${jobScheduleTable.jobInputTemplate}, '$.workspace.type') = 'user'`,
+                        sql`json_extract(${jobScheduleTable.jobInputTemplate}, '$.workspace.workspaceId') = ${agentWorkspaceTable.id}`
+                      )
+                    )
+                )
+              )
+            )
+      )
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
     return rows.map(rowToAgentWorkspace)
@@ -267,13 +316,19 @@ export class AgentWorkspaceService {
    * with, user data: deleting a referenced row would cascade unrelated
    * sessions and leave dangling template references.
    *
+   * @param expectedPath Only delete when the row still points at this owned directory.
    * @returns Whether the row was deleted.
    */
-  deleteIfUnreferencedTx(tx: DbOrTx, id: string): boolean {
+  deleteIfUnreferencedTx(tx: DbOrTx, id: string, expectedPath?: string): boolean {
     const [row] = tx
       .select({ id: agentWorkspaceTable.id })
       .from(agentWorkspaceTable)
-      .where(eq(agentWorkspaceTable.id, id))
+      .where(
+        and(
+          eq(agentWorkspaceTable.id, id),
+          expectedPath === undefined ? undefined : eq(agentWorkspaceTable.path, expectedPath)
+        )
+      )
       .limit(1)
       .all()
     if (!row) return false

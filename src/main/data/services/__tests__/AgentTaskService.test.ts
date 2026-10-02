@@ -142,7 +142,8 @@ describe('AgentTaskService (read side)', () => {
       { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
       { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
   })
 

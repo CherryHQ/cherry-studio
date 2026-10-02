@@ -33,7 +33,6 @@ import type {
   TaskGetOutput,
   TaskListInput,
   TaskListOutput,
-  TaskOutputInput,
   TaskStopInput,
   TaskStopOutput,
   TaskUpdateInput,
@@ -80,7 +79,12 @@ export type TaskToolOutput = AgentOutput | TextOutput[]
 export type AgentToolInput = AgentInput
 export type AgentToolOutput = AgentOutput | TextOutput[]
 
-export type TaskOutputToolInput = TaskOutputInput
+// Historical TaskOutput messages still need rendering after the SDK removed its input type.
+export type TaskOutputToolInput = {
+  task_id: string
+  block: boolean
+  timeout: number
+}
 export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
 export type TaskStopToolInput = TaskStopInput
@@ -124,7 +128,7 @@ export type MultiEditToolInput = {
 }
 export type MultiEditToolOutput = string
 
-export type BashOutputToolInput = Partial<TaskOutputInput> & {
+export type BashOutputToolInput = Partial<TaskOutputToolInput> & {
   bash_id?: string
   filter?: string
 }

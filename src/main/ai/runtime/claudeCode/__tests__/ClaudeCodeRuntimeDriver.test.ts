@@ -777,6 +777,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
   })
 
+  it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const cleanup = createDeferred<IteratorResult<void>>()
+      const exited = createDeferred<void>()
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, close: vi.fn(), return: () => cleanup.promise }
+      mocks.consumeWarmQuery.mockResolvedValue({
+        warmQuery: { query: () => query },
+        processDiagnostics: { reference: 'slow-close', exited: exited.promise }
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      let state = 'pending'
+      const closing = connection.closeForEdit!().then(
+        () => {
+          state = 'closed'
+        },
+        () => {
+          state = 'failed'
+        }
+      )
+      await vi.advanceTimersByTimeAsync(20_001)
+      expect(state).toBe('pending')
+      cleanup.resolve({ value: undefined, done: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(state).toBe('pending')
+      exited.resolve()
+      await closing
+      expect(state).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

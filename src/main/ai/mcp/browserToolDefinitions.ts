@@ -86,7 +86,9 @@ export const interactionSchemas = {
   click: z.strictObject({
     ...refShape,
     button: z.enum(['left', 'right', 'middle']).default('left'),
-    clickCount: z.union([z.literal(1), z.literal(2)]).default(1)
+    // Bounded number, not `z.union([z.literal(1), z.literal(2)])`: that serializes to an `anyOf` of
+    // numeric consts, which @ai-sdk/google maps to non-string enums — Gemini rejects the request (400).
+    clickCount: z.number().int().min(1).max(2).default(1).describe('Number of clicks: 1 (default) or 2.')
   }),
   hover: z.strictObject(refShape),
   scroll: z.strictObject({

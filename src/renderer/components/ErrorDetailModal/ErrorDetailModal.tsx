@@ -1,12 +1,11 @@
 import { ArrowLeft, Copy, FileUp } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -173,60 +172,11 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
 
 const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
-  const tRef = useRef(t)
-  useEffect(() => {
-    tRef.current = t
-  }, [t])
-
-  const { highlightCode } = useCodeStyle()
-  const [highlightedString, setHighlightedString] = useState('')
-  const [isTruncated, setIsTruncated] = useState(false)
-  const cause = error.cause
-
-  useEffect(() => {
-    const highlight = async () => {
-      try {
-        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', tRef.current)
-        setIsTruncated(truncated)
-
-        if (isLikelyBase64) {
-          setHighlightedString(truncatedCause)
-          return
-        }
-
-        try {
-          const parsed = JSON.parse(truncatedCause || '{}')
-          const formatted = JSON.stringify(parsed, null, 2)
-          const result = await highlightCode(formatted, 'json')
-          setHighlightedString(result)
-        } catch {
-          setHighlightedString(truncatedCause || '')
-        }
-      } catch {
-        setHighlightedString(cause || '')
-      }
-    }
-    const timer = setTimeout(highlight, 0)
-
-    return () => clearTimeout(timer)
-  }, [highlightCode, cause])
 
   return (
     <>
       <BuiltinError error={error} />
-      {cause && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>
-            {t('error.cause')}:{isTruncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
-          </ErrorDetailLabel>
-          <ErrorDetailValue>
-            <div
-              className="markdown [&_pre]:bg-transparent! [&_pre_span]:whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: highlightedString }}
-            />
-          </ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
+      {error.cause && <TruncatedCodeViewer value={error.cause} label={t('error.cause')} />}
     </>
   )
 })
