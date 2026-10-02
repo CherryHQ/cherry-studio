@@ -31,6 +31,7 @@
   "apiGateway.docs.tags.gemini": "Эндпоинты, совместимые с Gemini; как и в оригинальном API, доступны по пути `/v1beta`.",
   "apiGateway.docs.tags.openai": "Эндпоинты, совместимые с OpenAI. Укажите базовый URL этого шлюза в OpenAI SDK, чтобы их использовать.",
   "appMenu.about": "О программе",
+  "appMenu.center": "По центру",
   "appMenu.close": "Закрыть окно",
   "appMenu.copy": "Копировать",
   "appMenu.cut": "Вырезать",

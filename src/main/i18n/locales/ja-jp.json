@@ -31,6 +31,7 @@
   "apiGateway.docs.tags.gemini": "Gemini 互換のエンドポイントです。本家と同じく `/v1beta` 以下で提供されます。",
   "apiGateway.docs.tags.openai": "OpenAI 互換のエンドポイントです。OpenAI SDK のベース URL をこのゲートウェイに向けると利用できます。",
   "appMenu.about": "について",
+  "appMenu.center": "中央",
   "appMenu.close": "ウィンドウを閉じる",
   "appMenu.copy": "コピー",
   "appMenu.cut": "切り取り",
