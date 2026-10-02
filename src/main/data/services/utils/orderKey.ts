@@ -161,10 +161,10 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
 
   let keys: string[]
   if (position === 'last') {
-    const largest = selectBoundaryKey(tx, table, 'last', scope)
+    const largest = selectRepairedBoundaryKey(tx, table, 'last', scope)
     keys = generateOrderKeySequenceBetween(largest, null, valuesList.length)
   } else {
-    const smallest = selectBoundaryKey(tx, table, 'first', scope)
+    const smallest = selectRepairedBoundaryKey(tx, table, 'first', scope)
     keys = generateOrderKeySequenceBetween(null, smallest, valuesList.length)
   }
 
@@ -419,6 +419,83 @@ function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' 
     .all()
   const first = rows[0] as { orderKey: string | null } | undefined
   return first?.orderKey ?? null
+}
+
+/**
+ * Probe whether `fractional-indexing` accepts `key` as a generator anchor.
+ * The library's `validateOrderKey` is not exported, so validity is probed by
+ * running a throwaway generation against the key — the generator itself stays
+ * the single source of truth for key syntax.
+ */
+function isValidOrderKey(key: string): boolean {
+  try {
+    generateKeyBetween(key, null)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Walk from `fromKey` towards the scope interior (down for `predecessor`, up
+ * for `successor`) and return the first generator-valid key; `null` when the
+ * remaining neighbourhood is empty or entirely invalid.
+ */
+function findNearestValidOrderKey(
+  tx: TxLike,
+  table: TableWithOrderKey,
+  side: 'predecessor' | 'successor',
+  fromKey: string,
+  scope?: SQL
+): string | null {
+  let cursor = fromKey
+  for (;;) {
+    const candidate = selectAdjacentKey(tx, table, side, cursor, scope)
+    if (candidate === null) return null
+    if (isValidOrderKey(candidate)) return candidate
+    cursor = candidate
+  }
+}
+
+/**
+ * Return the scoped boundary key for an insert, repairing legacy rows whose
+ * stored key the generator rejects (#21282): rows written by older releases
+ * (e.g. the `zz` end-of-list sentinel) would otherwise abort the whole insert —
+ * including the boot-time provider registry sync — with `invalid order key`.
+ *
+ * Each offending boundary value is re-keyed just past the nearest valid
+ * neighbour (or to a fresh start key when none exists) and a warning logged;
+ * the insert then proceeds normally. All rows sharing the offending value are
+ * re-keyed onto the same new key — they were mutually unordered anyway. The
+ * loop terminates because every pass removes one distinct invalid value.
+ */
+function selectRepairedBoundaryKey(
+  tx: TxLike,
+  table: TableWithOrderKey,
+  which: 'first' | 'last',
+  scope?: SQL
+): string | null {
+  let boundary = selectBoundaryKey(tx, table, which, scope)
+  while (boundary !== null && !isValidOrderKey(boundary)) {
+    const nearestValid = findNearestValidOrderKey(
+      tx,
+      table,
+      which === 'last' ? 'predecessor' : 'successor',
+      boundary,
+      scope
+    )
+    const newKey =
+      which === 'last' ? generateOrderKeyBetween(nearestValid, null) : generateOrderKeyBetween(null, nearestValid)
+    const where = scope ? and(eq(table.orderKey, boundary), scope)! : eq(table.orderKey, boundary)
+    tx.update(table).set({ orderKey: newKey }).where(where).run()
+    logger.warn('insertManyWithOrderKey: re-keyed legacy invalid order key', {
+      table: getTableName(table),
+      invalidKey: boundary,
+      newKey
+    })
+    boundary = newKey
+  }
+  return boundary
 }
 
 /**

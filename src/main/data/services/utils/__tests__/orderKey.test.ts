@@ -593,6 +593,100 @@ describe('orderKey', () => {
       expect(inserted.map((r) => r.appKey)).toEqual(['one', 'two'])
       expect(inserted[1].orderKey > inserted[0].orderKey).toBe(true)
     })
+
+    // --- legacy invalid boundary keys (#21282) ---
+
+    // Raw-seed rows with orderKey values written verbatim, bypassing the
+    // generator — the only way to reproduce rows left by older releases.
+    function seedRawKeys(entries: Array<{ id: string; orderKey: string; scope?: string }>): void {
+      dbh.db.insert(fxTable).values(entries).run()
+    }
+
+    // The library's validateOrderKey is not exported; the generator wrapper is
+    // the source of truth for whether a stored key is usable as an anchor.
+    function expectValidOrderKey(key: string): void {
+      expect(() => generateOrderKeyBetween(key, null)).not.toThrow()
+    }
+
+    it("survives a legacy 'zz' tail row: re-keys it to a valid key and appends the batch", async () => {
+      seedRawKeys([
+        { id: 'keep-a', orderKey: 'a0' },
+        { id: 'legacy', orderKey: 'zz' }
+      ])
+
+      const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
+        pkColumn: fxTable.id
+      }) as Array<{ id: string; orderKey: string }>
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      // No row lost, batch appended after the re-keyed row in input order.
+      expect(rows.map((r) => r.id)).toEqual(['keep-a', 'legacy', 'new-1', 'new-2'])
+      // Every stored key is now generator-valid, and the offender was
+      // re-keyed — not deleted, not left as 'zz'.
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+      expect(rows.find((r) => r.id === 'legacy')!.orderKey).not.toBe('zz')
+      // Rows that were already valid are untouched.
+      expect(rows.find((r) => r.id === 'keep-a')!.orderKey).toBe('a0')
+      expect(inserted.map((r) => r.id)).toEqual(['new-1', 'new-2'])
+    })
+
+    it("survives a legacy 'zz' row in an otherwise empty table", async () => {
+      seedRawKeys([{ id: 'legacy', orderKey: 'zz' }])
+
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }], { pkColumn: fxTable.id })
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(rows.map((r) => r.id)).toEqual(['legacy', 'new-1'])
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+      expect(rows.find((r) => r.id === 'legacy')!.orderKey).not.toBe('zz')
+    })
+
+    it('re-keys every row sharing the invalid tail key', async () => {
+      seedRawKeys([
+        { id: 'legacy-1', orderKey: 'zz' },
+        { id: 'legacy-2', orderKey: 'zz' }
+      ])
+
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }], { pkColumn: fxTable.id })
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(rows.map((r) => r.id)).toHaveLength(3)
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+    })
+
+    it("survives an invalid head row when position='first'", async () => {
+      seedRawKeys([
+        { id: 'legacy', orderKey: '0' },
+        { id: 'keep-a', orderKey: 'a1' }
+      ])
+
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }], { pkColumn: fxTable.id, position: 'first' })
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(rows.map((r) => r.id)).toEqual(['new-1', 'legacy', 'keep-a'])
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+      expect(rows.find((r) => r.id === 'legacy')!.orderKey).not.toBe('0')
+      expect(rows.find((r) => r.id === 'keep-a')!.orderKey).toBe('a1')
+    })
+
+    it('with scope: repairs and appends only within the target scope', async () => {
+      seedRawKeys([
+        { id: 's1-keep', orderKey: 'a0', scope: 's1' },
+        { id: 's1-legacy', orderKey: 'zz', scope: 's1' },
+        { id: 's2-keep', orderKey: 'b0', scope: 's2' }
+      ])
+
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 's1-new', scope: 's1' }], {
+        pkColumn: fxTable.id,
+        scope: eq(fxTable.scope, 's1')
+      })
+
+      const s1Rows = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's1')).orderBy(asc(fxTable.orderKey))
+      expect(s1Rows.map((r) => r.id)).toEqual(['s1-keep', 's1-legacy', 's1-new'])
+      for (const row of s1Rows) expectValidOrderKey(row.orderKey)
+      const [s2Row] = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's2'))
+      expect(s2Row.orderKey).toBe('b0')
+    })
   })
 
   // --- applyScopedMoves ---
