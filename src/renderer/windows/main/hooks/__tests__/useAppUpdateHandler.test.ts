@@ -4,11 +4,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AppEventSchemas } from '@shared/ipc/schemas/app'
 
+const GITHUB_RELEASES_URL = 'https://github.com/CherryHQ/cherry-studio/releases'
+
+const currentPayload: AppEventSchemas['app.updater.not_available'] = {
+  currentVersion: '1.0.0',
+  feedVersion: '1.0.0',
+  isCurrent: true
+}
+
+const withheldPayload: AppEventSchemas['app.updater.not_available'] = {
+  currentVersion: '2.0.13',
+  feedVersion: '2.0.9',
+  isCurrent: false
+}
+
 const mocks = vi.hoisted(() => ({
   appUpdateState: { manualCheck: false },
   handlers: new Map<string, (payload: unknown) => void>(),
+  ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   notificationSend: vi.fn(),
+  popupConfirm: vi.fn(),
   popupInfo: vi.fn(),
   toastSuccess: vi.fn(),
   updateAppUpdateState: vi.fn(),
@@ -29,6 +45,7 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest },
   useIpcOn: (event: string, handler: (payload: unknown) => void) => {
     mocks.handlers.set(event, handler)
   }
@@ -39,7 +56,7 @@ vi.mock('@renderer/services/notification', () => ({
 }))
 
 vi.mock('@renderer/services/popup', () => ({
-  popup: { info: mocks.popupInfo }
+  popup: { confirm: mocks.popupConfirm, info: mocks.popupInfo }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -91,6 +108,8 @@ describe('useAppUpdateHandler', () => {
     vi.clearAllMocks()
     mocks.handlers.clear()
     mocks.appUpdateState.manualCheck = false
+    mocks.popupConfirm.mockResolvedValue(false)
+    mocks.ipcRequest.mockResolvedValue(undefined)
   })
 
   it('maps available and progress events to the update state and notification', () => {
@@ -122,7 +141,7 @@ describe('useAppUpdateHandler', () => {
   it('uses the latest manual-check state to surface no-update and downloaded results', async () => {
     const { rerender } = renderHook(() => useAppUpdateHandler())
 
-    emit('app.updater.not_available', undefined)
+    emit('app.updater.not_available', currentPayload)
     emit('app.updater.downloaded', releaseInfo)
 
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
@@ -131,7 +150,7 @@ describe('useAppUpdateHandler', () => {
     mocks.appUpdateState.manualCheck = true
     rerender()
 
-    emit('app.updater.not_available', undefined)
+    emit('app.updater.not_available', currentPayload)
     emit('app.updater.downloaded', releaseInfo)
 
     expect(mocks.toastSuccess).toHaveBeenCalledExactlyOnceWith('settings.about.updateNotAvailable')
@@ -141,6 +160,60 @@ describe('useAppUpdateHandler', () => {
       info: releaseInfo,
       downloaded: true
     })
+  })
+
+  it('never reports a withheld feed as up to date and offers the manual download', async () => {
+    mocks.popupConfirm.mockResolvedValue(true)
+    mocks.appUpdateState.manualCheck = true
+    renderHook(() => useAppUpdateHandler())
+
+    emit('app.updater.not_available', withheldPayload)
+
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(mocks.popupConfirm).toHaveBeenCalledExactlyOnceWith({
+        title: 'settings.about.updateError',
+        content: 'settings.about.updateNotPublished',
+        okText: 'settings.about.releases.button',
+        cancelText: 'common.cancel',
+        icon: null
+      })
+    )
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('system.shell.open_website', GITHUB_RELEASES_URL)
+    )
+  })
+
+  it('stays on the withheld explanation when the user dismisses the download offer', async () => {
+    mocks.popupConfirm.mockResolvedValue(false)
+    mocks.appUpdateState.manualCheck = true
+    renderHook(() => useAppUpdateHandler())
+
+    emit('app.updater.not_available', withheldPayload)
+
+    await waitFor(() => expect(mocks.popupConfirm).toHaveBeenCalledOnce())
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('stays silent about a withheld feed for background checks', () => {
+    renderHook(() => useAppUpdateHandler())
+
+    emit('app.updater.not_available', withheldPayload)
+
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.popupConfirm).not.toHaveBeenCalled()
+    expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, manualCheck: false })
+  })
+
+  it('fails closed to the up-to-date toast on a version-skewed void payload', () => {
+    mocks.appUpdateState.manualCheck = true
+    renderHook(() => useAppUpdateHandler())
+
+    emit('app.updater.not_available', undefined as unknown as AppEventSchemas['app.updater.not_available'])
+
+    expect(mocks.toastSuccess).toHaveBeenCalledExactlyOnceWith('settings.about.updateNotAvailable')
+    expect(mocks.popupConfirm).not.toHaveBeenCalled()
   })
 
   it('always resets failures but only interrupts a manual check with an error popup', () => {

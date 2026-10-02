@@ -136,7 +136,11 @@ import { WindowType } from '@main/core/window/types'
 // to all windows (ThemeService)
 application.get('IpcApiService').broadcast('system.native_theme_updated', theme)
 // to all windows of one type (AppUpdaterService)
-application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', {
+  currentVersion,
+  feedVersion,
+  isCurrent
+})
 // to one window (WindowManager)
 application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
 ```

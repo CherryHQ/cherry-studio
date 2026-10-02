@@ -3,6 +3,7 @@ import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
+import semver from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -15,6 +16,7 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
@@ -158,8 +160,14 @@ export class AppUpdaterService extends BaseService {
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
-    const onUpdateNotAvailable = () => {
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+    const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
+      const payload = this.resolveNotAvailablePayload(updateInfo)
+      if (!payload.isCurrent) {
+        logger.warn(
+          `managed feed target ${payload.feedVersion} differs from installed ${payload.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
+        )
+      }
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
@@ -411,6 +419,21 @@ export class AppUpdaterService extends BaseService {
   public quitAndInstall() {
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  }
+
+  /** Feed/install mismatch means withheld (withdrawn/stale/staged); prerelease installs and unparseable versions stay current. */
+  private resolveNotAvailablePayload(updateInfo: UpdateInfo | null | undefined): AppUpdaterNotAvailablePayload {
+    const currentVersion = app.getVersion()
+    const feedVersion = updateInfo?.version || null
+    let isCurrent = true
+    if (feedVersion) {
+      try {
+        isCurrent = semver.eq(feedVersion, currentVersion) || semver.prerelease(currentVersion) !== null
+      } catch {
+        // Unparseable versions fail closed to current.
+      }
+    }
+    return { currentVersion, feedVersion, isCurrent }
   }
 
   /**
