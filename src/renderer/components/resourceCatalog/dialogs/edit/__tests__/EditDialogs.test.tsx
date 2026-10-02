@@ -352,7 +352,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
           'library.config.agent.field.model.hint': 'Primary agent model.',
+          'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
+          'library.config.agent.field.model.label.claude_code': 'Model (Opus)',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
           'library.config.agent.field.name.label': 'Name',
           'library.config.agent.field.name.placeholder': 'Name this agent',
@@ -1074,7 +1076,8 @@ describe('edit dialogs', () => {
     })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
-    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    // The trigger is named by its visible label, which is Claude Code's opus slot on this agent.
+    const modelTrigger = screen.getByRole('button', { name: 'Model (Opus)' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
@@ -1104,9 +1107,21 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Basic')
-    expectHelpTrigger('Model', 'Primary agent model.')
+    expectHelpTrigger('Model (Opus)', 'Pins the opus alias (ANTHROPIC_MODEL).')
     expectHelpTrigger('Plan model', 'Plan model.')
     expectHelpTrigger('Small model', 'Small model.')
+  })
+
+  // Only Claude Code reads ANTHROPIC_DEFAULT_*_MODEL, so a Pi agent must not be told
+  // that its primary model pins an `opus` alias it does not have.
+  it('names no Claude Code alias on a runtime that has no model tiers', () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type: 'pi' }} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model', 'Primary agent model.')
+    expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
   })
 
   // The heartbeat is turned off by its switch, so an emptied interval is a retype,
