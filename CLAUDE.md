@@ -54,7 +54,7 @@ Project-specific tools, paths, and conventions.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
-- **Check what you changed, not the whole repo**: for code, run `pnpm lint` (it covers format + typecheck + `i18n:check`) plus the tests covering your change — per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>` for a few files; full `pnpm test` only when the change is broad or you can't name the affected tests. Never use `pnpm test <path>`: the script chains several vitest invocations with `&&`, CLI args reach only the last one, and earlier projects run their full suites unfiltered. Docs/markdown-only edits need just `pnpm docs:check` (links + structure + frontmatter + index). CI runs the full gate; your job is to not obviously break it.
+- **Check what you changed, not the whole repo**: run `pnpm check --plan` to inspect the affected tasks, then `pnpm check`. It compares the branch against the merge base with `origin/main` and includes staged, unstaged, and untracked changes. Use `--base <ref>` for a stacked branch. For a focused test, use the per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>`. Docs-only changes select format and documentation checks. Unknown inputs or missing history select the full gate; `pnpm check:all` explicitly runs it.
 - **Inspect one explicit change scope**: before push, PR creation, review, and after a stack rewrite, run `pnpm change:scope --base <verified-ref>`; never guess the base or infer scope from the latest commit alone.
 - **Declare Agent Note or N/A**: every human-authored PR fills the Agent Note/Spec fields; automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement, not from normal validation. Substantial feature, architecture, process, and simplification work needs an approved proposed Spec before implementation; simple local bug fixes may use an explicit `N/A` reason. Follow [the Agent Note rules](.agents/notes/README.md).
 - **Keep docs and code aligned**: run `pnpm docs:affected --base <verified-ref>` for code changes and inspect every candidate semantically. In-scope bilingual docs update English, Chinese, and sidecar together under [the pairing contract](docs/i18n/README.md).
@@ -68,13 +68,15 @@ Project-specific tools, paths, and conventions.
 
 Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
-- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
+- `pnpm check` — affected checks and tests; `--plan` explains selection without running tasks
+- `pnpm lint` — read-only Oxlint + ESLint; `pnpm lint:fix` explicitly applies lint fixes
+- `pnpm typecheck` — all typecheck projects, run serially to limit local memory usage
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Oxfmt format (write mode)
 - `pnpm docs:check` — links + structure/frontmatter + Agent Note format + bilingual pairing + terminology/index freshness; the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate. Reference docs carry `description`/`sources`; contrib/governance docs carry `description`. `docs/README.md`, `docs/sources-index.json`, and `docs/i18n/terminology.md` are generated — edit their owners and run the matching generator.
 - `pnpm change:scope --base <ref>` — versioned committed/staged/unstaged/untracked path report against an explicit merge base.
 - `pnpm docs:affected --base <ref>` — candidate docs whose `sources` prefixes intersect that change scope; candidates require semantic inspection, not automatic edits.
-- `pnpm build:check` — `lint` + `docs:check` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm check:all` / `pnpm build:check` — full checks and tests. Fix formatting explicitly with `pnpm format`; sync and translate locale keys with `pnpm i18n:sync`.
 - `pnpm test:lint` — the CI-equivalent lint gate: Oxlint errors and warnings block CI (`--deny-warnings`); ESLint errors block CI while its warnings remain non-blocking.
 
 ### Testing
@@ -132,7 +134,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
-- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. No separate `pnpm i18n:check` run needed — `pnpm lint` includes it, and it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
+- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. `pnpm check` selects `i18n:check` for source changes; it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
 
 ### UI Design
 
