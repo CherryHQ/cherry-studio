@@ -103,6 +103,7 @@ export const appRequestSchemas = {
     output: z.void()
   }),
   'app.notes_relocation.complete': defineRoute({ input: z.void(), output: z.void() }),
+  'app.notes_relocation.release_session': defineRoute({ input: z.void(), output: z.void() }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
