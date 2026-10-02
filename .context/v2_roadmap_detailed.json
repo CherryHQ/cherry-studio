@@ -1,26 +1,35 @@
 {
-  "generated_at": "2026-10-01T00:00:00Z",
+  "generated_at": "2026-10-02T00:00:00Z",
   "v2_branch_status": {
     "open_prs_base_v2": 0,
     "note": "No open PRs targeting the v2 branch. All active development merged into main. V2 feature work tracked via labels and internal-team issues."
   },
   "active_v2_label_issues": [
-    {"number": 21085, "title": "[Bug]: File/KB scopes inline large builtin tool schemas — context overflow", "labels": ["bug","p1","rag","v2","chat"], "age_days": 3, "assignee": "404-Page-Found"},
-    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "age_days": 7, "assignee": null},
-    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation", "labels": ["bug","p1","models","v2","chat"], "age_days": 7, "assignee": null},
-    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"], "age_days": 7, "assignee": null},
-    {"number": 21051, "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart", "labels": ["bug","p2","windows","data","v2"], "age_days": 4, "assignee": "404-Page-Found"},
-    {"number": 20993, "title": "[Bug]: MCP tools/list fails when tool outputSchema has boolean sub-schema", "labels": ["bug","mcp","v2"], "age_days": 6, "assignee": null},
-    {"number": 21044, "title": "[Feature]: One-click migration when changing notes working directory", "labels": ["feature","data","v2"], "age_days": 4, "assignee": "404-Page-Found"},
-    {"number": 19625, "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed", "labels": ["bug","p1","windows","v2"], "age_days": 31, "assignee": "kangfenmao"},
-    {"number": 19929, "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "age_days": 26, "assignee": "404-Page-Found"},
-    {"number": 19379, "title": "Pi runtime: report_artifacts deliverables never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 35, "assignee": "vaayne"},
-    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 35, "assignee": "vaayne"},
-    {"number": 17949, "title": "[Bug]: V2 regression — cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 55, "assignee": null},
-    {"number": 20026, "title": "Ignore SSE keep-alive frames instead of parsing as text parts", "labels": ["bug","p1","connectivity","v2","chat"], "age_days": 24, "assignee": "SiinXu"}
+    {"number": 21085, "title": "[Bug]: File/KB scopes inline large builtin tool schemas — context overflow", "labels": ["bug","p1","rag","v2","chat"], "age_days": 5, "assignee": "404-Page-Found"},
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "age_days": 9, "assignee": null},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation", "labels": ["bug","p1","models","v2","chat"], "age_days": 9, "assignee": null},
+    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"], "age_days": 9, "assignee": null},
+    {"number": 21051, "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart", "labels": ["bug","p2","windows","data","v2"], "age_days": 6, "assignee": "404-Page-Found"},
+    {"number": 20993, "title": "[Bug]: MCP tools/list fails when tool outputSchema has boolean sub-schema", "labels": ["bug","mcp","v2"], "age_days": 8, "assignee": null},
+    {"number": 21044, "title": "[Feature]: One-click migration when changing notes working directory", "labels": ["feature","data","v2"], "age_days": 7, "assignee": "404-Page-Found"},
+    {"number": 19625, "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed", "labels": ["bug","p1","windows","v2"], "age_days": 32, "assignee": "kangfenmao"},
+    {"number": 19929, "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "age_days": 27, "assignee": "404-Page-Found"},
+    {"number": 19379, "title": "Pi runtime: report_artifacts deliverables never render", "labels": ["bug","p1","ui-ux","v2","agent"], "age_days": 36, "assignee": "vaayne"},
+    {"number": 19376, "title": "Pi runtime: auto permission mode still prompts for every tool call", "labels": ["bug","p1","assistant","v2","agent"], "age_days": 36, "assignee": "vaayne"},
+    {"number": 17949, "title": "[Bug]: V2 regression — cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 56, "assignee": null},
+    {"number": 20026, "title": "Ignore SSE keep-alive frames instead of parsing as text parts", "labels": ["bug","p1","connectivity","v2","chat"], "age_days": 25, "assignee": "SiinXu"},
+    {"number": 20374, "title": "Unable to read Word and PDF documents", "labels": ["bug","p1","needs-repro","data","v2"], "age_days": 21, "assignee": null}
   ],
   "v2_p1_open_count": 10,
   "v2_p2_open_count": 3,
+  "new_critical_unlabeled": [
+    {
+      "number": 21282,
+      "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row (worked in 2.1.3)",
+      "created_at": "2026-10-02",
+      "note": "Not yet labeled but is effectively a P1 startup regression — one bad DB row bricks all users with legacy order_key. Affects 2.1.4 upgrade path."
+    }
+  ],
   "performance_cluster": {
     "active_performance_issues": 16,
     "focus_areas": [
@@ -28,7 +37,8 @@
       "Stream parsing reliability (finish_reason missing, TypeValidation failures)",
       "Context management (KB schema overflow, 90K token ghost cache)",
       "Windows-specific agent startup blockers",
-      "MCP tool schema validation robustness"
+      "MCP tool schema validation robustness",
+      "Startup robustness: one invalid DB row kills DbService init (#21282)"
     ]
   },
   "internal_team_feature_roadmap": [
@@ -37,32 +47,40 @@
     {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "assignee": "WhiteZeek", "labels": ["p1","ui-ux","internal-team"]},
     {"number": 14910, "title": "PII Redaction via Local Models", "assignees": ["AtomsH4","lianshuang-photo"], "labels": ["feature","ui-ux"]}
   ],
+  "active_feature_branches": {
+    "voice": {
+      "prs": 5,
+      "branches": ["codex/voice-runtime-foundation", "codex/voice-renderer-foundation", "codex/voice-funasr-runtime", "codex/voice-primary-consumers"],
+      "status": "Active multi-PR voice feature development — FunASR, TTS, renderer foundation"
+    },
+    "feishu_kb": {
+      "prs": 5,
+      "branches": ["codex/issue-15970-feishu-connection", "codex/issue-15970-external-knowledge-domain", "codex/issue-15970-feishu-scope-adapter", "codex/issue-15970-manual-sync", "codex/issue-15970-lifecycle-completion"],
+      "status": "Feishu Wiki KB integration — 5 stacked PRs, active"
+    },
+    "subagent_resume": {
+      "prs": 2,
+      "branches": ["fix/subagent-resume-routing-a", "fix/subagent-resume-rendering-b"],
+      "status": "Subagent routing and rendering fixes — active"
+    },
+    "channels": {
+      "prs": 2,
+      "branches": ["wecom-channel-plan"],
+      "status": "WeChat Work (WeCom) + DingTalk channel integration"
+    }
+  },
   "pr_velocity_last_30d": {
-    "active_open_prs": 100,
+    "active_open_prs": 210,
     "top_contributors_open": ["404-Page-Found (26)", "lianshuang-photo (13)", "DeJeune (7)", "AtomsH4 (5)", "louisss1016 (5)"],
-    "other_base_branches": [
-      "ci/validation-workflow",
-      "ci/validation-local",
-      "investigate-ci-test-filtering",
-      "wecom-channel-plan",
-      "codex/voice-primary-consumers",
-      "fix/subagent-resume-routing-a",
-      "fix/subagent-resume-rendering-b",
-      "codex/voice-funasr-runtime",
-      "codex/voice-renderer-foundation",
-      "codex/voice-runtime-foundation",
-      "codex/issue-15970-lifecycle-completion",
-      "codex/issue-15970-manual-sync",
-      "codex/issue-15970-feishu-scope-adapter",
-      "codex/issue-15970-external-knowledge-domain",
-      "codex/issue-15970-feishu-connection"
-    ],
-    "note": "codex/voice-* branches (5 PRs) = active voice feature development. codex/issue-15970-* (5 PRs) = Feishu Wiki KB integration. fix/subagent-resume-* = subagent routing fixes. base_other count rose 7→15 since yesterday."
+    "closed_prs_today": ["fix-related to API gateway, backup, and connectivity issues — high fix velocity"],
+    "note": "Open PR count grew from ~100 (first-page estimate) to 210+ (two-page scan). codex/voice-* = voice feature. codex/issue-15970-* = Feishu KB. Active merge velocity on bug fixes."
   },
   "key_risks": [
-    "V2 Agent/DSH runtime has 10 open P1 bugs — pre-release quality risk",
+    "URGENT: #21282 is a startup-crash regression in 2.1.4 — needs same-day P1 label, root-cause fix, and hotfix release",
+    "V2 Agent/DSH runtime has 10 open P1 bugs — ongoing quality risk",
     "Windows EPERM/spawn failures on Agent startup are cross-issue (19929, 20937) — root cause may be shared",
     "Context overflow in KB+Agent flow (#21085) affects all RAG-heavy users",
-    "Responses API TypeValidation failure (#20940) blocks streaming for v2 users"
+    "Responses API TypeValidation failure (#20940) blocks streaming for v2 users",
+    "Agent circuit breaker (#21264) permanently pauses heartbeat after first run on non-Anthropic targets"
   ]
 }
