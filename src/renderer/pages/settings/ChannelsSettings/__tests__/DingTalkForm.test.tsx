@@ -19,7 +19,9 @@ function Form() {
     <>
       <DingTalkForm
         channel={channel}
-        onConfigChange={(updates) => setChannel((current) => ({ ...current, ...updates }))}
+        onConfigChange={(updates) =>
+          setChannel((current) => ({ ...current, config: { ...current.config, ...updates.configPatch } }))
+        }
       />
       <output data-testid="saved-config">{JSON.stringify(channel.config)}</output>
     </>

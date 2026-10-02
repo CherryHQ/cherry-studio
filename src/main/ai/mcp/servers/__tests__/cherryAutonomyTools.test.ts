@@ -1402,6 +1402,9 @@ describe('CherryAutonomyTools', () => {
         expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual(
           expect.arrayContaining(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'dingtalk'])
         )
+        expect(server.tools().find((tool) => tool.name === 'config')?.inputSchema.properties?.type).toMatchObject({
+          enum: expect.arrayContaining(['dingtalk'])
+        })
         expect(parsed.supported_channel_types.find((type: any) => type.type === 'dingtalk')).toMatchObject({
           required_fields: ['client_id', 'client_secret', 'robot_code'],
           optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']

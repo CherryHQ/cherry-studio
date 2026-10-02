@@ -273,7 +273,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
+        enum: Object.keys(CHANNEL_CONFIG_SCHEMAS),
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {
