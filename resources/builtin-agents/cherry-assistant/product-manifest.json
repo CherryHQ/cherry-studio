@@ -496,8 +496,8 @@
     }
   ],
   "providers": {
-    "version": "dbca1ba38bf86df7",
-    "count": 65,
+    "version": "14808c9baa375750",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -582,6 +582,10 @@
       {
         "id": "tokendance",
         "name": "TokenDance"
+      },
+      {
+        "id": "api-route",
+        "name": "API Route"
       },
       {
         "id": "new-api",
