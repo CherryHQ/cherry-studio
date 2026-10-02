@@ -1,4 +1,4 @@
-import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
+﻿import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -42,7 +42,11 @@ const MCP_TOOL_INPUT_SCHEMA = z
 const MCP_TOOL_OUTPUT_SCHEMA = z
   .object({
     type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
+    // Accept both JSON Schema objects and bare boolean schemas (true/false).
+    // Some MCP servers (e.g. msgvault, Go-based) declare properties with bare
+    // `true` for "any type" fields; z.object({}).loose() rejects these,
+    // causing the entire tools/list call to fail. See issue #20993.
+    properties: z.record(z.string(), z.union([z.boolean(), z.object({}).loose()])).optional(),
     required: z.array(z.string()).optional()
   })
   .loose()
@@ -361,3 +365,4 @@ export class McpCatalogService extends BaseService {
     }
   }
 }
+
