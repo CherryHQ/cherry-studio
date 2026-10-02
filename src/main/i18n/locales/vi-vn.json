@@ -68,6 +68,7 @@
   "background_task.note.kill_requested": "Đã yêu cầu buộc dừng.",
   "background_task.note.stop_requested": "Đã yêu cầu dừng; nếu tiến trình không kết thúc, hãy dùng buộc dừng.",
   "background_task.note.stopped_no_event": "Tiến trình đã dừng không còn chạy, nhưng không ghi nhận được sự kiện hoàn tất.",
+  "background_task.note.untracked": "Không thể ghi bản ghi tác vụ và cũng không dừng được tiến trình, nên tác vụ này không được theo dõi. Hãy tự dừng nếu nó vẫn đang chạy.",
   "background_task.summary_exit_code": "mã thoát {{code}}",
   "background_task.summary_finished": "Tác nền \"{{name}}\" ({{id}}) đã kết thúc với {{outcome}}. Nhật ký: {{log}}",
   "background_task.summary_signal": "tín hiệu {{signal}}",

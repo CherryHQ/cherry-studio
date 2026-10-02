@@ -68,6 +68,7 @@
   "background_task.note.kill_requested": "Ζητήθηκε αναγκαστικός τερματισμός.",
   "background_task.note.stop_requested": "Ζητήθηκε διακοπή· χρησιμοποιήστε τον αναγκαστικό τερματισμό αν η διεργασία δεν τελειώνει.",
   "background_task.note.stopped_no_event": "Η διεργασία που διακόπηκε δεν εκτελείται πλέον· δεν καταγράφηκε γεγονός ολοκλήρωσης.",
+  "background_task.note.untracked": "Δεν ήταν δυνατή η εγγραφή της εργασίας ούτε η διακοπή της διεργασίας, οπότε αυτή η εργασία δεν παρακολουθείται. Τερματίστε τη χειροκίνητα αν εκτελείται ακόμη.",
   "background_task.summary_exit_code": "κωδικός εξόδου {{code}}",
   "background_task.summary_finished": "Η εργασία στο παρασκήνιο «{{name}}» ({{id}}) τερμάτισε με {{outcome}}. Καταγραφή: {{log}}",
   "background_task.summary_signal": "σήμα {{signal}}",

@@ -68,6 +68,7 @@
   "background_task.note.kill_requested": "Arrêt forcé demandé.",
   "background_task.note.stop_requested": "Arrêt demandé ; utilisez l’arrêt forcé si le processus ne se termine pas.",
   "background_task.note.stopped_no_event": "Le processus arrêté ne s’exécute plus ; aucun événement de fin n’a été capturé.",
+  "background_task.note.untracked": "L’enregistrement de la tâche n’a pas pu être écrit et le processus n’a pas pu être arrêté ; cette tâche n’est donc pas suivie. Arrêtez-la manuellement si elle tourne encore.",
   "background_task.summary_exit_code": "code de sortie {{code}}",
   "background_task.summary_finished": "La tâche d’arrière-plan « {{name}} » ({{id}}) s’est terminée par {{outcome}}. Journal : {{log}}",
   "background_task.summary_signal": "signal {{signal}}",

@@ -68,6 +68,7 @@
   "background_task.note.kill_requested": "Solicitată de oprire forțată.",
   "background_task.note.stop_requested": "Solicitată de oprire; folosiți oprirea forțată dacă procesul nu se încheie.",
   "background_task.note.stopped_no_event": "Procesul oprit nu mai rulează; nu a fost capturat niciun eveniment de finalizare.",
+  "background_task.note.untracked": "Înregistrarea sarcinii nu a putut fi scrisă, iar procesul nu a putut fi oprit, deci această sarcină nu este urmărită. Opriți-o manual dacă mai rulează.",
   "background_task.summary_exit_code": "codul de ieșire {{code}}",
   "background_task.summary_finished": "Sarcina în fundal „{{name}}” ({{id}}) s-a încheiat cu {{outcome}}. Jurnal: {{log}}",
   "background_task.summary_signal": "semnalul {{signal}}",

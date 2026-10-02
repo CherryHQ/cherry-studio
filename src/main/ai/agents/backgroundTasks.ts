@@ -195,16 +195,34 @@ export async function startDetachedBackgroundTask(
     } catch (error) {
       settled = true
       activeTaskPids.delete(id)
+      let cleaned = record.pid <= 0
       try {
-        if (record.pid > 0) {
+        if (!cleaned) {
           if (process.platform === 'win32') {
             execFileSync('taskkill', ['/PID', String(record.pid), '/T', '/F'], { timeout: 5_000 })
           } else {
             process.kill(-record.pid, 'SIGKILL')
           }
+          cleaned = true
         }
       } catch (stopError) {
-        logger.error('Could not stop unrecorded detached task', { taskId: id, stopError })
+        // The process is still alive with no record to stop it through, so write one: a task the
+        // panel cannot see or kill is worse than one the model was told about and that survives
+        // until it exits on its own.
+        logger.error('Could not stop unrecorded detached task; recording it so it stays controllable', {
+          taskId: id,
+          pid: record.pid,
+          stopError
+        })
+        try {
+          writeRecordSync(input.storageDir, { ...record, status: 'unknown', note: t('background_task.note.untracked') })
+        } catch (recordError) {
+          logger.error('Detached background task is untracked and could not be recorded', {
+            taskId: id,
+            pid: record.pid,
+            recordError
+          })
+        }
       }
       throw error
     }
