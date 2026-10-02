@@ -3,10 +3,12 @@ export {
   abandonNotesRelocationSession,
   acquireNotesRelocationSession,
   isNotesRelocationSessionActive,
-  releaseNotesRelocationSession
+  releaseNotesRelocationSession,
+  setNotesRelocationMigrateInFlight
 } from './notesRelocationSession'
 export {
   acknowledgeRendererNotesEditsFlush,
+  isRendererNotesEditsFlushWindowRegistered,
   registerRendererNotesEditsFlushWindow,
   requestRendererNotesEditsFlush,
   unregisterRendererNotesEditsFlushWindow

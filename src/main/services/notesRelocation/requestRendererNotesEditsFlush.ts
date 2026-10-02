@@ -25,6 +25,10 @@ export function registerRendererNotesEditsFlushWindow(windowId: string): void {
   registeredFlushWindowIds.add(windowId)
 }
 
+export function isRendererNotesEditsFlushWindowRegistered(windowId: string): boolean {
+  return registeredFlushWindowIds.has(windowId)
+}
+
 export function unregisterRendererNotesEditsFlushWindow(windowId: string): void {
   registeredFlushWindowIds.delete(windowId)
 
