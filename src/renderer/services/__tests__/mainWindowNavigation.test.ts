@@ -24,7 +24,13 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent, openRoute, openSettingsTab } from '../mainWindowNavigation'
+import {
+  OPEN_MAIN_ROUTE_EVENT,
+  type OpenMainRouteEvent,
+  openDoctorTarget,
+  openRoute,
+  openSettingsTab
+} from '../mainWindowNavigation'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -94,5 +100,13 @@ describe('openSettingsTab', () => {
     expect(event.detail).toEqual({ path: '/settings/provider' })
 
     window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+  })
+})
+
+describe('openDoctorTarget', () => {
+  it('opens the Code CLI page for a managed CLI failure', () => {
+    openDoctorTarget('/app/code')
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/app/code' })
   })
 })
