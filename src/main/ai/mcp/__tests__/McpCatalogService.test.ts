@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), loggerWarn: vi.fn() }))
 const getById = vi.fn()
@@ -134,6 +135,20 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
   })
 
+  it('does not serve an old internal tool list when refreshing after a client stop', async () => {
+    getById.mockReturnValue(server())
+    cacheStore.set('mcp:list_tool:server:server-1', [{ name: 'old-tool' }])
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    listTools.mockResolvedValue({ tools: [sdkTool('new-tool')] })
+    const service = new McpCatalogService()
+
+    service.invalidateTools('server-1', 'stop')
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['new-tool'])
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+  })
+
   it('mints distinct ids for non-ASCII server names with the same readable slug', async () => {
     getById.mockImplementation((id: string) =>
       id === 'server-a' ? server({ id, name: 'mysql_报销' }) : server({ id, name: 'mysql_电梯' })
@@ -198,8 +213,94 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
   })
 
+  it('withdraws stale tools and backs off when server lookup fails before the client is reached', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+      const lookupError = new Error('database busy')
+      getById.mockImplementationOnce(() => {
+        throw lookupError
+      })
+      getById.mockReturnValue(server())
+      listTools.mockResolvedValue({ tools: [sdkTool('recovered')] })
+      const service = new McpCatalogService()
+      const observed = vi.fn(() => ({
+        tools: service.listTools('server-1', { includeDisabled: true }),
+        retry: cacheService.has('mcp:tools-empty-retry:server-1')
+      }))
+      service.onToolsCacheUpdated(observed)
+
+      await expect(service.refreshTools('server-1')).rejects.toThrow('database busy')
+      expect(observed.mock.results[0].value).toEqual({ tools: [], retry: true })
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['recovered'])
+      expect(observed.mock.results[1].value).toEqual({
+        tools: expect.arrayContaining([expect.objectContaining({ name: 'recovered' })]),
+        retry: false
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('withdraws stale tools for a confirmed missing row without classifying it as a connection failure', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('McpServer', 'server-1')
+    })
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    await expect(service.refreshTools('server-1')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
+  })
+
+  it('backs off after failing to invalidate the per-connection list cache', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    runtimeService.getServerKey.mockImplementationOnce(() => {
+      throw new Error('server key unavailable')
+    })
+    const service = new McpCatalogService()
+
+    await expect(service.refreshTools('server-1')).rejects.toThrow('server key unavailable')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(true)
+    expect(runtimeService.withClient).not.toHaveBeenCalled()
+  })
+
+  it('treats a NOT_FOUND raised by the client as a refresh failure, not a missing server row', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockRejectedValue(DataApiErrorFactory.notFound('Tool', 'search'))
+    const service = new McpCatalogService()
+
+    await expect(service.refreshTools('server-1')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(true)
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', expect.anything())
+  })
+
+  it('treats tool-schema validation errors as failed refreshes with a retry window', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [{ ...sdkTool('bad'), inputSchema: { type: 'array' } }] })
+    const service = new McpCatalogService()
+
+    await expect(service.refreshTools('server-1')).rejects.toThrow()
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(true)
+  })
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
+    getById.mockReturnValue(server())
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })
 
     const service = new McpCatalogService()
@@ -301,13 +402,13 @@ describe('McpCatalogService', () => {
     expect(loggerDebug).toHaveBeenCalledWith('Skipping MCP tools warm during retry backoff', { serverId: 'server-1' })
   })
 
-  it('clears the retry deadline when the shared tools cache is explicitly cleared', async () => {
+  it('lets an explicit restart bypass the empty-result retry window after withdrawing its old snapshot', async () => {
     getById.mockReturnValue(server())
     listTools.mockResolvedValueOnce({ tools: [] }).mockResolvedValueOnce({ tools: [sdkTool('search')] })
     const service = new McpCatalogService()
 
     await service.warmToolsCache('server-1')
-    service.clearSharedToolsCache('server-1')
+    service.invalidateTools('server-1', 'restart')
     await service.warmToolsCache('server-1')
 
     expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
@@ -371,13 +472,163 @@ describe('McpCatalogService', () => {
     }
   })
 
+  it('lets a user refresh recover immediately within the failed-warm retry window', async () => {
+    getById.mockReturnValue(server())
+    listTools
+      .mockRejectedValueOnce(new Error('connection failed'))
+      .mockResolvedValueOnce({ tools: [sdkTool('search')] })
+    const service = new McpCatalogService()
+
+    await service.warmToolsCache('server-1')
+    await service.refreshTools('server-1')
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['search'])
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('backs off an automatic warm after a failed manual connectivity check but permits explicit refresh', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('recovered')] })
+    const service = new McpCatalogService()
+
+    service.invalidateTools('server-1', 'connectivity-check')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    await service.warmToolsCache('server-1')
+    expect(runtimeService.withClient).not.toHaveBeenCalled()
+
+    await service.refreshTools('server-1')
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['recovered'])
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('refreshes a populated snapshot after an upstream tool-list-change notification', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('new-tool')] })
+    const service = new McpCatalogService()
+    await (service as unknown as { onInit(): Promise<void> }).onInit()
+    const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
+      (event: { serverId: string }) => void
+    ]
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    onToolListChanged({ serverId: 'server-1' })
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' }))
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['new-tool'])
+  })
+
+  it('does not republish tools or status when a refresh finishes after invalidation', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let releaseList: ((value: { tools: ReturnType<typeof sdkTool>[] }) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = resolve
+        })
+    )
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    const refresh = service.refreshTools('server-1')
+    expect(listTools).toHaveBeenCalledTimes(1)
+    service.invalidateTools('server-1', 'restart')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    releaseList?.({ tools: [sdkTool('stale')] })
+    await refresh
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheStore.get('mcp:list_tool:server:server-1')).toBeUndefined()
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('does not replace an invalidation with a failed refresh outcome when the in-flight list rejects', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let rejectList: ((error: Error) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectList = reject
+        })
+    )
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    expect(listTools).toHaveBeenCalledTimes(1)
+    service.invalidateTools('server-1', 'stop')
+    runtimeService.setServerStatus.mockClear()
+    const sharedWrites = cacheService.setShared.mock.calls.length
+
+    rejectList?.(new Error('closed during invalidation'))
+    await expect(refresh).rejects.toThrow('closed during invalidation')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    expect(cacheService.setShared.mock.calls).toHaveLength(sharedWrites)
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(false)
+  })
+
+  it('keeps tools empty when a stale refresh resolves and the reconnect refresh fails', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let releaseList: ((value: { tools: ReturnType<typeof sdkTool>[] }) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseList = resolve
+        })
+    )
+    listTools.mockRejectedValueOnce(new Error('restart failed'))
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    service.invalidateTools('server-1', 'restart')
+    releaseList?.({ tools: [sdkTool('stale')] })
+    await refresh
+    await expect(service.refreshTools('server-1')).rejects.toThrow('restart failed')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalledWith('server-1', 'connected')
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', expect.any(Error))
+  })
+
+  it('withdraws old tools on restart before a failed reconnect and keeps them withdrawn', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    listTools.mockRejectedValue(new Error('restart failed'))
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    service.invalidateTools('server-1', 'restart')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(listener).toHaveBeenCalledTimes(1)
+    await expect(service.refreshTools('server-1')).rejects.toThrow('restart failed')
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(cacheService.has('mcp:tools-empty-retry:server-1')).toBe(true)
+  })
+
   it('backs off after a failed refresh triggered by a tool list change', async () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
       getById.mockReturnValue(server())
-      listTools.mockRejectedValue(new Error('connection failed'))
+      listTools
+        .mockRejectedValueOnce(new Error('connection failed'))
+        .mockResolvedValueOnce({ tools: [sdkTool('search')] })
       const service = new McpCatalogService()
+      const listener = vi.fn()
+      service.onToolsCacheUpdated(listener)
       await (service as unknown as { onInit(): Promise<void> }).onInit()
       const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
         (event: { serverId: string }) => void
@@ -396,6 +647,8 @@ describe('McpCatalogService', () => {
       await vi.advanceTimersByTimeAsync(30 * 1000)
       await service.warmToolsCache('server-1')
       expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+      expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['search'])
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
     } finally {
       vi.useRealTimers()
     }
@@ -407,8 +660,12 @@ describe('McpCatalogService', () => {
       vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
       listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
       getById.mockReturnValue(server())
-      listTools.mockRejectedValue(new Error('connection failed'))
+      listTools
+        .mockRejectedValueOnce(new Error('connection failed'))
+        .mockResolvedValueOnce({ tools: [sdkTool('search')] })
       const service = new McpCatalogService()
+      const listener = vi.fn()
+      service.onToolsCacheUpdated(listener)
 
       await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
       await service.warmToolsCache('server-1')
@@ -417,6 +674,8 @@ describe('McpCatalogService', () => {
       await vi.advanceTimersByTimeAsync(30 * 1000)
       await service.warmToolsCache('server-1')
       expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+      expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['search'])
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
     } finally {
       vi.useRealTimers()
     }
