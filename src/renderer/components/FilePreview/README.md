@@ -296,9 +296,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - A Markdown chunk is its own document, so `splitMarkdownChunks` may only break on a blank line where no construct spans
   it (fenced code, display math, raw HTML, indented code) and outside every list, which is one block: the pieces of a cut
   list renumber its ordered items and parse a loose list as a tight one. Reference definitions are carried into every
-  chunk, because a link or footnote used in one chunk may be defined in another; only a footnote definition owns the
-  indented lines that follow its blank ones. The source is split once, and that one split decides both what is windowed
-  and what cannot be.
+  chunk whole, even when a link's destination or title sits on a line of its own, because a link or footnote used in one
+  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. The
+  source is split once, and that one split decides both what is windowed and what cannot be.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
