@@ -132,7 +132,8 @@ import {
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
-  isAgentPreviewUrlSourceAfterFrontier
+  isAgentPreviewUrlSourceAfterFrontier,
+  isTaskListResponseCurrent
 } from './agentRightPaneProjection'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 
@@ -1847,6 +1848,9 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
   const [loaded, setLoaded] = useState<{ agentId?: string; tasks: BackgroundTaskRecord[] }>({ tasks: [] })
   const tasks = loaded.agentId === agentId ? loaded.tasks : []
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Bumped by every local mutation. A poll whose request started before the last mutation is
+  // answering a question about state that has since changed, so its rows are dropped.
+  const mutationRef = useRef(0)
   const setTasks = (update: (current: BackgroundTaskRecord[]) => BackgroundTaskRecord[]) =>
     setLoaded((current) => (current.agentId === agentId ? { ...current, tasks: update(current.tasks) } : current))
 
@@ -1854,9 +1858,12 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
     if (!agentId) return
     let active = true
     const refresh = () => {
+      const startedAt = mutationRef.current
       void ipcApi.request('ai.agent.background_task.list', { agentId }).then(
         (records) => {
-          if (active && Array.isArray(records)) setLoaded({ agentId, tasks: records })
+          if (active && Array.isArray(records) && isTaskListResponseCurrent(startedAt, mutationRef.current)) {
+            setLoaded({ agentId, tasks: records })
+          }
         },
         (error) => logger.warn('Failed to list detached background tasks', { agentId, error })
       )
@@ -1873,6 +1880,7 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
 
   const stop = async (taskId: string, force: boolean) => {
     setBusyId(taskId)
+    mutationRef.current += 1
     try {
       const record = await ipcApi.request('ai.agent.background_task.stop', { agentId, taskId, force })
       if (!record) throw new Error('Task is no longer running or its process identity could not be verified')
