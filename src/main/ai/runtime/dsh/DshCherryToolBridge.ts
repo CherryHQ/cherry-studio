@@ -8,6 +8,7 @@ import { application } from '@application'
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { listToolsTolerant } from '@main/ai/mcp/mcpListTools'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -94,9 +95,9 @@ export async function buildDshCherryToolBridge(
     try {
       await server.instance.connect(serverTransport)
       await client.connect(clientTransport)
-      const result = await client.listTools()
+      const result = await listToolsTolerant(client)
       const serverNames = new Set<string>()
-      const serverTools = result.tools.map((tool) => ({
+      const serverTools = result.map((tool) => ({
         descriptor: toBridgeDescriptor(server.name, tool),
         rawName: tool.name
       }))

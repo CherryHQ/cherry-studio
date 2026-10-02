@@ -37,6 +37,7 @@ import {
   type McpClientSdk,
   type McpTransport
 } from './mcpClientSdk'
+import { listToolsTolerant } from './mcpListTools'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
@@ -1012,7 +1013,7 @@ export class McpRuntimeService extends BaseService {
     try {
       const client = await this.getOrCreateClient(server)
       // Attempt to list tools as a way to check connectivity
-      await client.listTools()
+      await listToolsTolerant(client)
       getServerLogger(server).debug(`Connectivity check successful`)
       this.setServerStatus(server.id, 'connected')
       this.emitServerLog(server, {

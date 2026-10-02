@@ -1,3 +1,5 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -5,6 +7,7 @@ import {
   ListToolsRequestSchema,
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
@@ -14,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   refreshTools: vi.fn()
 }))
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
-}))
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findByIdOrName }
 }))
@@ -119,6 +119,50 @@ describe('buildMcpToolDefinitions', () => {
       'mcp__cherry-tools__kb_search'
     ])
     await bridge.close()
+  })
+
+  it('retains every tool when a listed output schema contains a boolean property subschema', async () => {
+    const tools = [
+      tool('healthy'),
+      {
+        ...tool('state'),
+        outputSchema: { type: 'object', properties: { canonical_state: true } }
+      }
+    ]
+    const server = createServer([], async () => ({ content: [] }))
+    const strictServer = createServer([], async () => ({ content: [] }))
+    for (const instance of [server, strictServer]) {
+      instance.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }))
+    }
+    const client = new Client({ name: 'strict-test', version: '1.0.0' }, { capabilities: {} })
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    try {
+      await strictServer.connect(serverTransport)
+      await client.connect(clientTransport)
+      await expect(client.listTools()).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ['tools', 1, 'outputSchema', 'properties', 'canonical_state'],
+            code: 'custom'
+          })
+        ])
+      })
+
+      const bridge = await buildMcpToolDefinitions({ server: { name: 'server', instance: server } })
+      try {
+        expect(bridge.tools.map((definition) => definition.name)).toEqual([
+          'mcp__server__healthy',
+          'mcp__server__state'
+        ])
+        expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+      } finally {
+        await bridge.close()
+      }
+    } finally {
+      await client.close()
+      await strictServer.close()
+      await server.close()
+    }
   })
 
   it('proxies calls, structured details, and MCP content through the in-memory transport', async () => {

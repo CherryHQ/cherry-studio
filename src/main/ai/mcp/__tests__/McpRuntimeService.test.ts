@@ -1,5 +1,9 @@
 import crypto from 'node:crypto'
 
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { McpServer as SdkMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import open from 'open'
@@ -1035,6 +1039,68 @@ describe('McpRuntimeService logging notification redaction', () => {
     expect(entry.message).toContain('<redacted>')
     expect(entry.message).toContain('visible')
     expect(entry.data).toMatchObject({ GITHUB_PERSONAL_ACCESS_TOKEN: '<redacted>', note: 'visible' })
+  })
+})
+
+describe('McpRuntimeService.checkMcpConnectivity', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    mcpCatalogMock.clearSharedToolsCache.mockReset()
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
+  })
+
+  it('keeps a server connected and its cached tools when the list contains boolean subschemas', async () => {
+    const { Client: RealClient } = await vi.importActual<{ Client: typeof Client }>(
+      '@modelcontextprotocol/sdk/client/index.js'
+    )
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = new SdkMcpServer({ name: 'schema-test', version: '1.0.0' }, { capabilities: { tools: {} } })
+    server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [
+        { name: 'plain', inputSchema: { type: 'object' } },
+        ...[true, false].map((value) => ({
+          name: `state-${value}`,
+          inputSchema: { type: 'object' },
+          outputSchema: { type: 'object', properties: { canonical_state: value } }
+        })),
+        { name: 'flexible-input', inputSchema: { type: 'object', properties: { payload: {}, filter: false } } },
+        { inputSchema: { type: 'object' } }
+      ]
+    }))
+    const client = new RealClient({ name: 'cherry-test', version: '1.0.0' }, { capabilities: {} })
+    try {
+      await server.connect(serverTransport)
+      await client.connect(clientTransport)
+      const service = new McpRuntimeService()
+      vi.spyOn(
+        service as unknown as { getOrCreateClient(server: McpServer): Promise<Client> },
+        'getOrCreateClient'
+      ).mockResolvedValue(client)
+      const closeClient = vi.spyOn(client, 'close')
+      const cachedTools = [
+        {
+          id: 'cached-tool',
+          name: 'plain',
+          serverId: 'server-1',
+          serverName: 'docs',
+          type: 'mcp' as const,
+          inputSchema: { type: 'object' as const }
+        }
+      ]
+      MockMainCacheServiceUtils.setSharedCacheValue('mcp.tools.server-1', cachedTools)
+
+      await expect(service.checkMcpConnectivity('server-1')).resolves.toBe(true)
+
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toMatchObject({ state: 'connected' })
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.tools.server-1')).toEqual(cachedTools)
+      expect(mcpCatalogMock.clearSharedToolsCache).not.toHaveBeenCalled()
+      expect(closeClient).not.toHaveBeenCalled()
+    } finally {
+      await client.close()
+      await server.close()
+    }
   })
 })
 

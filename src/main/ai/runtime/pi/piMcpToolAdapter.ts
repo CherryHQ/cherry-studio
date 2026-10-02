@@ -8,6 +8,7 @@ import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/s
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { listToolsTolerant } from '@main/ai/mcp/mcpListTools'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
@@ -62,8 +63,8 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
     try {
       await server.instance.connect(serverTransport)
       await client.connect(clientTransport)
-      const result = await client.listTools()
-      const serverTools = result.tools.map((tool) => toPiToolDefinition(server.name, tool, client))
+      const result = await listToolsTolerant(client)
+      const serverTools = result.map((tool) => toPiToolDefinition(server.name, tool, client))
       const existingNames = new Set(tools.map((tool) => tool.name))
       const serverNames = new Set<string>()
       for (const tool of serverTools) {
