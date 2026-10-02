@@ -71,6 +71,7 @@
   "background_task.note.untracked": "任务记录写入失败且进程未能停止，此任务处于失联状态。若它仍在运行，请手动结束。",
   "background_task.summary_exit_code": "退出码 {{code}}",
   "background_task.summary_finished": "后台任务「{{name}}」（{{id}}）已结束，{{outcome}}。日志：{{log}}",
+  "background_task.summary_killed": "后台任务「{{name}}」（{{id}}）已被强制结束。日志：{{log}}",
   "background_task.summary_signal": "信号 {{signal}}",
   "background_task.summary_unknown_code": "未知",
   "chat.conversation.new": "新对话",

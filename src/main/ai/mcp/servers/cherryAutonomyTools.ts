@@ -1074,7 +1074,10 @@ export class CherryAutonomyTools {
   private async stopBackgroundTask(args: Record<string, unknown>, force: boolean) {
     const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : ''
     if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for stop/kill")
-    const record = await stopDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId, force)
+    const record = await stopDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId, force, (task) => {
+      this.indexBackgroundTask(task.record)
+      this.notifyBackgroundTaskCompletion(task)
+    })
     if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" is not running or cannot be verified`)
     this.indexBackgroundTask(record)
     return { content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }] }

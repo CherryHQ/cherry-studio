@@ -71,6 +71,7 @@
   "background_task.note.untracked": "The task record could not be written and the process could not be stopped, so this task is untracked. Kill it manually if it is still running.",
   "background_task.summary_exit_code": "exit code {{code}}",
   "background_task.summary_finished": "Background task \"{{name}}\" ({{id}}) finished with {{outcome}}. Log: {{log}}",
+  "background_task.summary_killed": "Background task \"{{name}}\" ({{id}}) was killed. Log: {{log}}",
   "background_task.summary_signal": "signal {{signal}}",
   "background_task.summary_unknown_code": "unknown",
   "chat.conversation.new": "New Chat",

@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Görev kaydı yazılamadı ve süreç durdurulamadı; bu görev izlenmiyor. Hâlâ çalışıyorsa elle sonlandırın.",
   "background_task.summary_exit_code": "çıkış kodu {{code}}",
   "background_task.summary_finished": "Arka plan görevi \"{{name}}\" ({{id}}) {{outcome}} ile bitti. Günlük: {{log}}",
+  "background_task.summary_killed": "Arka plan görevi \"{{name}}\" ({{id}}) zorla sonlandırıldı. Günlük: {{log}}",
   "background_task.summary_signal": "sinyal {{signal}}",
   "background_task.summary_unknown_code": "bilinmiyor",
   "chat.conversation.new": "Yeni Sohbet",

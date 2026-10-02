@@ -71,6 +71,7 @@
   "background_task.note.untracked": "タスクのレコードを書き込めず、プロセスも停止できなかったため、このタスクは管理対象外です。実行中の場合は手動で終了してください。",
   "background_task.summary_exit_code": "終了コード {{code}}",
   "background_task.summary_finished": "バックグラウンドタスク「{{name}}」（{{id}}）が {{outcome}} で終了しました。ログ：{{log}}",
+  "background_task.summary_killed": "バックグラウンドタスク「{{name}}」（{{id}}）を強制終了しました。ログ：{{log}}",
   "background_task.summary_signal": "シグナル {{signal}}",
   "background_task.summary_unknown_code": "不明",
   "chat.conversation.new": "新しいチャット",

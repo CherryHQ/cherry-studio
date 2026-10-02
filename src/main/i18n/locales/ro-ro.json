@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Înregistrarea sarcinii nu a putut fi scrisă, iar procesul nu a putut fi oprit, deci această sarcină nu este urmărită. Opriți-o manual dacă mai rulează.",
   "background_task.summary_exit_code": "codul de ieșire {{code}}",
   "background_task.summary_finished": "Sarcina în fundal „{{name}}” ({{id}}) s-a încheiat cu {{outcome}}. Jurnal: {{log}}",
+  "background_task.summary_killed": "Sarcina în fundal „{{name}}” ({{id}}) a fost oprită forțat. Jurnal: {{log}}",
   "background_task.summary_signal": "semnalul {{signal}}",
   "background_task.summary_unknown_code": "necunoscut",
   "chat.conversation.new": "Conversație nouă",

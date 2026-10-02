@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Не удалось записать запись задачи и остановить процесс, поэтому задача не отслеживается. Завершите её вручную, если она ещё выполняется.",
   "background_task.summary_exit_code": "код выхода {{code}}",
   "background_task.summary_finished": "Фоновая задача «{{name}}» ({{id}}) завершилась: {{outcome}}. Журнал: {{log}}",
+  "background_task.summary_killed": "Фоновая задача «{{name}}» ({{id}}) принудительно завершена. Журнал: {{log}}",
   "background_task.summary_signal": "сигнал {{signal}}",
   "background_task.summary_unknown_code": "неизвестно",
   "chat.conversation.new": "Новый чат",

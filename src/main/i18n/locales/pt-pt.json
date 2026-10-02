@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Não foi possível escrever o registo da tarefa nem parar o processo, pelo que esta tarefa não está registada. Pare-a manualmente se ainda estiver em execução.",
   "background_task.summary_exit_code": "código de saída {{code}}",
   "background_task.summary_finished": "A tarefa em segundo plano «{{name}}» ({{id}}) terminou com {{outcome}}. Registo: {{log}}",
+  "background_task.summary_killed": "A tarefa em segundo plano «{{name}}» ({{id}}) foi terminada. Registo: {{log}}",
   "background_task.summary_signal": "sinal {{signal}}",
   "background_task.summary_unknown_code": "desconhecido",
   "chat.conversation.new": "Nova conversa",

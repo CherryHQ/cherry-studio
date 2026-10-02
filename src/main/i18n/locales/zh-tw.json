@@ -71,6 +71,7 @@
   "background_task.note.untracked": "工作記錄寫入失敗且程序未能停止，此工作處於失聯狀態。若它仍在執行，請手動結束。",
   "background_task.summary_exit_code": "結束碼 {{code}}",
   "background_task.summary_finished": "背景工作「{{name}}」（{{id}}）已結束，{{outcome}}。記錄：{{log}}",
+  "background_task.summary_killed": "背景工作「{{name}}」（{{id}}）已被強制結束。記錄：{{log}}",
   "background_task.summary_signal": "訊號 {{signal}}",
   "background_task.summary_unknown_code": "未知",
   "chat.conversation.new": "新對話",

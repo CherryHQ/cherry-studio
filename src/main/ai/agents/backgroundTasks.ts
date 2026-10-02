@@ -248,15 +248,17 @@ export async function getDetachedBackgroundTask(
 export async function stopDetachedBackgroundTask(
   storageDir: string,
   taskId: string,
-  force = false
+  force = false,
+  onExit?: (task: CompletedBackgroundTask) => void
 ): Promise<BackgroundTaskRecord | undefined> {
-  return withRecordLock(taskId, () => stopDetachedBackgroundTaskUnlocked(storageDir, taskId, force))
+  return withRecordLock(taskId, () => stopDetachedBackgroundTaskUnlocked(storageDir, taskId, force, onExit))
 }
 
 async function stopDetachedBackgroundTaskUnlocked(
   storageDir: string,
   taskId: string,
-  force: boolean
+  force: boolean,
+  onExit?: (task: CompletedBackgroundTask) => void
 ): Promise<BackgroundTaskRecord | undefined> {
   const record = await getDetachedBackgroundTask(storageDir, taskId)
   if (!record || record.status !== 'running' || record.pid <= 0) return undefined
@@ -309,6 +311,12 @@ async function stopDetachedBackgroundTaskUnlocked(
       mode: 0o600
     }
   )
+  // A kill ends the task without the child ever reporting an exit, so nothing else will announce
+  // it: the configured channels would otherwise stay silent about work the user asked to end.
+  onExit?.({
+    record: stopped,
+    summary: t('background_task.summary_killed', { name: stopped.name, id: stopped.id, log: stopped.logFile })
+  })
   return (await getDetachedBackgroundTask(storageDir, taskId)) ?? stopped
 }
 

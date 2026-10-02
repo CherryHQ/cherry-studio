@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Không thể ghi bản ghi tác vụ và cũng không dừng được tiến trình, nên tác vụ này không được theo dõi. Hãy tự dừng nếu nó vẫn đang chạy.",
   "background_task.summary_exit_code": "mã thoát {{code}}",
   "background_task.summary_finished": "Tác nền \"{{name}}\" ({{id}}) đã kết thúc với {{outcome}}. Nhật ký: {{log}}",
+  "background_task.summary_killed": "Tác nền \"{{name}}\" ({{id}}) đã bị buộc dừng. Nhật ký: {{log}}",
   "background_task.summary_signal": "tín hiệu {{signal}}",
   "background_task.summary_unknown_code": "không rõ",
   "chat.conversation.new": "Cuộc trò chuyện mới",

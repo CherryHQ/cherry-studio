@@ -71,6 +71,7 @@
   "background_task.note.untracked": "Der Aufgabendatensatz konnte nicht geschrieben und der Prozess nicht gestoppt werden, daher ist diese Aufgabe nicht erfasst. Beenden Sie sie manuell, falls sie noch läuft.",
   "background_task.summary_exit_code": "Exit-Code {{code}}",
   "background_task.summary_finished": "Hintergrundaufgabe „{{name}}“ ({{id}}) ist mit {{outcome}} beendet. Protokoll: {{log}}",
+  "background_task.summary_killed": "Hintergrundaufgabe „{{name}}“ ({{id}}) wurde beendet. Protokoll: {{log}}",
   "background_task.summary_signal": "Signal {{signal}}",
   "background_task.summary_unknown_code": "unbekannt",
   "chat.conversation.new": "Neuer Chat",
