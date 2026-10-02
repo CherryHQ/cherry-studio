@@ -3,7 +3,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { UniqueModelId } from '@shared/data/types/model'
+
 import GeneralSettings from '../GeneralSettings'
+
+const mockUseModelSelectorData = vi.fn(() => ({
+  resolvedSelectedModelIds: [] as UniqueModelId[],
+  isLoading: false,
+  modelsError: undefined as Error | undefined
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -22,9 +30,15 @@ vi.mock('@renderer/components/Selector', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
-}))
+vi.mock('@renderer/components/ModelSelector', async () => {
+  const selection = await import('@renderer/components/ModelSelector/selection')
+  return {
+    ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
+    countStaleSelectedModelIds: selection.countStaleSelectedModelIds,
+    hasStaleSelectedModelIds: selection.hasStaleSelectedModelIds,
+    useModelSelectorData: () => mockUseModelSelectorData()
+  }
+})
 
 vi.mock('../ContextManagementSettings', () => ({
   ContextManagementSettings: () => (
@@ -113,6 +127,11 @@ vi.mock('@cherrystudio/ui', () => ({
 
 describe('GeneralSettings', () => {
   beforeEach(() => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: undefined
+    })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.tray.enabled': true,
@@ -135,6 +154,11 @@ describe('GeneralSettings', () => {
   })
 
   it('renders model retry settings in General and persists changes', async () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: ['openai::gpt-4o'],
+      isLoading: false,
+      modelsError: undefined
+    })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
       'chat.retry.max_attempts': 3,
@@ -153,6 +177,61 @@ describe('GeneralSettings', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)
     })
+  })
+
+  it('marks persisted fallback model ids missing from the catalog as unavailable', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::deleted-model']
+    })
+
+    render(<GeneralSettings />)
+
+    const fallbackTrigger = screen.getByText('settings.models.retry.fallback_models_unavailable').closest('button')
+    expect(fallbackTrigger).toBeInTheDocument()
+    expect(fallbackTrigger).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('does not mark fallback models unavailable while the model catalog is still loading', () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: true,
+      modelsError: undefined
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::deleted-model']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.retry.fallback_models_count').closest('button')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('does not mark fallback models unavailable when the model catalog request failed', () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: new Error('network')
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::deleted-model']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.retry.fallback_models_count').closest('button')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
   })
 
   it('turns off every tray-dependent preference when the tray is disabled', async () => {
