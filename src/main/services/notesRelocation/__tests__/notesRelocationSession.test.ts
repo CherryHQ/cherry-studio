@@ -6,7 +6,8 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import {
   abandonNotesRelocationSession,
   acquireNotesRelocationSession,
-  releaseNotesRelocationSession
+  releaseNotesRelocationSession,
+  setNotesRelocationMigrateInFlight
 } from '../notesRelocationSession'
 
 describe('notesRelocationSession', () => {
@@ -39,5 +40,16 @@ describe('notesRelocationSession', () => {
     expect(abandonNotesRelocationSession('window-a')).toBe(true)
     expect(() => acquireNotesRelocationSession('window-c')).not.toThrow()
     releaseNotesRelocationSession('window-c')
+  })
+
+  it('does not abandon the session while migrate is in flight', () => {
+    acquireNotesRelocationSession('window-a')
+    setNotesRelocationMigrateInFlight(true)
+
+    expect(abandonNotesRelocationSession('window-a')).toBe(false)
+    expect(() => acquireNotesRelocationSession('window-b')).toThrow(IpcError)
+
+    setNotesRelocationMigrateInFlight(false)
+    expect(abandonNotesRelocationSession('window-a')).toBe(true)
   })
 })

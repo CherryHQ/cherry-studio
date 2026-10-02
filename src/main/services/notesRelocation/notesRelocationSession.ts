@@ -2,6 +2,11 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
 let notesRelocationSessionOwnerId: string | null = null
+let notesRelocationMigrateInFlight = false
+
+export function setNotesRelocationMigrateInFlight(inFlight: boolean): void {
+  notesRelocationMigrateInFlight = inFlight
+}
 
 export function acquireNotesRelocationSession(ownerId: string): void {
   if (notesRelocationSessionOwnerId != null) {
@@ -21,6 +26,9 @@ export function releaseNotesRelocationSession(ownerId: string): void {
 
 export function abandonNotesRelocationSession(ownerId: string): boolean {
   if (notesRelocationSessionOwnerId !== ownerId) {
+    return false
+  }
+  if (notesRelocationMigrateInFlight) {
     return false
   }
   notesRelocationSessionOwnerId = null
