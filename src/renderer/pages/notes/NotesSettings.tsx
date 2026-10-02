@@ -17,6 +17,12 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import {
+  flushAllNotesEdits,
+  lockNotesEditsForRelocation,
+  unlockNotesEditsForRelocation,
+  waitForStructuralNotesWritesToSettle
+} from '@renderer/hooks/notesFileEditFlush'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { resolveNotesPath } from '@renderer/services/NotesService'
@@ -90,9 +96,16 @@ const NotesSettings: FC = () => {
   const handleResetToDefault = async () => {
     try {
       const info = await ipcApi.request('app.get_info')
-      setTempPath(info.notesPath)
-      await updateNotesPath(info.notesPath)
-      toast.success(t('notes.settings.data.reset_to_default'))
+      lockNotesEditsForRelocation()
+      try {
+        await waitForStructuralNotesWritesToSettle()
+        await flushAllNotesEdits()
+        setTempPath(info.notesPath)
+        await updateNotesPath(info.notesPath)
+        toast.success(t('notes.settings.data.reset_to_default'))
+      } finally {
+        unlockNotesEditsForRelocation()
+      }
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
       toast.error(t('notes.settings.data.reset_failed'))

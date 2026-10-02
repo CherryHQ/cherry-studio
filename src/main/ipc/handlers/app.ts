@@ -111,6 +111,13 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     releaseNotesRelocationSession(senderId)
     application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
   },
+  'app.notes_relocation.release_session': async (_input, { senderId }) => {
+    if (senderId == null) {
+      return
+    }
+    releaseNotesRelocationSession(senderId)
+    application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
+  },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),

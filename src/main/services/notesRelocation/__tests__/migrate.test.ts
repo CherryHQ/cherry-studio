@@ -188,6 +188,24 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects non-merge migration when a destination file appears after inspection', async () => {
+    const source = path.join(tempRoot, 'source-notes-late-file')
+    const target = path.join(tempRoot, 'target-notes-late-file')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Source')
+
+    const inspection = await inspectNotesRelocation(source, target)
+    expect(inspection.valid).toBe(true)
+    if (!inspection.valid) return
+
+    fs.writeFileSync(path.join(target, 'late.md'), 'late')
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
+    })
+  })
+
   it('rejects a source directory that is itself a symbolic link', async () => {
     const realSource = path.join(tempRoot, 'real-source')
     const source = path.join(tempRoot, 'linked-source')

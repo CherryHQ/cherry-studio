@@ -42,13 +42,14 @@ describe('requestRendererNotesEditsFlush', () => {
     getWindowTypeMock.mockReturnValue(WindowType.Main)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     broadcastMock.mockClear()
     getAllWindowsMock.mockReset()
     getWindowIdMock.mockReset()
     getWindowTypeMock.mockReset()
     unregisterRendererNotesEditsFlushWindow('window-a')
     unregisterRendererNotesEditsFlushWindow('window-b')
+    await Promise.resolve()
   })
 
   it('resolves when a registered window acknowledges success', async () => {
@@ -76,8 +77,10 @@ describe('requestRendererNotesEditsFlush', () => {
     await expect(flushPromise).rejects.toBeInstanceOf(IpcError)
   })
 
-  it('does not wait for main windows that never registered a flush listener', async () => {
-    await expect(requestRendererNotesEditsFlush()).resolves.toBeUndefined()
+  it('rejects when an open notes window lacks a flush listener', async () => {
+    await expect(requestRendererNotesEditsFlush()).rejects.toMatchObject({
+      code: notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED
+    })
     expect(broadcastMock).not.toHaveBeenCalled()
   })
 
