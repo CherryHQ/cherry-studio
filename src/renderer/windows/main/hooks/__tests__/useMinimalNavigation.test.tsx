@@ -31,6 +31,9 @@ vi.mock('@renderer/hooks/tab', () => ({
       tabs,
       activeTabId,
       setActiveTab,
+      updateTab: (id: string, updates: Partial<Tab>) => {
+        setTabs((current) => current.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab)))
+      },
       closeTabs: (ids: readonly string[], activateId?: string) => {
         setTabs((current) => current.filter((tab) => !ids.includes(tab.id)))
         if (ids.includes(activeTabId) && activateId) setActiveTab(activateId)
@@ -53,6 +56,36 @@ afterEach(() => {
 })
 
 describe('minimal navigation', () => {
+  it('prepares a missing Chat home without leaving Work or creating duplicate tabs', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
+    const { result, rerender } = renderHook(useMinimalNavigation)
+    act(() => capture.current?.setTabs(initialTabs.filter((tab) => tab.id !== 'chat')))
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    rerender()
+    expect(capture.current?.activeTabId).toBe('agent')
+    expect(capture.current?.tabs.filter((tab) => tab.url.startsWith('/app/chat'))).toHaveLength(1)
+    const preparedId = result.current.homeTabIds.assistant
+    act(() => {
+      result.current.switchHome('assistant')
+    })
+    expect(capture.current?.activeTabId).toBe(preparedId)
+    expect(capture.current?.tabs.filter((tab) => tab.url.startsWith('/app/chat'))).toHaveLength(1)
+  })
+
+  it('wakes the restored Chat home without changing its conversation or active Work home', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
+    const { rerender } = renderHook(useMinimalNavigation)
+    act(() => capture.current?.setTabs(initialTabs.map((tab) => ({ ...tab, isDormant: true }))))
+    MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
+    rerender()
+    expect(capture.current?.activeTabId).toBe('agent')
+    expect(capture.current?.tabs.find((tab) => tab.id === 'chat')).toMatchObject({
+      url: '/app/chat?topicId=existing',
+      isDormant: false
+    })
+    expect(capture.current?.tabs.find((tab) => tab.id === 'note')?.isDormant).toBe(true)
+  })
+
   it('enters Agent home on activation and preserves the chosen feature across rerenders', () => {
     MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'efficiency')
     const { result, rerender } = renderHook(useMinimalNavigation)

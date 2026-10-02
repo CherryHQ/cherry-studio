@@ -30,7 +30,7 @@ export const AppShell = ({
   minimalMode,
   minimalToolbar
 }: {
-  minimalMode?: { isHome: boolean; returnHome: () => void }
+  minimalMode?: { isHome: boolean; returnHome: () => void; homeTabIds?: { agent?: string; assistant?: string } }
   minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
 }) => {
   const isMinimal = !!minimalMode
@@ -245,6 +245,7 @@ export const AppShell = ({
                 key={tab.id}
                 tab={tab}
                 isActive={tab.id === activeTabId}
+                preload={tab.id === minimalMode?.homeTabIds?.agent || tab.id === minimalMode?.homeTabIds?.assistant}
                 onUrlChange={(url) => handleUrlChange(tab.id, url)}
               />
             ))}

@@ -10,7 +10,7 @@ const HOME_URLS = { agent: '/app/agents', assistant: '/app/chat' } as const
 
 export function useMinimalNavigation() {
   const [mode] = usePreference('ui.mode')
-  const { tabs, activeTabId, setActiveTab, openTab, closeTabs } = useTabs()
+  const { tabs, activeTabId, setActiveTab, openTab, closeTabs, updateTab } = useTabs()
   const [, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
   const enabled = mode === 'minimal'
@@ -46,7 +46,13 @@ export function useMinimalNavigation() {
   }, [homeKind, switchHome])
 
   useLayoutEffect(() => {
-    if (enabled && !wasEnabled.current) returnHome()
+    if (enabled && !wasEnabled.current) {
+      const assistant = findMinimalFeatureTab(tabs, HOME_URLS.assistant)
+      const assistantId = assistant?.id ?? openTab(HOME_URLS.assistant)
+      if (assistant?.isDormant) updateTab(assistantId, { isDormant: false })
+      setHomeTabIds((current) => ({ ...current, assistant: assistantId }))
+      returnHome()
+    }
     if (!enabled && wasEnabled.current) pendingEfficiencyHomeId.current = switchHome('agent')
     wasEnabled.current = enabled
 
@@ -61,7 +67,18 @@ export function useMinimalNavigation() {
       setSplitOpen(false)
       setSplitMiniAppId('')
     }
-  }, [closeTabs, enabled, returnHome, setActiveTab, setSplitMiniAppId, setSplitOpen, switchHome, tabs])
+  }, [
+    closeTabs,
+    enabled,
+    openTab,
+    returnHome,
+    setActiveTab,
+    setSplitMiniAppId,
+    setSplitOpen,
+    switchHome,
+    tabs,
+    updateTab
+  ])
 
   const openFeature = useCallback(
     (url: string) => {
@@ -78,7 +95,7 @@ export function useMinimalNavigation() {
   )
 
   return useMemo(
-    () => ({ enabled, isHome, homeKind, switchHome, returnHome, openFeature }),
-    [enabled, isHome, homeKind, switchHome, returnHome, openFeature]
+    () => ({ enabled, isHome, homeKind, homeTabIds, switchHome, returnHome, openFeature }),
+    [enabled, isHome, homeKind, homeTabIds, switchHome, returnHome, openFeature]
   )
 }
