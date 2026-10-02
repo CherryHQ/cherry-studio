@@ -2875,6 +2875,36 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(1)
     })
 
+    // The per-root cap alone lets one session keep a full stream per unresolved root; the session
+    // budget is what stops many roots from retaining thousands of chunks between them.
+    it('caps recovery buffering across every unresolved root of a session', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const fill = (rootToolCallId: string) => {
+        const send = (chunk: unknown) =>
+          (service as any).handleRuntimeEvent(entry, { type: 'background-flow-chunk', rootToolCallId, chunk })
+        // One start plus 999 deltas is exactly the per-root cap, so each root fills its own budget.
+        send({ type: 'text-start', id: `${rootToolCallId}-text` })
+        for (let index = 0; index < 999; index += 1) {
+          send({ type: 'text-delta', id: `${rootToolCallId}-text`, delta: 'x' })
+        }
+      }
+
+      // Four roots fill the 4,000-chunk session budget without any of them overflowing alone.
+      for (let root = 0; root < 4; root += 1) fill(`root-${root}`)
+      expect(entry.pendingRecoveryFlowChunks?.size).toBe(4)
+
+      // The next root cannot fit its stream, so it is given up as a whole rather than truncated.
+      fill('root-4')
+      expect(entry.pendingRecoveryFlowChunks?.has('root-4')).toBe(false)
+      expect(entry.pendingRecoveryFlowChunks?.size).toBe(4)
+    })
+
     it('rejoins an overflowed root on a reasoning-first round', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -3031,9 +3061,13 @@ describe('AgentSessionRuntimeService', () => {
         }
       })
       service.markTurnTerminal('session-1', 'success')
-      // Every seed read fails: the round's chunks stay buffered, never accumulated.
+      // The seed fails while the round runs, so its chunks stay buffered, never accumulated; the
+      // row is readable again by teardown, which is what lets the fold publish them.
+      let seedCalls = 0
       mocks.getSessionMessage.mockImplementation(() => {
-        throw new Error('db busy')
+        seedCalls += 1
+        if (seedCalls === 1) throw new Error('db busy')
+        return { id: 'assistant-1', role: 'assistant', data: { parts: [] } }
       })
       mocks.cacheSetShared.mockClear()
 
@@ -3178,6 +3212,52 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
       expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+    })
+
+    // A read that failed for any other reason may be hiding a row that exists; folding the
+    // buffered tail into the cache then would replace the flow's content with its last few chunks.
+    it('does not publish a seed-less snapshot when the row read fails', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'orphan-text' },
+        { type: 'text-delta', id: 'orphan-text', delta: 'Orphaned findings' },
+        { type: 'text-end', id: 'orphan-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await service.closeSession('session-1')
+
+      const call = mocks.cacheSetShared.mock.calls.find(
+        ([key, parts]) =>
+          typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Orphaned findings')
+      )
+      expect(call).toBeUndefined()
     })
 
     it('keeps buffered chunks across a connection reset for replay', async () => {
