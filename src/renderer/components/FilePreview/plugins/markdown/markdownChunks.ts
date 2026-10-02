@@ -70,11 +70,34 @@ function htmlBlockTerminator(line: string): RegExp | null {
 const FOOTNOTE_DEFINITION_START = /^\s{0,3}\[\^[^\]]+\]:/
 
 /**
- * The container markers a definition may sit behind — a block quote, a list item, or both. A
- * definition belongs to the document rather than to the block that happens to hold it, so the
- * parser accepts one in a quote or a list item and registers it for the whole document.
+ * The container markers a definition may sit behind — block quotes, list items, and any nesting of
+ * the two. A definition belongs to the document rather than to the block that happens to hold it,
+ * so the parser accepts one behind a quote or a list item and registers it for the whole document.
+ * The markers repeat, because a quote may hold a list item that holds the definition.
  */
-const DEFINITION_CONTAINER = /^(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+/
+const DEFINITION_CONTAINER = /^(?:(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+)+/
+
+/** A block quote marker. */
+const QUOTE_MARKER = /^[ \t]*>[ \t]?/
+
+/** A list item marker, which on a continuation line always opens a list rather than continuing. */
+const LIST_MARKER = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+/
+
+/** The block quote markers in a container prefix — how deeply a definition is quoted. */
+function quoteDepth(container: string): number {
+  return container.match(/[ \t]*>[ \t]?/g)?.length ?? 0
+}
+
+/**
+ * The column a continuation's block quote has to reach to stay inside the list item that holds the
+ * definition, or -1 when no list item does. A quote one column further left closes the list item
+ * instead of continuing it — but only when the list item is the outermost container, since a quote
+ * already outside it keeps the line inside the quote whatever column it sits in.
+ */
+function listContentColumn(container: string): number {
+  if (!LIST_MARKER.test(container)) return -1
+  return container.match(/[ \t]+/)?.[0].length ?? -1
+}
 
 /**
  * A link reference definition label, which may leave its destination to a line of its own. A label
@@ -82,8 +105,8 @@ const DEFINITION_CONTAINER = /^(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.
  */
 const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\])+)\][ \t]*:([ \t]*)([\s\S]*)$/
 
-/** A link destination: an angle-bracketed run or a whitespace-free one. */
-const LINK_DESTINATION = /^(?:<[^<>]*>|[^\s]+)/
+/** A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. */
+const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|[^\s]+)/
 
 /** A link title, which may sit on the line below the destination. */
 const LINK_TITLE = /^[ \t]*(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\))[ \t]*$/
@@ -100,25 +123,27 @@ const INDENTED_LINE = /^\s+\S/
  */
 function linkDefinition(lines: string[], index: number): { text: string; lines: number } | null {
   const start = DEFINITION_CONTAINER.exec(lines[index])
+  const quotes = start ? quoteDepth(start[0]) : 0
+  const contentColumn = start ? listContentColumn(start[0]) : -1
   const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
   if (!label) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
   let tail = label[3]
   let span = 1
   if (!LINK_DESTINATION.test(tail)) {
-    const next = continuation(lines[index + 1])
+    const next = continuation(lines[index + 1], quotes, contentColumn)
     if (next === undefined) return null
     tail = next
     body.push(next)
     span = 2
   }
   tail = tail.replace(LINK_DESTINATION, '')
-  if (!/^[ \t]*$/.test(tail)) {
-    if (!LINK_TITLE.test(tail)) return null
-  } else {
-    const title = continuation(lines[index + span])
-    if (title !== undefined) {
-      if (!LINK_TITLE.test(title)) return null
+  // A destination with anything else left on its own line is not a definition at all — that is a
+  // paragraph. Left on a later line, the definition stands and the text is a block of its own.
+  if (!/^[ \t]*$/.test(tail) && !LINK_TITLE.test(tail)) return null
+  if (/^[ \t]*$/.test(tail)) {
+    const title = continuation(lines[index + span], quotes, contentColumn)
+    if (title !== undefined && LINK_TITLE.test(title)) {
       body.push(title)
       span += 1
     }
@@ -127,14 +152,28 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
 }
 
 /**
- * The content a definition continuation line carries, or undefined when it is not one of ours. Only
- * a container marker is removed: the indentation that follows it is what the parser reads to know
- * the line continues this definition rather than starting a new block.
+ * The content a definition continuation line carries, or undefined when it is not one of ours.
+ *
+ * The parser continues a definition only while the line stays inside the container that holds it,
+ * and it reads a marker on a continuation line as the start of a new block rather than as more
+ * container. So a continuation may carry fewer quote markers than the definition was written
+ * behind, but never more: each marker beyond the definition's own opens a deeper quote than the one
+ * the definition lives in, and a list marker is never dropped either, because a list opened there
+ * ends the definition. The indentation that follows a marker is what tells the parser the line
+ * continues this definition rather than starting a new block, so it is left in place.
  */
-function continuation(line: string | undefined): string | undefined {
+function continuation(line: string | undefined, quotes: number, contentColumn: number): string | undefined {
   if (line === undefined) return undefined
-  const container = DEFINITION_CONTAINER.exec(line)
-  const content = container ? line.slice(container[0].length) : line
+  let content = line
+  let seen = 0
+  for (let quote = QUOTE_MARKER.exec(content); quote; quote = QUOTE_MARKER.exec(content)) {
+    // A quote that does not reach the column the list item indents its content to has already
+    // fallen out of that item, and opens a block of its own instead of continuing the definition.
+    if (seen === 0 && contentColumn > 0 && quote.index + quote[0].indexOf('>') < contentColumn) return undefined
+    content = content.slice(quote[0].length)
+    seen += 1
+  }
+  if (seen > quotes || LIST_MARKER.test(content)) return undefined
   return /\S/.test(content) ? content : undefined
 }
 

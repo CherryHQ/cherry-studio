@@ -333,6 +333,68 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition nested behind a block quote and a list marker', () => {
+    // Both markers are the definition's own container, so one alternation that stops after a quote
+    // or after a list marker never matches the pair and the reference degrades to literal text.
+    const content = ['> - [label]: https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com')
+    }
+  })
+
+  it('carries a definition whose destination follows a container marker of its own', () => {
+    // `[label]:` opens no definition, so the destination one line down is what makes it one — the
+    // list item is what the parser reads to know the line continues rather than starting a list.
+    const content = ['- [label]:', '  https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]:\n  https://example.com')
+    }
+  })
+
+  it('does not read a container marker as the destination of a bare label line', () => {
+    // The parser stops the definition at the marker: it opens a list or quote instead, so carrying
+    // the marker as a destination would invent a link the base parser does not create.
+    const content = ['[label]:', '- not a destination', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).not.toContain('[label]: - not a destination')
+    }
+  })
+
+  it('does not carry a definition whose continuation is deeper than the container that holds it', () => {
+    // `> >` opens a second quote rather than continuing the first, so the destination is a block of
+    // its own and hoisting it would print it in every chunk.
+    const content = ['> [label]:', '> > https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('https://example.com'))).toHaveLength(1)
+  })
+
+  it('carries a definition whose destination is followed by a paragraph', () => {
+    // Only the title may follow the destination, but text on a later line is a block of its own —
+    // so the definition stands and the paragraph stays behind rather than sinking it.
+    const content = ['[label]:', 'https://example.com', 'more text', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]:\nhttps://example.com')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('more text'))).toHaveLength(1)
+  })
+
   it('does not carry a label line that opens no definition', () => {
     // `[label]:` with no destination is a paragraph, so hoisting it would print it in every chunk.
     const content = ['[label]:', 'not a destination here', '', 'para one', '', 'see [label]'].join('\n')
