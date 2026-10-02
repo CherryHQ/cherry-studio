@@ -638,6 +638,97 @@ describe('agent right pane projections', () => {
   })
 
   // SDK task events describe spawned processes, not the agent's own plan, so they populate
+  // A cold-resumed dsh task is rebound to the send_message call its content streams under, even
+  // when the original launch's task event is loaded and would otherwise win the row.
+  it('follows the dsh runtime rebinding a task to its resume call', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-send',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'dsh-child-1', toolUseId: 'call-send' })])
+  })
+
+  // Claude resume edges also name the resuming call, but a claude child's content stays under its
+  // launch root: the row must keep the launch binding, so first-wins has to survive there.
+  it('keeps the launch binding for a claude task whose later edge names a resume call', () => {
+    const parts = [
+      toolPart('call-launch', 'Agent', undefined, 'output-available', { description: 'Audit the renderer' }, 'ok'),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      toolPart(
+        'call-resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'child-1', message: 'continue' },
+        { success: true, resumedAgentId: 'child-1' }
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'child-1',
+          toolUseId: 'call-resume',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'child-1', toolUseId: 'call-launch' })])
+  })
+
   // `runTasks` and stay out of the plan's done/total ratio.
   it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
     const parts = [

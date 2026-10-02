@@ -469,6 +469,11 @@ function AgentRightPaneActionsProvider({
     },
     [canOpenAgentToolFlow, sessionId, showFlowTab]
   )
+  // A chase belongs to the session that asked for it: leaving that session abandons the click
+  // rather than reopening the flow when the user later wanders back.
+  useEffect(() => {
+    if (pendingFlowOpen && pendingFlowOpen.sessionId !== sessionId) setPendingFlowOpen(null)
+  }, [pendingFlowOpen, sessionId])
   useEffect(() => {
     if (!pendingFlowOpen || pendingFlowOpen.sessionId !== sessionId) return
     const { input, nested } = pendingFlowOpen

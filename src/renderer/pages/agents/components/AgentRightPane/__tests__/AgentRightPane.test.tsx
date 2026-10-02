@@ -2188,6 +2188,51 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('shell-tab-title')).toBeNull()
   })
 
+  // The click belonged to the session it was made in: coming back later must not resurrect it and
+  // page history for a flow the user has long moved on from.
+  it('abandons a deferred flow click when the pane leaves its session', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (sessionId: string, partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane('session-a', { m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane('session-b', { m1: [receipt] }))
+    view.rerender(pane('session-a', { m1: [receipt], m2: [launch] }))
+
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
   // A deferred open is still the nested open the caller asked for: the flow it was opened from
   // stays underneath, reachable through the pane's back affordance.
   it('keeps the nesting of a deferred flow open', async () => {

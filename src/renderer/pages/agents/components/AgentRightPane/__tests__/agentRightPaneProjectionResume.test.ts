@@ -704,6 +704,42 @@ describe('agent right pane flow rounds', () => {
     expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings', 'Second round findings'])
   })
 
+  // A cold-resumed dsh child's task names the send_message call that resumed it, and the child's
+  // content streams there: the row must open that call rather than chase the launch root, or the
+  // click pages history for a flow that can never hold the resumed answer.
+  it('roots a dsh task-bound receipt at its own call before its content arrives', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-send',
+          status: 'in_progress',
+          taskType: 'subagent'
+        }
+      } as unknown as CherryMessagePart
+    ]
+    const partsByMessageId = { m1: parts }
+
+    expect(resolveFlowToolCallId('call-send', partsByMessageId)).toBeUndefined()
+    expect(isResumeReceiptCall('call-send', partsByMessageId)).toBe(false)
+  })
+
   // A deferred receipt hides its target from the result, so the call's own `to` is what ties it to
   // the launch — without it the resumed round would lose the request the agent was sent.
   it('splits a deferred receipt round from the target its call carried', () => {

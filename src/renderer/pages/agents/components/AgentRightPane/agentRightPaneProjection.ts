@@ -441,6 +441,9 @@ export function isResumeReceiptCall(
       if (getResumedAgentId(record.output) !== undefined) isReceipt = true
     }
   }
+  // A call the dsh runtime bound a task to streams under itself, so its receipt is the flow's root
+  // rather than an edge to chase: paging history for a launch root would end in a dead click.
+  if (buildAgentLaunchIndex(partsByMessageId).dshTaskRootCallIds.has(toolCallId)) return false
   return isReceipt && !hasChildren
 }
 
@@ -459,6 +462,7 @@ export function resolveFlowToolCallId(
   const launchIndex = buildAgentLaunchIndex(partsByMessageId)
   // A call the content streams under is a root in its own right — a cold-resumed dsh child streams
   // under its own send_message call — so redirecting it would move the content off its own root.
+  if (launchIndex.dshTaskRootCallIds.has(toolCallId)) return undefined
   for (const parts of Object.values(partsByMessageId)) {
     if (parts.some((part) => getPartParentToolCallId(part) === toolCallId)) return undefined
   }
@@ -909,6 +913,7 @@ const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed',
 function applyAgentTaskEvent(
   runTaskMap: Map<string, AgentRunTask>,
   data: AgentTaskEventPartData,
+  dshTaskRootCallIds: ReadonlySet<string>,
   originMessageId?: string,
   originMessageIds?: Map<string, string>
 ): void {
@@ -928,8 +933,12 @@ function applyAgentTaskEvent(
   runTaskMap.set(data.taskId, {
     id: data.taskId,
     // First registration wins: SendMessage-resume edges carry the resuming call's id while
-    // content keeps streaming under the original launch tool-use id.
-    toolUseId: existing?.toolUseId ?? data.toolUseId,
+    // content keeps streaming under the original launch tool-use id — except for a dsh task the
+    // runtime rebound to its resume call, which is where that child's content now streams.
+    toolUseId:
+      data.toolUseId && dshTaskRootCallIds.has(data.toolUseId)
+        ? data.toolUseId
+        : (existing?.toolUseId ?? data.toolUseId),
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
     status,
@@ -974,13 +983,16 @@ export function buildAgentRightPaneStatus(
   let todoSnapshotTasks: AgentStatusTask[] | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
+  // A dsh task rebound to its resume call must follow that call, even when the launch's own task
+  // event is loaded and would otherwise win the row.
+  const dshTaskRootCallIds = buildAgentLaunchIndex(partsByMessageId).dshTaskRootCallIds
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
+        applyAgentTaskEvent(runTaskMap, part.data, dshTaskRootCallIds, message.id, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
@@ -1014,7 +1026,7 @@ export function buildAgentRightPaneStatus(
   }
 
   for (const data of Object.values(lateTaskEvents)) {
-    applyAgentTaskEvent(runTaskMap, data)
+    applyAgentTaskEvent(runTaskMap, data, dshTaskRootCallIds)
   }
 
   // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
