@@ -297,7 +297,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   it (fenced code, display math, raw HTML, indented code) and outside every list, which is one block: the pieces of a cut
   list renumber its ordered items and parse a loose list as a tight one. Reference definitions are carried into every
   chunk whole, even when a link's destination or title sits on a line of its own, because a link or footnote used in one
-  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. The
+  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. Lines
+  are compared without their terminator, so a CRLF source windows exactly like the same source with LF endings. The
   source is split once, and that one split decides both what is windowed and what cannot be.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request

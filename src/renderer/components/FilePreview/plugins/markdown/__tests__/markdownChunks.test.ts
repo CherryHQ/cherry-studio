@@ -3,18 +3,19 @@ import { describe, expect, it } from 'vitest'
 import { hasOversizedMarkdownChunk, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunks } from '../markdownChunks'
 
 const joined = (chunks: Array<{ text: string }>) => chunks.map((chunk) => chunk.text).join('\n')
+const chunksOf = (content: string, budgetChars?: number) => splitMarkdownChunks(content, budgetChars).chunks
 
 describe('splitMarkdownChunks', () => {
   it('keeps a document that has no definitions lossless across its chunks', () => {
     const content = ['para one', '', 'para two', '', 'para three'].join('\n')
 
-    expect(joined(splitMarkdownChunks(content, 10))).toBe(content)
+    expect(joined(chunksOf(content, 10))).toBe(content)
   })
 
   it('splits at blank lines once the chunk budget is spent', () => {
     const content = ['para one', '', 'para two', '', 'para three'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks.length).toBeGreaterThan(1)
     expect(joined(chunks)).toBe(content)
@@ -24,7 +25,7 @@ describe('splitMarkdownChunks', () => {
     // A boundary inside the fence would tear the code block in half and leave both chunks malformed.
     const content = ['opening paragraph', '', '```', 'code line', '', 'more code', '```', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('code line\n\nmore code')
@@ -33,7 +34,7 @@ describe('splitMarkdownChunks', () => {
   it('keeps display math that spans blank lines in one chunk', () => {
     const content = ['opening paragraph', '', '$$', 'x = 1', '', 'y = 2', '$$', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
@@ -42,7 +43,7 @@ describe('splitMarkdownChunks', () => {
   it('keeps dollar display math that opens with content on its line in one chunk', () => {
     const content = ['opening paragraph', '', '$$x = 1234567890', '', 'y = 2$$', '', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(3)
     expect(chunks[1].text).toContain('$$x = 1234567890\n\ny = 2$$')
@@ -51,7 +52,7 @@ describe('splitMarkdownChunks', () => {
   it('keeps dollar display math built around a LaTeX environment in one chunk', () => {
     const content = ['opening paragraph', '', '$$\\begin{align}', 'x = 1', '', 'y = 2', '\\end{align}$$', ''].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
@@ -61,7 +62,7 @@ describe('splitMarkdownChunks', () => {
     // `$$x = 1$$` closes on its own line, so the parser leaves it to the inline tokenizer.
     const content = ['opening paragraph', '', '$$x = 1$$ and text', '', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(3)
   })
@@ -70,16 +71,47 @@ describe('splitMarkdownChunks', () => {
     // The parser reads an unclosed `$$` as math to the end of the document, so the splitter follows it.
     const content = ['opening paragraph', '', '$$x = 1', '', 'y = 2', '', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('y = 2\n\nafter')
   })
 
+  // A CRLF document must window exactly like the same source with LF endings: every line-anchored
+  // match here has to see the line without its `\r`, or a construct that should close never does and
+  // one unclosed run suppresses every later boundary.
+  it('windows a CRLF document whose dollar math closes on a later line', () => {
+    const content = ['opening paragraph', '', '$$x = 1234567890', '', 'y = 2$$', '', 'after'].join('\r\n')
+
+    const chunks = chunksOf(content, 10)
+
+    expect(chunks).toHaveLength(3)
+    expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
+  })
+
+  it('keeps a CRLF blank-separated list in one chunk', () => {
+    const content = ['opening paragraph', '', '- one', '', '- two', '', '- three', '', 'after'].join('\r\n')
+
+    const chunks = chunksOf(content, 10)
+
+    expect(chunks).toHaveLength(3)
+    expect(chunks[1].text).toContain('- one\n\n- two\n\n- three')
+  })
+
+  it('carries a CRLF link reference definition whole', () => {
+    const content = ['opening paragraph', '', '[label]: https://example.com', '"the title"', '', 'see [label]'].join(
+      '\r\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('the title'))).toHaveLength(chunks.length)
+  })
+
   it('keeps a raw HTML block that spans blank lines in one chunk', () => {
     const content = ['opening paragraph', '', '<pre>', 'raw one', '', 'raw two', '</pre>', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('raw one\n\nraw two')
@@ -89,7 +121,7 @@ describe('splitMarkdownChunks', () => {
     // That blank line is part of the block above it — a footnote definition or indented code block.
     const content = ['opening paragraph', '', '    indented body', '', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks[0].text).toContain('indented body')
   })
@@ -98,7 +130,7 @@ describe('splitMarkdownChunks', () => {
     // One indented code block: only the last blank line before unindented text ends it.
     const content = ['opening paragraph', '', '    code one', '', '', '    code two', '', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[0].text).toContain('code one\n\n\n    code two')
@@ -109,20 +141,20 @@ describe('splitMarkdownChunks', () => {
     // and 1, 1, 1 as three documents.
     const content = ['1. first', '', '1. second', '', '1. third'].join('\n')
 
-    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+    expect(chunksOf(content, 1)).toHaveLength(1)
   })
 
   it('keeps the rest of an ordered list together once its numbering stops matching', () => {
     const content = ['1. first', '', '1. second', '', '2. third'].join('\n')
 
-    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+    expect(chunksOf(content, 1)).toHaveLength(1)
   })
 
   it('keeps an ordered list whose markers skip numbers in one chunk', () => {
     // `1. 3. 5.` renders 1, 2, 3 as one list, so the written numbers cannot carry across a boundary.
     const content = ['1. first', '', '3. second', '', '5. third'].join('\n')
 
-    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+    expect(chunksOf(content, 1)).toHaveLength(1)
   })
 
   it('keeps a blank-separated list in one chunk', () => {
@@ -130,13 +162,13 @@ describe('splitMarkdownChunks', () => {
     // that a loose list wraps every item in.
     const content = ['- first', '', '- second', '', '- third'].join('\n')
 
-    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
+    expect(chunksOf(content, 1)).toHaveLength(1)
   })
 
   it('still windows between a list and the blocks around it', () => {
     const content = ['para one', '', '1. first', '1. second', '', 'para two', '', 'para three'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks).toHaveLength(4)
     expect(chunks[1].text).toContain('1. first\n1. second')
@@ -145,7 +177,7 @@ describe('splitMarkdownChunks', () => {
   it('still windows the lists of a document where a heading ends the first one', () => {
     const content = ['1. first', '', '1. second', '', '# heading', '', '1. third', '', '2. fourth'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks).toHaveLength(3)
     expect(chunks[0].text).toContain('1. first\n\n1. second')
@@ -156,7 +188,7 @@ describe('splitMarkdownChunks', () => {
     // A chunk is its own document, so a reference whose definition lives elsewhere renders literally.
     const content = ['[label]: https://example.com', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
@@ -168,7 +200,7 @@ describe('splitMarkdownChunks', () => {
     // `[label]:` alone is no definition, so the run has to travel whole or the reference degrades.
     const content = ['[label]:', 'https://example.com', '', 'para one', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
@@ -179,7 +211,7 @@ describe('splitMarkdownChunks', () => {
   it('carries a link reference definition that runs to a title on its own line', () => {
     const content = ['[label]:', 'https://example.com', '"the title"', '', 'para one', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
@@ -190,7 +222,7 @@ describe('splitMarkdownChunks', () => {
   it('carries a footnote definition into the chunk that uses it', () => {
     const content = ['[^1]: the note', '', 'see the note[^1]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
@@ -201,7 +233,7 @@ describe('splitMarkdownChunks', () => {
   it('carries a definition with an indented continuation line', () => {
     const content = ['[^1]: first line', '    second line', '', 'see [^1]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[^1]: first line\n    second line')
@@ -212,7 +244,7 @@ describe('splitMarkdownChunks', () => {
     // Only definitions render nothing everywhere else; hoisting the paragraph would duplicate it.
     const content = ['[label]: https://example.com', 'visible tail text', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
   })
@@ -229,7 +261,7 @@ describe('splitMarkdownChunks', () => {
       'see [label]'
     ].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
     for (const chunk of chunks) {
@@ -241,7 +273,7 @@ describe('splitMarkdownChunks', () => {
     // `[label]:` with no destination is a paragraph, so hoisting it would print it in every chunk.
     const content = ['[label]:', 'not a destination here', '', 'para one', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('not a destination here'))).toHaveLength(1)
   })
@@ -250,7 +282,7 @@ describe('splitMarkdownChunks', () => {
     // Without a reset, the budget stops being spent once and every later paragraph becomes a chunk.
     const content = Array.from({ length: 10 }, (_, i) => `paragraph-${i + 1}`).join('\n\n')
 
-    const chunks = splitMarkdownChunks(content, 60)
+    const chunks = chunksOf(content, 60)
 
     expect(chunks).toHaveLength(2)
   })
@@ -258,7 +290,7 @@ describe('splitMarkdownChunks', () => {
   it('keeps bracket display math that spans blank lines in one chunk', () => {
     const content = ['opening paragraph', '', '\\[', 'x = 1', '', 'y = 2', '\\]', 'after'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
@@ -271,7 +303,7 @@ describe('splitMarkdownChunks', () => {
       '\n'
     )
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('\\[\nx = 1\n\\[\ny = 2\n\\]\n\nz = 3\n\\]')
@@ -282,7 +314,7 @@ describe('splitMarkdownChunks', () => {
       '\n'
     )
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
@@ -304,7 +336,7 @@ describe('splitMarkdownChunks', () => {
       'after'
     ].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 10)
+    const chunks = chunksOf(content, 10)
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('\\end{align}\n\nz = 3\n\\end{align}')
@@ -313,7 +345,7 @@ describe('splitMarkdownChunks', () => {
   it('carries a multi-paragraph footnote definition in full', () => {
     const content = ['[^1]: first paragraph', '', '    second paragraph', '', 'see [^1]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[^1]: first paragraph\n\n    second paragraph')
@@ -323,7 +355,7 @@ describe('splitMarkdownChunks', () => {
   it('carries a footnote definition across the blank lines that separate its paragraphs', () => {
     const content = ['[^1]: first paragraph', '', '', '    second paragraph', '', 'see [^1]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[^1]: first paragraph\n\n\n    second paragraph')
@@ -334,7 +366,7 @@ describe('splitMarkdownChunks', () => {
     // A footnote definition owns its indented lines; a link definition ends with its line run.
     const content = ['[label]: https://example.com', '', '    indented body', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('indented body'))).toHaveLength(1)
   })
@@ -342,21 +374,37 @@ describe('splitMarkdownChunks', () => {
   it('does not carry definition syntax found inside a fenced code block', () => {
     const content = ['```', '[label]: https://example.com', '```', '', 'see [label]'].join('\n')
 
-    const chunks = splitMarkdownChunks(content, 1)
+    const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('https://example.com'))).toHaveLength(1)
   })
 })
 
+describe('the window a split reports', () => {
+  // The line walk already has every line's length, so the long-line verdict costs no second pass.
+  it('reports a document too dominated by long lines to window', () => {
+    expect(splitMarkdownChunks(`${'a'.repeat(6_000)}\n`).longLines).toBe(true)
+  })
+
+  it('reports ordinary prose as windowable', () => {
+    expect(splitMarkdownChunks('# Title\n\nA short paragraph.\n').longLines).toBe(false)
+  })
+
+  it('counts a CRLF terminator as a separator rather than as content', () => {
+    expect(splitMarkdownChunks(`${'a'.repeat(5_000)}\r\n`).longLines).toBe(false)
+    expect(splitMarkdownChunks(`${'a'.repeat(5_001)}\r\n`).longLines).toBe(true)
+  })
+})
+
 describe('hasOversizedMarkdownChunk', () => {
   it('flags one indivisible block that would still reach the renderer whole', () => {
-    const chunks = splitMarkdownChunks(`# head\n\n${'a'.repeat(MARKDOWN_MAX_BLOCK_CHARS + 1)}`)
+    const chunks = chunksOf(`# head\n\n${'a'.repeat(MARKDOWN_MAX_BLOCK_CHARS + 1)}`)
 
     expect(hasOversizedMarkdownChunk(chunks)).toBe(true)
   })
 
   it('does not flag a long document made of many small blocks', () => {
-    const chunks = splitMarkdownChunks('para\n\n'.repeat(100_000))
+    const chunks = chunksOf('para\n\n'.repeat(100_000))
 
     expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
   })
