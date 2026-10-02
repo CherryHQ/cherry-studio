@@ -240,6 +240,22 @@ export async function buildEnvironment(
     }
   }
 
+  // Auto mode runs a permission classifier inside the bundled CLI before every gated tool call
+  // (Bash, Edit, subagent launches). When the classifier's upstream model hiccups, the CLI burns
+  // through its bundled retry budget and then silently deny-blocks every gated call for the rest
+  // of the burst — no user-facing fallback, and subagent launches are denied too
+  // (cherryhq/cherry-studio#18261, with reproductions from multiple users). The CLI reads its
+  // classifier retry count from the tengu_auto_mode_config feature config, which a host can seed
+  // through CLAUDE_INTERNAL_FC_OVERRIDES (measured against the bundled CLI and undocumented, so
+  // re-verify on SDK upgrades). Default auto-mode sessions to a doubled budget so short upstream
+  // jitter rides out instead of mass-denying: user env_vars merged above still win, and other
+  // permission modes never invoke the classifier, so they stay untouched.
+  if (agent.configuration?.permission_mode === 'auto' && !('CLAUDE_INTERNAL_FC_OVERRIDES' in env)) {
+    env.CLAUDE_INTERNAL_FC_OVERRIDES = JSON.stringify({
+      tengu_auto_mode_config: { maxRetries: 8 }
+    })
+  }
+
   // Claude Code (login) provider: reuse the user's Claude Code CLI subscription
   // login (Claude Pro/Max OAuth) instead of an API key. The Claude Agent SDK
   // falls back to the stored OAuth credential ONLY when no credential is forced
