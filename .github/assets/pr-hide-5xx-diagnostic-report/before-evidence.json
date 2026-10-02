@@ -1,0 +1,32 @@
+[
+  {
+    "label": "before-5xx",
+    "shot": ".github/assets/pr-hide-5xx-diagnostic-report/before-5xx.png",
+    "reviewShot": null,
+    "names": ["", "", "报告问题", "关闭"],
+    "a11y": [
+      {
+        "name": "复制",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "查看详情",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "报告问题",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "关闭",
+        "role": "button",
+        "disabled": false
+      }
+    ],
+    "reviewOpened": false,
+    "url": "http://localhost:5173/windows/main/index.html"
+  }
+]
