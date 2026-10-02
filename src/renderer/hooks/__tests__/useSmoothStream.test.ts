@@ -50,6 +50,80 @@ afterEach(() => {
 })
 
 describe('useSmoothStream', () => {
+  // Regression: Intl.Segmenter resolves one locale per instance and must use
+  // word granularity. With the Thai locale active, Thai text without spaces
+  // must be segmented into word units — under the old single
+  // `new Intl.Segmenter([...])` (grapheme granularity, resolving to en-US)
+  // the whole no-space run collapsed into one giant segment.
+  it('segments Thai text into words when the UI language is Thai', async () => {
+    const i18n = (await import('@renderer/i18n/resolver')).default
+    await i18n.changeLanguage('th-TH')
+
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
+
+    // A word split across two chunks must be re-joined, not shown broken.
+    act(() => result.current.update('สวัสดี', false))
+    act(() => result.current.update('สวัสดีครับ', false))
+    act(() => result.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+
+    expect(onUpdate).toHaveBeenLastCalledWith('สวัสดีครับ')
+    const segments = Array.from(new Intl.Segmenter('th-TH', { granularity: 'word' }).segment('สวัสดีครับ'))
+    expect(segments.length).toBeGreaterThan(1)
+    await i18n.changeLanguage('en-US')
+  })
+
+  // Regression: a zero-length completion delta (caller repeats the same
+  // accumulated text with isComplete=true) must still flush the held word
+  // tail — and never duplicate already-revealed text.
+  it('flushes the held tail on a zero-delta completion without duplication', async () => {
+    const i18n = (await import('@renderer/i18n/resolver')).default
+    await i18n.changeLanguage('th-TH')
+
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
+
+    act(() => result.current.update('สวัสดีครับ', false))
+    act(() => tick(16, 60))
+    expect(lastText(onUpdate)).toBe('สวัสดี')
+
+    act(() => result.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+    expect(onUpdate).toHaveBeenLastCalledWith('สวัสดีครับ')
+
+    // A trimmed completion must also reconcile exactly, never duplicating
+    // the previously held tail.
+    const onUpdate2 = vi.fn()
+    const { result: r2 } = renderHook(() => useSmoothStream({ onUpdate: onUpdate2, minDelay: 0 }))
+    act(() => r2.current.update('สวัสดีครับ ', false))
+    act(() => tick(16, 60))
+    act(() => r2.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+    expect(onUpdate2).toHaveBeenLastCalledWith('สวัสดีครับ')
+    await i18n.changeLanguage('en-US')
+  })
+
+  // While the stream is still running, the trailing word-like segment is
+  // held back (a word may continue in the next chunk), so only the leading
+  // word of "สวัสดีครับ" is revealed mid-stream.
+  it('holds the trailing word mid-stream and releases it on completion', async () => {
+    const i18n = (await import('@renderer/i18n/resolver')).default
+    await i18n.changeLanguage('th-TH')
+
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
+
+    act(() => result.current.update('สวัสดีครับ', false))
+    act(() => tick(16, 60))
+    expect(lastText(onUpdate)).toBe('สวัสดี')
+
+    act(() => result.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+    expect(onUpdate).toHaveBeenLastCalledWith('สวัสดีครับ')
+    await i18n.changeLanguage('en-US')
+  })
+
   // A burst can accumulate before the first frame; that frame must not dump
   // it. With no reference dt / rate sample yet it reveals exactly MIN_STEP.
   it('reveals only MIN_STEP on the first frame, never a dump', () => {
@@ -213,14 +287,17 @@ describe('useSmoothStream', () => {
     const onUpdate = vi.fn()
     const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
 
-    const BURST = 20
+    // Word-segmented input: each burst is real words separated by spaces
+    // (BURST chars incl. the joining space), mirroring a token stream.
+    const WORD = 'word '
+    const BURST = WORD.length * 4 // 20 chars = 4 words per burst
     const FRAMES_PER_CYCLE = 8 // 128ms gap between bursts → ~156 graphemes/s
     let received = 0
     let minBacklogAfterWarmup = Infinity
     let maxBacklogAfterWarmup = 0
 
     for (let cycle = 0; cycle < 40; cycle++) {
-      act(() => result.current.addChunk('a'.repeat(BURST)))
+      act(() => result.current.addChunk(WORD.repeat(4)))
       received += BURST
       for (let f = 0; f < FRAMES_PER_CYCLE; f++) act(() => tick(16))
 
@@ -240,7 +317,7 @@ describe('useSmoothStream', () => {
 
     // Stops feeding: the restoring term drains the cushion and completes.
     act(() => tick(16, 300))
-    expect(lastText(onUpdate)).toBe('a'.repeat(received))
+    expect(lastText(onUpdate)).toBe(WORD.repeat(4 * 40))
   })
 
   // P1 regression: reset() cancels the in-flight rAF; when streamDone does
@@ -274,20 +351,23 @@ describe('useSmoothStream', () => {
 
   // P2 regression: MIN_STEP used to force ≥1 grapheme/frame (~60/s at 60fps),
   // dumping a slow stream then stalling. Fractional credit plays sub-1/frame.
+  // (Word segmentation yields one segment per word, so the fixture uses real
+  // words and completes the stream — the trailing word is held until done.)
   it('does not dump a slow stream at the MIN_STEP floor', () => {
     const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
 
-    act(() => result.current.addChunk('abc'))
+    act(() => result.current.update('ab cd ef', false))
     act(() => tick(16, 10))
-    // Old behaviour: 1/frame → 'abc' fully shown within 3 frames. New: the
-    // sustained rate is low, so it is still mid-reveal after 10 frames.
+    // Old behaviour: ≥1 grapheme/frame → fully shown within 7 frames. New:
+    // the sustained rate is low, so it is still mid-reveal after 10 frames.
     const partial = lastText(onUpdate).length
     expect(partial).toBeGreaterThan(0)
-    expect(partial).toBeLessThan(3)
+    expect(partial).toBeLessThan(7)
 
+    act(() => result.current.update('ab cd ef', true))
     act(() => tick(16, 400)) // liveness: still completes eventually
-    expect(lastText(onUpdate)).toBe('abc')
+    expect(lastText(onUpdate)).toBe('ab cd ef')
   })
 
   // P4 regression: update() assumed monotonic prefix extension, but callers
