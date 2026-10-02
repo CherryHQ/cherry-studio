@@ -539,6 +539,16 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 
+// eachCell({ includeEmpty: true }) creates a Cell for every gap up to the row's last column (16384 for XFD), and the
+// non-empty variant drops styled-but-empty cells, so read existing cells by index instead.
+function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, colNumber: number) => void): void {
+  const lastCol = Math.min(row.cellCount, MAX_COLS)
+  for (let colNumber = 1; colNumber <= lastCol; colNumber++) {
+    const cell = row.findCell(colNumber)
+    if (cell) iteratee(cell, colNumber)
+  }
+}
+
 /**
  * Main parse entry point. This pure function can be tested directly by Vitest in Node without going through the Worker.
  * Fixed pipeline order: unzip -> ExcelJS cells/styles -> formula evaluation -> charts -> images -> assembly.
@@ -612,7 +622,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     let maxCol = 0
 
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (row.cellCount > MAX_COLS) warnings.add('sheet-truncated')
+      forEachExistingCell(row, (cell, colNumber) => {
         const value = cell.value
         const style = buildCellStyle(cell, theme, warnings)
 
@@ -620,7 +631,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           return
         }
 
-        if (rowNumber > MAX_ROWS || colNumber > MAX_COLS) {
+        if (rowNumber > MAX_ROWS) {
           warnings.add('sheet-truncated')
           return
         }
