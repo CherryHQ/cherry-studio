@@ -11,6 +11,8 @@
  * definition is therefore carried into every chunk, where an unused one renders nothing.
  */
 
+import { isPathologicalLineShape } from '../../textPreviewGuard'
+
 export interface MarkdownChunk {
   /** Markdown source for this chunk, including the carried reference definitions. */
   text: string
@@ -200,6 +202,16 @@ function trackListItem(run: ListRun | null, item: RegExpExecArray): ListRun {
   return { indent, marker: bullet ?? delimiter }
 }
 
+/** The windowed document, and from the same pass what windowing cannot fix. */
+export interface MarkdownWindow {
+  chunks: MarkdownChunk[]
+  /**
+   * The source is so dominated by very long lines that no boundary helps — the one shape the split
+   * cannot break up. Measured while walking the lines, not in a second pass over the source.
+   */
+  longLines: boolean
+}
+
 /**
  * Split markdown source into independently renderable chunks, breaking on blank lines only.
  *
@@ -210,10 +222,17 @@ function trackListItem(run: ListRun | null, item: RegExpExecArray): ListRun {
 export function splitMarkdownChunks(
   content: string,
   budgetChars: number = MARKDOWN_CHUNK_BUDGET_CHARS
-): MarkdownChunk[] {
-  if (content.length === 0) return []
+): MarkdownWindow {
+  if (content.length === 0) return { chunks: [], longLines: false }
 
-  const lines = content.split('\n')
+  // CommonMark normalizes CRLF to LF before parsing, so chunks carry LF too. Every line-anchored
+  // match below would otherwise be blind to the `\r` a CRLF document leaves at each line end: a
+  // `$$` run that never closes, or a list marker that never matches, suppresses every later
+  // boundary and sends the whole document to the plain-text fallback.
+  const lines = content.split(/\r?\n/)
+  // A trailing terminator ends its line rather than starting another, so the split's last element is
+  // not a line. The long-line average counts lines, and an extra empty one would halve it.
+  const lineCount = content.endsWith('\n') ? lines.length - 1 : lines.length
   // The next line with content on it, so a run of blank lines belongs to the block that spans it.
   const nextContent = new Array<number>(lines.length).fill(-1)
   for (let i = lines.length - 2, next = -1; i >= 0; i--) {
@@ -223,6 +242,7 @@ export function splitMarkdownChunks(
 
   const definitions: string[] = []
   const boundaries: number[] = []
+  let contentChars = 0
   let bufferChars = 0
   let fence: Fence | null = null
   let dollarFence = 0
@@ -236,6 +256,7 @@ export function splitMarkdownChunks(
     const line = lines[i]
     const blank = line.trim() === ''
     bufferChars += line.length + 1
+    contentChars += line.length
 
     if (fence) {
       if (isClosingFence(line, fence)) fence = null
@@ -339,7 +360,7 @@ export function splitMarkdownChunks(
     })
     start = end
   }
-  return chunks
+  return { chunks, longLines: isPathologicalLineShape(lineCount, contentChars) }
 }
 
 /**

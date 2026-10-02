@@ -7,6 +7,19 @@
  */
 const MAX_AVERAGE_LINE_CHARS = 5000
 
+/**
+ * The same rule, for a caller that already measured the lines — the Markdown splitter does, while it
+ * walks them, so it does not have to walk the source a second time to ask.
+ *
+ * @param lines - Line count, terminators included as separators rather than as content.
+ * @param contentChars - Content characters, excluding every line terminator.
+ */
+export function isPathologicalLineShape(lines: number, contentChars: number): boolean {
+  if (lines === 0) return false
+  // The newline separators are not content, so a 5,000-character line lands on the limit, not past it.
+  return contentChars / lines > MAX_AVERAGE_LINE_CHARS
+}
+
 /** Line count and content length without materializing the line array. */
 function measureLines(content: string): { lines: number; contentChars: number } {
   if (content.length === 0) return { lines: 0, contentChars: 0 }
@@ -32,7 +45,5 @@ function measureLines(content: string): { lines: number; contentChars: number } 
  */
 export function hasPathologicalLongLines(content: string): boolean {
   const { lines, contentChars } = measureLines(content)
-  if (lines === 0) return false
-  // The newline separators are not content, so a 5,000-character line lands on the limit, not past it.
-  return contentChars / lines > MAX_AVERAGE_LINE_CHARS
+  return isPathologicalLineShape(lines, contentChars)
 }
