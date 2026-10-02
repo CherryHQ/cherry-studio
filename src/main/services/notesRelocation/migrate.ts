@@ -13,6 +13,22 @@ import { assertNotesRelocationPaths, NotesRelocationValidationError } from './va
 
 const logger = loggerService.withContext('NotesRelocation')
 
+async function assertNonMergeDestinationAbsent(destinationPath: string): Promise<void> {
+  try {
+    await fs.promises.lstat(destinationPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return
+    }
+    throw error
+  }
+
+  throw new IpcError(
+    notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+    'target entry appeared during migration'
+  )
+}
+
 async function digestFile(filePath: string): Promise<string> {
   return await new Promise((resolve, reject) => {
     const hash = createHash('sha256')
@@ -192,6 +208,9 @@ export async function migrateNotesDirectory(
       const from = path.join(resolvedSource, entry.name)
       const to = path.join(resolvedTarget, entry.name)
       if (entry.isDirectory()) {
+        if (!options.merge) {
+          await assertNonMergeDestinationAbsent(to)
+        }
         await copyDirectoryRecursive(from, to, copyOptions)
         continue
       }
@@ -209,6 +228,9 @@ export async function migrateNotesDirectory(
       }
       if (targetEntry && copyOptions?.skipExistingFiles) {
         continue
+      }
+      if (!options.merge) {
+        await assertNonMergeDestinationAbsent(to)
       }
       await fs.promises.copyFile(from, to)
     }

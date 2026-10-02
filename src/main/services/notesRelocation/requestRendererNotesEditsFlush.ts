@@ -36,9 +36,9 @@ export function unregisterRendererNotesEditsFlushWindow(windowId: string): void 
     if (!pending.expected.has(windowId)) {
       continue
     }
-    clearTimeout(pending.timer)
-    pendingByRequestId.delete(requestId)
-    pending.reject(
+    rejectPendingFlush(
+      pending,
+      requestId,
       new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
         'renderer unregistered before notes edit flush completed'
@@ -47,7 +47,7 @@ export function unregisterRendererNotesEditsFlushWindow(windowId: string): void 
   }
 }
 
-function listRegisteredFlushTargetWindowIds(): string[] {
+function listOpenNotesFlushCapableWindowIds(): string[] {
   const windowManager = application.get('WindowManager')
   return BrowserWindow.getAllWindows()
     .filter((window) => !window.isDestroyed())
@@ -60,15 +60,66 @@ function listRegisteredFlushTargetWindowIds(): string[] {
       if (windowType == null || !NOTES_FLUSH_WINDOW_TYPES.has(windowType)) {
         return null
       }
-      if (!registeredFlushWindowIds.has(windowId)) {
-        return null
-      }
       return windowId
     })
     .filter((id): id is string => id != null)
 }
 
+function listRegisteredFlushTargetWindowIds(): string[] {
+  return listOpenNotesFlushCapableWindowIds().filter((windowId) => registeredFlushWindowIds.has(windowId))
+}
+
+function assertAllOpenNotesWindowsRegisteredForFlush(): void {
+  const openWindowIds = listOpenNotesFlushCapableWindowIds()
+  const missingListener = openWindowIds.filter((windowId) => !registeredFlushWindowIds.has(windowId))
+  if (missingListener.length > 0) {
+    throw new IpcError(
+      notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
+      'notes flush listener is not registered on all notes renderer windows'
+    )
+  }
+}
+
+function isFlushTargetWindowAvailable(windowId: string): boolean {
+  const windowManager = application.get('WindowManager')
+  return BrowserWindow.getAllWindows().some((window) => {
+    if (window.isDestroyed()) {
+      return false
+    }
+    return windowManager.getWindowId(window) === windowId
+  })
+}
+
+function rejectPendingFlush(
+  pending: PendingFlush,
+  requestId: string,
+  error: IpcError
+): void {
+  clearTimeout(pending.timer)
+  pendingByRequestId.delete(requestId)
+  pending.reject(error)
+}
+
+function dropUnavailablePendingFlushTargets(requestId: string, pending: PendingFlush): void {
+  for (const windowId of [...pending.expected]) {
+    if (isFlushTargetWindowAvailable(windowId)) {
+      continue
+    }
+    rejectPendingFlush(
+      pending,
+      requestId,
+      new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
+        'renderer closed before notes edit flush completed'
+      )
+    )
+    return
+  }
+}
+
 export async function requestRendererNotesEditsFlush(): Promise<void> {
+  assertAllOpenNotesWindowsRegisteredForFlush()
+
   const windowIds = listRegisteredFlushTargetWindowIds()
 
   if (windowIds.length === 0) {
@@ -80,7 +131,18 @@ export async function requestRendererNotesEditsFlush(): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
-      pendingByRequestId.delete(requestId)
+      const pending = pendingByRequestId.get(requestId)
+      if (pending) {
+        rejectPendingFlush(
+          pending,
+          requestId,
+          new IpcError(
+            notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
+            'timed out waiting for notes edit flush acknowledgements'
+          )
+        )
+        return
+      }
       reject(
         new IpcError(
           notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED,
@@ -89,7 +151,29 @@ export async function requestRendererNotesEditsFlush(): Promise<void> {
       )
     }, FLUSH_TIMEOUT_MS)
 
-    pendingByRequestId.set(requestId, { expected, resolve, reject, timer })
+    const availabilityTimer = setInterval(() => {
+      const pending = pendingByRequestId.get(requestId)
+      if (!pending) {
+        clearInterval(availabilityTimer)
+        return
+      }
+      dropUnavailablePendingFlushTargets(requestId, pending)
+    }, 500)
+
+    const pending: PendingFlush = {
+      expected,
+      resolve: () => {
+        clearInterval(availabilityTimer)
+        resolve()
+      },
+      reject: (error) => {
+        clearInterval(availabilityTimer)
+        reject(error)
+      },
+      timer
+    }
+
+    pendingByRequestId.set(requestId, pending)
     application.get('IpcApiService').broadcast('app.notes_relocation.flush_edits', { requestId })
   })
 }
@@ -104,12 +188,23 @@ export function acknowledgeRendererNotesEditsFlush(requestId: string, senderId: 
     return
   }
 
+  if (!pending.expected.has(senderId)) {
+    return
+  }
+
+  dropUnavailablePendingFlushTargets(requestId, pending)
+  if (!pendingByRequestId.has(requestId)) {
+    return
+  }
+
   pending.expected.delete(senderId)
 
   if (!ok) {
-    clearTimeout(pending.timer)
-    pendingByRequestId.delete(requestId)
-    pending.reject(new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED, 'notes edit flush failed'))
+    rejectPendingFlush(
+      pending,
+      requestId,
+      new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED, 'notes edit flush failed')
+    )
     return
   }
 
