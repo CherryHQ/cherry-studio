@@ -125,20 +125,31 @@ describe('splitMarkdownChunks', () => {
     expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
   })
 
-  it('still windows an ordered list whose markers name the numbers it renders', () => {
-    const content = ['1. first', '', '2. second', '', '3. third'].join('\n')
+  it('keeps a blank-separated list in one chunk', () => {
+    // A one-item chunk parses as a tight list, so the split pieces render without the paragraph
+    // that a loose list wraps every item in.
+    const content = ['- first', '', '- second', '', '- third'].join('\n')
 
-    expect(splitMarkdownChunks(content, 1)).toHaveLength(3)
+    expect(splitMarkdownChunks(content, 1)).toHaveLength(1)
   })
 
-  it('still windows the ordered lists of a document where a heading ends the first one', () => {
-    const content = ['1. first', '', '1. second', '', '# heading', '', '1. third', '', '2. fourth'].join('\n')
+  it('still windows between a list and the blocks around it', () => {
+    const content = ['para one', '', '1. first', '1. second', '', 'para two', '', 'para three'].join('\n')
 
     const chunks = splitMarkdownChunks(content, 1)
 
     expect(chunks).toHaveLength(4)
+    expect(chunks[1].text).toContain('1. first\n1. second')
+  })
+
+  it('still windows the lists of a document where a heading ends the first one', () => {
+    const content = ['1. first', '', '1. second', '', '# heading', '', '1. third', '', '2. fourth'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks).toHaveLength(3)
     expect(chunks[0].text).toContain('1. first\n\n1. second')
-    expect(chunks[3].text).toContain('2. fourth')
+    expect(chunks[2].text).toContain('1. third\n\n2. fourth')
   })
 
   it('carries a link reference definition into the chunk that uses it', () => {

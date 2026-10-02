@@ -3,7 +3,8 @@
  *
  * Each chunk renders as its own Markdown document, so a boundary may only fall on a blank line
  * where every spanning construct is closed — fenced code, display math, raw HTML, indented code —
- * and where an ordered list keeps the numbering it has as one list.
+ * and outside every list: a list split apart renumbers its ordered items and turns loose items
+ * tight, because a one-item list parses differently from the list it was cut out of.
  *
  * Reference definitions belong to the document rather than to a chunk: a link used in one chunk may
  * be defined in another, and a reference whose definition is missing degrades to literal text. Every
@@ -71,8 +72,14 @@ const FOOTNOTE_DEFINITION_START = /^\s{0,3}\[\^[^\]]+\]:/
 
 const INDENTED_LINE = /^\s+\S/
 
-/** An ordered item marker, with the indentation and delimiter that identify its list. */
-const ORDERED_ITEM = /^( {0,3})(\d{1,9})([.)])(?:[ \t]|$)/
+/**
+ * A list item marker, with the indentation and the marker that identify its list. A list ends where
+ * its marker changes: `- a` and `* b` are two lists, as are `1. a` and `2) b`.
+ */
+const LIST_ITEM = /^( {0,3})(?:([-+*])|(\d{1,9})([.)]))(?=[ \t]|$)/
+
+/** Not a list item but a thematic break, which ends the list above it. */
+const THEMATIC_BREAK = /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/
 
 /**
  * A block start at column 0. Lazy continuation is the only line a list item owns there, and it never
@@ -113,24 +120,17 @@ function dollarFenceClosesOnOwnLine(line: string, fence: number): boolean {
   return [...line.matchAll(/\$+/g)].slice(1).some((match) => match[0].length === fence)
 }
 
-interface OrderedRun {
+interface ListRun {
   indent: string
-  delimiter: string
-  /** The number of the last sibling item; the list renders one more per item from its first marker. */
-  last: number
-  /** Whether the written numbers so far are the ones the list renders, so a break would not renumber. */
-  sequential: boolean
+  /** The marker that identifies the list: a bullet character or an ordered delimiter. */
+  marker: string
 }
 
-function trackOrderedItem(run: OrderedRun | null, item: RegExpExecArray): OrderedRun {
-  const [, indent, digits, delimiter] = item
-  const number = Number(digits)
-  // A deeper marker belongs to a nested list, which cannot renumber this one.
+function trackListItem(run: ListRun | null, item: RegExpExecArray): ListRun {
+  const [, indent, bullet, , delimiter] = item
+  // A deeper marker belongs to a nested list, which the run above it already spans.
   if (run && indent.length > run.indent.length) return run
-  if (run && indent.length === run.indent.length && delimiter === run.delimiter) {
-    return { indent, delimiter, last: number, sequential: run.sequential && number === run.last + 1 }
-  }
-  return { indent, delimiter, last: number, sequential: true }
+  return { indent, marker: bullet ?? delimiter }
 }
 
 /**
@@ -163,7 +163,7 @@ export function splitMarkdownChunks(
   let htmlTerminator: RegExp | null = null
   let inDefinition = false
   let footnoteDefinition = false
-  let run: OrderedRun | null = null
+  let run: ListRun | null = null
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -224,9 +224,10 @@ export function splitMarkdownChunks(
     }
     inDefinition = false
 
-    const item = ORDERED_ITEM.exec(line)
+    // A thematic break carries an item marker at its head but is a block of its own.
+    const item = THEMATIC_BREAK.test(line) ? null : LIST_ITEM.exec(line)
     if (item) {
-      run = trackOrderedItem(run, item)
+      run = trackListItem(run, item)
       continue
     }
     if (TOP_LEVEL_BLOCK_START.test(line)) run = null
@@ -235,14 +236,13 @@ export function splitMarkdownChunks(
     if (!blank) continue
     const followedBy = nextContent[i]
     if (followedBy >= 0 && INDENTED_LINE.test(lines[followedBy])) continue
-    const nextItem = followedBy >= 0 ? ORDERED_ITEM.exec(lines[followedBy]) : null
-    // An ordered list numbers its items from its first marker, so a boundary is free only where the
-    // written number already is the one that list would render here.
-    if (run !== null && nextItem !== null && nextItem[1] === run.indent && nextItem[3] === run.delimiter) {
-      if (!run.sequential || Number(nextItem[2]) !== run.last + 1) continue
-    } else {
-      run = null
-    }
+    const nextItem = followedBy >= 0 ? LIST_ITEM.exec(lines[followedBy]) : null
+    // A list is one block: its items number themselves from its first marker and its blank lines
+    // are what make it loose, so only a blank line the list does not span is free.
+    const listContinues =
+      run !== null && nextItem !== null && nextItem[1] === run.indent && (nextItem[2] ?? nextItem[4]) === run.marker
+    if (listContinues) continue
+    run = null
     if (bufferChars >= budgetChars) {
       boundaries.push(i + 1)
       bufferChars = 0
