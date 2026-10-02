@@ -166,6 +166,7 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  */
 export const KnowledgeBaseEntitySchema = z.strictObject({
   id: KnowledgeBaseIdSchema,
+  orderKey: z.string().min(1),
   name: z.string().trim().min(1),
   groupId: GroupIdSchema.nullable(),
   dimensions: z.number().int().positive().nullable(),
@@ -189,7 +190,7 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
  * schema and the pre-write candidate schema so a rule is defined exactly once.
  */
 function refineKnowledgeBaseInvariants(
-  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'>,
   ctx: z.RefinementCtx
 ): void {
   if (value.status === 'completed') {
@@ -246,6 +247,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
  * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
  */
 export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  orderKey: true,
   id: true,
   createdAt: true,
   updatedAt: true

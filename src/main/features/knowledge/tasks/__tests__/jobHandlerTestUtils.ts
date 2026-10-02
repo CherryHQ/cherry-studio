@@ -221,6 +221,7 @@ type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<J
 
 export function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,

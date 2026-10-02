@@ -31,6 +31,7 @@ export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocu
   const enabled = options.enabled !== false
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases', {
+    query: { sortBy: 'orderKey', sortOrder: 'asc' },
     limit: KNOWLEDGE_BASES_MAX_LIMIT,
     enabled: options.enabled,
     swrOptions: {
