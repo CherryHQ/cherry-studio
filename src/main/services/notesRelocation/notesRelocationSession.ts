@@ -19,6 +19,14 @@ export function releaseNotesRelocationSession(ownerId: string): void {
   }
 }
 
+export function abandonNotesRelocationSession(ownerId: string): boolean {
+  if (notesRelocationSessionOwnerId !== ownerId) {
+    return false
+  }
+  notesRelocationSessionOwnerId = null
+  return true
+}
+
 export function isNotesRelocationSessionActive(): boolean {
   return notesRelocationSessionOwnerId != null
 }

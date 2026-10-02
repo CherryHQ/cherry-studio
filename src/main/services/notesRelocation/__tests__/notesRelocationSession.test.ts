@@ -4,6 +4,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
 import {
+  abandonNotesRelocationSession,
   acquireNotesRelocationSession,
   releaseNotesRelocationSession
 } from '../notesRelocationSession'
@@ -30,5 +31,13 @@ describe('notesRelocationSession', () => {
     expect(() => acquireNotesRelocationSession('window-c')).toThrow(IpcError)
 
     releaseNotesRelocationSession('window-a')
+  })
+
+  it('abandons the session only for the owning window', () => {
+    acquireNotesRelocationSession('window-a')
+    expect(abandonNotesRelocationSession('window-b')).toBe(false)
+    expect(abandonNotesRelocationSession('window-a')).toBe(true)
+    expect(() => acquireNotesRelocationSession('window-c')).not.toThrow()
+    releaseNotesRelocationSession('window-c')
   })
 })
