@@ -28,7 +28,7 @@ import {
   listDetachedBackgroundTasks,
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
-import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
+import { saveBackgroundTaskRecord, saveBackgroundTaskRecords } from '@main/ai/agents/backgroundTaskStore'
 import {
   detectDestructiveAssistantCommand,
   isGitHubIssueCreationCommand,
@@ -893,7 +893,7 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
     }
     case 'list': {
       const tasks = await listDetachedBackgroundTasks(backgroundTaskStorageDir(ctx))
-      for (const task of tasks) indexBackgroundTask(ctx, task)
+      indexBackgroundTasks(ctx, tasks)
       return { content: [{ type: 'text', text: JSON.stringify({ tasks }, null, 2) }] }
     }
     case 'stop':
@@ -905,6 +905,15 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
       indexBackgroundTask(ctx, record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
+  }
+}
+
+/** One transaction for the whole listing, so a large task set costs one write, not one per row. */
+function indexBackgroundTasks(ctx: AutonomyToolsContext, records: BackgroundTaskRecord[]): void {
+  try {
+    saveBackgroundTaskRecords(ctx.agentId, records)
+  } catch (error) {
+    logger.error('Failed to index detached background tasks', { agentId: ctx.agentId, error })
   }
 }
 

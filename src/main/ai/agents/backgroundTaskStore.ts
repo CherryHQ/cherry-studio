@@ -36,3 +36,30 @@ export function listBackgroundTaskRecords(agentId: string): BackgroundTaskRecord
     .all()
     .map(({ record }) => record)
 }
+
+/**
+ * Index a whole reconciliation in one transaction. The panel polls every three seconds, so one
+ * transaction per record turned a steady-state poll into a write burst that grew with the number of
+ * finished tasks, all of it re-writing rows that had not changed.
+ */
+export function saveBackgroundTaskRecords(agentId: string, records: BackgroundTaskRecord[]): void {
+  if (records.length === 0) return
+  application.get('DbService').withWriteTx((tx) => {
+    for (const record of records) {
+      tx.insert(agentBackgroundTaskTable)
+        .values({
+          id: record.id,
+          agentId,
+          status: record.status,
+          record,
+          startedAt: record.startedAt,
+          finishedAt: record.finishedAt ?? null
+        })
+        .onConflictDoUpdate({
+          target: agentBackgroundTaskTable.id,
+          set: { status: record.status, record, finishedAt: record.finishedAt ?? null }
+        })
+        .run()
+    }
+  })
+}
