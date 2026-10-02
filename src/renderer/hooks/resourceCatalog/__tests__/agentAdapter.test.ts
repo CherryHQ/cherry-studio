@@ -1,18 +1,21 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
+import { agentAdapter, useAgentMutations, useAgentMutationsById } from '../agentAdapter'
 
 const triggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const useQueryMock = vi.hoisted(() => vi.fn())
+const useDataChangeMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useMutation: useMutationMock,
-  useQuery: vi.fn(),
-  useDataChange: vi.fn()
+  useQuery: useQueryMock,
+  useDataChange: useDataChangeMock
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
@@ -125,5 +128,33 @@ describe('useAgentMutations', () => {
 
     expect(result.current.isCreatingAgent).toBe(false)
     expect(invalidateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('agentAdapter.useList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useQueryMock.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchMock
+    })
+  })
+
+  it('refetches the list when agents change in another window', () => {
+    renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(useDataChangeMock).toHaveBeenCalledWith('/agents', expect.any(Function))
+    const listener = useDataChangeMock.mock.calls.at(-1)?.[1] as (effects: unknown[]) => void
+    act(() => listener([]))
+    expect(refetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('subscribes to no data change while the list is disabled', () => {
+    renderHook(() => agentAdapter.useList({ enabled: false }))
+
+    expect(useDataChangeMock).toHaveBeenCalledWith([], expect.any(Function))
   })
 })
